@@ -1,0 +1,3 @@
+[submodule "External/RtPbrSurvey"]
+	path = External/RtPbrSurvey
+	url = https://github.com/wkawamata/RtPbrSurvey.git
