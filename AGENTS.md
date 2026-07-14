@@ -44,7 +44,7 @@ The initial sandbox should support:
 - Turning left and right.
 - Pivot turning in place.
 
-## AI Rules
+## AI Rules (All AIs)
 
 - Do not make large changes at once.
 - Explain why each change is made.
@@ -53,7 +53,9 @@ The initial sandbox should support:
 - Do not leave build errors behind.
 - Ask questions instead of guessing when something is unclear.
 
-## OpenCode Coordination
+## OpenCode Rules
+
+### Coordination
 
 - OpenCode coordination scripts are currently located under `C:\work\RtPbrSurvey-agents`.
 - That folder is a communication and coordination folder for another project.
@@ -63,6 +65,32 @@ The initial sandbox should support:
 - Be explicit when reporting paths:
   - `workspace`: the source checkout being edited.
   - `coordination folder`: the external folder used for OpenCode task handoff, reports, and logs.
+
+### Documents
+
+- Documents written by OpenCode are stored under `Docs/opencode/`.
+- This includes investigation reports, request documents, and integration notes.
+- Keep this convention so that first-party and AI-generated documents are clearly separated.
+
+### Document Rules
+
+- `Docs/` (except `Docs/opencode/`) is readonly for OpenCode. Do not edit or delete files under `Docs/` outside of `Docs/opencode/`.
+- `Docs/roadmap/` contains human-written roadmap and goal documents.
+- OpenCode reads these as readonly inputs.
+- OpenCode's analysis or working copies go under `Docs/opencode/roadmap/`.
+- Do not edit files under `Docs/roadmap/` from OpenCode.
+
+- `Docs/rtpbrsurvey-requests/` contains Codex-written requests to RtPbrSurvey.
+- OpenCode reads these as readonly inputs.
+- OpenCode mirrors them under `Docs/opencode/rtpbrsurvey-requests/` and appends annotations.
+- Do not edit files under `Docs/rtpbrsurvey-requests/` from OpenCode.
+
+## Codex Rules
+
+### Documents
+
+- Codex treats `Docs/opencode/` as readonly. Do not edit files under `Docs/opencode/` from Codex.
+- Codex-authored documentation must go outside `Docs/opencode/`.
 
 ## Roadmap
 
