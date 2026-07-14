@@ -1,3 +1,6 @@
 [submodule "External/RtPbrSurvey"]
 	path = External/RtPbrSurvey
 	url = https://github.com/wkawamata/RtPbrSurvey.git
+[submodule "External/JoltPhysics"]
+	path = External/JoltPhysics
+	url = https://github.com/jrouwe/JoltPhysics.git
