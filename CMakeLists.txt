@@ -23,6 +23,9 @@ set(USE_TZCNT ON)
 set(USE_F16C ON)
 set(USE_FMADD ON)
 
+# Match project's dynamic CRT (/MDd /MD) instead of Jolt's default static CRT
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF)
+
 # Suppress Jolt's own warning flags so they don't leak into our target
 set(ENABLE_ALL_WARNINGS OFF)
 set(OVERRIDE_CXX_FLAGS OFF)
