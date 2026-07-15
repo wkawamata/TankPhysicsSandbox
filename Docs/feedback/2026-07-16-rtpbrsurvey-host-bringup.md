@@ -71,3 +71,34 @@ When `ReadDataFromFile` fails for `.cso`:
 ## Follow-Up
 
 The temporary adapter diagnostics are useful during bring-up, but should later become either a controlled debug option or be removed before the renderer integration is considered stable.
+
+## API Usability Feedback
+
+`Engine::SceneBuilder::AddInstance(world, materialId)` is easy to misuse because the expected matrix convention is not obvious from the function name or signature.
+
+Existing RtPbrSurvey scene code commonly stores transposed matrices in `InstanceData.world`, for example:
+
+```cpp
+XMStoreFloat4x4(&instance.world, XMMatrixTranspose(transform));
+```
+
+However, Tank-side host code naturally tends to pass a DirectXMath world matrix directly:
+
+```cpp
+builder.AddInstance(XMMatrixTranslation(0.0f, 0.5f, 0.0f), materialId);
+```
+
+If `SceneBuilder::AddInstance()` expects the caller to already provide the renderer/storage convention, this should be made explicit. Otherwise, external hosts can create apparently valid scenes that render nothing or render in unexpected positions.
+
+This also makes host code unnecessarily verbose. Requiring every caller to wrap ordinary transforms with `XMMatrixTranspose(...)` spreads renderer storage details into application code and makes simple scene setup harder to read.
+
+Possible improvements:
+
+- Document the expected matrix convention directly on `SceneBuilder::AddInstance()`.
+- Rename or split the API to make the convention explicit, such as `AddInstanceStorageMatrix()` versus `AddInstanceWorldMatrix()`.
+- Prefer having `SceneBuilder::AddInstance()` accept a normal DirectXMath world matrix and perform any required transpose/storage conversion internally.
+- Add a small host integration sample that shows the correct matrix path for fixed cube/sphere primitives.
+
+Recommendation:
+
+For external host usability, `SceneBuilder` should accept normal world matrices at its public boundary and hide renderer storage details internally. If changing behavior would break existing scenes, add a new explicit helper and deprecate the ambiguous path gradually.

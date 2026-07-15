@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_subdirectory(External/RtPbrSurvey)
 
+find_package(directx-headers CONFIG REQUIRED)
+
 add_executable(TankSandbox
     src/main.cpp
     src/stdafx.h
@@ -15,6 +17,11 @@ add_executable(TankSandbox
 )
 
 set_target_properties(TankSandbox PROPERTIES WIN32_EXECUTABLE TRUE)
+
+target_include_directories(TankSandbox
+    PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_generated>
+)
 
 target_link_libraries(TankSandbox
     PRIVATE
@@ -34,6 +41,17 @@ set(D3D12_AGILITY_REDIST_DIR
     CACHE PATH
     "Directory containing D3D12Core.dll and D3D12SDKLayers.dll for the D3D12 Agility SDK."
 )
+
+# Copy RtPbrSurvey runtime assets (HDR environment maps, etc.)
+set(RTPBRSURVEY_ASSET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/External/RtPbrSurvey/Assets")
+if(EXISTS "${RTPBRSURVEY_ASSET_DIR}")
+    add_custom_command(TARGET TankSandbox POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${RTPBRSURVEY_ASSET_DIR}"
+            "$<TARGET_FILE_DIR:TankSandbox>/Assets"
+        COMMENT "Copying RtPbrSurvey runtime assets next to TankSandbox."
+    )
+endif()
 
 if(EXISTS "${D3D12_AGILITY_REDIST_DIR}/D3D12Core.dll")
     add_custom_command(TARGET TankSandbox POST_BUILD

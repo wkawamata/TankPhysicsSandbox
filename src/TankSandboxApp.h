@@ -32,6 +32,8 @@ private:
     void InitializeImGui();
     void UpdateUiFrame();
     void DrawToolUi();
+    void FlushD3d12DebugLog();
+    void LogFps(float cpuFrameTimeMs);
 
     static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
     static constexpr UINT kImGuiDescriptorCount = 100;
@@ -42,4 +44,9 @@ private:
     ComPtr<ID3D12DescriptorHeap> m_imguiHeap;
     Engine::ImGuiSystem m_imguiSystem;
     RtPbrSurvey::SceneRenderer m_sceneRenderer;
+
+    // Debug logging to file (-LogToFile).
+    ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;
+    FILE* m_logFile = nullptr;
+    UINT64 m_fpsLogFrameCounter = 0;
 };
