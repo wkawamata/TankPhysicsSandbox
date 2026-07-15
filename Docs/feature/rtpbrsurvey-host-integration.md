@@ -48,6 +48,7 @@ If `D3D12CreateDevice` fails with `D3D12_ERROR_INVALID_REDIST`, check the Agilit
 
 If `ReadDataFromFile` fails for a `.cso`, check the CMake shader build/copy rules before changing renderer loading code.
 
+
 ## Expected Host Flow
 
 Pseudo-flow for the eventual Tank host app:
