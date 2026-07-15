@@ -1,0 +1,18 @@
+{
+  "name": "tank-physics-sandbox",
+  "version": "0.1.0",
+  "dependencies": [
+    "directx-headers",
+    {
+      "name": "imgui",
+      "features": ["dx12-binding", "win32-binding"]
+    },
+    "tinygltf",
+    "nlohmann-json",
+    "winpixevent"
+  ],
+  "builtin-baseline": "e5a4f54c0d562059e9ccc6f7e7150667da58fe41",
+  "overrides": [
+    { "name": "directx-headers", "version": "1.619.1" }
+  ]
+}
