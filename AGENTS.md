@@ -52,6 +52,13 @@ The initial sandbox should support:
 - Keep refactoring separate from functional changes.
 - Do not leave build errors behind.
 - Ask questions instead of guessing when something is unclear.
+- When integrating RtPbrSurvey from CMake, verify runtime assets before debugging renderer code:
+  - `D3D12/D3D12Core.dll`
+  - `D3D12/D3D12SDKLayers.dll`
+  - required `*.cso` shader files next to the executable
+  - required runtime DLLs such as `dxcompiler.dll`, `dxil.dll`, and `WinPixEventRuntime.dll` when used.
+- If `D3D12CreateDevice` returns `D3D12_ERROR_INVALID_REDIST`, compare the Tank executable output folder with the working RtPbrSurvey output folder before changing adapter-selection code.
+- If `ReadDataFromFile` fails for a shader `.cso`, check shader generation/copy rules before changing renderer resource-loading code.
 
 ## OpenCode Coordination
 
@@ -60,9 +67,18 @@ The initial sandbox should support:
 - Do not treat `C:\work\RtPbrSurvey-agents` as part of this project's workspace.
 - For Tank Physics Sandbox, keep the source workspace as `C:\work\TankPhysicsSandbox`.
 - If this project needs its own OpenCode task folders, use a separate coordination folder such as `C:\work\TankPhysicsSandbox-agents`.
+- For Codex, `Docs/opencode/` is read-only.
+- OpenCode must write project documentation only under `Docs/opencode/`.
+- Codex-authored documentation must go outside `Docs/opencode/`.
 - Be explicit when reporting paths:
   - `workspace`: the source checkout being edited.
   - `coordination folder`: the external folder used for OpenCode task handoff, reports, and logs.
+
+## Feedback Documents
+
+- Put Codex-written feedback and postmortem notes under `Docs/feedback/`.
+- Include what failed, the confirmed root cause, the fix, and a short prevention checklist.
+- Keep feedback documents factual and suitable for future agents to use before repeating the same investigation.
 
 ## Roadmap
 
