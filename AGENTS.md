@@ -52,6 +52,13 @@ The initial sandbox should support:
 - Keep refactoring separate from functional changes.
 - Do not leave build errors behind.
 - Ask questions instead of guessing when something is unclear.
+- When integrating RtPbrSurvey from CMake, verify runtime assets before debugging renderer code:
+  - `D3D12/D3D12Core.dll`
+  - `D3D12/D3D12SDKLayers.dll`
+  - required `*.cso` shader files next to the executable
+  - required runtime DLLs such as `dxcompiler.dll`, `dxil.dll`, and `WinPixEventRuntime.dll` when used.
+- If `D3D12CreateDevice` returns `D3D12_ERROR_INVALID_REDIST`, compare the Tank executable output folder with the working RtPbrSurvey output folder before changing adapter-selection code.
+- If `ReadDataFromFile` fails for a shader `.cso`, check shader generation/copy rules before changing renderer resource-loading code.
 
 ## OpenCode Rules
 

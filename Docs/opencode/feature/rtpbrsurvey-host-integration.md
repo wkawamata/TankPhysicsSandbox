@@ -34,21 +34,6 @@ Because Tank Physics Sandbox uses CMake, the next clean increment should avoid c
 
 If the renderer API feels awkward from the Tank side, document the requirement here instead of adding Tank-specific APIs inside `RtPbrSurvey`.
 
-## Runtime Packaging Notes
-
-The Tank CMake host must reproduce runtime files that RtPbrSurvey's MSBuild project normally places beside the executable.
-
-Required early bring-up files:
-
-- `D3D12/D3D12Core.dll`
-- `D3D12/D3D12SDKLayers.dll`
-- RtPbrSurvey shader `*.cso` files, including `shaders_DebugLine_VSMain.cso`
-
-If `D3D12CreateDevice` fails with `D3D12_ERROR_INVALID_REDIST`, check the Agility SDK runtime folder before changing adapter-selection code.
-
-If `ReadDataFromFile` fails for a `.cso`, check the CMake shader build/copy rules before changing renderer loading code.
-
-
 ## Expected Host Flow
 
 Pseudo-flow for the eventual Tank host app:

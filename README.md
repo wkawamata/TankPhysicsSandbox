@@ -19,6 +19,7 @@ The project focuses on convincing vehicle physics before gameplay. Physics and r
 - Jolt Physics (`v5.6.0`) integrated as a Git submodule under `External/JoltPhysics`.
 - Minimal physics scene running: ground plane + dynamic box (headless, no rendering needed).
 - `RtPbrSurvey` included as a Git submodule under `External/RtPbrSurvey` for optional test rendering.
+- D3D12 renderer host integration complete: procedural cube scene rendered through `RtPbrSurvey::SceneRenderer`.
 
 ## Prerequisites
 
@@ -43,7 +44,9 @@ If `cmake` is not on `PATH`, use the Visual Studio bundled CMake executable at `
 .\build\Debug\TankSandbox.exe
 ```
 
-The program simulates a box falling onto a ground plane and prints position and velocity at each step until the box settles.
+The D3D12 renderer version (default) launches a window with a green background and a red cube.
+The headless Jolt physics demo can be selected by adding `-Warp` and adjusting the main entry point.
+
 
 ## Documentation
 

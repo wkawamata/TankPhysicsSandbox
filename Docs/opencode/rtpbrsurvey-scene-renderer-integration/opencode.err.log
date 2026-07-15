@@ -1,0 +1,71 @@
+[0m
+> build · big-pickle
+[0m
+[0m→ [0mRead C:/work/RtPbrSurvey-agents/tank-rtpbr-minimal-connection-inventory/task.md
+[0m→ [0mRead C:/work/RtPbrSurvey-agents/tank-rtpbr-minimal-connection-inventory/report.md
+[0m
+[0m← [0mWrite C:/work/RtPbrSurvey-agents/tank-rtpbr-minimal-connection-inventory/report.md
+Wrote file successfully.
+[0m
+[0m→ [0mRead .
+[0m
+[0m$ [0mgit branch --show-current; echo "---"; git status --short
+feature/rtpbrsurvey-submodule
+---
+[0m
+[0m✱ [0mGlob "**/*.cmake"[90m in . · 0 matches[0m
+[0m✱ [0mGlob "**/CMakeLists.txt"[90m in . · 0 matches[0m
+[0m✱ [0mGlob "**/*.cpp"[90m in . · 43 matches[0m
+[0m✱ [0mGlob "**/*.h"[90m in . · 62 matches[0m
+[0m✱ [0mGlob "**/.gitmodules"[90m in . · 1 match[0m
+[0m✱ [0mGlob "**/*.json"[90m in . · 2 matches[0m
+[0m→ [0mRead .gitmodules
+[0m→ [0mRead External/RtPbrSurvey
+[0m→ [0mRead Docs
+[0m→ [0mRead External
+[0m→ [0mRead External/RtPbrSurvey/App/RtPbrSurveyApp.h
+[0m→ [0mRead External/RtPbrSurvey/Engine/RtPbrSurveyEngine.h
+[0m→ [0mRead External/RtPbrSurvey/Platform/IApplication.h
+[0m→ [0mRead External/RtPbrSurvey/Platform/Win32Application.h
+[0m→ [0mRead External/RtPbrSurvey/Scene/Scene.h
+[0m→ [0mRead External/RtPbrSurvey/Ui/ImGuiSystem.h
+[0m→ [0mRead External/RtPbrSurvey/Platform/Win32Application.cpp
+[0m→ [0mRead External/RtPbrSurvey/Main.cpp
+[0m→ [0mRead External/RtPbrSurvey/App/RtPbrSurveyApp.cpp[90m [limit=100][0m
+[0m→ [0mRead External/RtPbrSurvey/Engine/RtPbrSurveyEngine.cpp[90m [limit=80][0m
+[0m→ [0mRead Docs
+[0m→ [0mRead External/RtPbrSurvey/Scene/ProceduralSceneBuilder.h
+[0m→ [0mRead External/RtPbrSurvey/Scene/SceneFactory.h
+[0m→ [0mRead External/RtPbrSurvey/Scene/SampleScene.h
+[0m→ [0mRead Docs/feature
+[0m→ [0mRead README.md
+[0m→ [0mRead External/RtPbrSurvey/RtPbrSurvey.vcxproj[90m [limit=60][0m
+[0m→ [0mRead External/RtPbrSurvey/vcpkg.json
+[0m→ [0mRead External/RtPbrSurvey/Engine/Rhi/Dx12/GraphicsDevice.h
+[0m→ [0mRead Docs/feature/rtpbrsurvey-submodule.md
+[0m→ [0mRead AGENTS.md
+[0m→ [0mRead External/RtPbrSurvey/Engine/RtPbrSurveyEngine.cpp[90m [offset=81, limit=60][0m
+[0m✱ [0mGrep "ToolUiHandler|toolUiHandler|m_toolUiHandler"[90m in External/RtPbrSurvey · 0 matches[0m
+[0m✱ [0mGrep "SetToolUiHandler"[90m in External/RtPbrSurvey · 0 matches[0m
+[0m✱ [0mGrep "UiRenderHandler|uiRenderHandler"[90m in External/RtPbrSurvey · 4 matches[0m
+[0m→ [0mRead External/RtPbrSurvey/App/RtPbrSurveyApp.cpp[90m [offset=100, limit=120][0m
+[0m→ [0mRead External/RtPbrSurvey/App/DebugUi.h
+[0m→ [0mRead External/RtPbrSurvey/App/RtPbrSurveyApp.cpp[90m [offset=700, limit=157][0m
+[0m✱ [0mGrep "OnIdle|UpdateUiFrame|RenderFrame|RunFrame"[90m in External/RtPbrSurvey/App/RtPbrSurveyApp.cpp · 6 matches[0m
+[0m→ [0mRead External/RtPbrSurvey/App/RtPbrSurveyApp.cpp[90m [offset=534, limit=20][0m
+[0m
+[0m$ [0mgit log --oneline -10
+ddbb6ae Add RtPbrSurvey submodule
+45e1162 Merge branch 'main' into feature/rtpbrsurvey-submodule
+3edc2a0 Add project agent and docs foundation
+b327b42 Document RtPbrSurvey submodule investigation
+193a8c5 1st commit
+[0m
+[0m← [0mWrite C:/work/RtPbrSurvey-agents/tank-rtpbr-minimal-connection-inventory/report.md
+Wrote file successfully.
+[0m
+[0m$ [0mGet-Content -LiteralPath "C:\work\RtPbrSurvey-agents\tank-rtpbr-minimal-connection-inventory\report.md" | Select-Object -Last 3
+This was a research-only task. No source files were edited. No submodules were updated. No commits, pushes, or branch changes were made.
+
+Status: done
+[0m

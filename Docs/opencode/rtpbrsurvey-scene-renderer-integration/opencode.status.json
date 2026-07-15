@@ -1,0 +1,11 @@
+{
+    "taskDir":  "C:\\work\\RtPbrSurvey-agents\\tank-rtpbr-minimal-connection-inventory",
+    "workspace":  "C:\\work\\TankPhysicsSandbox",
+    "pid":  44112,
+    "startedAt":  "2026-07-15T02:39:51.4519923+09:00",
+    "taskFile":  "C:\\work\\RtPbrSurvey-agents\\tank-rtpbr-minimal-connection-inventory\\task.md",
+    "reportFile":  "C:\\work\\RtPbrSurvey-agents\\tank-rtpbr-minimal-connection-inventory\\report.md",
+    "outLog":  "C:\\work\\RtPbrSurvey-agents\\tank-rtpbr-minimal-connection-inventory\\opencode.out.log",
+    "errLog":  "C:\\work\\RtPbrSurvey-agents\\tank-rtpbr-minimal-connection-inventory\\opencode.err.log",
+    "launchLog":  "C:\\work\\RtPbrSurvey-agents\\tank-rtpbr-minimal-connection-inventory\\opencode.launch.log"
+}
