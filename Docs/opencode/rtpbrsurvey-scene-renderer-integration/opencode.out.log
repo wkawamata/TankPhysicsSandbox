@@ -1,0 +1,20 @@
+Setting status to running, then inspecting the workspace.
+Now let me gather all the information in parallel.
+Now let me dig deeper into the key files.
+Let me check a few more critical files.
+Let me check a few more files for completeness.
+Let me check the feature doc and AGENTS.md.
+Let me check the SetToolUiHandler reference.
+Let me check the ImGui init and rendering in RtPbrSurveyApp.
+Let me check the OnIdle and how ImGui rendering connects.
+Now I have all the information needed. Let me write the complete report.
+Let me verify the final line of the report.
+Report is complete. The final non-empty line is exactly `Status: done`.
+
+**Summary of findings:**
+
+- **Branch:** `feature/rtpbrsurvey-submodule`, clean, 5 commits
+- **No first-party source exists yet** — no CMakeLists.txt, no .cpp/.h, no Jolt
+- **RtPbrSurvey submodule** is checked out with a full DX12 PBR renderer (MSBuild-based, not CMake)
+- **No `SetToolUiHandler`** — Tank should draw ImGui windows inside the `UiRenderHandler` lambda passed to `RtPbrSurveyEngine::RunFrame()`
+- **Recommended first step:** Create CMakeLists.txt + minimal `TankSandboxApp` implementing `IApplication`, then render a procedural cube via `Engine::Procedural::CreateCubeMesh()` to prove the pipeline works
