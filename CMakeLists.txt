@@ -29,11 +29,9 @@ add_subdirectory(External/JoltPhysics/Build External/JoltPhysics)
 # ── RtPbrSurvey (D3D12 renderer) ──────────────────────────────
 add_subdirectory(External/RtPbrSurvey)
 
-find_package(directx-headers CONFIG REQUIRED)
-
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
-    Source/TankSandbox/Main.cpp
+    src/main.cpp
     src/TankSandboxApp.cpp
     src/TankSandboxApp.h
     src/stdafx.h
@@ -44,13 +42,12 @@ set_target_properties(TankSandbox PROPERTIES WIN32_EXECUTABLE TRUE)
 target_include_directories(TankSandbox
     PRIVATE
         External/JoltPhysics
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/_generated>
 )
 
 target_link_libraries(TankSandbox
     PRIVATE
         Jolt
-        RtPbrSurvey
+        RtPbrSurvey::SceneRenderer
 )
 
 target_compile_definitions(TankSandbox
@@ -59,37 +56,8 @@ target_compile_definitions(TankSandbox
 )
 
 if(MSVC)
-    target_compile_options(TankSandbox PRIVATE /W4 /permissive-)
+    target_compile_options(TankSandbox PRIVATE /W4 /permissive)
 endif()
 
 # ── D3D12 Agility SDK ─────────────────────────────────────────
-set(D3D12_AGILITY_REDIST_DIR
-    "$ENV{USERPROFILE}/.nuget/packages/microsoft.direct3d.d3d12/1.618.3/build/native/bin/x64"
-    CACHE PATH
-    "Directory containing D3D12Core.dll and D3D12SDKLayers.dll for the D3D12 Agility SDK."
-)
-
-set(RTPBRSURVEY_ASSET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/External/RtPbrSurvey/Assets")
-if(EXISTS "${RTPBRSURVEY_ASSET_DIR}")
-    add_custom_command(TARGET TankSandbox POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${RTPBRSURVEY_ASSET_DIR}"
-            "$<TARGET_FILE_DIR:TankSandbox>/Assets"
-        COMMENT "Copying RtPbrSurvey runtime assets next to TankSandbox."
-    )
-endif()
-
-if(EXISTS "${D3D12_AGILITY_REDIST_DIR}/D3D12Core.dll")
-    add_custom_command(TARGET TankSandbox POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:TankSandbox>/D3D12"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${D3D12_AGILITY_REDIST_DIR}/D3D12Core.dll"
-            "$<TARGET_FILE_DIR:TankSandbox>/D3D12/D3D12Core.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${D3D12_AGILITY_REDIST_DIR}/D3D12SDKLayers.dll"
-            "$<TARGET_FILE_DIR:TankSandbox>/D3D12/D3D12SDKLayers.dll"
-        COMMENT "Copying D3D12 Agility SDK runtime next to TankSandbox."
-    )
-else()
-    message(WARNING "D3D12 Agility SDK runtime not found at ${D3D12_AGILITY_REDIST_DIR}; hardware D3D12 device creation may fail with D3D12_ERROR_INVALID_REDIST.")
-endif()
+rtpbrsurvey_copy_runtime_files(TankSandbox)
