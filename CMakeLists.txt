@@ -29,6 +29,22 @@ add_subdirectory(External/JoltPhysics/Build External/JoltPhysics)
 # ── RtPbrSurvey (D3D12 renderer) ──────────────────────────────
 add_subdirectory(External/RtPbrSurvey)
 
+add_library(TankPhysicsCore STATIC
+    src/Physics/BoxDropTest.cpp
+    src/Physics/BoxDropTest.h
+    src/Physics/PhysicsTypes.h
+)
+
+target_include_directories(TankPhysicsCore
+    PUBLIC
+        src
+)
+
+target_link_libraries(TankPhysicsCore
+    PUBLIC
+        Jolt
+)
+
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
     src/main.cpp
@@ -46,6 +62,7 @@ target_include_directories(TankSandbox
 
 target_link_libraries(TankSandbox
     PRIVATE
+        TankPhysicsCore
         Jolt
         RtPbrSurvey::SceneRenderer
 )
@@ -61,3 +78,16 @@ endif()
 
 # ── D3D12 Agility SDK ─────────────────────────────────────────
 rtpbrsurvey_copy_runtime_files(TankSandbox)
+
+add_executable(TankPhysicsCli
+    src/cli/TankPhysicsCli.cpp
+)
+
+target_link_libraries(TankPhysicsCli
+    PRIVATE
+        TankPhysicsCore
+)
+
+if(MSVC)
+    target_compile_options(TankPhysicsCli PRIVATE /W4 /permissive-)
+endif()
