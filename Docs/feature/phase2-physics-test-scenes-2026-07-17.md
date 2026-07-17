@@ -70,3 +70,42 @@ This first increment only adds:
 3. A CLI executable target that can select the `box-drop` test path.
 
 The actual Jolt box-drop simulation and UI scene transition will be added in later increments.
+
+## Step 4 Result
+
+`BoxDropTest` now owns a minimal Jolt world internally while keeping Jolt types out of its public header.
+
+Implemented behavior:
+
+- Initializes the Jolt allocator, factory, and type registry once per process.
+- Creates a static floor body.
+- Creates a dynamic box body at the configured initial height.
+- Advances the physics world with a fixed caller-provided timestep.
+- Returns `BoxDropState` snapshots with position, rotation, elapsed time, step index, and sleep state.
+- Keeps physics independent from RtPbrSurvey and rendering code.
+
+CLI verification:
+
+```powershell
+build\Debug\TankPhysicsCli.exe --test box-drop --steps 300 --dt 0.0166667
+```
+
+Observed result:
+
+```text
+test=box-drop step=300 t=5.00001 box.y=0.48 sleeping=true
+PASS box-drop final_y=0.48
+```
+
+The PASS range is currently intentionally tolerant (`0.45 <= final_y <= 0.65`) so this test verifies the integration path without becoming sensitive to small solver/contact-margin differences.
+
+## Step 5 Result
+
+`TankSandboxApp` now has an application mode skeleton:
+
+- `TopMenu`
+- `PhysicsBoxDrop`
+
+The app starts in `TopMenu`. The top menu exposes a `Box Drop` button, which switches to `PhysicsBoxDrop`. Pressing `ESC` from `PhysicsBoxDrop` returns to `TopMenu`.
+
+The actual physics-driven rendering for `PhysicsBoxDrop` is intentionally left for Step 6.

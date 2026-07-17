@@ -134,7 +134,14 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
 {
 	if (key == VK_ESCAPE)
 	{
-		PostQuitMessage(0);
+		if (m_appMode == AppMode::PhysicsBoxDrop)
+		{
+			m_appMode = AppMode::TopMenu;
+		}
+		else
+		{
+			PostQuitMessage(0);
+		}
 	}
 }
 
@@ -255,8 +262,34 @@ void TankSandboxApp::UpdateUiFrame()
 
 void TankSandboxApp::DrawToolUi()
 {
+	switch (m_appMode)
+	{
+	case AppMode::TopMenu:
+		DrawTopMenuUi();
+		break;
+	case AppMode::PhysicsBoxDrop:
+		DrawPhysicsBoxDropUi();
+		break;
+	}
+}
+
+void TankSandboxApp::DrawTopMenuUi()
+{
 	ImGui::Begin("Tank Sandbox");
-	ImGui::Text("Hello from Tank Physics Sandbox");
+	ImGui::Text("Physics Test Scenes");
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
+	if (ImGui::Button("Box Drop"))
+	{
+		m_appMode = AppMode::PhysicsBoxDrop;
+	}
+	ImGui::End();
+}
+
+void TankSandboxApp::DrawPhysicsBoxDropUi()
+{
+	ImGui::Begin("Box Drop");
+	ImGui::Text("Box Drop physics scene");
+	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
+	ImGui::Text("Press ESC to return to the top menu.");
 	ImGui::End();
 }

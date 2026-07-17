@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 #include <iostream>
 #include <string>
 
@@ -76,7 +77,15 @@ int main(int argc, char* argv[])
               << " box.y=" << state.boxPosition.y
               << " sleeping=" << (state.boxSleeping ? "true" : "false")
               << "\n";
-    std::cout << "PENDING box-drop physics implementation\n";
+
+    const bool validHeight = std::isfinite(state.boxPosition.y) && state.boxPosition.y >= 0.45f && state.boxPosition.y <= 0.65f;
+    if (!validHeight)
+    {
+        std::cout << "FAIL box-drop final_y=" << state.boxPosition.y << "\n";
+        return 1;
+    }
+
+    std::cout << "PASS box-drop final_y=" << state.boxPosition.y << "\n";
 
     return 0;
 }

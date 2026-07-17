@@ -2,6 +2,8 @@
 
 #include "PhysicsTypes.h"
 
+#include <memory>
+
 namespace Tank::Physics
 {
     struct BoxDropSettings
@@ -22,12 +24,21 @@ namespace Tank::Physics
     class BoxDropTest
     {
     public:
+        BoxDropTest();
+        ~BoxDropTest();
+
+        BoxDropTest(const BoxDropTest&) = delete;
+        BoxDropTest& operator=(const BoxDropTest&) = delete;
+
         void Initialize(const BoxDropSettings& settings = {});
         BoxDropState Step(float deltaTimeSeconds);
         const BoxDropState& State() const { return m_state; }
 
     private:
+        struct Impl;
+
         BoxDropSettings m_settings = {};
         BoxDropState m_state = {};
+        std::unique_ptr<Impl> m_impl;
     };
 }

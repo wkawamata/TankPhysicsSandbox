@@ -29,9 +29,17 @@ public:
     const WCHAR* GetTitle() const override { return m_windowInfo.title.c_str(); }
 
 private:
+    enum class AppMode
+    {
+        TopMenu,
+        PhysicsBoxDrop,
+    };
+
     void InitializeImGui();
     void UpdateUiFrame();
     void DrawToolUi();
+    void DrawTopMenuUi();
+    void DrawPhysicsBoxDropUi();
     void FlushD3d12DebugLog();
     void LogFps(float cpuFrameTimeMs);
 
@@ -44,6 +52,7 @@ private:
     ComPtr<ID3D12DescriptorHeap> m_imguiHeap;
     Engine::ImGuiSystem m_imguiSystem;
     RtPbrSurvey::SceneRenderer m_sceneRenderer;
+    AppMode m_appMode = AppMode::TopMenu;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;
