@@ -35,6 +35,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/BoxDropTest.cpp
     src/Physics/BoxDropTest.h
     src/Physics/PhysicsTypes.h
+    src/Physics/PhysicsWorld.cpp
+    src/Physics/PhysicsWorld.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
     src/Physics/TankTypes.h
@@ -109,6 +111,17 @@ if(BUILD_TESTING)
         target_compile_options(TankControllerTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(PhysicsWorldTests
+        tests/PhysicsWorldTests.cpp
+    )
+    target_link_libraries(PhysicsWorldTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(PhysicsWorldTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_test(
         NAME TankPhysics.BoxDrop
         COMMAND TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667
@@ -120,5 +133,10 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TankControllerBoundary
         COMMAND TankControllerTests
+    )
+
+    add_test(
+        NAME TankPhysics.PhysicsWorld
+        COMMAND PhysicsWorldTests
     )
 endif()
