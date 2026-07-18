@@ -6,6 +6,8 @@
 #include "Engine/Rhi/Dx12/GraphicsDevice.h"
 #include "Runtime/SceneRenderer.h"
 #include "Ui/ImGuiSystem.h"
+#include "Physics/BoxDropTest.h"
+#include "Scene/SceneBuilder.h"
 
 #include <d3d12sdklayers.h>
 #include <chrono>
@@ -40,6 +42,8 @@ private:
     void DrawToolUi();
     void DrawTopMenuUi();
     void DrawPhysicsBoxDropUi();
+    void EnterBoxDropMode();
+    void UpdateBoxDropScene(const Tank::Physics::BoxDropState& state);
     void FlushD3d12DebugLog();
     void LogFps(float cpuFrameTimeMs);
 
@@ -53,6 +57,12 @@ private:
     Engine::ImGuiSystem m_imguiSystem;
     RtPbrSurvey::SceneRenderer m_sceneRenderer;
     AppMode m_appMode = AppMode::TopMenu;
+
+    // Box drop physics test and scene
+    Tank::Physics::BoxDropTest m_boxDropTest;
+    Engine::SceneBuilder m_boxDropSceneBuilder;
+    size_t m_boxDropBoxInstanceIndex = 0;
+    static constexpr float kPhysicsFixedDt = 1.0f / 60.0f;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;

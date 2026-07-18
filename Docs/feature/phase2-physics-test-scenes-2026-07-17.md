@@ -109,3 +109,37 @@ The PASS range is currently intentionally tolerant (`0.45 <= final_y <= 0.65`) s
 The app starts in `TopMenu`. The top menu exposes a `Box Drop` button, which switches to `PhysicsBoxDrop`. Pressing `ESC` from `PhysicsBoxDrop` returns to `TopMenu`.
 
 The actual physics-driven rendering for `PhysicsBoxDrop` is intentionally left for Step 6.
+
+## Step 6 Result
+
+`PhysicsBoxDrop` now runs the same `BoxDropTest` used by `TankPhysicsCli` and visualizes its state through RtPbrSurvey.
+
+Implemented behavior:
+
+- Builds the floor and box rendering instances once when entering the mode.
+- Advances physics at a fixed timestep and updates only the box transform each frame.
+- Reloads scene resources only when the Box Drop scene is created.
+- Sets the visible instance count explicitly after switching from the one-instance Top Menu scene to the two-instance Box Drop scene.
+- Shows step, elapsed time, box height, sleeping state, and a Reset button in ImGui.
+- Keeps all RtPbrSurvey and DirectXMath usage in the application layer; `BoxDropTest` remains rendering-independent.
+
+The explicit display-instance update is required because scene reload preserves the previous scene's visible instance count. Without it, switching from the one-instance Top Menu scene displayed only the floor and hid the second instance.
+
+## Step 7 Verification
+
+Verified on 2026-07-18:
+
+```powershell
+scripts\build.bat TankPhysicsCli
+build\Debug\TankPhysicsCli.exe --test box-drop --steps 300 --dt 0.0166667
+scripts\build.bat TankSandbox
+```
+
+Observed CLI result:
+
+```text
+test=box-drop step=300 t=5.00001 box.y=0.48 sleeping=true
+PASS box-drop final_y=0.48
+```
+
+Both targets built successfully. Final visual confirmation of the falling box and Reset behavior is deferred until the UI can be inspected.

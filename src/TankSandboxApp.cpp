@@ -159,6 +159,12 @@ void TankSandboxApp::OnWindowSizeChanged(UINT width, UINT height)
 
 void TankSandboxApp::OnIdle()
 {
+	if (m_appMode == AppMode::PhysicsBoxDrop)
+	{
+		Tank::Physics::BoxDropState state = m_boxDropTest.Step(kPhysicsFixedDt);
+		UpdateBoxDropScene(state);
+	}
+
 	UpdateUiFrame();
 
 	m_sceneRenderer.RunFrame(
@@ -280,16 +286,76 @@ void TankSandboxApp::DrawTopMenuUi()
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
 	if (ImGui::Button("Box Drop"))
 	{
-		m_appMode = AppMode::PhysicsBoxDrop;
+		EnterBoxDropMode();
 	}
 	ImGui::End();
 }
 
+void TankSandboxApp::EnterBoxDropMode()
+{
+	m_boxDropSceneBuilder.Clear();
+
+	uint32_t matFloor = m_boxDropSceneBuilder.AddSolidColorMaterial(128, 128, 128, 255);
+	uint32_t matBox = m_boxDropSceneBuilder.AddSolidColorMaterial(200, 50, 50, 255);
+
+	m_boxDropSceneBuilder.AppendCube(1.0f, matFloor);
+	m_boxDropSceneBuilder.AppendCube(1.0f, matBox);
+
+	m_boxDropSceneBuilder.AddInstance(
+		XMMatrixScaling(20.0f, 0.2f, 20.0f) * XMMatrixTranslation(0.0f, -0.1f, 0.0f),
+		matFloor);
+
+	m_boxDropBoxInstanceIndex = 1;
+	m_boxDropSceneBuilder.AddInstance(
+		XMMatrixTranslation(0.0f, 5.0f, 0.0f),
+		matBox);
+
+	Engine::CameraState camera;
+	camera.pos = { 0.0f, 4.0f, -12.0f };
+	camera.gazePoint = { 0.0f, 1.0f, 0.0f };
+	camera.fov = 60.0f;
+	camera.nearZ = 0.001f;
+	camera.farZ = 10000.0f;
+	m_boxDropSceneBuilder.SetCamera(camera);
+
+	m_boxDropTest.Initialize();
+
+	m_sceneRenderer.SetScene(m_boxDropSceneBuilder.GetScene());
+	m_sceneRenderer.ReloadSceneResources(m_boxDropSceneBuilder.GetScene());
+	m_sceneRenderer.SetDisplayInstanceCount(static_cast<int>(m_boxDropSceneBuilder.GetScene().instances.size()));
+
+	m_appMode = AppMode::PhysicsBoxDrop;
+}
+
+void TankSandboxApp::UpdateBoxDropScene(const Tank::Physics::BoxDropState& state)
+{
+	Engine::Scene& scene = m_boxDropSceneBuilder.GetScene();
+	scene.instances[m_boxDropBoxInstanceIndex].prevWorld = scene.instances[m_boxDropBoxInstanceIndex].world;
+	XMMATRIX boxWorld = XMMatrixTranslation(
+		state.boxPosition.x,
+		state.boxPosition.y,
+		state.boxPosition.z);
+	XMStoreFloat4x4(&scene.instances[m_boxDropBoxInstanceIndex].world, XMMatrixTranspose(boxWorld));
+
+	m_sceneRenderer.SetScene(scene);
+}
+
 void TankSandboxApp::DrawPhysicsBoxDropUi()
 {
+	const Tank::Physics::BoxDropState& state = m_boxDropTest.State();
 	ImGui::Begin("Box Drop");
-	ImGui::Text("Box Drop physics scene");
+	ImGui::Text("Step: %d", state.stepIndex);
+	ImGui::Text("Time: %.2f s", state.timeSeconds);
+	ImGui::Text("Box Y: %.3f", state.boxPosition.y);
+	ImGui::Text("Sleeping: %s", state.boxSleeping ? "yes" : "no");
+	ImGui::Separator();
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
+	if (ImGui::Button("Reset"))
+	{
+		m_boxDropTest.Initialize();
+		UpdateBoxDropScene(m_boxDropTest.State());
+	}
+	ImGui::Separator();
 	ImGui::Text("Press ESC to return to the top menu.");
 	ImGui::End();
 }
