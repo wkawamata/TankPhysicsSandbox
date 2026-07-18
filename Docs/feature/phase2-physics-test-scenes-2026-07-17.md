@@ -143,3 +143,11 @@ PASS box-drop final_y=0.48
 ```
 
 Both targets built successfully. Final visual confirmation of the falling box and Reset behavior is deferred until the UI can be inspected.
+
+## Automated Regression Test
+
+The CLI box-drop scenario is registered with CTest as `TankPhysics.BoxDrop`. The test runs the same 300-step simulation and requires `PASS box-drop` in the process output.
+
+```powershell
+ctest --test-dir build -C Debug --output-on-failure
+```

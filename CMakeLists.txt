@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.25)
 
 project(TankPhysicsSandbox LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -90,4 +92,14 @@ target_link_libraries(TankPhysicsCli
 
 if(MSVC)
     target_compile_options(TankPhysicsCli PRIVATE /W4 /permissive-)
+endif()
+
+if(BUILD_TESTING)
+    add_test(
+        NAME TankPhysics.BoxDrop
+        COMMAND TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.BoxDrop PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS box-drop"
+    )
 endif()
