@@ -78,6 +78,8 @@ private:
     bool m_turnLeft = false;
     bool m_turnRight = false;
     bool m_brake = false;
+    bool m_trackedVehiclePaused = false;
+    bool m_trackedVehicleSingleStep = false;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;

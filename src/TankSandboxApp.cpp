@@ -114,6 +114,11 @@ void TankSandboxApp::OnInit()
 	lighting.iblIntensity = 1.0f;
 	m_sceneRenderer.SetLightingParams(lighting);
 
+	// Temporarily disable shadows while the host debug UI and shadow artifacts are investigated.
+	auto shadowSettings = m_sceneRenderer.GetShadowSettings();
+	shadowSettings.enabled = false;
+	m_sceneRenderer.SetShadowSettings(shadowSettings);
+
 	m_sceneRenderer.SetScene(builder.GetScene());
     m_sceneRenderer.ReloadSceneResources(builder.GetScene());
 }
@@ -177,8 +182,12 @@ void TankSandboxApp::OnIdle()
 	else if (m_appMode == AppMode::PhysicsTrackedVehicle)
 	{
 		UpdateTrackedVehicleInput();
-		const Tank::Physics::TrackedVehicleTestState state = m_trackedVehicleTest.Step(kPhysicsFixedDt);
-		UpdateTrackedVehicleScene(state);
+		if (!m_trackedVehiclePaused || m_trackedVehicleSingleStep)
+		{
+			const Tank::Physics::TrackedVehicleTestState state = m_trackedVehicleTest.Step(kPhysicsFixedDt);
+			UpdateTrackedVehicleScene(state);
+			m_trackedVehicleSingleStep = false;
+		}
 	}
 
 	UpdateUiFrame();
@@ -394,6 +403,17 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
 	ImGui::Text("Controls: W/S drive, A/D steer or pivot, Space brake");
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
+	if (ImGui::Button(m_trackedVehiclePaused ? "Resume" : "Pause"))
+	{
+		m_trackedVehiclePaused = !m_trackedVehiclePaused;
+	}
+	ImGui::SameLine();
+	ImGui::BeginDisabled(!m_trackedVehiclePaused);
+	if (ImGui::Button("Single Step"))
+	{
+		m_trackedVehicleSingleStep = true;
+	}
+	ImGui::EndDisabled();
 	if (ImGui::Button("Reset"))
 	{
 		m_trackedVehicleTest.Initialize();
@@ -452,6 +472,8 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	m_trackedVehicleSceneBuilder.SetCamera(camera);
 
 	m_trackedVehicleTest.Initialize();
+	m_trackedVehiclePaused = false;
+	m_trackedVehicleSingleStep = false;
 	m_sceneRenderer.SetScene(m_trackedVehicleSceneBuilder.GetScene());
 	m_sceneRenderer.ReloadSceneResources(m_trackedVehicleSceneBuilder.GetScene());
 	m_sceneRenderer.SetDisplayInstanceCount(
