@@ -7,6 +7,7 @@
 #include "Runtime/SceneRenderer.h"
 #include "Ui/ImGuiSystem.h"
 #include "Physics/BoxDropTest.h"
+#include "Physics/TrackedVehicleTest.h"
 #include "Scene/SceneBuilder.h"
 
 #include <d3d12sdklayers.h>
@@ -44,6 +45,8 @@ private:
     void DrawTopMenuUi();
     void DrawPhysicsBoxDropUi();
     void DrawPhysicsTrackedVehicleUi();
+    void EnterTrackedVehicleMode();
+    void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
     void EnterBoxDropMode();
     void UpdateBoxDropScene(const Tank::Physics::BoxDropState& state);
     void FlushD3d12DebugLog();
@@ -65,6 +68,10 @@ private:
     Engine::SceneBuilder m_boxDropSceneBuilder;
     size_t m_boxDropBoxInstanceIndex = 0;
     static constexpr float kPhysicsFixedDt = 1.0f / 60.0f;
+
+    Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
+    Engine::SceneBuilder m_trackedVehicleSceneBuilder;
+    size_t m_trackedVehicleBodyInstanceIndex = 0;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;

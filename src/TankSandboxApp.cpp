@@ -164,6 +164,11 @@ void TankSandboxApp::OnIdle()
 		Tank::Physics::BoxDropState state = m_boxDropTest.Step(kPhysicsFixedDt);
 		UpdateBoxDropScene(state);
 	}
+	else if (m_appMode == AppMode::PhysicsTrackedVehicle)
+	{
+		const Tank::Physics::TrackedVehicleTestState state = m_trackedVehicleTest.Step(kPhysicsFixedDt);
+		UpdateTrackedVehicleScene(state);
+	}
 
 	UpdateUiFrame();
 
@@ -293,7 +298,7 @@ void TankSandboxApp::DrawTopMenuUi()
 	}
 	if (ImGui::Button("Tracked Vehicle"))
 	{
-		m_appMode = AppMode::PhysicsTrackedVehicle;
+		EnterTrackedVehicleMode();
 	}
 	ImGui::End();
 }
@@ -369,10 +374,66 @@ void TankSandboxApp::DrawPhysicsBoxDropUi()
 
 void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 {
+	const Tank::Physics::TrackedVehicleTestState& state = m_trackedVehicleTest.State();
 	ImGui::Begin("Tracked Vehicle");
-	ImGui::Text("Tracked vehicle physics scene");
+	ImGui::Text("Step: %d", state.stepIndex);
+	ImGui::Text("Time: %.2f s", state.timeSeconds);
+	ImGui::Text("Position: %.2f, %.2f, %.2f",
+		state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
+	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
+	if (ImGui::Button("Reset"))
+	{
+		m_trackedVehicleTest.Initialize();
+		UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
+	}
 	ImGui::Separator();
 	ImGui::Text("Press ESC to return to the top menu.");
 	ImGui::End();
+}
+
+void TankSandboxApp::EnterTrackedVehicleMode()
+{
+	m_trackedVehicleSceneBuilder.Clear();
+
+	const uint32_t floorMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(110, 120, 110, 255);
+	const uint32_t bodyMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(55, 95, 65, 255);
+	m_trackedVehicleSceneBuilder.AppendCube(1.0f, bodyMaterial);
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(40.0f, 0.2f, 40.0f) * XMMatrixTranslation(0.0f, -0.1f, 0.0f),
+		floorMaterial);
+	m_trackedVehicleBodyInstanceIndex = 1;
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(2.0f, 1.0f, 4.0f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
+		bodyMaterial);
+
+	Engine::CameraState camera;
+	camera.pos = { 8.0f, 5.0f, -12.0f };
+	camera.gazePoint = { 0.0f, 1.0f, 0.0f };
+	camera.fov = 60.0f;
+	camera.nearZ = 0.001f;
+	camera.farZ = 10000.0f;
+	m_trackedVehicleSceneBuilder.SetCamera(camera);
+
+	m_trackedVehicleTest.Initialize();
+	m_sceneRenderer.SetScene(m_trackedVehicleSceneBuilder.GetScene());
+	m_sceneRenderer.ReloadSceneResources(m_trackedVehicleSceneBuilder.GetScene());
+	m_sceneRenderer.SetDisplayInstanceCount(
+		static_cast<int>(m_trackedVehicleSceneBuilder.GetScene().instances.size()));
+	m_appMode = AppMode::PhysicsTrackedVehicle;
+}
+
+void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state)
+{
+	Engine::Scene& scene = m_trackedVehicleSceneBuilder.GetScene();
+	Engine::InstanceData& body = scene.instances[m_trackedVehicleBodyInstanceIndex];
+	body.prevWorld = body.world;
+	const XMVECTOR rotation = XMVectorSet(
+		state.bodyRotation.x, state.bodyRotation.y, state.bodyRotation.z, state.bodyRotation.w);
+	const XMMATRIX world =
+		XMMatrixScaling(2.0f, 1.0f, 4.0f) *
+		XMMatrixRotationQuaternion(rotation) *
+		XMMatrixTranslation(state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
+	XMStoreFloat4x4(&body.world, XMMatrixTranspose(world));
+	m_sceneRenderer.SetScene(scene);
 }
