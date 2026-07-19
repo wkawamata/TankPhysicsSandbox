@@ -63,6 +63,16 @@ namespace Tank::Physics
         m_impl->controller.Initialize(m_impl->world);
     }
 
+    void TrackedVehicleTest::SetInput(const TankInput& input)
+    {
+        if (m_impl == nullptr)
+        {
+            Initialize();
+        }
+
+        m_impl->controller.SetInput(input);
+    }
+
     TrackedVehicleTestState TrackedVehicleTest::Step(float deltaTimeSeconds)
     {
         if (m_impl == nullptr)

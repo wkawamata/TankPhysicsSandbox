@@ -153,8 +153,24 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehicleTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehicleForwardTests
+        tests/TrackedVehicleForwardTests.cpp
+    )
+    target_link_libraries(TrackedVehicleForwardTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleForwardTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_test(
         NAME TankPhysics.TrackedVehicleNeutral
         COMMAND TrackedVehicleTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleForward
+        COMMAND TrackedVehicleForwardTests
     )
 endif()

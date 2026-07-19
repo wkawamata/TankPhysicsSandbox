@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhysicsTypes.h"
+#include "TankTypes.h"
 
 #include <memory>
 
@@ -27,6 +28,7 @@ namespace Tank::Physics
         TrackedVehicleTest& operator=(const TrackedVehicleTest&) = delete;
 
         void Initialize();
+        void SetInput(const TankInput& input);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
         const TrackedVehicleTestState& State() const { return m_state; }
 
