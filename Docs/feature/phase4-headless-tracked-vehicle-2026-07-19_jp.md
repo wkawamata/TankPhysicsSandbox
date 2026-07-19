@@ -62,3 +62,22 @@ Joltのtracked controllerはforward inputと、0ではない左右track ratioを
 ## 検証
 
 この増分では既存testをすべて維持し、専用のheadless tracked-vehicle construction testを追加する。`TankPhysicsCli` と `TankSandbox` はどちらもbuild可能な状態を維持する。
+
+## 結果
+
+headless tracked-vehicle proofは完了した。
+
+- `TankController` はPimplを通してtank body、vehicle constraint、vehicle step listener登録を所有する。
+- `TrackedVehicleTest` は安全な破棄順序で `PhysicsWorld`、floor、`TankController` を所有する。
+- simulationの所有を `TankController::PreStep()`、`PhysicsWorld::Step()`、`TankController::PostStep()` に分け、worldがframeごとに一度だけ進むようにした。
+- neutral安定性、前進、左右旋回、左右超信地旋回を、それぞれ独立したCTest executableで検証する。
+
+Debugでの実測結果:
+
+- 5秒間駆動した前進距離: `38.7587 m`。
+- 旋回yaw: 左 `2.48281 rad`、右 `-2.50081 rad`。
+- 超信地旋回yaw: 左 `2.7825 rad`、右 `-2.78252 rad`。
+- 超信地旋回時の中心移動量: 両方向とも約 `0.0114 m`。
+- CTest: `7/7` PASS。
+
+次の増分は、既存のheadless stateを可視化するTank Sandbox UI sceneとする。物理挙動はこれらのtestと共有したまま維持する。

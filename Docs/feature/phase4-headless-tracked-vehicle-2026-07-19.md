@@ -62,3 +62,22 @@ Jolt's tracked controller accepts a forward input plus non-zero left and right t
 ## Verification
 
 The increment must keep all existing tests passing and add a dedicated headless tracked-vehicle construction test. Both `TankPhysicsCli` and `TankSandbox` must remain buildable.
+
+## Result
+
+The headless tracked-vehicle proof is complete.
+
+- `TankController` owns the tank body, vehicle constraint, and vehicle step-listener registration through a Pimpl.
+- `TrackedVehicleTest` owns `PhysicsWorld`, the floor, and `TankController` in a safe destruction order.
+- Simulation ownership is split into `TankController::PreStep()`, `PhysicsWorld::Step()`, and `TankController::PostStep()` so the world advances exactly once per frame.
+- Neutral stability, forward motion, left/right steering, and left/right pivot turns have separate CTest executables.
+
+Observed Debug results:
+
+- Forward distance after five driven seconds: `38.7587 m`.
+- Steering yaw: left `2.48281 rad`, right `-2.50081 rad`.
+- Pivot yaw: left `2.7825 rad`, right `-2.78252 rad`.
+- Pivot center displacement: approximately `0.0114 m` in both directions.
+- CTest: `7/7` passed.
+
+The next increment is a Tank Sandbox UI scene that visualizes the existing headless state. Physics behavior must remain shared with these tests.
