@@ -40,6 +40,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/TankController.cpp
     src/Physics/TankController.h
     src/Physics/TankTypes.h
+    src/Physics/TrackedVehicleTest.cpp
+    src/Physics/TrackedVehicleTest.h
 )
 
 target_include_directories(TankPhysicsCore
@@ -138,5 +140,21 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.PhysicsWorld
         COMMAND PhysicsWorldTests
+    )
+
+    add_executable(TrackedVehicleTests
+        tests/TrackedVehicleTests.cpp
+    )
+    target_link_libraries(TrackedVehicleTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleNeutral
+        COMMAND TrackedVehicleTests
     )
 endif()

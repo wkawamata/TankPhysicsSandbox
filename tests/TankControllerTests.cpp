@@ -47,11 +47,12 @@ int main()
     passed &= Check(NearlyEqual(clampedInput.rightTrack, -1.0f), "right track must be clamped");
     passed &= Check(clampedInput.brake, "brake must be preserved");
 
-    controller.Step(1.0f / 60.0f);
+    controller.PreStep();
+    controller.PostStep(1.0f / 60.0f);
     passed &= Check(controller.State().stepIndex == 1, "positive step must advance the index");
     passed &= Check(controller.State().timeSeconds > 0.0f, "positive step must advance time");
 
-    controller.Step(0.0f);
+    controller.PostStep(0.0f);
     passed &= Check(controller.State().stepIndex == 1, "non-positive step must be ignored");
 
     if (!passed)
