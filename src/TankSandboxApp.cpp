@@ -471,5 +471,19 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		XMMatrixRotationQuaternion(rotation) *
 		XMMatrixTranslation(state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
 	XMStoreFloat4x4(&body.world, XMMatrixTranspose(world));
+
+	Engine::CameraState camera;
+	camera.pos = {
+		state.bodyPosition.x + 8.0f,
+		state.bodyPosition.y + 4.0f,
+		state.bodyPosition.z - 12.0f };
+	camera.gazePoint = {
+		state.bodyPosition.x,
+		state.bodyPosition.y + 0.5f,
+		state.bodyPosition.z };
+	camera.fov = 60.0f;
+	camera.nearZ = 0.001f;
+	camera.farZ = 10000.0f;
+	m_trackedVehicleSceneBuilder.SetCamera(camera);
 	m_sceneRenderer.SetScene(scene);
 }
