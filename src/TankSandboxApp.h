@@ -47,6 +47,7 @@ private:
     void DrawPhysicsTrackedVehicleUi();
     void EnterTrackedVehicleMode();
     void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
+    void UpdateTrackedVehicleInput();
     void EnterBoxDropMode();
     void UpdateBoxDropScene(const Tank::Physics::BoxDropState& state);
     void FlushD3d12DebugLog();
@@ -72,6 +73,11 @@ private:
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Engine::SceneBuilder m_trackedVehicleSceneBuilder;
     size_t m_trackedVehicleBodyInstanceIndex = 0;
+    bool m_moveForward = false;
+    bool m_moveBackward = false;
+    bool m_turnLeft = false;
+    bool m_turnRight = false;
+    bool m_brake = false;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;

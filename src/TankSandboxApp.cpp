@@ -143,10 +143,20 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
 			PostQuitMessage(0);
 		}
 	}
+	else if (key == 'W') m_moveForward = true;
+	else if (key == 'S') m_moveBackward = true;
+	else if (key == 'A') m_turnLeft = true;
+	else if (key == 'D') m_turnRight = true;
+	else if (key == VK_SPACE) m_brake = true;
 }
 
-void TankSandboxApp::OnKeyUp(UINT8)
+void TankSandboxApp::OnKeyUp(UINT8 key)
 {
+	if (key == 'W') m_moveForward = false;
+	else if (key == 'S') m_moveBackward = false;
+	else if (key == 'A') m_turnLeft = false;
+	else if (key == 'D') m_turnRight = false;
+	else if (key == VK_SPACE) m_brake = false;
 }
 
 void TankSandboxApp::OnWindowSizeChanged(UINT width, UINT height)
@@ -166,6 +176,7 @@ void TankSandboxApp::OnIdle()
 	}
 	else if (m_appMode == AppMode::PhysicsTrackedVehicle)
 	{
+		UpdateTrackedVehicleInput();
 		const Tank::Physics::TrackedVehicleTestState state = m_trackedVehicleTest.Step(kPhysicsFixedDt);
 		UpdateTrackedVehicleScene(state);
 	}
@@ -381,6 +392,7 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	ImGui::Text("Position: %.2f, %.2f, %.2f",
 		state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
 	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
+	ImGui::Text("Controls: W/S drive, A/D steer or pivot, Space brake");
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
 	if (ImGui::Button("Reset"))
 	{
@@ -390,6 +402,30 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	ImGui::Separator();
 	ImGui::Text("Press ESC to return to the top menu.");
 	ImGui::End();
+}
+
+void TankSandboxApp::UpdateTrackedVehicleInput()
+{
+	Tank::Physics::TankInput input;
+	input.throttle = m_moveForward ? 1.0f : (m_moveBackward ? -1.0f : 0.0f);
+	input.brake = m_brake;
+
+	if (m_turnLeft != m_turnRight)
+	{
+		if (input.throttle == 0.0f)
+		{
+			input.throttle = 1.0f;
+			input.leftTrack = m_turnLeft ? -1.0f : 1.0f;
+			input.rightTrack = m_turnLeft ? 1.0f : -1.0f;
+		}
+		else
+		{
+			input.leftTrack = m_turnLeft ? 0.6f : 1.0f;
+			input.rightTrack = m_turnLeft ? 1.0f : 0.6f;
+		}
+	}
+
+	m_trackedVehicleTest.SetInput(input);
 }
 
 void TankSandboxApp::EnterTrackedVehicleMode()
