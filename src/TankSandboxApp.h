@@ -35,6 +35,7 @@ private:
     {
         TopMenu,
         PhysicsBoxDrop,
+        PhysicsTrackedVehicle,
     };
 
     void InitializeImGui();
@@ -42,6 +43,7 @@ private:
     void DrawToolUi();
     void DrawTopMenuUi();
     void DrawPhysicsBoxDropUi();
+    void DrawPhysicsTrackedVehicleUi();
     void EnterBoxDropMode();
     void UpdateBoxDropScene(const Tank::Physics::BoxDropState& state);
     void FlushD3d12DebugLog();

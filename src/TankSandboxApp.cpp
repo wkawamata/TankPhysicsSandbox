@@ -134,7 +134,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
 {
 	if (key == VK_ESCAPE)
 	{
-		if (m_appMode == AppMode::PhysicsBoxDrop)
+		if (m_appMode != AppMode::TopMenu)
 		{
 			m_appMode = AppMode::TopMenu;
 		}
@@ -276,6 +276,9 @@ void TankSandboxApp::DrawToolUi()
 	case AppMode::PhysicsBoxDrop:
 		DrawPhysicsBoxDropUi();
 		break;
+	case AppMode::PhysicsTrackedVehicle:
+		DrawPhysicsTrackedVehicleUi();
+		break;
 	}
 }
 
@@ -287,6 +290,10 @@ void TankSandboxApp::DrawTopMenuUi()
 	if (ImGui::Button("Box Drop"))
 	{
 		EnterBoxDropMode();
+	}
+	if (ImGui::Button("Tracked Vehicle"))
+	{
+		m_appMode = AppMode::PhysicsTrackedVehicle;
 	}
 	ImGui::End();
 }
@@ -355,6 +362,16 @@ void TankSandboxApp::DrawPhysicsBoxDropUi()
 		m_boxDropTest.Initialize();
 		UpdateBoxDropScene(m_boxDropTest.State());
 	}
+	ImGui::Separator();
+	ImGui::Text("Press ESC to return to the top menu.");
+	ImGui::End();
+}
+
+void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
+{
+	ImGui::Begin("Tracked Vehicle");
+	ImGui::Text("Tracked vehicle physics scene");
+	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
 	ImGui::Separator();
 	ImGui::Text("Press ESC to return to the top menu.");
 	ImGui::End();
