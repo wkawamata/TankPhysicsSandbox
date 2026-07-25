@@ -56,6 +56,8 @@ private:
     void DrawToolUi();
     void DrawCameraUi();
     void DrawRendererSettingsUi();
+    void RequestScreenshot();
+    void UpdateScreenshotResult();
     bool SaveRendererSettings();
     bool LoadRendererSettings();
     void ResetRendererSettings();
@@ -105,6 +107,7 @@ private:
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     std::string m_rendererSettingsStatus;
+    std::string m_screenshotStatus;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;

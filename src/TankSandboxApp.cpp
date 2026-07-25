@@ -160,7 +160,11 @@ void TankSandboxApp::OnDestroy()
 
 void TankSandboxApp::OnKeyDown(UINT8 key)
 {
-	if (key == VK_ESCAPE)
+	if (key == VK_F12)
+	{
+		RequestScreenshot();
+	}
+	else if (key == VK_ESCAPE)
 	{
 		if (m_appMode != AppMode::TopMenu)
 		{
@@ -271,6 +275,7 @@ void TankSandboxApp::OnIdle()
 		{
 			m_imguiSystem.Render(commandList);
 		});
+	UpdateScreenshotResult();
 
 	if (m_logFile)
 	{
@@ -435,7 +440,66 @@ void TankSandboxApp::DrawRendererSettingsUi()
 	{
 		ImGui::TextWrapped("%s", m_rendererSettingsStatus.c_str());
 	}
+	ImGui::Separator();
+	if (ImGui::Button("Capture"))
+	{
+		RequestScreenshot();
+	}
+	ImGui::SameLine();
+	ImGui::TextUnformatted("F12");
+	if (!m_screenshotStatus.empty())
+	{
+		ImGui::TextWrapped("%s", m_screenshotStatus.c_str());
+	}
 	ImGui::End();
+}
+
+void TankSandboxApp::RequestScreenshot()
+{
+	SYSTEMTIME localTime = {};
+	GetLocalTime(&localTime);
+
+	wchar_t fileName[64] = {};
+	swprintf_s(
+		fileName,
+		L"TankSandbox_%04u-%02u-%02u_%02u%02u%02u.png",
+		localTime.wYear,
+		localTime.wMonth,
+		localTime.wDay,
+		localTime.wHour,
+		localTime.wMinute,
+		localTime.wSecond);
+
+	wchar_t executablePath[MAX_PATH] = {};
+	const DWORD executablePathLength = GetModuleFileNameW(nullptr, executablePath, MAX_PATH);
+	if (executablePathLength == 0 || executablePathLength == MAX_PATH)
+	{
+		m_screenshotStatus = "Capture failed: cannot resolve executable path";
+		return;
+	}
+
+	const std::filesystem::path path =
+		std::filesystem::path(executablePath).parent_path() / "Screenshots" / fileName;
+	m_sceneRenderer.RequestScreenshot({ path });
+	m_screenshotStatus = "Capture requested: " + path.string();
+}
+
+void TankSandboxApp::UpdateScreenshotResult()
+{
+	const std::optional<RtPbrSurvey::ScreenshotResult> result = m_sceneRenderer.ConsumeScreenshotResult();
+	if (!result)
+	{
+		return;
+	}
+
+	if (result->succeeded)
+	{
+		m_screenshotStatus = "Saved: " + result->path.string();
+	}
+	else
+	{
+		m_screenshotStatus = "Capture failed: " + result->error;
+	}
 }
 
 bool TankSandboxApp::SaveRendererSettings()
