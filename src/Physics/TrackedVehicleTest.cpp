@@ -41,6 +41,11 @@ namespace Tank::Physics
 
     void TrackedVehicleTest::Initialize()
     {
+        Initialize({});
+    }
+
+    void TrackedVehicleTest::Initialize(const TankSettings& settings)
+    {
         m_state = {};
 
         m_impl = std::make_unique<Impl>();
@@ -61,7 +66,13 @@ namespace Tank::Physics
         m_impl->hasFloorBody = true;
         bodyInterface.AddBody(m_impl->floorBodyId, JPH::EActivation::DontActivate);
 
-        m_impl->controller.Initialize(m_impl->world);
+        m_impl->controller.Initialize(m_impl->world, settings);
+    }
+
+    const TankSettings& TrackedVehicleTest::Settings() const
+    {
+        static const TankSettings defaultSettings;
+        return m_impl != nullptr ? m_impl->controller.Settings() : defaultSettings;
     }
 
     void TrackedVehicleTest::SetInput(const TankInput& input)

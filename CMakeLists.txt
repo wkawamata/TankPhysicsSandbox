@@ -186,6 +186,17 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehiclePivotTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehicleStationaryTurnTests
+        tests/TrackedVehicleStationaryTurnTests.cpp
+    )
+    target_link_libraries(TrackedVehicleStationaryTurnTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleStationaryTurnTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_test(
         NAME TankPhysics.TrackedVehicleNeutral
         COMMAND TrackedVehicleTests
@@ -204,5 +215,10 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TrackedVehiclePivot
         COMMAND TrackedVehiclePivotTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleStationaryTurn
+        COMMAND TrackedVehicleStationaryTurnTests
     )
 endif()

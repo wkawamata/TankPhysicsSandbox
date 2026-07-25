@@ -26,7 +26,11 @@ int main()
     bool passed = true;
 
     Tank::Physics::TrackedVehicleTest test;
-    test.Initialize();
+    Tank::Physics::TankSettings settings;
+    settings.chassisMassKg = 5500.0f;
+    test.Initialize(settings);
+    passed &= Check(std::abs(test.Settings().chassisMassKg - 5500.0f) < 0.001f,
+        "configured chassis mass must be retained");
 
     const int numSteps = 300;
     const float dt = 1.0f / 60.0f;

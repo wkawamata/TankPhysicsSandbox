@@ -31,6 +31,12 @@ int main()
     passed &= Check(initialState.stepIndex == 0, "initial step must be zero");
     passed &= Check(NearlyEqual(initialState.timeSeconds, 0.0f), "initial time must be zero");
     passed &= Check(NearlyEqual(initialState.body.rotation.w, 1.0f), "initial rotation must be identity");
+    passed &= Check(NearlyEqual(controller.Input().leftTrack, 1.0f),
+        "left track ratio must default to one");
+    passed &= Check(NearlyEqual(controller.Input().rightTrack, 1.0f),
+        "right track ratio must default to one");
+    passed &= Check(NearlyEqual(controller.Settings().chassisMassKg, 4000.0f),
+        "chassis mass must default to 4000 kg");
 
     Tank::Physics::TankInput input;
     input.throttle = 2.0f;
@@ -46,6 +52,12 @@ int main()
     passed &= Check(NearlyEqual(clampedInput.leftTrack, 1.0f), "left track must be clamped");
     passed &= Check(NearlyEqual(clampedInput.rightTrack, -1.0f), "right track must be clamped");
     passed &= Check(clampedInput.brake, "brake must be preserved");
+
+    input.leftTrack = 0.0f;
+    input.rightTrack = 1.0f;
+    controller.SetInput(input);
+    passed &= Check(NearlyEqual(controller.Input().leftTrack, 0.0f),
+        "zero track ratio must be preserved for stationary turns");
 
     controller.PreStep();
     controller.PostStep(1.0f / 60.0f);

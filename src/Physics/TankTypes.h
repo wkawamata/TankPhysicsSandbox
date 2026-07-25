@@ -10,12 +10,17 @@ namespace Tank::Physics
     constexpr int kTankWheelsPerTrack = 5;
     constexpr int kTankWheelCount = kTankTrackCount * kTankWheelsPerTrack;
 
+    struct TankSettings
+    {
+        float chassisMassKg = 4000.0f;
+    };
+
     struct TankInput
     {
         float throttle = 0.0f;
         float steering = 0.0f;
-        float leftTrack = 0.0f;
-        float rightTrack = 0.0f;
+        float leftTrack = 1.0f;
+        float rightTrack = 1.0f;
         bool brake = false;
     };
 

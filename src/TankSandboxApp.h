@@ -108,12 +108,14 @@ private:
         uint32_t wheelAirborneMaterial = 0;
     };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
+    Tank::Physics::TankSettings m_trackedVehicleSettings;
     Engine::SceneBuilder m_trackedVehicleSceneBuilder;
     TrackedVehicleModel m_trackedVehicleModel;
     bool m_moveForward = false;
     bool m_moveBackward = false;
     bool m_turnLeft = false;
     bool m_turnRight = false;
+    bool m_pivotTurnModifier = false;
     bool m_brake = false;
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;

@@ -31,9 +31,11 @@ namespace Tank::Physics
         TrackedVehicleTest& operator=(const TrackedVehicleTest&) = delete;
 
         void Initialize();
+        void Initialize(const TankSettings& settings);
         void SetInput(const TankInput& input);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
         const TrackedVehicleTestState& State() const { return m_state; }
+        const TankSettings& Settings() const;
 
     private:
         struct Impl;

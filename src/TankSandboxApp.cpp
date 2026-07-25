@@ -235,6 +235,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
 	else if (key == 'S') m_moveBackward = true;
 	else if (key == 'A') m_turnRight = true;
 	else if (key == 'D') m_turnLeft = true;
+	else if (key == VK_SHIFT) m_pivotTurnModifier = true;
 	else if (key == VK_SPACE) m_brake = true;
 }
 
@@ -244,6 +245,7 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
 	else if (key == 'S') m_moveBackward = false;
 	else if (key == 'A') m_turnRight = false;
 	else if (key == 'D') m_turnLeft = false;
+	else if (key == VK_SHIFT) m_pivotTurnModifier = false;
 	else if (key == VK_SPACE) m_brake = false;
 }
 
@@ -735,8 +737,16 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	}
 	ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
 	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
-	ImGui::Text("Controls: W/S drive, A/D steer or pivot, Space brake");
+	ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot, Space brake");
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
+	ImGui::SeparatorText("Physics Settings");
+	ImGui::SliderFloat(
+		"Chassis Mass", &m_trackedVehicleSettings.chassisMassKg, 1000.0f, 8000.0f, "%.0f kg");
+	if (ImGui::Button("Apply & Reset"))
+	{
+		ResetTrackedVehicle();
+	}
+	ImGui::SeparatorText("Simulation");
 	if (ImGui::Button(m_trackedVehiclePaused ? "Resume" : "Pause"))
 	{
 		m_trackedVehiclePaused = !m_trackedVehiclePaused;
@@ -768,8 +778,16 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 		if (input.throttle == 0.0f)
 		{
 			input.throttle = 1.0f;
-			input.leftTrack = m_turnLeft ? -1.0f : 1.0f;
-			input.rightTrack = m_turnLeft ? 1.0f : -1.0f;
+			if (m_pivotTurnModifier)
+			{
+				input.leftTrack = m_turnLeft ? -1.0f : 1.0f;
+				input.rightTrack = m_turnLeft ? 1.0f : -1.0f;
+			}
+			else
+			{
+				input.leftTrack = m_turnLeft ? 0.0f : 1.0f;
+				input.rightTrack = m_turnLeft ? 1.0f : 0.0f;
+			}
 		}
 		else
 		{
@@ -783,7 +801,7 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 
 void TankSandboxApp::ResetTrackedVehicle()
 {
-	m_trackedVehicleTest.Initialize();
+	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings);
 	m_trackedVehicleSingleStep = false;
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
 }
@@ -852,7 +870,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	m_trackedVehicleSceneBuilder.SetCamera(camera);
 	ActivateOrbitCamera(m_trackedVehicleSceneBuilder.GetScene(), { 0.0f, 1.0f, 0.0f });
 
-	m_trackedVehicleTest.Initialize();
+	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings);
 	m_trackedVehiclePaused = false;
 	m_trackedVehicleSingleStep = false;
 	m_sceneRenderer.SetScene(m_trackedVehicleSceneBuilder.GetScene());

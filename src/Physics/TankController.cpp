@@ -11,6 +11,7 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <algorithm>
+#include <cmath>
 
 JPH_SUPPRESS_WARNINGS
 
@@ -27,6 +28,16 @@ namespace Tank::Physics
         float ClampNormalized(float value)
         {
             return std::clamp(value, -1.0f, 1.0f);
+        }
+
+        float ToJoltTrackRatio(float value)
+        {
+            constexpr float minimumMagnitude = 0.001f;
+            if (std::abs(value) < minimumMagnitude)
+            {
+                return value < 0.0f ? -minimumMagnitude : minimumMagnitude;
+            }
+            return value;
         }
 
     }
@@ -68,13 +79,21 @@ namespace Tank::Physics
     {
         m_input = {};
         m_state = {};
+        m_settings = {};
         m_impl.reset();
     }
 
     void TankController::Initialize(PhysicsWorld& world)
     {
+        Initialize(world, {});
+    }
+
+    void TankController::Initialize(PhysicsWorld& world, const TankSettings& settings)
+    {
         m_input = {};
         m_state = {};
+        m_settings = settings;
+        m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
         m_impl = std::make_unique<Impl>(world);
 
         const float wheelRadius = 0.3f;
@@ -101,7 +120,7 @@ namespace Tank::Physics
             JPH::EMotionType::Dynamic,
             Layers::Moving);
         tankBodySettings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
-        tankBodySettings.mMassPropertiesOverride.mMass = 4000.0f;
+        tankBodySettings.mMassPropertiesOverride.mMass = m_settings.chassisMassKg;
 
         JPH::Body* tankBody = bodyInterface.CreateBody(tankBodySettings);
         m_impl->bodyId = tankBody->GetID();
@@ -176,8 +195,8 @@ namespace Tank::Physics
         bodyInterface.ActivateBody(m_impl->bodyId);
 
         float forward = m_input.throttle;
-        float leftRatio = (m_input.leftTrack == 0.0f) ? 1.0f : m_input.leftTrack;
-        float rightRatio = (m_input.rightTrack == 0.0f) ? 1.0f : m_input.rightTrack;
+        float leftRatio = ToJoltTrackRatio(m_input.leftTrack);
+        float rightRatio = ToJoltTrackRatio(m_input.rightTrack);
         float brake = m_input.brake ? 1.0f : 0.0f;
 
         JPH::TrackedVehicleController* controller =
