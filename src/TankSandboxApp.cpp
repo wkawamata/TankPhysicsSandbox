@@ -14,6 +14,8 @@
 #include <combaseapi.h>
 #include <DirectXMathMatrix.inl>
 #include <Windows.h>
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -159,6 +161,18 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
 			PostQuitMessage(0);
 		}
 	}
+	else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'R')
+	{
+		ResetTrackedVehicle();
+	}
+	else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'P')
+	{
+		m_trackedVehiclePaused = !m_trackedVehiclePaused;
+	}
+	else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'N' && m_trackedVehiclePaused)
+	{
+		m_trackedVehicleSingleStep = true;
+	}
 	else if (key == 'W') m_moveForward = true;
 	else if (key == 'S') m_moveBackward = true;
 	else if (key == 'A') m_turnLeft = true;
@@ -175,11 +189,47 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
 	else if (key == VK_SPACE) m_brake = false;
 }
 
+void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
+{
+	if (m_appMode != AppMode::TopMenu)
+	{
+		m_debugCameraController.OnMouseDown(button, x, y);
+	}
+}
+
+void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
+{
+	if (m_appMode != AppMode::TopMenu)
+	{
+		m_debugCameraController.OnMouseUp(button, x, y);
+		ApplyActiveCameraScene();
+	}
+}
+
+void TankSandboxApp::OnMouseMove(int x, int y)
+{
+	if (m_appMode != AppMode::TopMenu)
+	{
+		m_debugCameraController.OnMouseMove(x, y);
+		ApplyActiveCameraScene();
+	}
+}
+
+void TankSandboxApp::OnMouseWheel(int wheelDelta)
+{
+	if (m_appMode != AppMode::TopMenu)
+	{
+		m_debugCameraController.OnMouseWheel(wheelDelta, false);
+		ApplyActiveCameraScene();
+	}
+}
+
 void TankSandboxApp::OnWindowSizeChanged(UINT width, UINT height)
 {
 	m_windowInfo.width = width;
 	m_windowInfo.height = height;
 	m_windowInfo.aspectRatio = static_cast<float>(width) / static_cast<float>(height);
+	m_debugCameraController.SetWindowSize(width, height);
 	m_sceneRenderer.RequestResize(width, height);
 }
 
@@ -302,6 +352,8 @@ void TankSandboxApp::UpdateUiFrame()
 
 	const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
+	DrawCameraUi();
+
 	// RtPbrSurvey Debug at top-right of viewport
 	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 430, 10), ImGuiCond_FirstUseEver);
 	RtPbrSurvey::SceneRendererDebugUi::Draw(m_sceneRenderer, &m_rendererDebugOpen);
@@ -311,6 +363,41 @@ void TankSandboxApp::UpdateUiFrame()
 	DrawRendererSettingsUi();
 
 	m_imguiSystem.EndFrame();
+}
+
+void TankSandboxApp::DrawCameraUi()
+{
+	Engine::CameraState* camera = ActiveCamera();
+	if (camera == nullptr)
+	{
+		return;
+	}
+
+	ImGui::Begin("Camera");
+	int projection = static_cast<int>(camera->projection);
+	bool changed = false;
+	changed |= ImGui::RadioButton(
+		"Perspective", &projection, static_cast<int>(Engine::CameraProjection::Perspective));
+	ImGui::SameLine();
+	changed |= ImGui::RadioButton(
+		"Orthographic", &projection, static_cast<int>(Engine::CameraProjection::Orthographic));
+	camera->projection = static_cast<Engine::CameraProjection>(projection);
+
+	if (camera->projection == Engine::CameraProjection::Perspective)
+	{
+		changed |= ImGui::SliderFloat("FOV Y", &camera->fov, 20.0f, 120.0f, "%.1f deg");
+	}
+	else
+	{
+		changed |= ImGui::SliderFloat(
+			"Ortho Height", &camera->orthographicHeight, 1.0f, 50.0f, "%.1f");
+	}
+
+	if (changed)
+	{
+		m_sceneRenderer.SetCamera(*camera);
+	}
+	ImGui::End();
 }
 
 void TankSandboxApp::DrawRendererSettingsUi()
@@ -454,6 +541,7 @@ void TankSandboxApp::EnterBoxDropMode()
 	camera.nearZ = 0.001f;
 	camera.farZ = 10000.0f;
 	m_boxDropSceneBuilder.SetCamera(camera);
+	ActivateOrbitCamera(m_boxDropSceneBuilder.GetScene(), {0.0f, 1.0f, 0.0f});
 
 	m_boxDropTest.Initialize();
 
@@ -514,15 +602,14 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	}
 	ImGui::SameLine();
 	ImGui::BeginDisabled(!m_trackedVehiclePaused);
-	if (ImGui::Button("Single Step"))
+	if (ImGui::Button("Step Fwd"))
 	{
 		m_trackedVehicleSingleStep = true;
 	}
 	ImGui::EndDisabled();
 	if (ImGui::Button("Reset"))
 	{
-		m_trackedVehicleTest.Initialize();
-		UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
+		ResetTrackedVehicle();
 	}
 	ImGui::Separator();
 	ImGui::Text("Press ESC to return to the top menu.");
@@ -553,11 +640,18 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 	m_trackedVehicleTest.SetInput(input);
 }
 
+void TankSandboxApp::ResetTrackedVehicle()
+{
+	m_trackedVehicleTest.Initialize();
+	m_trackedVehicleSingleStep = false;
+	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
+}
+
 void TankSandboxApp::EnterTrackedVehicleMode()
 {
 	m_trackedVehicleSceneBuilder.Clear();
 
-	const uint32_t floorMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(110, 120, 110, 255);
+	const uint32_t floorMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(160, 160, 160, 255);
 	const uint32_t bodyMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(55, 95, 65, 255);
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, bodyMaterial);
 	m_trackedVehicleSceneBuilder.AddInstance(
@@ -575,6 +669,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	camera.nearZ = 0.001f;
 	camera.farZ = 10000.0f;
 	m_trackedVehicleSceneBuilder.SetCamera(camera);
+	ActivateOrbitCamera(m_trackedVehicleSceneBuilder.GetScene(), {0.0f, 1.0f, 0.0f});
 
 	m_trackedVehicleTest.Initialize();
 	m_trackedVehiclePaused = false;
@@ -599,18 +694,53 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		XMMatrixTranslation(state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
 	XMStoreFloat4x4(&body.world, XMMatrixTranspose(world));
 
-	Engine::CameraState camera;
-	camera.pos = {
-		state.bodyPosition.x + 8.0f,
-		state.bodyPosition.y + 4.0f,
-		state.bodyPosition.z - 12.0f };
-	camera.gazePoint = {
+	m_debugCameraController.SetObjectViewerState(
+		m_debugCameraController.ObjectViewerYaw(),
+		m_debugCameraController.ObjectViewerPitch(),
+		m_debugCameraController.ObjectViewerDistance(),
+		{
 		state.bodyPosition.x,
 		state.bodyPosition.y + 0.5f,
-		state.bodyPosition.z };
-	camera.fov = 60.0f;
-	camera.nearZ = 0.001f;
-	camera.farZ = 10000.0f;
-	m_trackedVehicleSceneBuilder.SetCamera(camera);
+		state.bodyPosition.z });
 	m_sceneRenderer.SetScene(scene);
+}
+
+void TankSandboxApp::ActivateOrbitCamera(Engine::Scene& scene, const XMFLOAT3& pivot)
+{
+	m_debugCameraController.ResetInputState();
+	m_debugCameraController.SetCameraState(&scene.camera);
+	m_debugCameraController.SetWindowSize(GetWidth(), GetHeight());
+	m_debugCameraController.SetMode(RtPbrSurvey::DebugCameraController::Mode::Arcball);
+
+	const float offsetX = scene.camera.pos.x - pivot.x;
+	const float offsetY = scene.camera.pos.y - pivot.y;
+	const float offsetZ = scene.camera.pos.z - pivot.z;
+	const float distance = std::sqrt(offsetX * offsetX + offsetY * offsetY + offsetZ * offsetZ);
+	const float safeDistance = (std::max)(distance, 0.1f);
+	const float yaw = std::atan2(offsetX, offsetZ);
+	const float pitch = std::asin(std::clamp(offsetY / safeDistance, -1.0f, 1.0f));
+	m_debugCameraController.SetObjectViewerState(yaw, pitch, safeDistance, pivot);
+}
+
+void TankSandboxApp::ApplyActiveCameraScene()
+{
+	if (Engine::CameraState* camera = ActiveCamera())
+	{
+		m_sceneRenderer.SetCamera(*camera);
+	}
+}
+
+Engine::CameraState* TankSandboxApp::ActiveCamera()
+{
+	switch (m_appMode)
+	{
+	case AppMode::PhysicsBoxDrop:
+		return &m_boxDropSceneBuilder.GetScene().camera;
+	case AppMode::PhysicsTrackedVehicle:
+		return &m_trackedVehicleSceneBuilder.GetScene().camera;
+	case AppMode::TopMenu:
+		return nullptr;
+	}
+
+	return nullptr;
 }
