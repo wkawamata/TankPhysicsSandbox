@@ -124,6 +124,7 @@ void TankSandboxApp::OnInit()
 	// Temporarily disable shadows while the host debug UI and shadow artifacts are investigated.
 	auto shadowSettings = m_sceneRenderer.GetShadowSettings();
 	shadowSettings.enabled = false;
+	shadowSettings.normalBias = 0.05f;
 	m_sceneRenderer.SetShadowSettings(shadowSettings);
 
 	m_sceneRenderer.SetScene(builder.GetScene());
@@ -305,8 +306,8 @@ void TankSandboxApp::UpdateUiFrame()
 	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 430, 10), ImGuiCond_FirstUseEver);
 	RtPbrSurvey::SceneRendererDebugUi::Draw(m_sceneRenderer, &m_rendererDebugOpen);
 
-	// Renderer Settings next to the main tool window
-	ImGui::SetNextWindowPos(ImVec2(310, 50), ImGuiCond_FirstUseEver);
+	// Renderer Settings to the left of RtPbrSurvey Debug
+	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 740, 10), ImGuiCond_FirstUseEver);
 	DrawRendererSettingsUi();
 
 	m_imguiSystem.EndFrame();
