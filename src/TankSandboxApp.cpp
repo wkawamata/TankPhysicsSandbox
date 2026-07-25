@@ -792,9 +792,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	const uint32_t rightTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(50, 50, 55, 255);
 	const uint32_t markerMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 60, 60, 255);
 
-	constexpr float kMarkerRadius = 0.4f;
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
-	m_trackedVehicleSceneBuilder.AppendSphere(kMarkerRadius, 8, 8, kGltfVertexMaterialFromInstance);
 
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(40.0f, 0.2f, 40.0f) * XMMatrixTranslation(0.0f, -0.1f, 0.0f),
@@ -822,7 +820,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 
 	m_trackedVehicleModel.forwardMarker = 5;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(1.0f, 1.0f, 1.0f) * XMMatrixTranslation(0.0f, 2.5f, 2.0f + kMarkerRadius),
+		XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 2.5f, 2.5f),
 		markerMaterial);
 
 	Engine::CameraState camera;
@@ -864,7 +862,7 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		{ m_trackedVehicleModel.rightTrack,
 			XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(1.05f, -0.15f, 0.0f) },
 		{ m_trackedVehicleModel.forwardMarker,
-			XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixTranslation(0.0f, 0.5f, 2.5f) },
+			XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 0.5f, 2.5f) },
 	};
 	for (const Part& part : parts)
 	{
