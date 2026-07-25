@@ -16,6 +16,9 @@
 #include <Windows.h>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 #include <directx/d3d12.h>
@@ -28,6 +31,11 @@
 #include <Shared/Error.h>
 
 using namespace DirectX;
+
+namespace
+{
+constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
+}
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
 	: m_windowInfo(Platform::CreateWindowInfo(width, height, name))
@@ -121,6 +129,9 @@ void TankSandboxApp::OnInit()
 
 	m_sceneRenderer.SetScene(builder.GetScene());
     m_sceneRenderer.ReloadSceneResources(builder.GetScene());
+
+	m_defaultRendererSettings = m_sceneRenderer.CaptureSettings();
+	LoadRendererSettings();
 }
 
 void TankSandboxApp::OnDestroy()
@@ -288,7 +299,92 @@ void TankSandboxApp::UpdateUiFrame()
 {
 	m_imguiSystem.BeginFrame();
 	DrawToolUi();
+	RtPbrSurvey::SceneRendererDebugUi::Draw(m_sceneRenderer, &m_rendererDebugOpen);
+	DrawRendererSettingsUi();
 	m_imguiSystem.EndFrame();
+}
+
+void TankSandboxApp::DrawRendererSettingsUi()
+{
+	ImGui::Begin("Renderer Settings");
+	ImGui::TextUnformatted(kRendererSettingsPath);
+	if (ImGui::Button("Save"))
+	{
+		SaveRendererSettings();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Load"))
+	{
+		LoadRendererSettings();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Reset"))
+	{
+		ResetRendererSettings();
+	}
+	if (!m_rendererSettingsStatus.empty())
+	{
+		ImGui::TextWrapped("%s", m_rendererSettingsStatus.c_str());
+	}
+	ImGui::End();
+}
+
+bool TankSandboxApp::SaveRendererSettings()
+{
+	const std::filesystem::path path(kRendererSettingsPath);
+	std::error_code errorCode;
+	std::filesystem::create_directories(path.parent_path(), errorCode);
+	if (errorCode)
+	{
+		m_rendererSettingsStatus = "Save failed: " + errorCode.message();
+		return false;
+	}
+
+	std::ofstream output(path, std::ios::binary | std::ios::trunc);
+	if (!output)
+	{
+		m_rendererSettingsStatus = "Save failed: cannot open file";
+		return false;
+	}
+
+	output << RtPbrSurvey::SerializeSceneRendererSettings(m_sceneRenderer.CaptureSettings());
+	if (!output)
+	{
+		m_rendererSettingsStatus = "Save failed: cannot write file";
+		return false;
+	}
+
+	m_rendererSettingsStatus = "Saved";
+	return true;
+}
+
+bool TankSandboxApp::LoadRendererSettings()
+{
+	std::ifstream input(kRendererSettingsPath, std::ios::binary);
+	if (!input)
+	{
+		m_rendererSettingsStatus = "No saved settings";
+		return false;
+	}
+
+	const std::string json((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+	RtPbrSurvey::SceneRendererSettings settings = m_sceneRenderer.CaptureSettings();
+	std::string error;
+	if (!RtPbrSurvey::DeserializeSceneRendererSettings(json, settings, &error))
+	{
+		m_rendererSettingsStatus = "Load failed: " + error;
+		return false;
+	}
+
+	m_sceneRenderer.ApplySettings(settings);
+	m_rendererSettingsStatus = "Loaded";
+	return true;
+}
+
+void TankSandboxApp::ResetRendererSettings()
+{
+	m_sceneRenderer.ApplySettings(m_defaultRendererSettings);
+	m_rendererSettingsStatus = "Reset to Tank defaults";
 }
 
 void TankSandboxApp::DrawToolUi()

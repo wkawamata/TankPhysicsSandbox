@@ -5,6 +5,8 @@
 #include "Platform/WindowInfo.h"
 #include "Engine/Rhi/Dx12/GraphicsDevice.h"
 #include "Runtime/SceneRenderer.h"
+#include "Runtime/SceneRendererDebugUi.h"
+#include "Runtime/SceneRendererSettings.h"
 #include "Ui/ImGuiSystem.h"
 #include "Physics/BoxDropTest.h"
 #include "Physics/TrackedVehicleTest.h"
@@ -12,6 +14,7 @@
 
 #include <d3d12sdklayers.h>
 #include <chrono>
+#include <string>
 
 class TankSandboxApp : public Platform::IApplication
 {
@@ -42,6 +45,10 @@ private:
     void InitializeImGui();
     void UpdateUiFrame();
     void DrawToolUi();
+    void DrawRendererSettingsUi();
+    bool SaveRendererSettings();
+    bool LoadRendererSettings();
+    void ResetRendererSettings();
     void DrawTopMenuUi();
     void DrawPhysicsBoxDropUi();
     void DrawPhysicsTrackedVehicleUi();
@@ -80,6 +87,9 @@ private:
     bool m_brake = false;
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;
+    bool m_rendererDebugOpen = true;
+    RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
+    std::string m_rendererSettingsStatus;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;
