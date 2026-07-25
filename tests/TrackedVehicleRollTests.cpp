@@ -32,15 +32,21 @@ int main()
         test.Step(dt);
     }
 
+    const Tank::Physics::Vec3 startPosition = test.State().bodyPosition;
     Tank::Physics::TankInput input;
     input.roll = 1.0f;
     test.SetInput(input);
-    for (int i = 0; i < 120; ++i)
+    float maximumRollSpeed = 0.0f;
+    for (int i = 0; i < 240; ++i)
     {
         test.Step(dt);
+        maximumRollSpeed = (std::max)(
+            maximumRollSpeed,
+            std::abs(test.State().angularVelocity.z));
     }
 
     const float operatedUpY = BodyUpY(test.State().bodyRotation);
+    const float heldRollSpeed = std::abs(test.State().angularVelocity.z);
 
     input.roll = 0.0f;
     test.SetInput(input);
@@ -51,23 +57,35 @@ int main()
 
     const Tank::Physics::TrackedVehicleTestState& state = test.State();
     const float settledUpY = BodyUpY(state.bodyRotation);
+    const float displacementX = state.bodyPosition.x - startPosition.x;
+    const float displacementZ = state.bodyPosition.z - startPosition.z;
+    const float lateralDistance =
+        std::sqrt(displacementX * displacementX + displacementZ * displacementZ);
 
     bool passed = true;
     passed &= Check(std::isfinite(operatedUpY) && std::isfinite(settledUpY),
         "orientation must remain finite");
     passed &= Check(operatedUpY < 0.5f,
         "roll input must rotate the body away from upright");
+    passed &= Check(heldRollSpeed < maximumRollSpeed,
+        "held roll input must not keep increasing roll speed after 90 degrees");
     passed &= Check(std::abs(settledUpY) > 0.8f,
         "released roll input must stabilize near upright or inverted");
+    passed &= Check(lateralDistance > 2.0f && lateralDistance < 2.8f,
+        "one roll must translate approximately one vehicle width");
 
     if (!passed)
     {
         std::cerr << "  operatedUpY=" << operatedUpY
-            << " settledUpY=" << settledUpY << "\n";
+            << " settledUpY=" << settledUpY
+            << " maxRollSpeed=" << maximumRollSpeed
+            << " heldRollSpeed=" << heldRollSpeed
+            << " lateralDistance=" << lateralDistance << "\n";
         return 1;
     }
 
     std::cout << "PASS TrackedVehicle roll operated_up_y=" << operatedUpY
-        << " settled_up_y=" << settledUpY << "\n";
+        << " settled_up_y=" << settledUpY
+        << " lateral_distance=" << lateralDistance << "\n";
     return 0;
 }

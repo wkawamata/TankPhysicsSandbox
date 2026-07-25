@@ -48,6 +48,14 @@ namespace Tank::Physics
         JPH::BodyID bodyId;
         JPH::Ref<JPH::VehicleConstraint> vehicleConstraint;
         bool hasBody = false;
+        bool rollInputLatched = false;
+        bool rollPowered = false;
+        bool rollTranslationActive = false;
+        int rollSettledFrames = 0;
+        float rollDistanceIntegral = 0.0f;
+        JPH::RVec3 rollStartPosition;
+        JPH::Vec3 rollStartUp;
+        JPH::Vec3 rollDirection;
 
         explicit Impl(PhysicsWorld& w) : world(w) {}
 
@@ -216,13 +224,87 @@ namespace Tank::Physics
         const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
-        if (m_input.roll != 0.0f)
+        const bool hasRollInput = m_input.roll != 0.0f;
+        if (hasRollInput && !m_impl->rollInputLatched)
         {
-            bodyInterface.AddTorque(
-                m_impl->bodyId,
-                bodyForward * (m_input.roll * m_settings.rollTorqueNm));
+            const JPH::Vec3 bodyRight = bodyRotation * JPH::Vec3::sAxisX();
+            m_impl->rollInputLatched = true;
+            m_impl->rollPowered = true;
+            m_impl->rollTranslationActive = true;
+            m_impl->rollSettledFrames = 0;
+            m_impl->rollDistanceIntegral = 0.0f;
+            m_impl->rollStartPosition =
+                bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
+            m_impl->rollStartUp = bodyUp;
+            m_impl->rollDirection =
+                m_input.roll > 0.0f ? -bodyRight : bodyRight;
         }
-        else
+        else if (!hasRollInput)
+        {
+            m_impl->rollInputLatched = false;
+        }
+
+        if (m_impl->rollPowered)
+        {
+            if (bodyUp.Dot(m_impl->rollStartUp) > 0.0f && hasRollInput)
+            {
+                bodyInterface.AddTorque(
+                    m_impl->bodyId,
+                    bodyForward * (m_input.roll * m_settings.rollTorqueNm));
+            }
+            else
+            {
+                m_impl->rollPowered = false;
+            }
+        }
+
+        if (m_impl->rollTranslationActive)
+        {
+            constexpr float vehicleWidth = 2.4f;
+            constexpr float positionGain = 80000.0f;
+            constexpr float integralGain = 40000.0f;
+            constexpr float velocityGain = 25000.0f;
+            constexpr float maximumForce = 200000.0f;
+            const JPH::RVec3 position =
+                bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
+            const float lateralDistance = static_cast<float>(
+                (position - m_impl->rollStartPosition).Dot(m_impl->rollDirection));
+            const float lateralVelocity =
+                bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(m_impl->rollDirection);
+            const float rollAngularVelocity =
+                bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+            const float distanceError = vehicleWidth - lateralDistance;
+            m_impl->rollDistanceIntegral = std::clamp(
+                m_impl->rollDistanceIntegral + distanceError / 60.0f,
+                -2.0f,
+                2.0f);
+            const float force = std::clamp(
+                distanceError * positionGain +
+                    m_impl->rollDistanceIntegral * integralGain -
+                    lateralVelocity * velocityGain,
+                -maximumForce,
+                maximumForce);
+            bodyInterface.AddForce(m_impl->bodyId, m_impl->rollDirection * force);
+
+            if (!m_impl->rollPowered &&
+                std::abs(distanceError) < 0.05f &&
+                std::abs(lateralVelocity) < 0.1f &&
+                std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
+                std::abs(rollAngularVelocity) < 0.1f)
+            {
+                ++m_impl->rollSettledFrames;
+                if (m_impl->rollSettledFrames >= 60)
+                {
+                    m_impl->rollTranslationActive = false;
+                }
+            }
+            else
+            {
+                m_impl->rollSettledFrames = 0;
+            }
+        }
+
+        if (!m_impl->rollPowered)
         {
             constexpr float stabilizationTorque = 30000.0f;
             constexpr float stabilizationDamping = 10000.0f;
