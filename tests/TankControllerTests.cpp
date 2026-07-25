@@ -39,6 +39,14 @@ int main()
         "chassis mass must default to 4000 kg");
     passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 120000.0f),
         "roll torque must default to 120000 N m");
+    passed &= Check(NearlyEqual(controller.Settings().rollDistanceM, 2.4f),
+        "roll distance must default to one vehicle width");
+    passed &= Check(NearlyEqual(controller.Settings().rollTorqueCutoffDegrees, 90.0f),
+        "roll torque cutoff must default to 90 degrees");
+    passed &= Check(NearlyEqual(controller.Settings().rollStabilizationTorqueNm, 30000.0f),
+        "roll stabilization torque must use its default");
+    passed &= Check(NearlyEqual(controller.Settings().rollStabilizationDampingNms, 10000.0f),
+        "roll stabilization damping must use its default");
     passed &= Check(NearlyEqual(controller.Settings().rideHeightScale, 0.8f),
         "ride height must default to 80 percent");
 

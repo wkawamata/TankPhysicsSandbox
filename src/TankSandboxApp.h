@@ -68,6 +68,8 @@ private:
     void DrawPhysicsTrackedVehicleUi();
     void EnterTrackedVehicleMode();
     void ResetTrackedVehicle();
+    bool SaveTankSettings();
+    bool LoadTankSettings();
     void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
     void UpdateTrackedVehicleInput();
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
@@ -125,6 +127,7 @@ private:
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     std::string m_rendererSettingsStatus;
+    std::string m_tankSettingsStatus;
     std::string m_screenshotStatus;
 
     // Auto scene entry and screenshot for CLI.

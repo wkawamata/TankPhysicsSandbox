@@ -16,6 +16,10 @@ namespace Tank::Physics
     {
         float chassisMassKg = 4000.0f;
         float rollTorqueNm = 120000.0f;
+        float rollDistanceM = 2.4f;
+        float rollTorqueCutoffDegrees = 90.0f;
+        float rollStabilizationTorqueNm = 30000.0f;
+        float rollStabilizationDampingNms = 10000.0f;
         float rideHeightScale = 0.8f;
         bool startUpsideDown = false;
     };

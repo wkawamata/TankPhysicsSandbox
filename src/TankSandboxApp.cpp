@@ -39,6 +39,7 @@
 #include <Runtime/SceneRendererDebugUi.h>
 #include <Runtime/SceneRendererSettings.h>
 #include "Physics/BoxDropTest.h"
+#include "Physics/TankSettingsJson.h"
 #include "Physics/TankTypes.h"
 #include "Physics/TrackedVehicleTest.h"
 
@@ -47,6 +48,7 @@ using namespace DirectX;
 namespace
 {
 	constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
+	constexpr const char* kTankSettingsPath = "Config/tank_physics.json";
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -750,11 +752,45 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	ImGui::SliderFloat(
 		"Roll Torque", &m_trackedVehicleSettings.rollTorqueNm, 20000.0f, 300000.0f, "%.0f N m");
 	ImGui::SliderFloat(
+		"Roll Distance", &m_trackedVehicleSettings.rollDistanceM, 0.5f, 5.0f, "%.2f m");
+	ImGui::SliderFloat(
+		"Torque Cutoff Angle",
+		&m_trackedVehicleSettings.rollTorqueCutoffDegrees,
+		45.0f,
+		120.0f,
+		"%.0f deg");
+	ImGui::SliderFloat(
+		"Stabilization Torque",
+		&m_trackedVehicleSettings.rollStabilizationTorqueNm,
+		0.0f,
+		100000.0f,
+		"%.0f N m");
+	ImGui::SliderFloat(
+		"Stabilization Damping",
+		&m_trackedVehicleSettings.rollStabilizationDampingNms,
+		0.0f,
+		50000.0f,
+		"%.0f N m s");
+	ImGui::SliderFloat(
 		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.7f, 0.9f, "%.2f x");
 	ImGui::Checkbox("Start Upside Down", &m_trackedVehicleSettings.startUpsideDown);
 	if (ImGui::Button("Apply & Reset"))
 	{
 		ResetTrackedVehicle();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save"))
+	{
+		SaveTankSettings();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Load"))
+	{
+		LoadTankSettings();
+	}
+	if (!m_tankSettingsStatus.empty())
+	{
+		ImGui::TextWrapped("%s", m_tankSettingsStatus.c_str());
 	}
 	ImGui::SeparatorText("Simulation");
 	if (ImGui::Button(m_trackedVehiclePaused ? "Resume" : "Pause"))
@@ -815,6 +851,59 @@ void TankSandboxApp::ResetTrackedVehicle()
 	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings);
 	m_trackedVehicleSingleStep = false;
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
+}
+
+bool TankSandboxApp::SaveTankSettings()
+{
+	const std::filesystem::path path(kTankSettingsPath);
+	std::error_code errorCode;
+	std::filesystem::create_directories(path.parent_path(), errorCode);
+	if (errorCode)
+	{
+		m_tankSettingsStatus = "Save failed: " + errorCode.message();
+		return false;
+	}
+
+	std::ofstream output(path, std::ios::binary | std::ios::trunc);
+	if (!output)
+	{
+		m_tankSettingsStatus = "Save failed: cannot open file";
+		return false;
+	}
+
+	output << Tank::Physics::SerializeTankSettings(m_trackedVehicleSettings);
+	if (!output)
+	{
+		m_tankSettingsStatus = "Save failed: cannot write file";
+		return false;
+	}
+
+	m_tankSettingsStatus = std::string("Saved: ") + kTankSettingsPath;
+	return true;
+}
+
+bool TankSandboxApp::LoadTankSettings()
+{
+	std::ifstream input(kTankSettingsPath, std::ios::binary);
+	if (!input)
+	{
+		m_tankSettingsStatus = "Load failed: no saved settings";
+		return false;
+	}
+
+	const std::string json((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+	Tank::Physics::TankSettings loaded = m_trackedVehicleSettings;
+	std::string error;
+	if (!Tank::Physics::DeserializeTankSettings(json, loaded, &error))
+	{
+		m_tankSettingsStatus = "Load failed: " + error;
+		return false;
+	}
+
+	m_trackedVehicleSettings = loaded;
+	ResetTrackedVehicle();
+	m_tankSettingsStatus = std::string("Loaded: ") + kTankSettingsPath;
+	return true;
 }
 
 void TankSandboxApp::EnterTrackedVehicleMode()

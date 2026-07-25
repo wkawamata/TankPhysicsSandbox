@@ -31,6 +31,8 @@ add_subdirectory(External/JoltPhysics/Build External/JoltPhysics)
 # ── RtPbrSurvey (D3D12 renderer) ──────────────────────────────
 add_subdirectory(External/RtPbrSurvey)
 
+find_package(nlohmann_json CONFIG REQUIRED)
+
 add_library(TankPhysicsCore STATIC
     src/Physics/BoxDropTest.cpp
     src/Physics/BoxDropTest.h
@@ -39,6 +41,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/PhysicsWorld.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
+    src/Physics/TankSettingsJson.cpp
+    src/Physics/TankSettingsJson.h
     src/Physics/TankTypes.h
     src/Physics/TrackedVehicleTest.cpp
     src/Physics/TrackedVehicleTest.h
@@ -52,6 +56,8 @@ target_include_directories(TankPhysicsCore
 target_link_libraries(TankPhysicsCore
     PUBLIC
         Jolt
+    PRIVATE
+        nlohmann_json::nlohmann_json
 )
 
 # ── TankSandbox executable ─────────────────────────────────────
@@ -124,6 +130,17 @@ if(BUILD_TESTING)
         target_compile_options(PhysicsWorldTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TankSettingsJsonTests
+        tests/TankSettingsJsonTests.cpp
+    )
+    target_link_libraries(TankSettingsJsonTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TankSettingsJsonTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_test(
         NAME TankPhysics.BoxDrop
         COMMAND TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667
@@ -140,6 +157,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.PhysicsWorld
         COMMAND PhysicsWorldTests
+    )
+
+    add_test(
+        NAME TankPhysics.TankSettingsJson
+        COMMAND TankSettingsJsonTests
     )
 
     add_executable(TrackedVehicleTests

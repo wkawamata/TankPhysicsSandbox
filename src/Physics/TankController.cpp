@@ -103,6 +103,13 @@ namespace Tank::Physics
         m_settings = settings;
         m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
         m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
+        m_settings.rollDistanceM = std::clamp(m_settings.rollDistanceM, 0.5f, 5.0f);
+        m_settings.rollTorqueCutoffDegrees =
+            std::clamp(m_settings.rollTorqueCutoffDegrees, 45.0f, 120.0f);
+        m_settings.rollStabilizationTorqueNm =
+            (std::max)(m_settings.rollStabilizationTorqueNm, 0.0f);
+        m_settings.rollStabilizationDampingNms =
+            (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
         m_settings.rideHeightScale =
             std::clamp(m_settings.rideHeightScale, 0.7f, 0.9f);
         m_impl = std::make_unique<Impl>(world);
@@ -246,7 +253,9 @@ namespace Tank::Physics
 
         if (m_impl->rollPowered)
         {
-            if (bodyUp.Dot(m_impl->rollStartUp) > 0.0f && hasRollInput)
+            const float cutoffDot = std::cos(
+                JPH::DegreesToRadians(m_settings.rollTorqueCutoffDegrees));
+            if (bodyUp.Dot(m_impl->rollStartUp) > cutoffDot && hasRollInput)
             {
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
@@ -260,7 +269,6 @@ namespace Tank::Physics
 
         if (m_impl->rollTranslationActive)
         {
-            constexpr float vehicleWidth = 2.4f;
             constexpr float positionGain = 80000.0f;
             constexpr float integralGain = 40000.0f;
             constexpr float velocityGain = 25000.0f;
@@ -273,7 +281,7 @@ namespace Tank::Physics
                 bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(m_impl->rollDirection);
             const float rollAngularVelocity =
                 bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
-            const float distanceError = vehicleWidth - lateralDistance;
+            const float distanceError = m_settings.rollDistanceM - lateralDistance;
             m_impl->rollDistanceIntegral = std::clamp(
                 m_impl->rollDistanceIntegral + distanceError / 60.0f,
                 -2.0f,
@@ -306,8 +314,6 @@ namespace Tank::Physics
 
         if (!m_impl->rollPowered)
         {
-            constexpr float stabilizationTorque = 30000.0f;
-            constexpr float stabilizationDamping = 10000.0f;
             const JPH::Vec3 targetUp =
                 bodyUp.Dot(JPH::Vec3::sAxisY()) >= 0.0f
                 ? JPH::Vec3::sAxisY()
@@ -318,8 +324,8 @@ namespace Tank::Physics
             bodyInterface.AddTorque(
                 m_impl->bodyId,
                 bodyForward *
-                    (rollError * stabilizationTorque -
-                        rollAngularVelocity * stabilizationDamping));
+                    (rollError * m_settings.rollStabilizationTorqueNm -
+                        rollAngularVelocity * m_settings.rollStabilizationDampingNms));
         }
 
         float forward = m_input.throttle;
