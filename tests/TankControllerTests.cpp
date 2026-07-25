@@ -37,12 +37,17 @@ int main()
         "right track ratio must default to one");
     passed &= Check(NearlyEqual(controller.Settings().chassisMassKg, 4000.0f),
         "chassis mass must default to 4000 kg");
+    passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 120000.0f),
+        "roll torque must default to 120000 N m");
+    passed &= Check(NearlyEqual(controller.Settings().rideHeightScale, 0.8f),
+        "ride height must default to 80 percent");
 
     Tank::Physics::TankInput input;
     input.throttle = 2.0f;
     input.steering = -2.0f;
     input.leftTrack = 1.5f;
     input.rightTrack = -1.5f;
+    input.roll = 2.0f;
     input.brake = true;
     controller.SetInput(input);
 
@@ -51,6 +56,7 @@ int main()
     passed &= Check(NearlyEqual(clampedInput.steering, -1.0f), "steering must be clamped");
     passed &= Check(NearlyEqual(clampedInput.leftTrack, 1.0f), "left track must be clamped");
     passed &= Check(NearlyEqual(clampedInput.rightTrack, -1.0f), "right track must be clamped");
+    passed &= Check(NearlyEqual(clampedInput.roll, 1.0f), "roll must be clamped");
     passed &= Check(clampedInput.brake, "brake must be preserved");
 
     input.leftTrack = 0.0f;

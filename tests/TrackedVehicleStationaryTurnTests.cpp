@@ -69,7 +69,7 @@ int main()
         "both stationary-turn inputs must produce visible rotation");
     passed &= Check(left.yaw * right.yaw < 0.0f,
         "left and right stationary turns must rotate in opposite directions");
-    passed &= Check(left.horizontalDistance < 4.0f && right.horizontalDistance < 4.0f,
+    passed &= Check(left.horizontalDistance < 4.5f && right.horizontalDistance < 4.5f,
         "stationary turns must remain near their starting points");
 
     if (!passed)

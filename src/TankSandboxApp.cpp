@@ -235,6 +235,8 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
 	else if (key == 'S') m_moveBackward = true;
 	else if (key == 'A') m_turnRight = true;
 	else if (key == 'D') m_turnLeft = true;
+	else if (key == 'Q') m_rollLeft = true;
+	else if (key == 'E') m_rollRight = true;
 	else if (key == VK_SHIFT) m_pivotTurnModifier = true;
 	else if (key == VK_SPACE) m_brake = true;
 }
@@ -245,6 +247,8 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
 	else if (key == 'S') m_moveBackward = false;
 	else if (key == 'A') m_turnRight = false;
 	else if (key == 'D') m_turnLeft = false;
+	else if (key == 'Q') m_rollLeft = false;
+	else if (key == 'E') m_rollRight = false;
 	else if (key == VK_SHIFT) m_pivotTurnModifier = false;
 	else if (key == VK_SPACE) m_brake = false;
 }
@@ -737,11 +741,17 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	}
 	ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
 	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
-	ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot, Space brake");
+	ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
+	ImGui::Text("Q/E roll, Space brake");
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
 	ImGui::SeparatorText("Physics Settings");
 	ImGui::SliderFloat(
 		"Chassis Mass", &m_trackedVehicleSettings.chassisMassKg, 1000.0f, 8000.0f, "%.0f kg");
+	ImGui::SliderFloat(
+		"Roll Torque", &m_trackedVehicleSettings.rollTorqueNm, 20000.0f, 300000.0f, "%.0f N m");
+	ImGui::SliderFloat(
+		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.7f, 0.9f, "%.2f x");
+	ImGui::Checkbox("Start Upside Down", &m_trackedVehicleSettings.startUpsideDown);
 	if (ImGui::Button("Apply & Reset"))
 	{
 		ResetTrackedVehicle();
@@ -771,6 +781,7 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 {
 	Tank::Physics::TankInput input;
 	input.throttle = m_moveForward ? 1.0f : (m_moveBackward ? -1.0f : 0.0f);
+	input.roll = m_rollLeft ? 1.0f : (m_rollRight ? -1.0f : 0.0f);
 	input.brake = m_brake;
 
 	if (m_turnLeft != m_turnRight)
@@ -829,27 +840,32 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 
 	m_trackedVehicleModel.lowerHull = 1;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(1.8f, 0.5f, 3.5f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
+		XMMatrixScaling(2.16f, 0.5f, 3.5f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
 		hullMaterial);
 
 	m_trackedVehicleModel.upperStructure = 2;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(1.2f, 0.4f, 2.0f) * XMMatrixTranslation(0.0f, 2.45f, 0.3f),
+		XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, 2.375f, 0.3f),
 		upperMaterial);
 
-	m_trackedVehicleModel.leftTrack = 3;
+	m_trackedVehicleModel.lowerStructure = 3;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(-1.05f, 1.85f, 0.0f),
+		XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, 1.625f, 0.3f),
+		upperMaterial);
+
+	m_trackedVehicleModel.leftTrack = 4;
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(0.3f, 0.5f, 4.0f) * XMMatrixTranslation(-1.26f, 2.0f, 0.0f),
 		leftTrackMaterial);
 
-	m_trackedVehicleModel.rightTrack = 4;
+	m_trackedVehicleModel.rightTrack = 5;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(1.05f, 1.85f, 0.0f),
+		XMMatrixScaling(0.3f, 0.5f, 4.0f) * XMMatrixTranslation(1.26f, 2.0f, 0.0f),
 		rightTrackMaterial);
 
-	m_trackedVehicleModel.forwardMarker = 5;
+	m_trackedVehicleModel.forwardMarker = 6;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 2.5f, 2.5f),
+		XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 2.0f, 2.5f),
 		markerMaterial);
 
 	for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
@@ -892,15 +908,17 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 	struct Part { size_t index; XMMATRIX localTransform; };
 	const Part parts[] = {
 		{ m_trackedVehicleModel.lowerHull,
-			XMMatrixScaling(1.8f, 0.5f, 3.5f) },
+			XMMatrixScaling(2.16f, 0.5f, 3.5f) },
 		{ m_trackedVehicleModel.upperStructure,
-			XMMatrixScaling(1.2f, 0.4f, 2.0f) * XMMatrixTranslation(0.0f, 0.45f, 0.3f) },
+			XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, 0.375f, 0.3f) },
+		{ m_trackedVehicleModel.lowerStructure,
+			XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, -0.375f, 0.3f) },
 		{ m_trackedVehicleModel.leftTrack,
-			XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(-1.05f, -0.15f, 0.0f) },
+			XMMatrixScaling(0.3f, 0.5f, 4.0f) * XMMatrixTranslation(-1.26f, 0.0f, 0.0f) },
 		{ m_trackedVehicleModel.rightTrack,
-			XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(1.05f, -0.15f, 0.0f) },
+			XMMatrixScaling(0.3f, 0.5f, 4.0f) * XMMatrixTranslation(1.26f, 0.0f, 0.0f) },
 		{ m_trackedVehicleModel.forwardMarker,
-			XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 0.5f, 2.5f) },
+			XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 0.0f, 2.5f) },
 	};
 	for (const Part& part : parts)
 	{

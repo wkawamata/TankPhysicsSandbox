@@ -94,29 +94,32 @@ namespace Tank::Physics
         m_state = {};
         m_settings = settings;
         m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
+        m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
+        m_settings.rideHeightScale =
+            std::clamp(m_settings.rideHeightScale, 0.7f, 0.9f);
         m_impl = std::make_unique<Impl>(world);
 
         const float wheelRadius = 0.3f;
         const float wheelWidth = 0.1f;
-        const float halfVehicleWidth = 1.0f;
+        const float halfVehicleWidth = 1.2f;
         const float halfVehicleLength = 2.0f;
         const float halfVehicleHeight = 0.5f;
-        const float suspensionMinLength = 0.3f;
-        const float suspensionMaxLength = 0.5f;
+        const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
+        const float suspensionMaxLength = 0.5f * m_settings.rideHeightScale;
         const float suspensionFrequency = 1.0f;
 
         JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
 
         JPH::RefConst<JPH::Shape> tankBodyShape =
-            JPH::OffsetCenterOfMassShapeSettings(
-                JPH::Vec3(0, -halfVehicleHeight, 0),
-                new JPH::BoxShape(JPH::Vec3(halfVehicleWidth, halfVehicleHeight, halfVehicleLength))
-            ).Create().Get();
+            new JPH::BoxShape(JPH::Vec3(halfVehicleWidth, halfVehicleHeight, halfVehicleLength));
+        const JPH::Quat initialRotation = m_settings.startUpsideDown
+            ? JPH::Quat::sRotation(JPH::Vec3::sAxisZ(), JPH::JPH_PI)
+            : JPH::Quat::sIdentity();
 
         JPH::BodyCreationSettings tankBodySettings(
             tankBodyShape,
             JPH::RVec3(0.0, 2.0, 0.0),
-            JPH::Quat::sIdentity(),
+            initialRotation,
             JPH::EMotionType::Dynamic,
             Layers::Moving);
         tankBodySettings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
@@ -128,7 +131,7 @@ namespace Tank::Physics
         bodyInterface.AddBody(m_impl->bodyId, JPH::EActivation::Activate);
 
         JPH::VehicleConstraintSettings vehicle;
-        vehicle.mMaxPitchRollAngle = JPH::DegreesToRadians(60.0f);
+        vehicle.mMaxPitchRollAngle = JPH::JPH_PI;
 
         JPH::TrackedVehicleControllerSettings* controllerSettings =
             new JPH::TrackedVehicleControllerSettings;
@@ -138,7 +141,7 @@ namespace Tank::Physics
         {
             JPH::VehicleTrackSettings& track = controllerSettings->mTracks[t];
 
-            static const JPH::Vec3 wheelPos[] = {
+            static const JPH::Vec3 lowerWheelPos[] = {
                 JPH::Vec3(0.0f, 0.0f, 2.0f),
                 JPH::Vec3(0.0f, -0.3f, 1.0f),
                 JPH::Vec3(0.0f, -0.3f, 0.0f),
@@ -146,23 +149,38 @@ namespace Tank::Physics
                 JPH::Vec3(0.0f, 0.0f, -2.0f),
             };
 
-            constexpr int numWheels = static_cast<int>(sizeof(wheelPos) / sizeof(wheelPos[0]));
-            track.mDrivenWheel = static_cast<JPH::uint>(vehicle.mWheels.size() + numWheels - 1);
+            constexpr int numWheelsPerSurface =
+                static_cast<int>(sizeof(lowerWheelPos) / sizeof(lowerWheelPos[0]));
+            track.mDrivenWheel =
+                static_cast<JPH::uint>(vehicle.mWheels.size() + numWheelsPerSurface - 1);
 
-            for (int w = 0; w < numWheels; ++w)
+            for (int surface = 0; surface < kTankSurfacesPerTrack; ++surface)
             {
-                JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
-                wheel->mPosition = wheelPos[w];
-                wheel->mPosition.SetX(t == 0 ? halfVehicleWidth : -halfVehicleWidth);
-                wheel->mRadius = wheelRadius;
-                wheel->mWidth = wheelWidth;
-                wheel->mSuspensionMinLength = suspensionMinLength;
-                wheel->mSuspensionMaxLength =
-                    (w == 0 || w == numWheels - 1) ? suspensionMinLength : suspensionMaxLength;
-                wheel->mSuspensionSpring.mFrequency = suspensionFrequency;
+                const bool upperSurface = surface == 1;
+                for (int w = 0; w < numWheelsPerSurface; ++w)
+                {
+                    JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
+                    wheel->mPosition = lowerWheelPos[w];
+                    wheel->mPosition.SetX(t == 0 ? halfVehicleWidth : -halfVehicleWidth);
+                    if (upperSurface)
+                    {
+                        wheel->mPosition.SetY(-wheel->mPosition.GetY());
+                        wheel->mSuspensionDirection = JPH::Vec3::sAxisY();
+                        wheel->mSteeringAxis = -JPH::Vec3::sAxisY();
+                        wheel->mWheelUp = -JPH::Vec3::sAxisY();
+                    }
+                    wheel->mRadius = wheelRadius;
+                    wheel->mWidth = wheelWidth;
+                    wheel->mSuspensionMinLength = suspensionMinLength;
+                    wheel->mSuspensionMaxLength =
+                        (w == 0 || w == numWheelsPerSurface - 1)
+                        ? suspensionMinLength
+                        : suspensionMaxLength;
+                    wheel->mSuspensionSpring.mFrequency = suspensionFrequency;
 
-                track.mWheels.push_back(static_cast<JPH::uint>(vehicle.mWheels.size()));
-                vehicle.mWheels.push_back(wheel);
+                    track.mWheels.push_back(static_cast<JPH::uint>(vehicle.mWheels.size()));
+                    vehicle.mWheels.push_back(wheel);
+                }
             }
         }
 
@@ -181,6 +199,7 @@ namespace Tank::Physics
         m_input.steering = ClampNormalized(input.steering);
         m_input.leftTrack = ClampNormalized(input.leftTrack);
         m_input.rightTrack = ClampNormalized(input.rightTrack);
+        m_input.roll = ClampNormalized(input.roll);
         m_input.brake = input.brake;
     }
 
@@ -193,6 +212,33 @@ namespace Tank::Physics
 
         JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
         bodyInterface.ActivateBody(m_impl->bodyId);
+
+        const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
+        const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
+        const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+        if (m_input.roll != 0.0f)
+        {
+            bodyInterface.AddTorque(
+                m_impl->bodyId,
+                bodyForward * (m_input.roll * m_settings.rollTorqueNm));
+        }
+        else
+        {
+            constexpr float stabilizationTorque = 30000.0f;
+            constexpr float stabilizationDamping = 10000.0f;
+            const JPH::Vec3 targetUp =
+                bodyUp.Dot(JPH::Vec3::sAxisY()) >= 0.0f
+                ? JPH::Vec3::sAxisY()
+                : -JPH::Vec3::sAxisY();
+            const float rollError = bodyUp.Cross(targetUp).Dot(bodyForward);
+            const float rollAngularVelocity =
+                bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+            bodyInterface.AddTorque(
+                m_impl->bodyId,
+                bodyForward *
+                    (rollError * stabilizationTorque -
+                        rollAngularVelocity * stabilizationDamping));
+        }
 
         float forward = m_input.throttle;
         float leftRatio = ToJoltTrackRatio(m_input.leftTrack);
@@ -259,6 +305,7 @@ namespace Tank::Physics
             TrackedWheelState& wheelState = m_state.wheels[static_cast<size_t>(i)];
             wheelState.trackIndex = i / kTankWheelsPerTrack;
             wheelState.wheelIndex = i % kTankWheelsPerTrack;
+            wheelState.upperSurface = wheelState.wheelIndex >= kTankWheelsPerSurface;
             wheelState.transform.position = {
                 static_cast<float>(wheelPosition.GetX()),
                 static_cast<float>(wheelPosition.GetY()),

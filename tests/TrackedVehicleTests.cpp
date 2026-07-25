@@ -92,6 +92,10 @@ int main()
             "wheel track index must match snapshot order");
         passed &= Check(wheel.wheelIndex == i % Tank::Physics::kTankWheelsPerTrack,
             "wheel index must match snapshot order");
+        passed &= Check(
+            wheel.upperSurface ==
+                (wheel.wheelIndex >= Tank::Physics::kTankWheelsPerSurface),
+            "wheel surface flag must match snapshot order");
         passed &= Check(IsFinite(wheel.transform.position.x), "wheel position X must be finite");
         passed &= Check(IsFinite(wheel.transform.position.y), "wheel position Y must be finite");
         passed &= Check(IsFinite(wheel.transform.position.z), "wheel position Z must be finite");

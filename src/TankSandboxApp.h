@@ -100,6 +100,7 @@ private:
     {
         size_t lowerHull = 0;
         size_t upperStructure = 0;
+        size_t lowerStructure = 0;
         size_t leftTrack = 0;
         size_t rightTrack = 0;
         size_t forwardMarker = 0;
@@ -116,6 +117,8 @@ private:
     bool m_turnLeft = false;
     bool m_turnRight = false;
     bool m_pivotTurnModifier = false;
+    bool m_rollLeft = false;
+    bool m_rollRight = false;
     bool m_brake = false;
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;

@@ -197,6 +197,39 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehicleStationaryTurnTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehicleInvertedTests
+        tests/TrackedVehicleInvertedTests.cpp
+    )
+    target_link_libraries(TrackedVehicleInvertedTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleInvertedTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(TrackedVehicleRollTests
+        tests/TrackedVehicleRollTests.cpp
+    )
+    target_link_libraries(TrackedVehicleRollTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleRollTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(TrackedVehicleRideHeightTests
+        tests/TrackedVehicleRideHeightTests.cpp
+    )
+    target_link_libraries(TrackedVehicleRideHeightTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleRideHeightTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_test(
         NAME TankPhysics.TrackedVehicleNeutral
         COMMAND TrackedVehicleTests
@@ -220,5 +253,20 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TrackedVehicleStationaryTurn
         COMMAND TrackedVehicleStationaryTurnTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleInverted
+        COMMAND TrackedVehicleInvertedTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleRoll
+        COMMAND TrackedVehicleRollTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleRideHeight
+        COMMAND TrackedVehicleRideHeightTests
     )
 endif()
