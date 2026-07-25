@@ -175,8 +175,8 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
 	}
 	else if (key == 'W') m_moveForward = true;
 	else if (key == 'S') m_moveBackward = true;
-	else if (key == 'A') m_turnLeft = true;
-	else if (key == 'D') m_turnRight = true;
+	else if (key == 'A') m_turnRight = true;
+	else if (key == 'D') m_turnLeft = true;
 	else if (key == VK_SPACE) m_brake = true;
 }
 
@@ -184,8 +184,8 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
 {
 	if (key == 'W') m_moveForward = false;
 	else if (key == 'S') m_moveBackward = false;
-	else if (key == 'A') m_turnLeft = false;
-	else if (key == 'D') m_turnRight = false;
+	else if (key == 'A') m_turnRight = false;
+	else if (key == 'D') m_turnLeft = false;
 	else if (key == VK_SPACE) m_brake = false;
 }
 
@@ -522,8 +522,8 @@ void TankSandboxApp::EnterBoxDropMode()
 	uint32_t matFloor = m_boxDropSceneBuilder.AddSolidColorMaterial(128, 128, 128, 255);
 	uint32_t matBox = m_boxDropSceneBuilder.AddSolidColorMaterial(200, 50, 50, 255);
 
-	m_boxDropSceneBuilder.AppendCube(1.0f, matFloor);
-	m_boxDropSceneBuilder.AppendCube(1.0f, matBox);
+	m_boxDropSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
+	m_boxDropSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
 
 	m_boxDropSceneBuilder.AddInstance(
 		XMMatrixScaling(20.0f, 0.2f, 20.0f) * XMMatrixTranslation(0.0f, -0.1f, 0.0f),
@@ -653,7 +653,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 
 	const uint32_t floorMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(160, 160, 160, 255);
 	const uint32_t bodyMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(55, 95, 65, 255);
-	m_trackedVehicleSceneBuilder.AppendCube(1.0f, bodyMaterial);
+	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(40.0f, 0.2f, 40.0f) * XMMatrixTranslation(0.0f, -0.1f, 0.0f),
 		floorMaterial);

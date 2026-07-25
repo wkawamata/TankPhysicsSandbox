@@ -54,6 +54,7 @@ namespace Tank::Physics
             JPH::Quat::sIdentity(),
             JPH::EMotionType::Static,
             Layers::NonMoving);
+        floorSettings.mFriction = 0.8f;
 
         JPH::Body* floorBody = bodyInterface.CreateBody(floorSettings);
         m_impl->floorBodyId = floorBody->GetID();

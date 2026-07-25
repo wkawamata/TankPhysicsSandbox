@@ -4,6 +4,7 @@
 #include "Platform/CommandLineOptions.h"
 #include "Platform/WindowInfo.h"
 #include "Engine/Rhi/Dx12/GraphicsDevice.h"
+#include "Camera/DebugCameraController.h"
 #include "Runtime/SceneRenderer.h"
 #include "Runtime/SceneRendererDebugUi.h"
 #include "Runtime/SceneRendererSettings.h"
@@ -27,6 +28,10 @@ public:
     void OnDestroy() override;
     void OnKeyDown(UINT8 key) override;
     void OnKeyUp(UINT8 key) override;
+    void OnMouseDown(UINT8 button, int x, int y) override;
+    void OnMouseUp(UINT8 button, int x, int y) override;
+    void OnMouseMove(int x, int y) override;
+    void OnMouseWheel(int wheelDelta) override;
     void OnWindowSizeChanged(UINT width, UINT height) override;
     void OnIdle() override;
 
@@ -45,6 +50,7 @@ private:
     void InitializeImGui();
     void UpdateUiFrame();
     void DrawToolUi();
+    void DrawCameraUi();
     void DrawRendererSettingsUi();
     bool SaveRendererSettings();
     bool LoadRendererSettings();
@@ -53,8 +59,12 @@ private:
     void DrawPhysicsBoxDropUi();
     void DrawPhysicsTrackedVehicleUi();
     void EnterTrackedVehicleMode();
+    void ResetTrackedVehicle();
     void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
     void UpdateTrackedVehicleInput();
+    void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
+    void ApplyActiveCameraScene();
+    Engine::CameraState* ActiveCamera();
     void EnterBoxDropMode();
     void UpdateBoxDropScene(const Tank::Physics::BoxDropState& state);
     void FlushD3d12DebugLog();
@@ -69,6 +79,7 @@ private:
     ComPtr<ID3D12DescriptorHeap> m_imguiHeap;
     Engine::ImGuiSystem m_imguiSystem;
     RtPbrSurvey::SceneRenderer m_sceneRenderer;
+    RtPbrSurvey::DebugCameraController m_debugCameraController;
     AppMode m_appMode = AppMode::TopMenu;
 
     // Box drop physics test and scene
