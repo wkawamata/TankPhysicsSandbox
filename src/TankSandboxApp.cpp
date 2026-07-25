@@ -165,6 +165,9 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
 		if (m_appMode != AppMode::TopMenu)
 		{
 			m_appMode = AppMode::TopMenu;
+			m_boxDropSceneBuilder.Clear();
+			m_trackedVehicleSceneBuilder.Clear();
+			m_sceneRenderer.SetScene(Engine::Scene{});
 		}
 		else
 		{
