@@ -728,6 +728,12 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	ImGui::Text("Time: %.2f s", state.timeSeconds);
 	ImGui::Text("Position: %.2f, %.2f, %.2f",
 		state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
+	int wheelContactCount = 0;
+	for (int i = 0; i < state.wheelCount; ++i)
+	{
+		wheelContactCount += state.wheels[static_cast<size_t>(i)].hasContact ? 1 : 0;
+	}
+	ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
 	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
 	ImGui::Text("Controls: W/S drive, A/D steer or pivot, Space brake");
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
@@ -792,6 +798,10 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	const uint32_t leftTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 40, 45, 255);
 	const uint32_t rightTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(50, 50, 55, 255);
 	const uint32_t markerMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 60, 60, 255);
+	m_trackedVehicleModel.wheelContactMaterial =
+		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 200, 90, 255);
+	m_trackedVehicleModel.wheelAirborneMaterial =
+		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(230, 140, 40, 255);
 
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
 
@@ -823,6 +833,15 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 2.5f, 2.5f),
 		markerMaterial);
+
+	for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
+	{
+		m_trackedVehicleModel.wheels[static_cast<size_t>(i)] =
+			m_trackedVehicleSceneBuilder.GetScene().instances.size();
+		m_trackedVehicleSceneBuilder.AddInstance(
+			XMMatrixScaling(0.0f, 0.0f, 0.0f),
+			m_trackedVehicleModel.wheelAirborneMaterial);
+	}
 
 	Engine::CameraState camera;
 	camera.pos = { 8.0f, 5.0f, -12.0f };
@@ -871,6 +890,41 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		inst.prevWorld = inst.world;
 		const XMMATRIX world = part.localTransform * bodyTransform;
 		XMStoreFloat4x4(&inst.world, XMMatrixTranspose(world));
+	}
+
+	for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
+	{
+		Engine::InstanceData& inst =
+			scene.instances[m_trackedVehicleModel.wheels[static_cast<size_t>(i)]];
+		inst.prevWorld = inst.world;
+
+		if (i < state.wheelCount)
+		{
+			const Tank::Physics::TrackedWheelState& wheel = state.wheels[static_cast<size_t>(i)];
+			const XMVECTOR wheelRotation = XMVectorSet(
+				wheel.transform.rotation.x,
+				wheel.transform.rotation.y,
+				wheel.transform.rotation.z,
+				wheel.transform.rotation.w);
+			const XMMATRIX wheelWorld =
+				XMMatrixScaling(0.6f, 0.1f, 0.6f) *
+				XMMatrixRotationQuaternion(wheelRotation) *
+				XMMatrixTranslation(
+					wheel.transform.position.x,
+					wheel.transform.position.y,
+					wheel.transform.position.z);
+			XMStoreFloat4x4(&inst.world, XMMatrixTranspose(wheelWorld));
+			inst.materialId = wheel.hasContact
+				? m_trackedVehicleModel.wheelContactMaterial
+				: m_trackedVehicleModel.wheelAirborneMaterial;
+		}
+		else
+		{
+			XMStoreFloat4x4(
+				&inst.world,
+				XMMatrixTranspose(XMMatrixScaling(0.0f, 0.0f, 0.0f)));
+			inst.materialId = m_trackedVehicleModel.wheelAirborneMaterial;
+		}
 	}
 
 	m_debugCameraController.SetObjectViewerState(

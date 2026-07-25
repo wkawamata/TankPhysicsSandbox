@@ -18,6 +18,7 @@
 #include "Physics/TrackedVehicleTest.h"
 #include "Scene/SceneBuilder.h"
 
+#include <array>
 #include <chrono>
 #include <optional>
 #include <string>
@@ -102,6 +103,9 @@ private:
         size_t leftTrack = 0;
         size_t rightTrack = 0;
         size_t forwardMarker = 0;
+        std::array<size_t, Tank::Physics::kTankWheelCount> wheels = {};
+        uint32_t wheelContactMaterial = 0;
+        uint32_t wheelAirborneMaterial = 0;
     };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Engine::SceneBuilder m_trackedVehicleSceneBuilder;
