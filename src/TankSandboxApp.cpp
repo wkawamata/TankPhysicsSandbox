@@ -62,6 +62,34 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
 	{
 		m_windowInfo.title += L" (WARP)";
 	}
+
+	for (int i = 1; i < argc; i++)
+	{
+		const std::wstring arg(argv[i]);
+
+		if (arg == L"--scene" && i + 1 < argc)
+		{
+			const std::wstring scene(argv[i + 1]);
+			if (scene == L"box-drop")
+			{
+				m_autoSceneMode = AppMode::PhysicsBoxDrop;
+			}
+			else if (scene == L"tracked-vehicle")
+			{
+				m_autoSceneMode = AppMode::PhysicsTrackedVehicle;
+			}
+			i++;
+		}
+		else if (arg == L"--capture-after-frames" && i + 1 < argc)
+		{
+			m_autoCaptureFrameCount = _wtoi64(argv[i + 1]);
+			i++;
+		}
+		else if (arg == L"--quit-after-capture")
+		{
+			m_quitAfterCapture = true;
+		}
+	}
 }
 
 void TankSandboxApp::OnInit()
@@ -144,6 +172,19 @@ void TankSandboxApp::OnInit()
 
 	m_defaultRendererSettings = m_sceneRenderer.CaptureSettings();
 	LoadRendererSettings();
+
+	if (m_autoSceneMode.has_value())
+	{
+		switch (*m_autoSceneMode)
+		{
+		case AppMode::PhysicsBoxDrop:
+			EnterBoxDropMode();
+			break;
+		case AppMode::PhysicsTrackedVehicle:
+			EnterTrackedVehicleMode();
+			break;
+		}
+	}
 }
 
 void TankSandboxApp::OnDestroy()
@@ -276,6 +317,22 @@ void TankSandboxApp::OnIdle()
 			m_imguiSystem.Render(commandList);
 		});
 	UpdateScreenshotResult();
+
+	if (m_autoCaptureFrameCount > 0)
+	{
+		m_autoFramesElapsed++;
+		if (m_autoFramesElapsed >= m_autoCaptureFrameCount)
+		{
+			RequestScreenshot();
+			m_autoCaptureFrameCount = 0;
+		}
+	}
+
+	if (m_quitAfterCapture && m_autoCaptureFrameCount == 0 &&
+		m_screenshotStatus.find("Saved: ") == 0)
+	{
+		PostQuitMessage(0);
+	}
 
 	if (m_logFile)
 	{

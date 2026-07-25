@@ -19,6 +19,7 @@
 #include "Scene/SceneBuilder.h"
 
 #include <chrono>
+#include <optional>
 #include <string>
 
 class TankSandboxApp : public Platform::IApplication
@@ -108,6 +109,12 @@ private:
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     std::string m_rendererSettingsStatus;
     std::string m_screenshotStatus;
+
+    // Auto scene entry and screenshot for CLI.
+    std::optional<AppMode> m_autoSceneMode;
+    UINT64 m_autoCaptureFrameCount = 0;
+    UINT64 m_autoFramesElapsed = 0;
+    bool m_quitAfterCapture = false;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;
