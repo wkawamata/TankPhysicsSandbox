@@ -427,6 +427,7 @@ void TankSandboxApp::UpdateUiFrame()
 
 	const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
+	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 950, 10), ImGuiCond_FirstUseEver);
 	DrawCameraUi();
 
 	// RtPbrSurvey Debug at top-right of viewport
