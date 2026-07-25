@@ -786,15 +786,44 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	m_trackedVehicleSceneBuilder.Clear();
 
 	const uint32_t floorMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(80, 80, 80, 255);
-	const uint32_t bodyMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(55, 95, 65, 255);
+	const uint32_t hullMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(55, 95, 65, 255);
+	const uint32_t upperMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 120, 80, 255);
+	const uint32_t leftTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 40, 45, 255);
+	const uint32_t rightTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(50, 50, 55, 255);
+	const uint32_t markerMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 60, 60, 255);
+
+	constexpr float kMarkerRadius = 0.4f;
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
+	m_trackedVehicleSceneBuilder.AppendSphere(kMarkerRadius, 8, 8, kGltfVertexMaterialFromInstance);
+
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(40.0f, 0.2f, 40.0f) * XMMatrixTranslation(0.0f, -0.1f, 0.0f),
 		floorMaterial);
-	m_trackedVehicleBodyInstanceIndex = 1;
+
+	m_trackedVehicleModel.lowerHull = 1;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(2.0f, 1.0f, 4.0f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
-		bodyMaterial);
+		XMMatrixScaling(1.8f, 0.5f, 3.5f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
+		hullMaterial);
+
+	m_trackedVehicleModel.upperStructure = 2;
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(1.2f, 0.4f, 2.0f) * XMMatrixTranslation(0.0f, 2.45f, 0.3f),
+		upperMaterial);
+
+	m_trackedVehicleModel.leftTrack = 3;
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(-1.05f, 1.85f, 0.0f),
+		leftTrackMaterial);
+
+	m_trackedVehicleModel.rightTrack = 4;
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(1.05f, 1.85f, 0.0f),
+		rightTrackMaterial);
+
+	m_trackedVehicleModel.forwardMarker = 5;
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(1.0f, 1.0f, 1.0f) * XMMatrixTranslation(0.0f, 2.5f, 2.0f + kMarkerRadius),
+		markerMaterial);
 
 	Engine::CameraState camera;
 	camera.pos = { 8.0f, 5.0f, -12.0f };
@@ -818,15 +847,32 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state)
 {
 	Engine::Scene& scene = m_trackedVehicleSceneBuilder.GetScene();
-	Engine::InstanceData& body = scene.instances[m_trackedVehicleBodyInstanceIndex];
-	body.prevWorld = body.world;
 	const XMVECTOR rotation = XMVectorSet(
 		state.bodyRotation.x, state.bodyRotation.y, state.bodyRotation.z, state.bodyRotation.w);
-	const XMMATRIX world =
-		XMMatrixScaling(2.0f, 1.0f, 4.0f) *
+	const XMMATRIX bodyTransform =
 		XMMatrixRotationQuaternion(rotation) *
 		XMMatrixTranslation(state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
-	XMStoreFloat4x4(&body.world, XMMatrixTranspose(world));
+
+	struct Part { size_t index; XMMATRIX localTransform; };
+	const Part parts[] = {
+		{ m_trackedVehicleModel.lowerHull,
+			XMMatrixScaling(1.8f, 0.5f, 3.5f) },
+		{ m_trackedVehicleModel.upperStructure,
+			XMMatrixScaling(1.2f, 0.4f, 2.0f) * XMMatrixTranslation(0.0f, 0.45f, 0.3f) },
+		{ m_trackedVehicleModel.leftTrack,
+			XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(-1.05f, -0.15f, 0.0f) },
+		{ m_trackedVehicleModel.rightTrack,
+			XMMatrixScaling(0.3f, 0.25f, 4.0f) * XMMatrixTranslation(1.05f, -0.15f, 0.0f) },
+		{ m_trackedVehicleModel.forwardMarker,
+			XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixTranslation(0.0f, 0.5f, 2.5f) },
+	};
+	for (const Part& part : parts)
+	{
+		Engine::InstanceData& inst = scene.instances[part.index];
+		inst.prevWorld = inst.world;
+		const XMMATRIX world = part.localTransform * bodyTransform;
+		XMStoreFloat4x4(&inst.world, XMMatrixTranspose(world));
+	}
 
 	m_debugCameraController.SetObjectViewerState(
 		m_debugCameraController.ObjectViewerYaw(),

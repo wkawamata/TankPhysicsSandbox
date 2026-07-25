@@ -95,9 +95,17 @@ private:
     size_t m_boxDropBoxInstanceIndex = 0;
     static constexpr float kPhysicsFixedDt = 1.0f / 60.0f;
 
+    struct TrackedVehicleModel
+    {
+        size_t lowerHull = 0;
+        size_t upperStructure = 0;
+        size_t leftTrack = 0;
+        size_t rightTrack = 0;
+        size_t forwardMarker = 0;
+    };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Engine::SceneBuilder m_trackedVehicleSceneBuilder;
-    size_t m_trackedVehicleBodyInstanceIndex = 0;
+    TrackedVehicleModel m_trackedVehicleModel;
     bool m_moveForward = false;
     bool m_moveBackward = false;
     bool m_turnLeft = false;
