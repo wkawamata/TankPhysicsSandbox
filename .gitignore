@@ -1,4 +1,6 @@
 build/
+build-*/
 .vscode/
 vcpkg_installed/
 Config/renderer_debug.json
+Screenshots/
