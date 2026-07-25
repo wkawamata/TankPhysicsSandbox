@@ -77,6 +77,31 @@ int main()
     passed &= Check(angularSpeedSquared < 0.04f,
         "neutral body angular speed must settle below 0.2 rad/s");
 
+    passed &= Check(state.wheelCount == Tank::Physics::kTankWheelCount,
+        "tracked vehicle must expose all ten wheel snapshots");
+
+    int contactCount = 0;
+    for (int i = 0; i < state.wheelCount; ++i)
+    {
+        const Tank::Physics::TrackedWheelState& wheel = state.wheels[static_cast<size_t>(i)];
+        passed &= Check(wheel.trackIndex == i / Tank::Physics::kTankWheelsPerTrack,
+            "wheel track index must match snapshot order");
+        passed &= Check(wheel.wheelIndex == i % Tank::Physics::kTankWheelsPerTrack,
+            "wheel index must match snapshot order");
+        passed &= Check(IsFinite(wheel.transform.position.x), "wheel position X must be finite");
+        passed &= Check(IsFinite(wheel.transform.position.y), "wheel position Y must be finite");
+        passed &= Check(IsFinite(wheel.transform.position.z), "wheel position Z must be finite");
+        passed &= Check(IsFinite(wheel.transform.rotation.x), "wheel rotation X must be finite");
+        passed &= Check(IsFinite(wheel.transform.rotation.y), "wheel rotation Y must be finite");
+        passed &= Check(IsFinite(wheel.transform.rotation.z), "wheel rotation Z must be finite");
+        passed &= Check(IsFinite(wheel.transform.rotation.w), "wheel rotation W must be finite");
+        passed &= Check(IsFinite(wheel.suspensionLength), "suspension length must be finite");
+        passed &= Check(wheel.suspensionLength >= 0.0f && wheel.suspensionLength <= 0.5f,
+            "suspension length must remain within the configured range");
+        contactCount += wheel.hasContact ? 1 : 0;
+    }
+    passed &= Check(contactCount > 0, "at least one wheel must contact the floor");
+
     if (!passed)
     {
         std::cerr << "  bodyPosition: (" << state.bodyPosition.x << ", "

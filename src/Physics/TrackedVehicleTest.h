@@ -3,6 +3,7 @@
 #include "PhysicsTypes.h"
 #include "TankTypes.h"
 
+#include <array>
 #include <memory>
 
 namespace Tank::Physics
@@ -15,6 +16,8 @@ namespace Tank::Physics
         Quat bodyRotation = {};
         Vec3 linearVelocity = {};
         Vec3 angularVelocity = {};
+        std::array<TrackedWheelState, kTankWheelCount> wheels = {};
+        int wheelCount = 0;
         bool sleeping = false;
     };
 

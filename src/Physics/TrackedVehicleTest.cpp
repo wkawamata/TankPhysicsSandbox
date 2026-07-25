@@ -96,6 +96,8 @@ namespace Tank::Physics
         m_state.bodyRotation = m_impl->controller.State().body.rotation;
         m_state.linearVelocity = m_impl->controller.State().linearVelocity;
         m_state.angularVelocity = m_impl->controller.State().angularVelocity;
+        m_state.wheels = m_impl->controller.State().wheels;
+        m_state.wheelCount = m_impl->controller.State().wheelCount;
         m_state.sleeping = m_impl->controller.State().sleeping;
 
         return m_state;

@@ -224,6 +224,34 @@ namespace Tank::Physics
             static_cast<float>(angularVelocity.GetX()),
             static_cast<float>(angularVelocity.GetY()),
             static_cast<float>(angularVelocity.GetZ())};
+
+        const auto& wheels = m_impl->vehicleConstraint->GetWheels();
+        m_state.wheelCount = (std::min)(static_cast<int>(wheels.size()), kTankWheelCount);
+        for (int i = 0; i < m_state.wheelCount; ++i)
+        {
+            const JPH::Wheel* wheel = wheels[static_cast<size_t>(i)];
+            const JPH::RMat44 wheelTransform = m_impl->vehicleConstraint->GetWheelWorldTransform(
+                static_cast<JPH::uint>(i),
+                JPH::Vec3::sAxisY(),
+                JPH::Vec3::sAxisX());
+            const JPH::RVec3 wheelPosition = wheelTransform.GetTranslation();
+            const JPH::Quat wheelRotation = wheelTransform.GetQuaternion();
+
+            TrackedWheelState& wheelState = m_state.wheels[static_cast<size_t>(i)];
+            wheelState.trackIndex = i / kTankWheelsPerTrack;
+            wheelState.wheelIndex = i % kTankWheelsPerTrack;
+            wheelState.transform.position = {
+                static_cast<float>(wheelPosition.GetX()),
+                static_cast<float>(wheelPosition.GetY()),
+                static_cast<float>(wheelPosition.GetZ())};
+            wheelState.transform.rotation = {
+                static_cast<float>(wheelRotation.GetX()),
+                static_cast<float>(wheelRotation.GetY()),
+                static_cast<float>(wheelRotation.GetZ()),
+                static_cast<float>(wheelRotation.GetW())};
+            wheelState.suspensionLength = wheel->GetSuspensionLength();
+            wheelState.hasContact = wheel->HasContact();
+        }
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
     }
 }
