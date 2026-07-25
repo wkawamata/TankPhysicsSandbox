@@ -23,20 +23,30 @@
 #include <iterator>
 #include <string>
 #include <vector>
-#include <directx/d3d12.h>
-#include <directx/d3d12sdklayers.h>
 #include <Engine/Rhi/Dx12/GraphicsDevice.h>
 #include <Engine/RtPbrSurveyEngine.h>
 #include <Platform/CommandLineOptions.h>
 #include <Platform/WindowInfo.h>
 #include <Scene/Scene.h>
 #include <Shared/Error.h>
+#include <DirectXMathConvert.inl>
+#include <DirectXMathVector.inl>
+#include <system_error>
+#include <d3d12.h>
+#include <d3d12sdklayers.h>
+#include <Camera/DebugCameraController.h>
+#include <GltfLoader.h>
+#include <Runtime/SceneRendererDebugUi.h>
+#include <Runtime/SceneRendererSettings.h>
+#include "Physics/BoxDropTest.h"
+#include "Physics/TankTypes.h"
+#include "Physics/TrackedVehicleTest.h"
 
 using namespace DirectX;
 
 namespace
 {
-constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
+	constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -104,7 +114,7 @@ void TankSandboxApp::OnInit()
 	// Single large cube right in front of the camera, bright red.
 	uint32_t matRed = builder.AddSolidColorMaterial(255, 0, 0, 255);
 	builder.AppendCube(1.0f, matRed);
-    builder.AddInstance(XMMatrixTranslation(0.0f, 0.0f, 0.0f), matRed);
+	builder.AddInstance(XMMatrixTranslation(0.0f, 0.0f, 0.0f), matRed);
 
 	// Camera looking at the cube from close range.
 	Engine::CameraState camera;
@@ -130,7 +140,7 @@ void TankSandboxApp::OnInit()
 	m_sceneRenderer.SetShadowSettings(shadowSettings);
 
 	m_sceneRenderer.SetScene(builder.GetScene());
-    m_sceneRenderer.ReloadSceneResources(builder.GetScene());
+	m_sceneRenderer.ReloadSceneResources(builder.GetScene());
 
 	m_defaultRendererSettings = m_sceneRenderer.CaptureSettings();
 	LoadRendererSettings();
@@ -541,7 +551,7 @@ void TankSandboxApp::EnterBoxDropMode()
 	camera.nearZ = 0.001f;
 	camera.farZ = 10000.0f;
 	m_boxDropSceneBuilder.SetCamera(camera);
-	ActivateOrbitCamera(m_boxDropSceneBuilder.GetScene(), {0.0f, 1.0f, 0.0f});
+	ActivateOrbitCamera(m_boxDropSceneBuilder.GetScene(), { 0.0f, 1.0f, 0.0f });
 
 	m_boxDropTest.Initialize();
 
@@ -651,7 +661,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 {
 	m_trackedVehicleSceneBuilder.Clear();
 
-	const uint32_t floorMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(160, 160, 160, 255);
+	const uint32_t floorMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(80, 80, 80, 255);
 	const uint32_t bodyMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(55, 95, 65, 255);
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
 	m_trackedVehicleSceneBuilder.AddInstance(
@@ -669,7 +679,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	camera.nearZ = 0.001f;
 	camera.farZ = 10000.0f;
 	m_trackedVehicleSceneBuilder.SetCamera(camera);
-	ActivateOrbitCamera(m_trackedVehicleSceneBuilder.GetScene(), {0.0f, 1.0f, 0.0f});
+	ActivateOrbitCamera(m_trackedVehicleSceneBuilder.GetScene(), { 0.0f, 1.0f, 0.0f });
 
 	m_trackedVehicleTest.Initialize();
 	m_trackedVehiclePaused = false;

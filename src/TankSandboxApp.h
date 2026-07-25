@@ -3,6 +3,11 @@
 #include "Platform/IApplication.h"
 #include "Platform/CommandLineOptions.h"
 #include "Platform/WindowInfo.h"
+
+#include <d3d12.h>
+#include <dxgi1_6.h>
+#include <d3d12sdklayers.h>
+
 #include "Engine/Rhi/Dx12/GraphicsDevice.h"
 #include "Camera/DebugCameraController.h"
 #include "Runtime/SceneRenderer.h"
@@ -13,7 +18,6 @@
 #include "Physics/TrackedVehicleTest.h"
 #include "Scene/SceneBuilder.h"
 
-#include <d3d12sdklayers.h>
 #include <chrono>
 #include <string>
 
