@@ -113,8 +113,7 @@ void TankSandboxApp::OnInit()
 	camera.farZ = 10000.0f;
 	builder.SetCamera(camera);
 
-	// Bright green clear color.
-	m_sceneRenderer.SetBackBufferClearColor({ 0.0f, 0.8f, 0.0f, 1.0f });
+	m_sceneRenderer.SetBackBufferClearColor({ 0.53f, 0.74f, 0.95f, 1.0f });
 
 	// Disable skybox, boost IBL.
 	RtPbrSurveyEngine::LightingParams lighting;
@@ -299,8 +298,17 @@ void TankSandboxApp::UpdateUiFrame()
 {
 	m_imguiSystem.BeginFrame();
 	DrawToolUi();
+
+	const ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+	// RtPbrSurvey Debug at top-right of viewport
+	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 430, 10), ImGuiCond_FirstUseEver);
 	RtPbrSurvey::SceneRendererDebugUi::Draw(m_sceneRenderer, &m_rendererDebugOpen);
+
+	// Renderer Settings next to the main tool window
+	ImGui::SetNextWindowPos(ImVec2(310, 50), ImGuiCond_FirstUseEver);
 	DrawRendererSettingsUi();
+
 	m_imguiSystem.EndFrame();
 }
 
