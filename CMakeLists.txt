@@ -54,6 +54,17 @@ target_link_libraries(TankPhysicsCore
         Jolt
 )
 
+add_library(TankInputCore STATIC
+    src/Input/GamepadState.h
+    src/Input/TankInputMapper.cpp
+    src/Input/TankInputMapper.h
+)
+
+target_include_directories(TankInputCore
+    PUBLIC
+        src
+)
+
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
     src/main.cpp
@@ -72,6 +83,7 @@ target_include_directories(TankSandbox
 target_link_libraries(TankSandbox
     PRIVATE
         TankPhysicsCore
+        TankInputCore
         Jolt
         RtPbrSurvey::SceneRenderer
 )
@@ -140,6 +152,22 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.PhysicsWorld
         COMMAND PhysicsWorldTests
+    )
+
+    add_executable(TankInputMapperTests
+        tests/TankInputMapperTests.cpp
+    )
+    target_link_libraries(TankInputMapperTests
+        PRIVATE
+            TankInputCore
+    )
+    if(MSVC)
+        target_compile_options(TankInputMapperTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_test(
+        NAME TankInput.Mapper
+        COMMAND TankInputMapperTests
     )
 
     add_executable(TrackedVehicleTests
