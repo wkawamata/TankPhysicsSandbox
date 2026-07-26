@@ -772,6 +772,10 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		50000.0f,
 		"%.0f N m s");
 	ImGui::SliderFloat(
+		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, "%.2f m");
+	ImGui::SliderFloat(
+		"Track Spacing", &m_trackedVehicleSettings.trackSpacingM, 1.8f, 3.2f, "%.2f m");
+	ImGui::SliderFloat(
 		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.7f, 0.9f, "%.2f x");
 	ImGui::Checkbox("Start Upside Down", &m_trackedVehicleSettings.startUpsideDown);
 	if (ImGui::Button("Apply & Reset"))
@@ -944,12 +948,14 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 
 	m_trackedVehicleModel.leftTrack = 4;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(0.3f, 0.5f, 4.0f) * XMMatrixTranslation(-1.26f, 2.0f, 0.0f),
+		XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
+			XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
 		leftTrackMaterial);
 
 	m_trackedVehicleModel.rightTrack = 5;
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(0.3f, 0.5f, 4.0f) * XMMatrixTranslation(1.26f, 2.0f, 0.0f),
+		XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
+			XMMatrixTranslation(0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
 		rightTrackMaterial);
 
 	m_trackedVehicleModel.forwardMarker = 6;
@@ -1003,9 +1009,11 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		{ m_trackedVehicleModel.lowerStructure,
 			XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, -0.375f, 0.3f) },
 		{ m_trackedVehicleModel.leftTrack,
-			XMMatrixScaling(0.3f, 0.5f, 4.0f) * XMMatrixTranslation(-1.26f, 0.0f, 0.0f) },
+			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
+				XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 0.0f, 0.0f) },
 		{ m_trackedVehicleModel.rightTrack,
-			XMMatrixScaling(0.3f, 0.5f, 4.0f) * XMMatrixTranslation(1.26f, 0.0f, 0.0f) },
+			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
+				XMMatrixTranslation(0.5f * m_trackedVehicleSettings.trackSpacingM, 0.0f, 0.0f) },
 		{ m_trackedVehicleModel.forwardMarker,
 			XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 0.0f, 2.5f) },
 	};
@@ -1032,7 +1040,7 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 				wheel.transform.rotation.z,
 				wheel.transform.rotation.w);
 			const XMMATRIX wheelWorld =
-				XMMatrixScaling(0.6f, 0.1f, 0.6f) *
+				XMMatrixScaling(0.6f, m_trackedVehicleSettings.trackWidthM, 0.6f) *
 				XMMatrixRotationQuaternion(wheelRotation) *
 				XMMatrixTranslation(
 					wheel.transform.position.x,

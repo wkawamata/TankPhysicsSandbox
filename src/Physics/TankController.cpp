@@ -110,13 +110,16 @@ namespace Tank::Physics
             (std::max)(m_settings.rollStabilizationTorqueNm, 0.0f);
         m_settings.rollStabilizationDampingNms =
             (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
+        m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 0.6f);
+        m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 3.2f);
         m_settings.rideHeightScale =
             std::clamp(m_settings.rideHeightScale, 0.7f, 0.9f);
         m_impl = std::make_unique<Impl>(world);
 
         const float wheelRadius = 0.3f;
-        const float wheelWidth = 0.1f;
+        const float wheelWidth = m_settings.trackWidthM;
         const float halfVehicleWidth = 1.2f;
+        const float halfTrackSpacing = 0.5f * m_settings.trackSpacingM;
         const float halfVehicleLength = 2.0f;
         const float halfVehicleHeight = 0.5f;
         const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
@@ -176,7 +179,7 @@ namespace Tank::Physics
                 {
                     JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
                     wheel->mPosition = lowerWheelPos[w];
-                    wheel->mPosition.SetX(t == 0 ? halfVehicleWidth : -halfVehicleWidth);
+                    wheel->mPosition.SetX(t == 0 ? halfTrackSpacing : -halfTrackSpacing);
                     if (upperSurface)
                     {
                         wheel->mPosition.SetY(-wheel->mPosition.GetY());

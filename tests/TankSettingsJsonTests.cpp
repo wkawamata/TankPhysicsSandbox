@@ -29,6 +29,8 @@ int main()
     source.rollTorqueCutoffDegrees = 80.0f;
     source.rollStabilizationTorqueNm = 45000.0f;
     source.rollStabilizationDampingNms = 14000.0f;
+    source.trackWidthM = 0.42f;
+    source.trackSpacingM = 2.75f;
     source.rideHeightScale = 0.75f;
     source.startUpsideDown = true;
 
@@ -56,6 +58,10 @@ int main()
     passed &= Check(
         NearlyEqual(loaded.rollStabilizationDampingNms, source.rollStabilizationDampingNms),
         "roll stabilization damping must round trip");
+    passed &= Check(NearlyEqual(loaded.trackWidthM, source.trackWidthM),
+        "track width must round trip");
+    passed &= Check(NearlyEqual(loaded.trackSpacingM, source.trackSpacingM),
+        "track spacing must round trip");
     passed &= Check(NearlyEqual(loaded.rideHeightScale, source.rideHeightScale),
         "ride height must round trip");
     passed &= Check(loaded.startUpsideDown == source.startUpsideDown,

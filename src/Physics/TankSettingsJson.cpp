@@ -43,6 +43,8 @@ namespace Tank::Physics
         json["rollTorqueCutoffDegrees"] = settings.rollTorqueCutoffDegrees;
         json["rollStabilizationTorqueNm"] = settings.rollStabilizationTorqueNm;
         json["rollStabilizationDampingNms"] = settings.rollStabilizationDampingNms;
+        json["trackWidthM"] = settings.trackWidthM;
+        json["trackSpacingM"] = settings.trackSpacingM;
         json["rideHeightScale"] = settings.rideHeightScale;
         json["startUpsideDown"] = settings.startUpsideDown;
         return json.dump(2);
@@ -71,6 +73,8 @@ namespace Tank::Physics
         ReadFloat(json, "rollTorqueCutoffDegrees", loaded.rollTorqueCutoffDegrees);
         ReadFloat(json, "rollStabilizationTorqueNm", loaded.rollStabilizationTorqueNm);
         ReadFloat(json, "rollStabilizationDampingNms", loaded.rollStabilizationDampingNms);
+        ReadFloat(json, "trackWidthM", loaded.trackWidthM);
+        ReadFloat(json, "trackSpacingM", loaded.trackSpacingM);
         ReadFloat(json, "rideHeightScale", loaded.rideHeightScale);
         ReadBool(json, "startUpsideDown", loaded.startUpsideDown);
         settings = loaded;

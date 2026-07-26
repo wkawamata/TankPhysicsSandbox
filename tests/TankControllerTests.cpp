@@ -47,6 +47,10 @@ int main()
         "roll stabilization torque must use its default");
     passed &= Check(NearlyEqual(controller.Settings().rollStabilizationDampingNms, 10000.0f),
         "roll stabilization damping must use its default");
+    passed &= Check(NearlyEqual(controller.Settings().trackWidthM, 0.3f),
+        "track width must default to 0.3 m");
+    passed &= Check(NearlyEqual(controller.Settings().trackSpacingM, 2.4f),
+        "track spacing must default to 2.4 m");
     passed &= Check(NearlyEqual(controller.Settings().rideHeightScale, 0.8f),
         "ride height must default to 80 percent");
 

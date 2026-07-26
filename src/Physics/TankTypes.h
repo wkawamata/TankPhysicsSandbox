@@ -20,6 +20,8 @@ namespace Tank::Physics
         float rollTorqueCutoffDegrees = 90.0f;
         float rollStabilizationTorqueNm = 30000.0f;
         float rollStabilizationDampingNms = 10000.0f;
+        float trackWidthM = 0.3f;
+        float trackSpacingM = 2.4f;
         float rideHeightScale = 0.8f;
         bool startUpsideDown = false;
     };
