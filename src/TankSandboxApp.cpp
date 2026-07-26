@@ -1,43 +1,50 @@
-#include "stdafx.h"
 #include "TankSandboxApp.h"
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
 
-#include <fcntl.h>
-#include <io.h>
-#include <share.h>
-#include <sys/stat.h>
+#include <Camera/DebugCameraController.h>
+#include <Engine/Rhi/Dx12/GraphicsDevice.h>
+#include <Engine/RtPbrSurveyEngine.h>
+#include <GltfLoader.h>
+#include <Platform/CommandLineOptions.h>
+#include <Platform/WindowInfo.h>
+#include <Runtime/SceneRendererDebugUi.h>
+#include <Runtime/SceneRendererSettings.h>
+#include <Scene/Scene.h>
+#include <Shared/Error.h>
+#include <Shared/Screenshot.h>
 
 #include <DirectXMath.h>
-#include <corecrt.h>
-#include <combaseapi.h>
+#include <DirectXMathConvert.inl>
 #include <DirectXMathMatrix.inl>
+#include <DirectXMathVector.inl>
 #include <Windows.h>
+#include <combaseapi.h>
+#include <corecrt.h>
+#include <d3d12.h>
+#include <d3d12sdklayers.h>
+#include <fcntl.h>
+#include <io.h>
+#include <libloaderapi.h>
+#include <minwinbase.h>
+#include <share.h>
+#include <sys/stat.h>
+#include <sysinfoapi.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iterator>
+#include <optional>
 #include <string>
-#include <vector>
-#include <Engine/Rhi/Dx12/GraphicsDevice.h>
-#include <Engine/RtPbrSurveyEngine.h>
-#include <Platform/CommandLineOptions.h>
-#include <Platform/WindowInfo.h>
-#include <Scene/Scene.h>
-#include <Shared/Error.h>
-#include <DirectXMathConvert.inl>
-#include <DirectXMathVector.inl>
 #include <system_error>
-#include <d3d12.h>
-#include <d3d12sdklayers.h>
-#include <Camera/DebugCameraController.h>
-#include <GltfLoader.h>
-#include <Runtime/SceneRendererDebugUi.h>
-#include <Runtime/SceneRendererSettings.h>
+#include <vector>
+
 #include "Physics/BoxDropTest.h"
 #include "Physics/TankSettingsJson.h"
 #include "Physics/TankTypes.h"
@@ -141,10 +148,10 @@ void TankSandboxApp::OnInit()
 	m_sceneRenderer.SetToolUiHandler([this]() { DrawToolUi(); });
 
 	Engine::SceneBuilder builder;
-	// Single large cube right in front of the camera, bright red.
-	uint32_t matRed = builder.AddSolidColorMaterial(255, 0, 0, 255);
-	builder.AppendCube(1.0f, matRed);
-	builder.AddInstance(XMMatrixTranslation(0.0f, 0.0f, 0.0f), matRed);
+	// SceneRenderer currently requires non-empty geometry when resources are loaded.
+	const uint32_t bootstrapMaterial = builder.AddSolidColorMaterial(0, 0, 0, 0);
+	builder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
+	builder.AddInstance(XMMatrixIdentity(), bootstrapMaterial);
 
 	// Camera looking at the cube from close range.
 	Engine::CameraState camera;
@@ -171,6 +178,7 @@ void TankSandboxApp::OnInit()
 
 	m_sceneRenderer.SetScene(builder.GetScene());
 	m_sceneRenderer.ReloadSceneResources(builder.GetScene());
+	m_sceneRenderer.SetDisplayInstanceCount(0);
 
 	m_defaultRendererSettings = m_sceneRenderer.CaptureSettings();
 	LoadRendererSettings();
@@ -949,13 +957,13 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	m_trackedVehicleModel.leftTrack = 4;
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
-			XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
+		XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
 		leftTrackMaterial);
 
 	m_trackedVehicleModel.rightTrack = 5;
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
-			XMMatrixTranslation(0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
+		XMMatrixTranslation(0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
 		rightTrackMaterial);
 
 	m_trackedVehicleModel.forwardMarker = 6;

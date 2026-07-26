@@ -68,6 +68,11 @@ add_executable(TankSandbox
     src/stdafx.h
 )
 
+target_precompile_headers(TankSandbox
+    PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/stdafx.h"
+)
+
 set_target_properties(TankSandbox PROPERTIES WIN32_EXECUTABLE TRUE)
 
 target_include_directories(TankSandbox
