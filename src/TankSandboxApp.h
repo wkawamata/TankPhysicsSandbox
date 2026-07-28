@@ -16,6 +16,7 @@
 #include "Ui/ImGuiSystem.h"
 #include "Physics/BoxDropTest.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
 
 #include <array>
@@ -112,6 +113,7 @@ private:
     };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Tank::Physics::TankSettings m_trackedVehicleSettings;
+    Tank::Platform::Windows::WindowsGamepad m_gamepad;
     Engine::SceneBuilder m_trackedVehicleSceneBuilder;
     TrackedVehicleModel m_trackedVehicleModel;
     bool m_moveForward = false;

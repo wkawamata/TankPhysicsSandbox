@@ -4,3 +4,5 @@ build-*/
 vcpkg_installed/
 Config/renderer_debug.json
 Screenshots/
+packages/
+*.nupkg

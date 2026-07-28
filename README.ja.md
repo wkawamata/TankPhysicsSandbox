@@ -22,14 +22,41 @@ Tank Physics Sandbox は、リアルで説得力のある戦車車両挙動を�
 
 ## ビルド
 
-Visual Studio 2022 CMake で configure/build します。
+submodule を取得した後、プロジェクト付属のスクリプトで configure/build します。
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Debug --target TankSandbox
+git submodule update --init --recursive
+.\scripts\Restore-GameInput.ps1
+.\scripts\configure.bat
+.\scripts\build.bat TankSandbox
 ```
 
-`cmake` が `PATH` に無い場合は、Visual Studio 付属の CMake 実行ファイルを使います。
+`configure.bat` は Visual Studio 付属の CMake と
+`C:\dev\vcpkg` の toolchain を使用し、古い CMake cache を更新して
+`build` ディレクトリを生成します。
+
+RtPbrSurvey の NuGet packages が既定の
+`C:\work\RtPbrSurvey-work\packages` 以外にある場合は、最初の引数で指定します。
+
+```powershell
+.\scripts\configure.bat C:/path/to/RtPbrSurvey/packages
+```
+
+生成される solution は `build\TankPhysicsSandbox.sln` です。
+Visual Studio で solution を開いた後、ソリューション エクスプローラーの
+`TankSandbox` を右クリックし、**スタートアップ プロジェクトに設定**を選択してください。
+
+## Gamepad 入力
+
+Windows のGamepad入力にはMicrosoft GameInputを使用します。左stickで前後移動、
+通常旋回、pivot turnを行います。標準mapping対応controllerではAボタン、
+raw-controller fallbackではbutton 3をbrakeとして使用します。キーボード操作も
+引き続き利用できます。
+
+`Tracked Vehicle` debug windowには、接続したデバイス名、button数、axis数、
+switch数、左stickの現在値が表示されます。configureの前に
+`scripts\Restore-GameInput.ps1` を実行し、Windows入力層が使用するGameInput SDKを
+取得してください。
 
 ## ドキュメント
 

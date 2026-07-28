@@ -25,18 +25,32 @@ The project focuses on convincing vehicle physics before gameplay. Physics and r
 
 - Visual Studio 2022 (with "C++ CMake tools for Windows" component)
 - Windows SDK 10.0+
+- vcpkg at `C:\dev\vcpkg`
+- RtPbrSurvey NuGet packages restored under `C:\work\RtPbrSurvey-work\packages`
 
 ## Build
 
-Clone with submodules and build with CMake:
+Clone with submodules, then use the project scripts to configure and build:
 
 ```powershell
 git submodule update --init --recursive
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Debug
+.\scripts\Restore-GameInput.ps1
+.\scripts\configure.bat
+.\scripts\build.bat TankSandbox
 ```
 
-If `cmake` is not on `PATH`, use the Visual Studio bundled CMake executable at `C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`.
+`configure.bat` uses the Visual Studio bundled CMake executable, configures the
+`build` directory with the vcpkg toolchain, and refreshes stale CMake cache
+entries. If the RtPbrSurvey NuGet packages are stored elsewhere, pass their
+directory as the first argument:
+
+```powershell
+.\scripts\configure.bat C:/path/to/RtPbrSurvey/packages
+```
+
+The generated solution is `build\TankPhysicsSandbox.sln`. After opening it in
+Visual Studio, right-click the `TankSandbox` project in Solution Explorer and
+select **Set as Startup Project**.
 
 ## Run
 
@@ -47,6 +61,18 @@ If `cmake` is not on `PATH`, use the Visual Studio bundled CMake executable at `
 The D3D12 renderer version (default) launches a window with a green background and a red cube.
 The headless Jolt physics demo can be selected by adding `-Warp` and adjusting the main entry point.
 
+## Gamepad Input
+
+Gamepad support is being developed with Microsoft GameInput while keeping the
+platform API separate from tank physics. The controls use the left stick for
+driving, steering, and pivot turns. Standard-mapped controllers use the A
+button for braking; raw-controller fallback currently uses button 3. Keyboard
+controls remain available.
+
+The `Tracked Vehicle` debug window reports the connected device name, button
+count, axis count, switch count, and current left-stick values. Run
+`scripts\Restore-GameInput.ps1` before configuring to restore the Microsoft
+GameInput SDK used by the Windows input layer.
 
 ## Documentation
 

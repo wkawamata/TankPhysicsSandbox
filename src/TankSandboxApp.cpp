@@ -1,4 +1,5 @@
 #include "TankSandboxApp.h"
+#include "Input/TankInputMapper.h"
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
@@ -183,6 +184,7 @@ void TankSandboxApp::OnInit()
 
 	m_defaultRendererSettings = m_sceneRenderer.CaptureSettings();
 	LoadRendererSettings();
+	m_gamepad.Initialize();
 
 	if (m_autoSceneMode.has_value())
 	{
@@ -317,6 +319,7 @@ void TankSandboxApp::OnIdle()
 	}
 	else if (m_appMode == AppMode::PhysicsTrackedVehicle)
 	{
+		m_gamepad.Poll();
 		UpdateTrackedVehicleInput();
 		if (!m_trackedVehiclePaused || m_trackedVehicleSingleStep)
 		{
@@ -754,6 +757,75 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
 	ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
 	ImGui::Text("Q/E roll, Space brake");
+	const Tank::Input::GamepadState& gamepadState = m_gamepad.State();
+	ImGui::SeparatorText("Gamepad");
+	if (!m_gamepad.IsAvailable())
+	{
+		ImGui::TextUnformatted("Gamepad: GameInput unavailable");
+	}
+	else if (!gamepadState.connected)
+	{
+		ImGui::TextUnformatted("Gamepad: Not connected");
+	}
+	else
+	{
+		ImGui::TextUnformatted("Gamepad: Connected");
+		ImGui::Text("Device: %s",
+			gamepadState.deviceName.empty()
+				? "Controller (name unavailable; identify by VID/PID)"
+				: gamepadState.deviceName.c_str());
+		ImGui::Text("VID: %04X  PID: %04X", gamepadState.vendorId, gamepadState.productId);
+		ImGui::Text("Buttons: %u  Axes: %u  Switches: %u",
+			gamepadState.buttonCount, gamepadState.axisCount, gamepadState.switchCount);
+		ImGui::Text("Gamepad mapping: %s", gamepadState.hasGamepadMapping ? "yes" : "no");
+		if (!gamepadState.hasGamepadMapping)
+		{
+			ImGui::TextUnformatted("Raw fallback: axes 0/1, button 3 brake");
+			for (std::uint32_t axis = 0;
+				axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
+				++axis)
+			{
+				ImGui::Text("Axis %u: %.3f", axis, gamepadState.rawAxes[axis]);
+			}
+			ImGui::TextUnformatted("Pressed raw buttons:");
+			ImGui::SameLine();
+			bool anyButtonPressed = false;
+			for (std::uint32_t button = 0;
+				button < gamepadState.buttonCount && button < gamepadState.rawButtons.size();
+				++button)
+			{
+				if (!gamepadState.rawButtons[button])
+				{
+					continue;
+				}
+				ImGui::SameLine();
+				ImGui::Text("%u", button);
+				anyButtonPressed = true;
+			}
+			if (!anyButtonPressed)
+			{
+				ImGui::SameLine();
+				ImGui::TextUnformatted("none");
+			}
+			static constexpr const char* switchNames[] = {
+				"Center", "Up", "Up-Right", "Right", "Down-Right",
+				"Down", "Down-Left", "Left", "Up-Left"
+			};
+			for (std::uint32_t switchIndex = 0;
+				switchIndex < gamepadState.switchCount &&
+				switchIndex < gamepadState.rawSwitches.size();
+				++switchIndex)
+			{
+				const std::uint32_t position = gamepadState.rawSwitches[switchIndex];
+				const char* positionName =
+					position < std::size(switchNames) ? switchNames[position] : "Unknown";
+				ImGui::Text("Switch %u: %s", switchIndex, positionName);
+			}
+		}
+		ImGui::Text("Left Stick: X %.2f  Y %.2f",
+			gamepadState.leftStickX, gamepadState.leftStickY);
+		ImGui::Text("Brake: %s", gamepadState.brakePressed ? "On" : "Off");
+	}
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
 	ImGui::SeparatorText("Physics Settings");
 	ImGui::SliderFloat(
@@ -854,6 +926,21 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 			input.leftTrack = m_turnLeft ? 0.6f : 1.0f;
 			input.rightTrack = m_turnLeft ? 1.0f : 0.6f;
 		}
+	}
+
+	const Tank::Input::GamepadState& gamepadState = m_gamepad.State();
+	const bool gamepadActive =
+		gamepadState.connected &&
+		(std::abs(gamepadState.leftStickX) > 0.05f ||
+		 std::abs(gamepadState.leftStickY) > 0.05f ||
+		 gamepadState.brakePressed);
+	if (gamepadActive)
+	{
+		const bool keyboardBrake = input.brake;
+		const float keyboardRoll = input.roll;
+		input = Tank::Input::MapGamepadToTankInput(gamepadState);
+		input.brake = input.brake || keyboardBrake;
+		input.roll = keyboardRoll;
 	}
 
 	m_trackedVehicleTest.SetInput(input);

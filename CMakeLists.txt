@@ -60,6 +60,51 @@ target_link_libraries(TankPhysicsCore
         nlohmann_json::nlohmann_json
 )
 
+add_library(TankInputCore STATIC
+    src/Input/GamepadState.h
+    src/Input/TankInputMapper.cpp
+    src/Input/TankInputMapper.h
+)
+
+target_include_directories(TankInputCore
+    PUBLIC
+        src
+)
+
+set(TANK_GAMEINPUT_VERSION "3.5.262" CACHE STRING "Microsoft.GameInput NuGet version.")
+set(TANK_GAMEINPUT_PACKAGE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/packages/Microsoft.GameInput.${TANK_GAMEINPUT_VERSION}"
+    CACHE PATH
+    "Microsoft.GameInput NuGet package directory.")
+set(TANK_GAMEINPUT_INCLUDE_DIR "${TANK_GAMEINPUT_PACKAGE_DIR}/native/include/v0")
+set(TANK_GAMEINPUT_LIBRARY "${TANK_GAMEINPUT_PACKAGE_DIR}/native/lib/x64/GameInput.lib")
+
+if(NOT EXISTS "${TANK_GAMEINPUT_INCLUDE_DIR}/GameInput.h" OR
+   NOT EXISTS "${TANK_GAMEINPUT_LIBRARY}")
+    message(FATAL_ERROR
+        "Microsoft.GameInput NuGet package was not found. "
+        "Run scripts/Restore-GameInput.ps1.")
+endif()
+
+add_library(TankWindowsInput STATIC
+    src/Platform/Windows/WindowsGamepad.cpp
+    src/Platform/Windows/WindowsGamepad.h
+)
+
+target_include_directories(TankWindowsInput
+    PUBLIC
+        src
+    PRIVATE
+        "${TANK_GAMEINPUT_INCLUDE_DIR}"
+)
+
+target_compile_definitions(TankWindowsInput PRIVATE USING_GAMEINPUT)
+
+target_link_libraries(TankWindowsInput
+    PUBLIC
+        "${TANK_GAMEINPUT_LIBRARY}"
+)
+
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
     src/main.cpp
@@ -83,6 +128,8 @@ target_include_directories(TankSandbox
 target_link_libraries(TankSandbox
     PRIVATE
         TankPhysicsCore
+        TankInputCore
+        TankWindowsInput
         Jolt
         RtPbrSurvey::SceneRenderer
 )
@@ -167,6 +214,22 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TankSettingsJson
         COMMAND TankSettingsJsonTests
+    )
+
+    add_executable(TankInputMapperTests
+        tests/TankInputMapperTests.cpp
+    )
+    target_link_libraries(TankInputMapperTests
+        PRIVATE
+            TankInputCore
+    )
+    if(MSVC)
+        target_compile_options(TankInputMapperTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_test(
+        NAME TankInput.Mapper
+        COMMAND TankInputMapperTests
     )
 
     add_executable(TrackedVehicleTests
