@@ -15,6 +15,7 @@
 #include <Scene/Scene.h>
 #include <Shared/Error.h>
 #include <Shared/Screenshot.h>
+#include <ImGuiWidgets.h>
 
 #include <DirectXMath.h>
 #include <DirectXMathConvert.inl>
@@ -904,13 +905,13 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	}
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
 	ImGui::SeparatorText("Ground");
-	ImGui::SliderFloat(
-		"Floor Size", &m_environmentSettings.floorSizeM, 20.0f, 1000.0f, "%.0f m");
-	ImGui::SliderFloat(
-		"Floor Friction", &m_environmentSettings.floorFriction, 0.0f, 2.0f, "%.2f");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Floor Size", &m_environmentSettings.floorSizeM, 20.0f, 1000.0f, 10.0f, 200.0f, "%.0f m");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Floor Friction", &m_environmentSettings.floorFriction, 0.0f, 2.0f, 0.05f, 0.6f, "%.2f");
 	ImGui::Checkbox("Grid Enabled", &m_environmentSettings.gridEnabled);
-	ImGui::SliderFloat(
-		"Grid Spacing", &m_environmentSettings.gridSpacingM, 0.5f, 20.0f, "%.1f m");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Grid Spacing", &m_environmentSettings.gridSpacingM, 0.5f, 20.0f, 0.5f, 5.0f, "%.1f m");
 	if (ImGui::Button("Apply Ground & Reset"))
 	{
 		EnterTrackedVehicleMode();
@@ -930,49 +931,73 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		ImGui::TextWrapped("%s", m_environmentSettingsStatus.c_str());
 	}
 	ImGui::SeparatorText("Physics Settings");
-	ImGui::SliderFloat(
-		"Chassis Mass", &m_trackedVehicleSettings.chassisMassKg, 1000.0f, 8000.0f, "%.0f kg");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Chassis Mass",
+		&m_trackedVehicleSettings.chassisMassKg,
+		1000.0f,
+		8000.0f,
+		100.0f,
+		4000.0f,
+		"%.0f kg");
 
 	ImGui::SeparatorText("Rolling Parameter:");
 
 	ImGui::Checkbox("Rolling Input", &m_trackedVehicleSettings.rollingInputEnabled);
-	ImGui::SliderFloat(
-		"Roll Torque", &m_trackedVehicleSettings.rollTorqueNm, 20000.0f, 300000.0f, "%.0f N m");
-	ImGui::SliderFloat(
-		"Roll Distance", &m_trackedVehicleSettings.rollDistanceM, 0.5f, 5.0f, "%.2f m");
-	ImGui::SliderFloat(
+	ImGuiWidgets::SliderFloatWithControls(
+		"Roll Torque",
+		&m_trackedVehicleSettings.rollTorqueNm,
+		20000.0f,
+		300000.0f,
+		5000.0f,
+		120000.0f,
+		"%.0f N m");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Roll Distance",
+		&m_trackedVehicleSettings.rollDistanceM,
+		0.5f,
+		5.0f,
+		0.1f,
+		2.4f,
+		"%.2f m");
+	ImGuiWidgets::SliderFloatWithControls(
 		"Torque Cutoff Angle",
 		&m_trackedVehicleSettings.rollTorqueCutoffDegrees,
 		45.0f,
 		120.0f,
+		5.0f,
+		90.0f,
 		"%.0f deg");
-	ImGui::SliderFloat(
+	ImGuiWidgets::SliderFloatWithControls(
 		"Stabilization Torque",
 		&m_trackedVehicleSettings.rollStabilizationTorqueNm,
 		0.0f,
 		100000.0f,
+		5000.0f,
+		30000.0f,
 		"%.0f N m");
-	ImGui::SliderFloat(
+	ImGuiWidgets::SliderFloatWithControls(
 		"Stabilization Damping",
 		&m_trackedVehicleSettings.rollStabilizationDampingNms,
 		0.0f,
 		50000.0f,
+		1000.0f,
+		10000.0f,
 		"%.0f N m s");
 
 	ImGui::SeparatorText("Tank Design:");
 
-	ImGui::SliderFloat(
-		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, "%.2f m");
-	ImGui::SliderFloat(
-		"Track Spacing", &m_trackedVehicleSettings.trackSpacingM, 1.8f, 3.2f, "%.2f m");
-	ImGui::SliderFloat(
-		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.5f, 1.1f, "%.2f x");
-	ImGui::SliderFloat(
-		"Chassis Width", &m_trackedVehicleSettings.chassisWidthM, 1.6f, 3.2f, "%.2f m");
-	ImGui::SliderFloat(
-		"Chassis Length", &m_trackedVehicleSettings.chassisLengthM, 3.0f, 5.5f, "%.2f m");
-	ImGui::SliderFloat(
-		"Wheel Radius", &m_trackedVehicleSettings.wheelRadiusM, 0.2f, 0.5f, "%.2f m");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Track Spacing", &m_trackedVehicleSettings.trackSpacingM, 1.8f, 3.2f, 0.1f, 2.4f, "%.2f m");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Chassis Width", &m_trackedVehicleSettings.chassisWidthM, 1.6f, 3.2f, 0.1f, 2.4f, "%.2f m");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Chassis Length", &m_trackedVehicleSettings.chassisLengthM, 3.0f, 5.5f, 0.1f, 4.0f, "%.2f m");
+	ImGuiWidgets::SliderFloatWithControls(
+		"Wheel Radius", &m_trackedVehicleSettings.wheelRadiusM, 0.2f, 0.5f, 0.01f, 0.3f, "%.2f m");
 	const char* wheelLayouts[] = { "1 + 2 + 1", "1 + 3 + 1", "1 + 4 + 1" };
 	int wheelLayoutIndex = std::clamp(m_trackedVehicleSettings.roadWheelCount, 2, 4) - 2;
 	if (ImGui::Combo("Wheel Layout", &wheelLayoutIndex, wheelLayouts, std::size(wheelLayouts)))
