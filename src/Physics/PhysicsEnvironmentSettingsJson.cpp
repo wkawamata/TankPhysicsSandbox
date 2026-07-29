@@ -19,6 +19,18 @@ namespace Tank::Physics
                 value = entry->get<float>();
             }
         }
+
+        void ReadBool(
+            const nlohmann::json& object,
+            const char* name,
+            bool& value)
+        {
+            const auto entry = object.find(name);
+            if (entry != object.end() && entry->is_boolean())
+            {
+                value = entry->get<bool>();
+            }
+        }
     }
 
     std::string SerializePhysicsEnvironmentSettings(
@@ -28,6 +40,8 @@ namespace Tank::Physics
         json["version"] = kSchemaVersion;
         json["floorSizeM"] = settings.floorSizeM;
         json["floorFriction"] = settings.floorFriction;
+        json["gridEnabled"] = settings.gridEnabled;
+        json["gridSpacingM"] = settings.gridSpacingM;
         return json.dump(2);
     }
 
@@ -50,6 +64,8 @@ namespace Tank::Physics
         PhysicsEnvironmentSettings loaded = settings;
         ReadFloat(json, "floorSizeM", loaded.floorSizeM);
         ReadFloat(json, "floorFriction", loaded.floorFriction);
+        ReadBool(json, "gridEnabled", loaded.gridEnabled);
+        ReadFloat(json, "gridSpacingM", loaded.gridSpacingM);
         settings = loaded;
         if (error != nullptr)
         {

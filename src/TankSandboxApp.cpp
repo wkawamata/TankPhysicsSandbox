@@ -79,6 +79,34 @@ namespace
 	constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
 	constexpr const char* kTankSettingsPath = "Config/tank_physics.json";
 	constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
+
+	std::vector<uint8_t> CreateGroundGridTexture(uint32_t size)
+	{
+		constexpr uint8_t groundR = 98;
+		constexpr uint8_t groundG = 91;
+		constexpr uint8_t groundB = 72;
+		constexpr uint8_t lineR = 165;
+		constexpr uint8_t lineG = 158;
+		constexpr uint8_t lineB = 132;
+		constexpr uint32_t lineWidth = 2;
+
+		std::vector<uint8_t> pixels(static_cast<size_t>(size) * size * 4);
+		for (uint32_t y = 0; y < size; ++y)
+		{
+			for (uint32_t x = 0; x < size; ++x)
+			{
+				const bool line =
+					x < lineWidth || y < lineWidth ||
+					x >= size - lineWidth || y >= size - lineWidth;
+				const size_t pixel = (static_cast<size_t>(y) * size + x) * 4;
+				pixels[pixel + 0] = line ? lineR : groundR;
+				pixels[pixel + 1] = line ? lineG : groundG;
+				pixels[pixel + 2] = line ? lineB : groundB;
+				pixels[pixel + 3] = 255;
+			}
+		}
+		return pixels;
+	}
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -880,6 +908,9 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		"Floor Size", &m_environmentSettings.floorSizeM, 20.0f, 1000.0f, "%.0f m");
 	ImGui::SliderFloat(
 		"Floor Friction", &m_environmentSettings.floorFriction, 0.0f, 2.0f, "%.2f");
+	ImGui::Checkbox("Grid Enabled", &m_environmentSettings.gridEnabled);
+	ImGui::SliderFloat(
+		"Grid Spacing", &m_environmentSettings.gridSpacingM, 0.5f, 20.0f, "%.1f m");
 	if (ImGui::Button("Apply Ground & Reset"))
 	{
 		EnterTrackedVehicleMode();
@@ -1218,7 +1249,26 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 {
 	m_trackedVehicleSceneBuilder.Clear();
 
-	const uint32_t floorMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(80, 80, 80, 255);
+	uint32_t floorMaterial = 0;
+	if (m_environmentSettings.gridEnabled)
+	{
+		constexpr uint32_t gridTextureSize = 128;
+		const std::vector<uint8_t> gridPixels = CreateGroundGridTexture(gridTextureSize);
+		const uint32_t gridTexture = m_trackedVehicleSceneBuilder.AddTextureRGBA8(
+			gridTextureSize,
+			gridTextureSize,
+			gridPixels);
+		const float gridSpacingM = std::max(m_environmentSettings.gridSpacingM, 0.5f);
+		const float gridRepeat = m_environmentSettings.floorSizeM / gridSpacingM;
+		floorMaterial = m_trackedVehicleSceneBuilder.AddTexturedMaterial(
+			gridTexture,
+			{ gridRepeat, gridRepeat });
+	}
+	else
+	{
+		floorMaterial =
+			m_trackedVehicleSceneBuilder.AddSolidColorMaterial(80, 80, 80, 255);
+	}
 	const uint32_t hullMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(55, 95, 65, 255);
 	const uint32_t upperMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 120, 80, 255);
 	const uint32_t leftTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 40, 45, 255);
