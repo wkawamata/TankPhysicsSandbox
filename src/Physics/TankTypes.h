@@ -34,6 +34,8 @@ namespace Tank::Physics
         float twoRoadWheelOffsetM = 0.67f;
         float threeRoadWheelOffsetM = 1.0f;
         float rideHeightScale = 0.8f;
+        bool neutralBrakeEnabled = true;
+        float neutralBrakeAmount = 0.15f;
         bool startUpsideDown = false;
     };
 

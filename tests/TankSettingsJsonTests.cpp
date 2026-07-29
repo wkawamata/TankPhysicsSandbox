@@ -41,6 +41,8 @@ int main()
     source.twoRoadWheelOffsetM = 0.82f;
     source.threeRoadWheelOffsetM = 1.15f;
     source.rideHeightScale = 0.75f;
+    source.neutralBrakeEnabled = false;
+    source.neutralBrakeAmount = 0.35f;
     source.startUpsideDown = true;
 
     Tank::Physics::TankSettings loaded;
@@ -91,6 +93,10 @@ int main()
         "three road wheel offset must round trip");
     passed &= Check(NearlyEqual(loaded.rideHeightScale, source.rideHeightScale),
         "ride height must round trip");
+    passed &= Check(loaded.neutralBrakeEnabled == source.neutralBrakeEnabled,
+        "neutral brake enabled must round trip");
+    passed &= Check(NearlyEqual(loaded.neutralBrakeAmount, source.neutralBrakeAmount),
+        "neutral brake amount must round trip");
     passed &= Check(loaded.startUpsideDown == source.startUpsideDown,
         "start orientation must round trip");
 

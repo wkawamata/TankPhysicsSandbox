@@ -1389,6 +1389,16 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		IsPending(
 			m_trackedVehicleSettings.chassisMassKg,
 			m_appliedTrackedVehicleSettings.chassisMassKg));
+	ImGui::Checkbox("Neutral Brake", &m_trackedVehicleSettings.neutralBrakeEnabled);
+	SliderFloatWithPendingColor(
+		"Neutral Brake Strength",
+		&m_trackedVehicleSettings.neutralBrakeAmount,
+		0.0f,
+		1.0f,
+		0.05f,
+		0.15f,
+		"%.2f",
+		false);
 
 	ImGui::SeparatorText("Rolling Parameter:");
 
@@ -1606,6 +1616,7 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 	Tank::Physics::TankInput input;
 	const Tank::Input::GamepadState& gamepadState = m_gamepad.State();
 	m_analogTracksConnected = gamepadState.connected && gamepadState.axisCount >= 4;
+	const bool brakePressed = m_brake || gamepadState.brakePressed;
 
 	m_analogLeftTrack =
 		m_analogTracksConnected ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[3]) : 0.0f;
@@ -1637,7 +1648,7 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 		input.roll = m_analogRoll != 0.0f
 			? m_analogRoll
 			: (m_rollLeft ? 1.0f : (m_rollRight ? -1.0f : 0.0f));
-		input.brake = m_brake;
+		input.brake = brakePressed;
 		m_trackedVehicleTest.SetInput(input);
 		return;
 	}
@@ -1646,7 +1657,7 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 	input.roll = m_analogRoll != 0.0f
 		? m_analogRoll
 		: (m_rollLeft ? 1.0f : (m_rollRight ? -1.0f : 0.0f));
-	input.brake = m_brake;
+	input.brake = brakePressed;
 
 	if (m_turnLeft != m_turnRight)
 	{
@@ -1689,9 +1700,11 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 	if (m_analogTracksConnected &&
 		m_analogLeftTrack == 0.0f &&
 		m_analogRightTrack == 0.0f &&
-		input.throttle == 0.0f)
+		input.throttle == 0.0f &&
+		m_trackedVehicleSettings.neutralBrakeEnabled)
 	{
-		input.brakeAmount = 0.15f;
+		input.brakeAmount =
+			std::clamp(m_trackedVehicleSettings.neutralBrakeAmount, 0.0f, 1.0f);
 	}
 
 	m_trackedVehicleTest.SetInput(input);
