@@ -160,6 +160,52 @@ namespace
 		}
 		return changed;
 	}
+
+	XMMATRIX MakeLineTransform(
+		const Tank::Physics::Vec3& start,
+		const Tank::Physics::Vec3& end,
+		float thickness)
+	{
+		const XMVECTOR startVector = XMVectorSet(start.x, start.y, start.z, 1.0f);
+		const XMVECTOR endVector = XMVectorSet(end.x, end.y, end.z, 1.0f);
+		const XMVECTOR delta = XMVectorSubtract(endVector, startVector);
+		const float length = XMVectorGetX(XMVector3Length(delta));
+		if (length <= 0.0001f)
+		{
+			return XMMatrixScaling(0.0f, 0.0f, 0.0f);
+		}
+
+		const XMVECTOR forward = XMVectorScale(delta, 1.0f / length);
+		const float forwardY = std::abs(XMVectorGetY(forward));
+		const XMVECTOR referenceUp =
+			forwardY < 0.99f
+			? XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
+			: XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+		const XMVECTOR right = XMVector3Normalize(XMVector3Cross(referenceUp, forward));
+		const XMVECTOR up = XMVector3Cross(forward, right);
+		const XMVECTOR midpoint = XMVectorScale(XMVectorAdd(startVector, endVector), 0.5f);
+
+		XMFLOAT3 rightValues;
+		XMFLOAT3 upValues;
+		XMFLOAT3 forwardValues;
+		XMFLOAT3 midpointValues;
+		XMStoreFloat3(&rightValues, right);
+		XMStoreFloat3(&upValues, up);
+		XMStoreFloat3(&forwardValues, forward);
+		XMStoreFloat3(&midpointValues, midpoint);
+		const XMMATRIX orientation = XMMatrixSet(
+			rightValues.x, rightValues.y, rightValues.z, 0.0f,
+			upValues.x, upValues.y, upValues.z, 0.0f,
+			forwardValues.x, forwardValues.y, forwardValues.z, 0.0f,
+			midpointValues.x, midpointValues.y, midpointValues.z, 1.0f);
+		return XMMatrixScaling(thickness, thickness, length) * orientation;
+	}
+
+	void SetInstanceWorld(Engine::InstanceData& instance, FXMMATRIX world)
+	{
+		instance.prevWorld = instance.world;
+		XMStoreFloat4x4(&instance.world, XMMatrixTranspose(world));
+	}
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -201,6 +247,10 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
 		else if (arg == L"--quit-after-capture")
 		{
 			m_quitAfterCapture = true;
+		}
+		else if (arg == L"--physics-debug-overlay")
+		{
+			m_physicsDebugOverlay = true;
 		}
 	}
 }
@@ -882,157 +932,169 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	}
 	ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
 	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
+	if (ImGui::Checkbox("Physics Debug Overlay", &m_physicsDebugOverlay))
+	{
+		UpdateTrackedVehicleScene(state);
+	}
+	if (m_physicsDebugOverlay)
+	{
+		ImGui::TextUnformatted("Cyan: suspension  Green/Orange: contact  Yellow: normal");
+	}
 	ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
 	ImGui::Text("Q/E roll, Space brake");
 	const Tank::Input::GamepadState& gamepadState = m_gamepad.State();
-	ImGui::SeparatorText("Gamepad");
-	if (!m_gamepad.IsAvailable())
+	if (ImGui::CollapsingHeader("Gamepad"))
 	{
-		ImGui::TextUnformatted("Gamepad: GameInput unavailable");
-	}
-	else if (!gamepadState.connected)
-	{
-		ImGui::TextUnformatted("Gamepad: Not connected");
-	}
-	else
-	{
-		ImGui::TextUnformatted("Gamepad: Connected");
-		ImGui::Text("Device: %s",
-			gamepadState.deviceName.empty()
-			? "Controller (name unavailable; identify by VID/PID)"
-			: gamepadState.deviceName.c_str());
-		ImGui::Text("VID: %04X  PID: %04X", gamepadState.vendorId, gamepadState.productId);
-		ImGui::Text("Buttons: %u  Axes: %u  Switches: %u",
-			gamepadState.buttonCount, gamepadState.axisCount, gamepadState.switchCount);
-		ImGui::Text("Gamepad mapping: %s", gamepadState.hasGamepadMapping ? "yes" : "no");
-		if (!gamepadState.hasGamepadMapping)
+		if (!m_gamepad.IsAvailable())
 		{
-			ImGui::TextUnformatted("Raw fallback: axes 0/1");
-			for (std::uint32_t axis = 0;
-				axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
-				++axis)
-			{
-				ImGui::Text("Axis %u: %.3f", axis, gamepadState.rawAxes[axis]);
-			}
-			ImGui::TextUnformatted("Pressed raw buttons:");
-			ImGui::SameLine();
-			bool anyButtonPressed = false;
-			for (std::uint32_t button = 0;
-				button < gamepadState.buttonCount && button < gamepadState.rawButtons.size();
-				++button)
-			{
-				if (!gamepadState.rawButtons[button])
-				{
-					continue;
-				}
-				ImGui::SameLine();
-				ImGui::Text("%u", button);
-				anyButtonPressed = true;
-			}
-			if (!anyButtonPressed)
-			{
-				ImGui::SameLine();
-				ImGui::TextUnformatted("none");
-			}
-			static constexpr const char* switchNames[] = {
-				"Center", "Up", "Up-Right", "Right", "Down-Right",
-				"Down", "Down-Left", "Left", "Up-Left"
-			};
-			for (std::uint32_t switchIndex = 0;
-				switchIndex < gamepadState.switchCount &&
-				switchIndex < gamepadState.rawSwitches.size();
-				++switchIndex)
-			{
-				const std::uint32_t position = gamepadState.rawSwitches[switchIndex];
-				const char* positionName =
-					position < std::size(switchNames) ? switchNames[position] : "Unknown";
-				ImGui::Text("Switch %u: %s", switchIndex, positionName);
-			}
+			ImGui::TextUnformatted("Gamepad: GameInput unavailable");
 		}
-		ImGui::Text("Left Stick: X %.2f  Y %.2f",
-			gamepadState.leftStickX, gamepadState.leftStickY);
-		ImGui::Text("Brake: %s", gamepadState.brakePressed ? "On" : "Off");
-		ImGui::Text("Brake binding: raw button %u",
-			Tank::Input::GamepadState::BrakeButtonIndex);
+		else if (!gamepadState.connected)
+		{
+			ImGui::TextUnformatted("Gamepad: Not connected");
+		}
+		else
+		{
+			ImGui::TextUnformatted("Gamepad: Connected");
+			ImGui::Text("Device: %s",
+				gamepadState.deviceName.empty()
+				? "Controller (name unavailable; identify by VID/PID)"
+				: gamepadState.deviceName.c_str());
+			ImGui::Text("VID: %04X  PID: %04X", gamepadState.vendorId, gamepadState.productId);
+			ImGui::Text("Buttons: %u  Axes: %u  Switches: %u",
+				gamepadState.buttonCount, gamepadState.axisCount, gamepadState.switchCount);
+			ImGui::Text("Gamepad mapping: %s", gamepadState.hasGamepadMapping ? "yes" : "no");
+			if (!gamepadState.hasGamepadMapping)
+			{
+				ImGui::TextUnformatted("Raw fallback: axes 0/1");
+				for (std::uint32_t axis = 0;
+					axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
+					++axis)
+				{
+					ImGui::Text("Axis %u: %.3f", axis, gamepadState.rawAxes[axis]);
+				}
+				ImGui::TextUnformatted("Pressed raw buttons:");
+				ImGui::SameLine();
+				bool anyButtonPressed = false;
+				for (std::uint32_t button = 0;
+					button < gamepadState.buttonCount && button < gamepadState.rawButtons.size();
+					++button)
+				{
+					if (!gamepadState.rawButtons[button])
+					{
+						continue;
+					}
+					ImGui::SameLine();
+					ImGui::Text("%u", button);
+					anyButtonPressed = true;
+				}
+				if (!anyButtonPressed)
+				{
+					ImGui::SameLine();
+					ImGui::TextUnformatted("none");
+				}
+				static constexpr const char* switchNames[] = {
+					"Center", "Up", "Up-Right", "Right", "Down-Right",
+					"Down", "Down-Left", "Left", "Up-Left"
+				};
+				for (std::uint32_t switchIndex = 0;
+					switchIndex < gamepadState.switchCount &&
+					switchIndex < gamepadState.rawSwitches.size();
+					++switchIndex)
+				{
+					const std::uint32_t position = gamepadState.rawSwitches[switchIndex];
+					const char* positionName =
+						position < std::size(switchNames) ? switchNames[position] : "Unknown";
+					ImGui::Text("Switch %u: %s", switchIndex, positionName);
+				}
+			}
+			ImGui::Text("Left Stick: X %.2f  Y %.2f",
+				gamepadState.leftStickX, gamepadState.leftStickY);
+			ImGui::Text("Brake: %s", gamepadState.brakePressed ? "On" : "Off");
+			ImGui::Text("Brake binding: raw button %u",
+				Tank::Input::GamepadState::BrakeButtonIndex);
+		}
 	}
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
-	ImGui::SeparatorText("Ground");
-	SliderFloatWithPendingColor(
-		"Floor Size",
-		&m_environmentSettings.floorSizeM,
-		20.0f,
-		1000.0f,
-		10.0f,
-		200.0f,
-		"%.0f m",
-		IsPending(m_environmentSettings.floorSizeM, m_appliedEnvironmentSettings.floorSizeM));
-	SliderFloatWithPendingColor(
-		"Floor Friction",
-		&m_environmentSettings.floorFriction,
-		0.0f,
-		2.0f,
-		0.05f,
-		0.6f,
-		"%.2f",
-		IsPending(
-			m_environmentSettings.floorFriction,
-			m_appliedEnvironmentSettings.floorFriction));
-	ImGui::Checkbox("Grid Enabled", &m_environmentSettings.gridEnabled);
-	SliderFloatWithPendingColor(
-		"Grid Spacing",
-		&m_environmentSettings.gridSpacingM,
-		0.5f,
-		20.0f,
-		0.5f,
-		5.0f,
-		"%.1f m",
-		IsPending(m_environmentSettings.gridSpacingM, m_appliedEnvironmentSettings.gridSpacingM));
-	SliderIntWithPendingColor(
-		"Obstacle Count",
-		&m_environmentSettings.obstacleCount,
-		0,
-		100,
-		1,
-		20,
-		"%d",
-		m_environmentSettings.obstacleCount != m_appliedEnvironmentSettings.obstacleCount);
-	SliderIntWithPendingColor(
-		"Obstacle Seed",
-		&m_environmentSettings.obstacleSeed,
-		0,
-		9999,
-		1,
-		1,
-		"%d",
-		m_environmentSettings.obstacleSeed != m_appliedEnvironmentSettings.obstacleSeed);
-	SliderFloatWithPendingColor(
-		"Obstacle Area",
-		&m_environmentSettings.obstacleAreaSizeM,
-		20.0f,
-		500.0f,
-		10.0f,
-		100.0f,
-		"%.0f m",
-		IsPending(
-			m_environmentSettings.obstacleAreaSizeM,
-			m_appliedEnvironmentSettings.obstacleAreaSizeM));
-	if (ImGui::Button("Apply Ground & Reset"))
+	if (ImGui::CollapsingHeader("Ground"))
 	{
-		EnterTrackedVehicleMode();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Save Ground"))
-	{
-		SaveEnvironmentSettings();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Load Ground"))
-	{
-		LoadEnvironmentSettings();
-	}
-	if (!m_environmentSettingsStatus.empty())
-	{
-		ImGui::TextWrapped("%s", m_environmentSettingsStatus.c_str());
+		SliderFloatWithPendingColor(
+			"Floor Size",
+			&m_environmentSettings.floorSizeM,
+			20.0f,
+			1000.0f,
+			10.0f,
+			200.0f,
+			"%.0f m",
+			IsPending(m_environmentSettings.floorSizeM, m_appliedEnvironmentSettings.floorSizeM));
+		SliderFloatWithPendingColor(
+			"Floor Friction",
+			&m_environmentSettings.floorFriction,
+			0.0f,
+			2.0f,
+			0.05f,
+			0.6f,
+			"%.2f",
+			IsPending(
+				m_environmentSettings.floorFriction,
+				m_appliedEnvironmentSettings.floorFriction));
+		ImGui::Checkbox("Grid Enabled", &m_environmentSettings.gridEnabled);
+		SliderFloatWithPendingColor(
+			"Grid Spacing",
+			&m_environmentSettings.gridSpacingM,
+			0.5f,
+			20.0f,
+			0.5f,
+			5.0f,
+			"%.1f m",
+			IsPending(m_environmentSettings.gridSpacingM, m_appliedEnvironmentSettings.gridSpacingM));
+		SliderIntWithPendingColor(
+			"Obstacle Count",
+			&m_environmentSettings.obstacleCount,
+			0,
+			100,
+			1,
+			20,
+			"%d",
+			m_environmentSettings.obstacleCount != m_appliedEnvironmentSettings.obstacleCount);
+		SliderIntWithPendingColor(
+			"Obstacle Seed",
+			&m_environmentSettings.obstacleSeed,
+			0,
+			9999,
+			1,
+			1,
+			"%d",
+			m_environmentSettings.obstacleSeed != m_appliedEnvironmentSettings.obstacleSeed);
+		SliderFloatWithPendingColor(
+			"Obstacle Area",
+			&m_environmentSettings.obstacleAreaSizeM,
+			20.0f,
+			500.0f,
+			10.0f,
+			100.0f,
+			"%.0f m",
+			IsPending(
+				m_environmentSettings.obstacleAreaSizeM,
+				m_appliedEnvironmentSettings.obstacleAreaSizeM));
+		if (ImGui::Button("Apply Ground & Reset"))
+		{
+			EnterTrackedVehicleMode();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Save Ground"))
+		{
+			SaveEnvironmentSettings();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Load Ground"))
+		{
+			LoadEnvironmentSettings();
+		}
+		if (!m_environmentSettingsStatus.empty())
+		{
+			ImGui::TextWrapped("%s", m_environmentSettingsStatus.c_str());
+		}
 	}
 	ImGui::SeparatorText("Physics Settings");
 	SliderFloatWithPendingColor(
@@ -1471,6 +1533,14 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 200, 90, 255);
 	m_trackedVehicleModel.wheelAirborneMaterial =
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(230, 140, 40, 255);
+	m_trackedVehicleModel.debugContactMaterial =
+		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(60, 230, 90, 255);
+	m_trackedVehicleModel.debugAirborneMaterial =
+		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 145, 35, 255);
+	const uint32_t debugSuspensionMaterial =
+		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 210, 230, 255);
+	const uint32_t debugNormalMaterial =
+		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 225, 45, 255);
 
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
 
@@ -1521,6 +1591,26 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		m_trackedVehicleSceneBuilder.AddInstance(
 			XMMatrixScaling(0.0f, 0.0f, 0.0f),
 			m_trackedVehicleModel.wheelAirborneMaterial);
+	}
+
+	for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
+	{
+		const size_t wheelIndex = static_cast<size_t>(i);
+		m_trackedVehicleModel.suspensionLines[wheelIndex] =
+			m_trackedVehicleSceneBuilder.GetScene().instances.size();
+		m_trackedVehicleSceneBuilder.AddInstance(
+			XMMatrixScaling(0.0f, 0.0f, 0.0f),
+			debugSuspensionMaterial);
+		m_trackedVehicleModel.contactMarkers[wheelIndex] =
+			m_trackedVehicleSceneBuilder.GetScene().instances.size();
+		m_trackedVehicleSceneBuilder.AddInstance(
+			XMMatrixScaling(0.0f, 0.0f, 0.0f),
+			m_trackedVehicleModel.debugAirborneMaterial);
+		m_trackedVehicleModel.contactNormalLines[wheelIndex] =
+			m_trackedVehicleSceneBuilder.GetScene().instances.size();
+		m_trackedVehicleSceneBuilder.AddInstance(
+			XMMatrixScaling(0.0f, 0.0f, 0.0f),
+			debugNormalMaterial);
 	}
 
 	for (const Tank::Physics::TestObstaclePlacement& obstacle :
@@ -1635,6 +1725,76 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 				&inst.world,
 				XMMatrixTranspose(XMMatrixScaling(0.0f, 0.0f, 0.0f)));
 			inst.materialId = m_trackedVehicleModel.wheelAirborneMaterial;
+		}
+	}
+
+	for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
+	{
+		const size_t wheelIndex = static_cast<size_t>(i);
+		Engine::InstanceData& suspensionLine =
+			scene.instances[m_trackedVehicleModel.suspensionLines[wheelIndex]];
+		Engine::InstanceData& contactMarker =
+			scene.instances[m_trackedVehicleModel.contactMarkers[wheelIndex]];
+		Engine::InstanceData& contactNormalLine =
+			scene.instances[m_trackedVehicleModel.contactNormalLines[wheelIndex]];
+
+		if (!m_physicsDebugOverlay || i >= state.wheelCount)
+		{
+			const XMMATRIX hidden = XMMatrixScaling(0.0f, 0.0f, 0.0f);
+			SetInstanceWorld(suspensionLine, hidden);
+			SetInstanceWorld(contactMarker, hidden);
+			SetInstanceWorld(contactNormalLine, hidden);
+			continue;
+		}
+
+		const Tank::Physics::TrackedWheelState& wheel = state.wheels[wheelIndex];
+		const Tank::Physics::Vec3 suspensionEnd = {
+			wheel.suspensionOrigin.x +
+				wheel.suspensionDirection.x *
+					(wheel.suspensionLength + m_trackedVehicleSettings.wheelRadiusM),
+			wheel.suspensionOrigin.y +
+				wheel.suspensionDirection.y *
+					(wheel.suspensionLength + m_trackedVehicleSettings.wheelRadiusM),
+			wheel.suspensionOrigin.z +
+				wheel.suspensionDirection.z *
+					(wheel.suspensionLength + m_trackedVehicleSettings.wheelRadiusM) };
+		SetInstanceWorld(
+			suspensionLine,
+			MakeLineTransform(wheel.suspensionOrigin, suspensionEnd, 0.06f));
+
+		const Tank::Physics::Vec3 markerPosition = wheel.hasContact
+			? Tank::Physics::Vec3 {
+				wheel.contactPosition.x + wheel.contactNormal.x * 0.08f,
+				wheel.contactPosition.y + wheel.contactNormal.y * 0.08f,
+				wheel.contactPosition.z + wheel.contactNormal.z * 0.08f }
+			: wheel.transform.position;
+		SetInstanceWorld(
+			contactMarker,
+			XMMatrixScaling(0.22f, 0.22f, 0.22f) *
+			XMMatrixTranslation(markerPosition.x, markerPosition.y, markerPosition.z));
+		contactMarker.materialId = wheel.hasContact
+			? m_trackedVehicleModel.debugContactMaterial
+			: m_trackedVehicleModel.debugAirborneMaterial;
+
+		if (wheel.hasContact)
+		{
+			const Tank::Physics::Vec3 normalStart = {
+				wheel.contactPosition.x + wheel.contactNormal.x * 0.08f,
+				wheel.contactPosition.y + wheel.contactNormal.y * 0.08f,
+				wheel.contactPosition.z + wheel.contactNormal.z * 0.08f };
+			const Tank::Physics::Vec3 normalEnd = {
+				normalStart.x + wheel.contactNormal.x * 2.0f,
+				normalStart.y + wheel.contactNormal.y * 2.0f,
+				normalStart.z + wheel.contactNormal.z * 2.0f };
+			SetInstanceWorld(
+				contactNormalLine,
+				MakeLineTransform(normalStart, normalEnd, 0.06f));
+		}
+		else
+		{
+			SetInstanceWorld(
+				contactNormalLine,
+				XMMatrixScaling(0.0f, 0.0f, 0.0f));
 		}
 	}
 

@@ -106,10 +106,35 @@ int main()
         passed &= Check(IsFinite(wheel.transform.rotation.y), "wheel rotation Y must be finite");
         passed &= Check(IsFinite(wheel.transform.rotation.z), "wheel rotation Z must be finite");
         passed &= Check(IsFinite(wheel.transform.rotation.w), "wheel rotation W must be finite");
+        passed &= Check(IsFinite(wheel.suspensionOrigin.x), "suspension origin X must be finite");
+        passed &= Check(IsFinite(wheel.suspensionOrigin.y), "suspension origin Y must be finite");
+        passed &= Check(IsFinite(wheel.suspensionOrigin.z), "suspension origin Z must be finite");
+        passed &= Check(IsFinite(wheel.suspensionDirection.x),
+            "suspension direction X must be finite");
+        passed &= Check(IsFinite(wheel.suspensionDirection.y),
+            "suspension direction Y must be finite");
+        passed &= Check(IsFinite(wheel.suspensionDirection.z),
+            "suspension direction Z must be finite");
         passed &= Check(IsFinite(wheel.suspensionLength), "suspension length must be finite");
         passed &= Check(wheel.suspensionLength >= 0.0f && wheel.suspensionLength <= 0.5f,
             "suspension length must remain within the configured range");
-        contactCount += wheel.hasContact ? 1 : 0;
+        if (wheel.hasContact)
+        {
+            passed &= Check(IsFinite(wheel.contactPosition.x), "contact position X must be finite");
+            passed &= Check(IsFinite(wheel.contactPosition.y), "contact position Y must be finite");
+            passed &= Check(IsFinite(wheel.contactPosition.z), "contact position Z must be finite");
+            passed &= Check(IsFinite(wheel.contactNormal.x), "contact normal X must be finite");
+            passed &= Check(IsFinite(wheel.contactNormal.y), "contact normal Y must be finite");
+            passed &= Check(IsFinite(wheel.contactNormal.z), "contact normal Z must be finite");
+            const float normalLengthSquared =
+                wheel.contactNormal.x * wheel.contactNormal.x +
+                wheel.contactNormal.y * wheel.contactNormal.y +
+                wheel.contactNormal.z * wheel.contactNormal.z;
+            passed &= Check(
+                std::abs(normalLengthSquared - 1.0f) < 0.01f,
+                "contact normal must be normalized");
+            ++contactCount;
+        }
     }
     passed &= Check(contactCount > 0, "at least one wheel must contact the floor");
 

@@ -112,8 +112,13 @@ private:
         size_t rightTrack = 0;
         size_t forwardMarker = 0;
         std::array<size_t, Tank::Physics::kTankWheelCount> wheels = {};
+        std::array<size_t, Tank::Physics::kTankWheelCount> suspensionLines = {};
+        std::array<size_t, Tank::Physics::kTankWheelCount> contactMarkers = {};
+        std::array<size_t, Tank::Physics::kTankWheelCount> contactNormalLines = {};
         uint32_t wheelContactMaterial = 0;
         uint32_t wheelAirborneMaterial = 0;
+        uint32_t debugContactMaterial = 0;
+        uint32_t debugAirborneMaterial = 0;
     };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Tank::Physics::TankSettings m_trackedVehicleSettings;
@@ -137,6 +142,7 @@ private:
     float m_analogRoll = 0.0f;
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;
+    bool m_physicsDebugOverlay = false;
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     std::string m_rendererSettingsStatus;

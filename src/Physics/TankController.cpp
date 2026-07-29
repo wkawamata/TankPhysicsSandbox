@@ -420,6 +420,8 @@ namespace Tank::Physics
             static_cast<float>(angularVelocity.GetZ())};
 
         const auto& wheels = m_impl->vehicleConstraint->GetWheels();
+        const JPH::RMat44 bodyTransform =
+            bodyInterface.GetWorldTransform(m_impl->bodyId);
         const int wheelsPerSurface = m_settings.roadWheelCount + 2;
         const int wheelsPerTrack = wheelsPerSurface * kTankSurfacesPerTrack;
         m_state.wheelCount = (std::min)(static_cast<int>(wheels.size()), kTankWheelCount);
@@ -432,6 +434,11 @@ namespace Tank::Physics
                 JPH::Vec3::sAxisX());
             const JPH::RVec3 wheelPosition = wheelTransform.GetTranslation();
             const JPH::Quat wheelRotation = wheelTransform.GetQuaternion();
+            const JPH::WheelSettings* wheelSettings = wheel->GetSettings();
+            const JPH::RVec3 suspensionOrigin =
+                bodyTransform * wheelSettings->mPosition;
+            const JPH::Vec3 suspensionDirection =
+                bodyTransform.Multiply3x3(wheelSettings->mSuspensionDirection);
 
             TrackedWheelState& wheelState = m_state.wheels[static_cast<size_t>(i)];
             wheelState.trackIndex = i / wheelsPerTrack;
@@ -446,8 +453,43 @@ namespace Tank::Physics
                 static_cast<float>(wheelRotation.GetY()),
                 static_cast<float>(wheelRotation.GetZ()),
                 static_cast<float>(wheelRotation.GetW())};
+            wheelState.suspensionOrigin = {
+                static_cast<float>(suspensionOrigin.GetX()),
+                static_cast<float>(suspensionOrigin.GetY()),
+                static_cast<float>(suspensionOrigin.GetZ())};
+            wheelState.suspensionDirection = {
+                static_cast<float>(suspensionDirection.GetX()),
+                static_cast<float>(suspensionDirection.GetY()),
+                static_cast<float>(suspensionDirection.GetZ())};
             wheelState.suspensionLength = wheel->GetSuspensionLength();
             wheelState.hasContact = wheel->HasContact();
+            wheelState.contactPosition = {};
+            wheelState.contactNormal = {};
+            wheelState.contactLongitudinal = {};
+            wheelState.contactLateral = {};
+            if (wheelState.hasContact)
+            {
+                const JPH::RVec3 contactPosition = wheel->GetContactPosition();
+                const JPH::Vec3 contactNormal = wheel->GetContactNormal();
+                const JPH::Vec3 contactLongitudinal = wheel->GetContactLongitudinal();
+                const JPH::Vec3 contactLateral = wheel->GetContactLateral();
+                wheelState.contactPosition = {
+                    static_cast<float>(contactPosition.GetX()),
+                    static_cast<float>(contactPosition.GetY()),
+                    static_cast<float>(contactPosition.GetZ())};
+                wheelState.contactNormal = {
+                    static_cast<float>(contactNormal.GetX()),
+                    static_cast<float>(contactNormal.GetY()),
+                    static_cast<float>(contactNormal.GetZ())};
+                wheelState.contactLongitudinal = {
+                    static_cast<float>(contactLongitudinal.GetX()),
+                    static_cast<float>(contactLongitudinal.GetY()),
+                    static_cast<float>(contactLongitudinal.GetZ())};
+                wheelState.contactLateral = {
+                    static_cast<float>(contactLateral.GetX()),
+                    static_cast<float>(contactLateral.GetY()),
+                    static_cast<float>(contactLateral.GetZ())};
+            }
         }
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
     }

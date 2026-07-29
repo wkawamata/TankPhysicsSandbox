@@ -67,8 +67,14 @@ namespace Tank::Physics
         int wheelIndex = 0;
         bool upperSurface = false;
         TransformState transform = {};
+        Vec3 suspensionOrigin = {};
+        Vec3 suspensionDirection = {};
         float suspensionLength = 0.0f;
         bool hasContact = false;
+        Vec3 contactPosition = {};
+        Vec3 contactNormal = {};
+        Vec3 contactLongitudinal = {};
+        Vec3 contactLateral = {};
     };
 
     struct TankState
