@@ -1,4 +1,5 @@
 #include "Physics/TankController.h"
+#include "Physics/PhysicsWorld.h"
 
 #include <cmath>
 #include <iostream>
@@ -23,8 +24,10 @@ namespace
 
 int main()
 {
+    Tank::Physics::PhysicsWorld world;
+    world.Initialize();
     Tank::Physics::TankController controller;
-    controller.Initialize();
+    controller.Initialize(world);
 
     const Tank::Physics::TankState& initialState = controller.State();
     bool passed = true;
@@ -37,6 +40,8 @@ int main()
         "right track ratio must default to one");
     passed &= Check(NearlyEqual(controller.Settings().chassisMassKg, 4000.0f),
         "chassis mass must default to 4000 kg");
+    passed &= Check(!controller.Settings().rollingInputEnabled,
+        "rolling input must be disabled by default");
     passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 120000.0f),
         "roll torque must default to 120000 N m");
     passed &= Check(NearlyEqual(controller.Settings().rollDistanceM, 2.4f),
@@ -53,6 +58,12 @@ int main()
         "track spacing must default to 2.4 m");
     passed &= Check(NearlyEqual(controller.Settings().rideHeightScale, 0.8f),
         "ride height must default to 80 percent");
+    passed &= Check(NearlyEqual(controller.Settings().twoRoadWheelOffsetM, 0.67f),
+        "two road wheel offset must preserve its default");
+    passed &= Check(NearlyEqual(controller.Settings().endWheelOffsetM, 0.0f),
+        "end wheel offset must default to the chassis ends");
+    passed &= Check(NearlyEqual(controller.Settings().threeRoadWheelOffsetM, 1.0f),
+        "three road wheel offset must preserve its default");
 
     Tank::Physics::TankInput input;
     input.throttle = 2.0f;
@@ -60,6 +71,7 @@ int main()
     input.leftTrack = 1.5f;
     input.rightTrack = -1.5f;
     input.roll = 2.0f;
+    input.brakeAmount = 2.0f;
     input.brake = true;
     controller.SetInput(input);
 
@@ -68,22 +80,46 @@ int main()
     passed &= Check(NearlyEqual(clampedInput.steering, -1.0f), "steering must be clamped");
     passed &= Check(NearlyEqual(clampedInput.leftTrack, 1.0f), "left track must be clamped");
     passed &= Check(NearlyEqual(clampedInput.rightTrack, -1.0f), "right track must be clamped");
-    passed &= Check(NearlyEqual(clampedInput.roll, 1.0f), "roll must be clamped");
+    passed &= Check(NearlyEqual(clampedInput.roll, 0.0f),
+        "roll must be suppressed by default");
+    passed &= Check(NearlyEqual(clampedInput.brakeAmount, 1.0f),
+        "brake amount must be clamped");
     passed &= Check(clampedInput.brake, "brake must be preserved");
 
     input.leftTrack = 0.0f;
     input.rightTrack = 1.0f;
+    input.brakeAmount = 0.2f;
+    input.brake = false;
     controller.SetInput(input);
     passed &= Check(NearlyEqual(controller.Input().leftTrack, 0.0f),
         "zero track ratio must be preserved for stationary turns");
 
     controller.PreStep();
+    const Tank::Physics::TrackedDriverInput& driverInput = controller.DriverInput();
+    passed &= Check(NearlyEqual(driverInput.forward, 1.0f),
+        "driver forward input must match the clamped throttle");
+    passed &= Check(NearlyEqual(driverInput.leftRatio, 0.001f),
+        "zero left track ratio must use Jolt's minimum positive ratio");
+    passed &= Check(NearlyEqual(driverInput.rightRatio, 1.0f),
+        "driver right ratio must match the track input");
+    passed &= Check(NearlyEqual(driverInput.brake, 0.2f),
+        "driver brake input must preserve a partial brake amount");
     controller.PostStep(1.0f / 60.0f);
     passed &= Check(controller.State().stepIndex == 1, "positive step must advance the index");
     passed &= Check(controller.State().timeSeconds > 0.0f, "positive step must advance time");
 
     controller.PostStep(0.0f);
     passed &= Check(controller.State().stepIndex == 1, "non-positive step must be ignored");
+
+    Tank::Physics::TankSettings disabledRollSettings;
+    disabledRollSettings.rollingInputEnabled = false;
+    Tank::Physics::TankController disabledRollController;
+    disabledRollController.Initialize(world, disabledRollSettings);
+    Tank::Physics::TankInput disabledRollInput;
+    disabledRollInput.roll = 1.0f;
+    disabledRollController.SetInput(disabledRollInput);
+    passed &= Check(NearlyEqual(disabledRollController.Input().roll, 0.0f),
+        "disabled rolling input must suppress roll commands");
 
     if (!passed)
     {

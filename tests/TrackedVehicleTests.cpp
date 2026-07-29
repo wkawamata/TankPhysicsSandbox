@@ -81,20 +81,23 @@ int main()
     passed &= Check(angularSpeedSquared < 0.04f,
         "neutral body angular speed must settle below 0.2 rad/s");
 
-    passed &= Check(state.wheelCount == Tank::Physics::kTankWheelCount,
+    const int wheelsPerSurface = settings.roadWheelCount + 2;
+    const int wheelsPerTrack = wheelsPerSurface * Tank::Physics::kTankSurfacesPerTrack;
+    const int expectedWheelCount = wheelsPerTrack * Tank::Physics::kTankTrackCount;
+    passed &= Check(state.wheelCount == expectedWheelCount,
         "tracked vehicle must expose all ten wheel snapshots");
 
     int contactCount = 0;
     for (int i = 0; i < state.wheelCount; ++i)
     {
         const Tank::Physics::TrackedWheelState& wheel = state.wheels[static_cast<size_t>(i)];
-        passed &= Check(wheel.trackIndex == i / Tank::Physics::kTankWheelsPerTrack,
+        passed &= Check(wheel.trackIndex == i / wheelsPerTrack,
             "wheel track index must match snapshot order");
-        passed &= Check(wheel.wheelIndex == i % Tank::Physics::kTankWheelsPerTrack,
+        passed &= Check(wheel.wheelIndex == i % wheelsPerTrack,
             "wheel index must match snapshot order");
         passed &= Check(
             wheel.upperSurface ==
-                (wheel.wheelIndex >= Tank::Physics::kTankWheelsPerSurface),
+                (wheel.wheelIndex >= wheelsPerSurface),
             "wheel surface flag must match snapshot order");
         passed &= Check(IsFinite(wheel.transform.position.x), "wheel position X must be finite");
         passed &= Check(IsFinite(wheel.transform.position.y), "wheel position Y must be finite");
@@ -103,12 +106,91 @@ int main()
         passed &= Check(IsFinite(wheel.transform.rotation.y), "wheel rotation Y must be finite");
         passed &= Check(IsFinite(wheel.transform.rotation.z), "wheel rotation Z must be finite");
         passed &= Check(IsFinite(wheel.transform.rotation.w), "wheel rotation W must be finite");
+        passed &= Check(IsFinite(wheel.suspensionOrigin.x), "suspension origin X must be finite");
+        passed &= Check(IsFinite(wheel.suspensionOrigin.y), "suspension origin Y must be finite");
+        passed &= Check(IsFinite(wheel.suspensionOrigin.z), "suspension origin Z must be finite");
+        passed &= Check(IsFinite(wheel.suspensionDirection.x),
+            "suspension direction X must be finite");
+        passed &= Check(IsFinite(wheel.suspensionDirection.y),
+            "suspension direction Y must be finite");
+        passed &= Check(IsFinite(wheel.suspensionDirection.z),
+            "suspension direction Z must be finite");
         passed &= Check(IsFinite(wheel.suspensionLength), "suspension length must be finite");
         passed &= Check(wheel.suspensionLength >= 0.0f && wheel.suspensionLength <= 0.5f,
             "suspension length must remain within the configured range");
-        contactCount += wheel.hasContact ? 1 : 0;
+        if (wheel.hasContact)
+        {
+            passed &= Check(IsFinite(wheel.contactPosition.x), "contact position X must be finite");
+            passed &= Check(IsFinite(wheel.contactPosition.y), "contact position Y must be finite");
+            passed &= Check(IsFinite(wheel.contactPosition.z), "contact position Z must be finite");
+            passed &= Check(IsFinite(wheel.contactNormal.x), "contact normal X must be finite");
+            passed &= Check(IsFinite(wheel.contactNormal.y), "contact normal Y must be finite");
+            passed &= Check(IsFinite(wheel.contactNormal.z), "contact normal Z must be finite");
+            const float normalLengthSquared =
+                wheel.contactNormal.x * wheel.contactNormal.x +
+                wheel.contactNormal.y * wheel.contactNormal.y +
+                wheel.contactNormal.z * wheel.contactNormal.z;
+            passed &= Check(
+                std::abs(normalLengthSquared - 1.0f) < 0.01f,
+                "contact normal must be normalized");
+            ++contactCount;
+        }
     }
     passed &= Check(contactCount > 0, "at least one wheel must contact the floor");
+
+    for (int roadWheelCount = 2; roadWheelCount <= 4; ++roadWheelCount)
+    {
+        Tank::Physics::TankSettings layoutSettings;
+        layoutSettings.roadWheelCount = roadWheelCount;
+        layoutSettings.endWheelOffsetM = 0.4f;
+        if (roadWheelCount == 2)
+        {
+            layoutSettings.twoRoadWheelOffsetM = 1.1f;
+        }
+        else if (roadWheelCount == 3)
+        {
+            layoutSettings.threeRoadWheelOffsetM = 1.25f;
+        }
+        Tank::Physics::TrackedVehicleTest layoutTest;
+        layoutTest.Initialize(layoutSettings);
+        layoutTest.Step(dt);
+        const int expectedLayoutWheelCount =
+            Tank::Physics::kTankTrackCount *
+            Tank::Physics::kTankSurfacesPerTrack *
+            (roadWheelCount + 2);
+        passed &= Check(
+            layoutTest.State().wheelCount == expectedLayoutWheelCount,
+            "selected road wheel layout must set the physics wheel count");
+        const int lastLowerWheel = roadWheelCount + 1;
+        passed &= Check(
+            std::abs(layoutTest.State().wheels[0].transform.position.z - 1.6f) < 0.01f,
+            "front end wheel must use the configured inward offset");
+        passed &= Check(
+            std::abs(layoutTest.State().wheels[static_cast<size_t>(lastLowerWheel)]
+                    .transform.position.z + 1.6f) < 0.01f,
+            "rear end wheel must use the configured inward offset");
+        if (roadWheelCount == 2)
+        {
+            const float frontMiddleZ = layoutTest.State().wheels[1].transform.position.z;
+            const float rearMiddleZ = layoutTest.State().wheels[2].transform.position.z;
+            passed &= Check(std::abs(frontMiddleZ - 1.1f) < 0.01f,
+                "front middle wheel must use the configured positive offset");
+            passed &= Check(std::abs(rearMiddleZ + 1.1f) < 0.01f,
+                "rear middle wheel must use the configured negative offset");
+        }
+        else if (roadWheelCount == 3)
+        {
+            const float frontMiddleZ = layoutTest.State().wheels[1].transform.position.z;
+            const float centerMiddleZ = layoutTest.State().wheels[2].transform.position.z;
+            const float rearMiddleZ = layoutTest.State().wheels[3].transform.position.z;
+            passed &= Check(std::abs(frontMiddleZ - 1.25f) < 0.01f,
+                "front middle wheel must use the configured positive offset");
+            passed &= Check(std::abs(centerMiddleZ) < 0.01f,
+                "center middle wheel must remain centered");
+            passed &= Check(std::abs(rearMiddleZ + 1.25f) < 0.01f,
+                "rear middle wheel must use the configured negative offset");
+        }
+    }
 
     if (!passed)
     {

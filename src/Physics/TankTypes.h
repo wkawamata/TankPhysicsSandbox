@@ -7,14 +7,17 @@
 namespace Tank::Physics
 {
     constexpr int kTankTrackCount = 2;
-    constexpr int kTankWheelsPerSurface = 5;
+    constexpr int kTankMaxRoadWheelCount = 4;
+    constexpr int kTankMaxWheelsPerSurface = kTankMaxRoadWheelCount + 2;
     constexpr int kTankSurfacesPerTrack = 2;
-    constexpr int kTankWheelsPerTrack = kTankWheelsPerSurface * kTankSurfacesPerTrack;
-    constexpr int kTankWheelCount = kTankTrackCount * kTankWheelsPerTrack;
+    constexpr int kTankMaxWheelsPerTrack =
+        kTankMaxWheelsPerSurface * kTankSurfacesPerTrack;
+    constexpr int kTankWheelCount = kTankTrackCount * kTankMaxWheelsPerTrack;
 
     struct TankSettings
     {
         float chassisMassKg = 4000.0f;
+        bool rollingInputEnabled = false;
         float rollTorqueNm = 120000.0f;
         float rollDistanceM = 2.4f;
         float rollTorqueCutoffDegrees = 90.0f;
@@ -22,6 +25,14 @@ namespace Tank::Physics
         float rollStabilizationDampingNms = 10000.0f;
         float trackWidthM = 0.3f;
         float trackSpacingM = 2.4f;
+        float chassisWidthM = 2.4f;
+        float chassisLengthM = 4.0f;
+        float endWheelRadiusM = 0.4f;
+        float roadWheelRadiusM = 0.3f;
+        int roadWheelCount = 3;
+        float endWheelOffsetM = 0.0f;
+        float twoRoadWheelOffsetM = 0.67f;
+        float threeRoadWheelOffsetM = 1.0f;
         float rideHeightScale = 0.8f;
         bool startUpsideDown = false;
     };
@@ -33,7 +44,16 @@ namespace Tank::Physics
         float leftTrack = 1.0f;
         float rightTrack = 1.0f;
         float roll = 0.0f;
+        float brakeAmount = 0.0f;
         bool brake = false;
+    };
+
+    struct TrackedDriverInput
+    {
+        float forward = 0.0f;
+        float leftRatio = 1.0f;
+        float rightRatio = 1.0f;
+        float brake = 0.0f;
     };
 
     struct TransformState
@@ -48,8 +68,14 @@ namespace Tank::Physics
         int wheelIndex = 0;
         bool upperSurface = false;
         TransformState transform = {};
+        Vec3 suspensionOrigin = {};
+        Vec3 suspensionDirection = {};
         float suspensionLength = 0.0f;
         bool hasContact = false;
+        Vec3 contactPosition = {};
+        Vec3 contactNormal = {};
+        Vec3 contactLongitudinal = {};
+        Vec3 contactLateral = {};
     };
 
     struct TankState

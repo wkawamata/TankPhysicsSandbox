@@ -112,15 +112,43 @@ namespace Tank::Physics
             (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
         m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 0.6f);
         m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 3.2f);
+        m_settings.chassisWidthM = std::clamp(m_settings.chassisWidthM, 1.6f, 3.2f);
+        m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
+        m_settings.endWheelRadiusM =
+            std::clamp(m_settings.endWheelRadiusM, 0.2f, 0.6f);
+        m_settings.roadWheelRadiusM =
+            std::clamp(m_settings.roadWheelRadiusM, 0.2f, 0.5f);
+        m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
+        const float maximumEndWheelOffset =
+            (std::max)(
+                0.0f,
+                0.5f * m_settings.chassisLengthM -
+                    m_settings.endWheelRadiusM - 0.1f);
+        m_settings.endWheelOffsetM = std::clamp(
+            m_settings.endWheelOffsetM,
+            0.0f,
+            (std::min)(1.0f, maximumEndWheelOffset));
+        const float endWheelPosition =
+            0.5f * m_settings.chassisLengthM - m_settings.endWheelOffsetM;
+        const float maximumTwoRoadWheelOffset =
+            (std::max)(0.1f, endWheelPosition - m_settings.roadWheelRadiusM);
+        m_settings.twoRoadWheelOffsetM = std::clamp(
+            m_settings.twoRoadWheelOffsetM,
+            0.1f,
+            (std::min)(2.0f, maximumTwoRoadWheelOffset));
+        m_settings.threeRoadWheelOffsetM = std::clamp(
+            m_settings.threeRoadWheelOffsetM,
+            0.1f,
+            (std::min)(2.0f, maximumTwoRoadWheelOffset));
         m_settings.rideHeightScale =
-            std::clamp(m_settings.rideHeightScale, 0.7f, 0.9f);
+            std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
         m_impl = std::make_unique<Impl>(world);
 
-        const float wheelRadius = 0.3f;
+        const float roadWheelRadius = m_settings.roadWheelRadiusM;
         const float wheelWidth = m_settings.trackWidthM;
-        const float halfVehicleWidth = 1.2f;
+        const float halfVehicleWidth = 0.5f * m_settings.chassisWidthM;
         const float halfTrackSpacing = 0.5f * m_settings.trackSpacingM;
-        const float halfVehicleLength = 2.0f;
+        const float halfVehicleLength = 0.5f * m_settings.chassisLengthM;
         const float halfVehicleHeight = 0.5f;
         const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
         const float suspensionMaxLength = 0.5f * m_settings.rideHeightScale;
@@ -159,16 +187,7 @@ namespace Tank::Physics
         {
             JPH::VehicleTrackSettings& track = controllerSettings->mTracks[t];
 
-            static const JPH::Vec3 lowerWheelPos[] = {
-                JPH::Vec3(0.0f, 0.0f, 2.0f),
-                JPH::Vec3(0.0f, -0.3f, 1.0f),
-                JPH::Vec3(0.0f, -0.3f, 0.0f),
-                JPH::Vec3(0.0f, -0.3f, -1.0f),
-                JPH::Vec3(0.0f, 0.0f, -2.0f),
-            };
-
-            constexpr int numWheelsPerSurface =
-                static_cast<int>(sizeof(lowerWheelPos) / sizeof(lowerWheelPos[0]));
+            const int numWheelsPerSurface = m_settings.roadWheelCount + 2;
             track.mDrivenWheel =
                 static_cast<JPH::uint>(vehicle.mWheels.size() + numWheelsPerSurface - 1);
 
@@ -178,7 +197,32 @@ namespace Tank::Physics
                 for (int w = 0; w < numWheelsPerSurface; ++w)
                 {
                     JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
-                    wheel->mPosition = lowerWheelPos[w];
+                    const float wheelFraction =
+                        static_cast<float>(w) / static_cast<float>(numWheelsPerSurface - 1);
+                    const bool endWheel = w == 0 || w == numWheelsPerSurface - 1;
+                    float wheelZ =
+                        halfVehicleLength - wheelFraction * m_settings.chassisLengthM;
+                    if (endWheel)
+                    {
+                        wheelZ = w == 0 ? endWheelPosition : -endWheelPosition;
+                    }
+                    if (m_settings.roadWheelCount == 2 && !endWheel)
+                    {
+                        wheelZ = w == 1
+                            ? m_settings.twoRoadWheelOffsetM
+                            : -m_settings.twoRoadWheelOffsetM;
+                    }
+                    else if (m_settings.roadWheelCount == 3 && !endWheel)
+                    {
+                        wheelZ = w == 1
+                            ? m_settings.threeRoadWheelOffsetM
+                            : (w == 2 ? 0.0f : -m_settings.threeRoadWheelOffsetM);
+                    }
+                    wheel->mPosition =
+                        JPH::Vec3(
+                            0.0f,
+                            endWheel ? 0.0f : -roadWheelRadius,
+                            wheelZ);
                     wheel->mPosition.SetX(t == 0 ? halfTrackSpacing : -halfTrackSpacing);
                     if (upperSurface)
                     {
@@ -187,11 +231,13 @@ namespace Tank::Physics
                         wheel->mSteeringAxis = -JPH::Vec3::sAxisY();
                         wheel->mWheelUp = -JPH::Vec3::sAxisY();
                     }
-                    wheel->mRadius = wheelRadius;
+                    wheel->mRadius = endWheel
+                        ? m_settings.endWheelRadiusM
+                        : m_settings.roadWheelRadiusM;
                     wheel->mWidth = wheelWidth;
                     wheel->mSuspensionMinLength = suspensionMinLength;
                     wheel->mSuspensionMaxLength =
-                        (w == 0 || w == numWheelsPerSurface - 1)
+                        endWheel
                         ? suspensionMinLength
                         : suspensionMaxLength;
                     wheel->mSuspensionSpring.mFrequency = suspensionFrequency;
@@ -217,7 +263,9 @@ namespace Tank::Physics
         m_input.steering = ClampNormalized(input.steering);
         m_input.leftTrack = ClampNormalized(input.leftTrack);
         m_input.rightTrack = ClampNormalized(input.rightTrack);
-        m_input.roll = ClampNormalized(input.roll);
+        m_input.roll =
+            m_settings.rollingInputEnabled ? ClampNormalized(input.roll) : 0.0f;
+        m_input.brakeAmount = std::clamp(input.brakeAmount, 0.0f, 1.0f);
         m_input.brake = input.brake;
     }
 
@@ -334,7 +382,8 @@ namespace Tank::Physics
         float forward = m_input.throttle;
         float leftRatio = ToJoltTrackRatio(m_input.leftTrack);
         float rightRatio = ToJoltTrackRatio(m_input.rightTrack);
-        float brake = m_input.brake ? 1.0f : 0.0f;
+        float brake = m_input.brake ? 1.0f : m_input.brakeAmount;
+        m_driverInput = {forward, leftRatio, rightRatio, brake};
 
         JPH::TrackedVehicleController* controller =
             static_cast<JPH::TrackedVehicleController*>(
@@ -382,6 +431,10 @@ namespace Tank::Physics
             static_cast<float>(angularVelocity.GetZ())};
 
         const auto& wheels = m_impl->vehicleConstraint->GetWheels();
+        const JPH::RMat44 bodyTransform =
+            bodyInterface.GetWorldTransform(m_impl->bodyId);
+        const int wheelsPerSurface = m_settings.roadWheelCount + 2;
+        const int wheelsPerTrack = wheelsPerSurface * kTankSurfacesPerTrack;
         m_state.wheelCount = (std::min)(static_cast<int>(wheels.size()), kTankWheelCount);
         for (int i = 0; i < m_state.wheelCount; ++i)
         {
@@ -392,11 +445,16 @@ namespace Tank::Physics
                 JPH::Vec3::sAxisX());
             const JPH::RVec3 wheelPosition = wheelTransform.GetTranslation();
             const JPH::Quat wheelRotation = wheelTransform.GetQuaternion();
+            const JPH::WheelSettings* wheelSettings = wheel->GetSettings();
+            const JPH::RVec3 suspensionOrigin =
+                bodyTransform * wheelSettings->mPosition;
+            const JPH::Vec3 suspensionDirection =
+                bodyTransform.Multiply3x3(wheelSettings->mSuspensionDirection);
 
             TrackedWheelState& wheelState = m_state.wheels[static_cast<size_t>(i)];
-            wheelState.trackIndex = i / kTankWheelsPerTrack;
-            wheelState.wheelIndex = i % kTankWheelsPerTrack;
-            wheelState.upperSurface = wheelState.wheelIndex >= kTankWheelsPerSurface;
+            wheelState.trackIndex = i / wheelsPerTrack;
+            wheelState.wheelIndex = i % wheelsPerTrack;
+            wheelState.upperSurface = wheelState.wheelIndex >= wheelsPerSurface;
             wheelState.transform.position = {
                 static_cast<float>(wheelPosition.GetX()),
                 static_cast<float>(wheelPosition.GetY()),
@@ -406,8 +464,43 @@ namespace Tank::Physics
                 static_cast<float>(wheelRotation.GetY()),
                 static_cast<float>(wheelRotation.GetZ()),
                 static_cast<float>(wheelRotation.GetW())};
+            wheelState.suspensionOrigin = {
+                static_cast<float>(suspensionOrigin.GetX()),
+                static_cast<float>(suspensionOrigin.GetY()),
+                static_cast<float>(suspensionOrigin.GetZ())};
+            wheelState.suspensionDirection = {
+                static_cast<float>(suspensionDirection.GetX()),
+                static_cast<float>(suspensionDirection.GetY()),
+                static_cast<float>(suspensionDirection.GetZ())};
             wheelState.suspensionLength = wheel->GetSuspensionLength();
             wheelState.hasContact = wheel->HasContact();
+            wheelState.contactPosition = {};
+            wheelState.contactNormal = {};
+            wheelState.contactLongitudinal = {};
+            wheelState.contactLateral = {};
+            if (wheelState.hasContact)
+            {
+                const JPH::RVec3 contactPosition = wheel->GetContactPosition();
+                const JPH::Vec3 contactNormal = wheel->GetContactNormal();
+                const JPH::Vec3 contactLongitudinal = wheel->GetContactLongitudinal();
+                const JPH::Vec3 contactLateral = wheel->GetContactLateral();
+                wheelState.contactPosition = {
+                    static_cast<float>(contactPosition.GetX()),
+                    static_cast<float>(contactPosition.GetY()),
+                    static_cast<float>(contactPosition.GetZ())};
+                wheelState.contactNormal = {
+                    static_cast<float>(contactNormal.GetX()),
+                    static_cast<float>(contactNormal.GetY()),
+                    static_cast<float>(contactNormal.GetZ())};
+                wheelState.contactLongitudinal = {
+                    static_cast<float>(contactLongitudinal.GetX()),
+                    static_cast<float>(contactLongitudinal.GetY()),
+                    static_cast<float>(contactLongitudinal.GetZ())};
+                wheelState.contactLateral = {
+                    static_cast<float>(contactLateral.GetX()),
+                    static_cast<float>(contactLateral.GetY()),
+                    static_cast<float>(contactLateral.GetZ())};
+            }
         }
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
     }

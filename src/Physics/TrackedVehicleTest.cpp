@@ -1,12 +1,16 @@
 #include "TrackedVehicleTest.h"
 #include "PhysicsWorld.h"
 #include "TankController.h"
+#include "TestObstacleLayout.h"
 
 #include <Jolt/Jolt.h>
 
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+
+#include <algorithm>
+#include <vector>
 
 JPH_SUPPRESS_WARNINGS
 
@@ -23,13 +27,19 @@ namespace Tank::Physics
         PhysicsWorld world;
         TankController controller;
         JPH::BodyID floorBodyId;
+        std::vector<JPH::BodyID> obstacleBodyIds;
         bool hasFloorBody = false;
 
         ~Impl()
         {
+            JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
+            for (const JPH::BodyID obstacleBodyId : obstacleBodyIds)
+            {
+                bodyInterface.RemoveBody(obstacleBodyId);
+                bodyInterface.DestroyBody(obstacleBodyId);
+            }
             if (hasFloorBody)
             {
-                JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
                 bodyInterface.RemoveBody(floorBodyId);
                 bodyInterface.DestroyBody(floorBodyId);
             }
@@ -46,6 +56,13 @@ namespace Tank::Physics
 
     void TrackedVehicleTest::Initialize(const TankSettings& settings)
     {
+        Initialize(settings, {});
+    }
+
+    void TrackedVehicleTest::Initialize(
+        const TankSettings& settings,
+        const PhysicsEnvironmentSettings& environmentSettings)
+    {
         m_state = {};
 
         m_impl = std::make_unique<Impl>();
@@ -53,18 +70,51 @@ namespace Tank::Physics
 
         JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
 
+        const float floorSizeM =
+            std::clamp(environmentSettings.floorSizeM, 20.0f, 1000.0f);
+        const float floorFriction =
+            std::clamp(environmentSettings.floorFriction, 0.0f, 2.0f);
+        const float floorHalfExtent = 0.5f * floorSizeM;
         JPH::BodyCreationSettings floorSettings(
-            new JPH::BoxShape(JPH::Vec3(100.0f, 1.0f, 100.0f)),
+            new JPH::BoxShape(JPH::Vec3(floorHalfExtent, 1.0f, floorHalfExtent)),
             JPH::RVec3(0.0, -1.0, 0.0),
             JPH::Quat::sIdentity(),
             JPH::EMotionType::Static,
             Layers::NonMoving);
-        floorSettings.mFriction = 0.8f;
+        floorSettings.mFriction = floorFriction;
 
         JPH::Body* floorBody = bodyInterface.CreateBody(floorSettings);
         m_impl->floorBodyId = floorBody->GetID();
         m_impl->hasFloorBody = true;
         bodyInterface.AddBody(m_impl->floorBodyId, JPH::EActivation::DontActivate);
+
+        const std::vector<TestObstaclePlacement> obstacleLayout =
+            GenerateTestObstacleLayout(environmentSettings);
+        m_impl->obstacleBodyIds.reserve(obstacleLayout.size());
+        for (const TestObstaclePlacement& obstacle : obstacleLayout)
+        {
+            JPH::BodyCreationSettings obstacleSettings(
+                new JPH::BoxShape(JPH::Vec3(
+                    0.5f * kPassengerCarWidthM,
+                    0.5f * kPassengerCarHeightM,
+                    0.5f * kPassengerCarLengthM)),
+                JPH::RVec3(
+                    obstacle.position.x,
+                    obstacle.position.y,
+                    obstacle.position.z),
+                JPH::Quat::sRotation(JPH::Vec3::sAxisY(), obstacle.yawRadians),
+                JPH::EMotionType::Static,
+                Layers::NonMoving);
+            obstacleSettings.mFriction = floorFriction;
+
+            JPH::Body* obstacleBody = bodyInterface.CreateBody(obstacleSettings);
+            if (obstacleBody != nullptr)
+            {
+                const JPH::BodyID obstacleBodyId = obstacleBody->GetID();
+                m_impl->obstacleBodyIds.push_back(obstacleBodyId);
+                bodyInterface.AddBody(obstacleBodyId, JPH::EActivation::DontActivate);
+            }
+        }
 
         m_impl->controller.Initialize(m_impl->world, settings);
     }
@@ -73,6 +123,12 @@ namespace Tank::Physics
     {
         static const TankSettings defaultSettings;
         return m_impl != nullptr ? m_impl->controller.Settings() : defaultSettings;
+    }
+
+    const TrackedDriverInput& TrackedVehicleTest::DriverInput() const
+    {
+        static const TrackedDriverInput defaultInput;
+        return m_impl != nullptr ? m_impl->controller.DriverInput() : defaultInput;
     }
 
     void TrackedVehicleTest::SetInput(const TankInput& input)

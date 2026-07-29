@@ -12,6 +12,7 @@ namespace Tank::Input
         static constexpr std::size_t MaxRawAxes = 16;
         static constexpr std::size_t MaxRawButtons = 64;
         static constexpr std::size_t MaxRawSwitches = 8;
+        static constexpr std::uint32_t BrakeButtonIndex = 3;
 
         bool connected = false;
         bool hasGamepadMapping = false;

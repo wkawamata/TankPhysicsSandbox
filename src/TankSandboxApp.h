@@ -15,6 +15,7 @@
 #include "Runtime/SceneRendererSettings.h"
 #include "Ui/ImGuiSystem.h"
 #include "Physics/BoxDropTest.h"
+#include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
@@ -71,8 +72,11 @@ private:
     void ResetTrackedVehicle();
     bool SaveTankSettings();
     bool LoadTankSettings();
+    bool SaveEnvironmentSettings();
+    bool LoadEnvironmentSettings();
     void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
     void UpdateTrackedVehicleInput();
+    void ApplyTrackedVehicleCameraPreset(const DirectX::XMFLOAT3& offset);
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
     void ApplyActiveCameraScene();
     Engine::CameraState* ActiveCamera();
@@ -101,6 +105,8 @@ private:
 
     struct TrackedVehicleModel
     {
+        static constexpr int kTrackShoeCountPerTrack = 32;
+
         size_t lowerHull = 0;
         size_t upperStructure = 0;
         size_t lowerStructure = 0;
@@ -108,11 +114,21 @@ private:
         size_t rightTrack = 0;
         size_t forwardMarker = 0;
         std::array<size_t, Tank::Physics::kTankWheelCount> wheels = {};
+        std::array<size_t, Tank::Physics::kTankWheelCount> suspensionLines = {};
+        std::array<size_t, Tank::Physics::kTankWheelCount> contactMarkers = {};
+        std::array<size_t, Tank::Physics::kTankWheelCount> contactNormalLines = {};
+        std::array<std::array<size_t, kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount>
+            trackShoes = {};
         uint32_t wheelContactMaterial = 0;
         uint32_t wheelAirborneMaterial = 0;
+        uint32_t debugContactMaterial = 0;
+        uint32_t debugAirborneMaterial = 0;
     };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Tank::Physics::TankSettings m_trackedVehicleSettings;
+    Tank::Physics::TankSettings m_appliedTrackedVehicleSettings;
+    Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
+    Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
     Tank::Platform::Windows::WindowsGamepad m_gamepad;
     Engine::SceneBuilder m_trackedVehicleSceneBuilder;
     TrackedVehicleModel m_trackedVehicleModel;
@@ -124,12 +140,22 @@ private:
     bool m_rollLeft = false;
     bool m_rollRight = false;
     bool m_brake = false;
+    bool m_analogTracksConnected = false;
+    float m_analogLeftTrack = 0.0f;
+    float m_analogRightTrack = 0.0f;
+    float m_analogRoll = 0.0f;
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;
+    bool m_physicsDebugOverlay = false;
+    bool m_trackShoeDisplay = true;
+    std::array<float, Tank::Physics::kTankTrackCount> m_trackShoeDistances = {};
+    float m_trackShoeLastTimeSeconds = 0.0f;
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     std::string m_rendererSettingsStatus;
     std::string m_tankSettingsStatus;
+    int m_tankSettingsSlot = 0;
+    std::string m_environmentSettingsStatus;
     std::string m_screenshotStatus;
 
     // Auto scene entry and screenshot for CLI.

@@ -24,6 +24,7 @@ int main()
 {
     Tank::Physics::TankSettings source;
     source.chassisMassKg = 5200.0f;
+    source.rollingInputEnabled = false;
     source.rollTorqueNm = 175000.0f;
     source.rollDistanceM = 3.0f;
     source.rollTorqueCutoffDegrees = 80.0f;
@@ -31,6 +32,14 @@ int main()
     source.rollStabilizationDampingNms = 14000.0f;
     source.trackWidthM = 0.42f;
     source.trackSpacingM = 2.75f;
+    source.chassisWidthM = 2.65f;
+    source.chassisLengthM = 4.75f;
+    source.endWheelRadiusM = 0.44f;
+    source.roadWheelRadiusM = 0.32f;
+    source.roadWheelCount = 4;
+    source.endWheelOffsetM = 0.35f;
+    source.twoRoadWheelOffsetM = 0.82f;
+    source.threeRoadWheelOffsetM = 1.15f;
     source.rideHeightScale = 0.75f;
     source.startUpsideDown = true;
 
@@ -45,6 +54,8 @@ int main()
         "serialized settings must deserialize");
     passed &= Check(NearlyEqual(loaded.chassisMassKg, source.chassisMassKg),
         "chassis mass must round trip");
+    passed &= Check(loaded.rollingInputEnabled == source.rollingInputEnabled,
+        "rolling input enabled must round trip");
     passed &= Check(NearlyEqual(loaded.rollTorqueNm, source.rollTorqueNm),
         "roll torque must round trip");
     passed &= Check(NearlyEqual(loaded.rollDistanceM, source.rollDistanceM),
@@ -62,6 +73,22 @@ int main()
         "track width must round trip");
     passed &= Check(NearlyEqual(loaded.trackSpacingM, source.trackSpacingM),
         "track spacing must round trip");
+    passed &= Check(NearlyEqual(loaded.chassisWidthM, source.chassisWidthM),
+        "chassis width must round trip");
+    passed &= Check(NearlyEqual(loaded.chassisLengthM, source.chassisLengthM),
+        "chassis length must round trip");
+    passed &= Check(NearlyEqual(loaded.endWheelRadiusM, source.endWheelRadiusM),
+        "end wheel radius must round trip");
+    passed &= Check(NearlyEqual(loaded.roadWheelRadiusM, source.roadWheelRadiusM),
+        "road wheel radius must round trip");
+    passed &= Check(loaded.roadWheelCount == source.roadWheelCount,
+        "road wheel count must round trip");
+    passed &= Check(NearlyEqual(loaded.endWheelOffsetM, source.endWheelOffsetM),
+        "end wheel offset must round trip");
+    passed &= Check(NearlyEqual(loaded.twoRoadWheelOffsetM, source.twoRoadWheelOffsetM),
+        "two road wheel offset must round trip");
+    passed &= Check(NearlyEqual(loaded.threeRoadWheelOffsetM, source.threeRoadWheelOffsetM),
+        "three road wheel offset must round trip");
     passed &= Check(NearlyEqual(loaded.rideHeightScale, source.rideHeightScale),
         "ride height must round trip");
     passed &= Check(loaded.startUpsideDown == source.startUpsideDown,
@@ -84,6 +111,29 @@ int main()
         "present field must load");
     passed &= Check(NearlyEqual(loaded.rollTorqueNm, beforeInvalid.rollTorqueNm),
         "missing field must preserve current value");
+
+    Tank::Physics::TankSettings legacyLoaded;
+    passed &= Check(
+        Tank::Physics::DeserializeTankSettings(
+            R"({"version":1,"wheelRadiusM":0.36})",
+            legacyLoaded,
+            &error),
+        "version 1 wheel radius must migrate");
+    passed &= Check(
+        NearlyEqual(legacyLoaded.endWheelRadiusM, 0.36f) &&
+            NearlyEqual(legacyLoaded.roadWheelRadiusM, 0.36f),
+        "legacy wheel radius must initialize both wheel groups");
+
+    const Tank::Physics::TankSettings beforeFutureVersion = loaded;
+    passed &= Check(
+        !Tank::Physics::DeserializeTankSettings(
+            R"({"version":999,"chassisMassKg":1.0})",
+            loaded,
+            &error),
+        "future schema version must fail");
+    passed &= Check(
+        NearlyEqual(loaded.chassisMassKg, beforeFutureVersion.chassisMassKg),
+        "unsupported version must not modify settings");
 
     if (!passed)
     {

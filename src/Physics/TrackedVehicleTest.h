@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhysicsTypes.h"
+#include "PhysicsEnvironmentSettings.h"
 #include "TankTypes.h"
 
 #include <array>
@@ -32,9 +33,13 @@ namespace Tank::Physics
 
         void Initialize();
         void Initialize(const TankSettings& settings);
+        void Initialize(
+            const TankSettings& settings,
+            const PhysicsEnvironmentSettings& environmentSettings);
         void SetInput(const TankInput& input);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
         const TrackedVehicleTestState& State() const { return m_state; }
+        const TrackedDriverInput& DriverInput() const;
         const TankSettings& Settings() const;
 
     private:
