@@ -113,6 +113,9 @@ target_link_libraries(TankWindowsInput
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
     src/main.cpp
+    src/Rendering/TankVisualSettings.h
+    src/Rendering/TankVisualSettingsJson.cpp
+    src/Rendering/TankVisualSettingsJson.h
     src/TankSandboxApp.cpp
     src/TankSandboxApp.h
     src/stdafx.h
@@ -235,6 +238,20 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.PhysicsEnvironmentSettingsJson
         COMMAND PhysicsEnvironmentSettingsJsonTests
+    )
+
+    add_executable(TankVisualSettingsJsonTests
+        src/Rendering/TankVisualSettingsJson.cpp
+        tests/TankVisualSettingsJsonTests.cpp
+    )
+    target_include_directories(TankVisualSettingsJsonTests PRIVATE src)
+    target_link_libraries(TankVisualSettingsJsonTests PRIVATE nlohmann_json::nlohmann_json)
+    if(MSVC)
+        target_compile_options(TankVisualSettingsJsonTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(
+        NAME TankRendering.TankVisualSettingsJson
+        COMMAND TankVisualSettingsJsonTests
     )
 
     add_executable(TestObstacleLayoutTests

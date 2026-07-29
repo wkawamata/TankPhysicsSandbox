@@ -64,6 +64,63 @@ namespace
 			(std::abs(normalized) - kAnalogTrackDeadzone) / (1.0f - kAnalogTrackDeadzone);
 		return std::copysign(std::min(magnitude, 1.0f), normalized);
 	}
+
+	void ApplyEnvironmentPreset(
+		Engine::ProceduralEnvironmentSettings& settings,
+		Engine::EnvironmentSource source)
+	{
+		settings = {};
+		settings.source = source;
+
+		switch (source)
+		{
+		case Engine::EnvironmentSource::ProceduralStudio:
+			settings.skyColor = { 0.50f, 0.52f, 0.54f };
+			settings.groundColor = { 0.16f, 0.16f, 0.15f };
+			settings.lightColor = { 1.0f, 0.98f, 0.92f };
+			settings.lightDirection = { 0.25f, 0.85f, 0.35f };
+			settings.backgroundIntensity = 0.35f;
+			settings.lightIntensity = 4.0f;
+			settings.lightSize = 0.22f;
+			settings.fillIntensity = 0.08f;
+			break;
+		case Engine::EnvironmentSource::ProceduralSun:
+			settings.skyColor = { 0.25f, 0.43f, 0.75f };
+			settings.groundColor = { 0.09f, 0.075f, 0.055f };
+			settings.lightColor = { 1.0f, 0.82f, 0.52f };
+			settings.lightDirection = { 0.22f, 0.72f, 0.66f };
+			settings.backgroundIntensity = 0.20f;
+			settings.lightIntensity = 32.0f;
+			settings.lightSize = 0.035f;
+			settings.fillIntensity = 0.03f;
+			break;
+		case Engine::EnvironmentSource::ProceduralColorPanels:
+			settings.skyColor = { 0.02f, 0.02f, 0.025f };
+			settings.groundColor = { 0.015f, 0.015f, 0.015f };
+			settings.lightColor = { 1.0f, 1.0f, 1.0f };
+			settings.lightDirection = { 0.35f, 0.75f, 0.25f };
+			settings.backgroundIntensity = 0.05f;
+			settings.lightIntensity = 0.0f;
+			settings.lightSize = 0.12f;
+			settings.fillIntensity = 0.02f;
+			settings.colorPanelIntensity = 3.5f;
+			break;
+		case Engine::EnvironmentSource::ProceduralHorizon:
+			settings.skyColor = { 0.34f, 0.50f, 0.86f };
+			settings.groundColor = { 0.18f, 0.15f, 0.10f };
+			settings.lightColor = { 1.0f, 0.86f, 0.62f };
+			settings.lightDirection = { 0.1f, 0.08f, 0.99f };
+			settings.backgroundIntensity = 0.45f;
+			settings.lightIntensity = 5.0f;
+			settings.lightSize = 0.12f;
+			settings.fillIntensity = 0.03f;
+			settings.horizonSharpness = 0.035f;
+			break;
+		case Engine::EnvironmentSource::AssetHdr:
+		default:
+			break;
+		}
+	}
 }
 
 #include "Physics/BoxDropTest.h"
@@ -72,6 +129,7 @@ namespace
 #include "Physics/TankTypes.h"
 #include "Physics/TestObstacleLayout.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Rendering/TankVisualSettingsJson.h"
 #include "Input/GamepadState.h"
 
 using namespace DirectX;
@@ -81,6 +139,7 @@ namespace
 	constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
 	constexpr const char* kLegacyTankSettingsPath = "Config/tank_physics.json";
 	constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
+	constexpr const char* kTankVisualSettingsPath = "Config/tank_visual.json";
 
 	std::filesystem::path TankSettingsPath(int slot)
 	{
@@ -975,6 +1034,146 @@ void TankSandboxApp::DrawRendererSettingsUi()
 	{
 		ImGui::TextWrapped("%s", m_rendererSettingsStatus.c_str());
 	}
+	if (ImGui::CollapsingHeader("Environment Mapping", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		auto lighting = m_sceneRenderer.GetLightingParams();
+		bool lightingChanged = false;
+		bool iblEnabled = lighting.diffuseIblEnabled || lighting.specularIblEnabled;
+		if (ImGui::Checkbox("IBL Enabled", &iblEnabled))
+		{
+			lighting.diffuseIblEnabled = iblEnabled;
+			lighting.specularIblEnabled = iblEnabled;
+			lightingChanged = true;
+		}
+		ImGui::BeginDisabled(!iblEnabled);
+		lightingChanged |= ImGuiWidgets::SliderFloatWithControls(
+			"IBL Intensity", &lighting.iblIntensity, 0.0f, 2.0f, 0.05f, 1.0f);
+		lightingChanged |= ImGui::Checkbox("Diffuse IBL", &lighting.diffuseIblEnabled);
+		ImGui::SameLine();
+		lightingChanged |= ImGui::Checkbox("Specular IBL", &lighting.specularIblEnabled);
+		ImGui::EndDisabled();
+		lightingChanged |= ImGui::Checkbox("Show Skybox", &lighting.skyboxEnabled);
+		lightingChanged |= ImGui::Checkbox("Skybox Preview", &lighting.skyboxPreview);
+		ImGui::BeginDisabled(!lighting.skyboxPreview);
+		lightingChanged |= ImGuiWidgets::SliderFloatWithControls(
+			"Skybox Preview Exposure",
+			&lighting.skyboxPreviewExposure,
+			0.0f,
+			2.0f,
+			0.05f,
+			1.0f);
+		ImGui::EndDisabled();
+		if (lightingChanged)
+		{
+			m_sceneRenderer.SetLightingParams(lighting);
+		}
+
+		bool environmentChanged = false;
+		int source = static_cast<int>(m_rendererEnvironmentSettings.source);
+		if (ImGui::Combo(
+			"Source",
+			&source,
+			"Asset HDR\0Procedural Studio\0Procedural Sun\0"
+			"Procedural Color Panels\0Procedural Horizon\0"))
+		{
+			ApplyEnvironmentPreset(
+				m_rendererEnvironmentSettings,
+				static_cast<Engine::EnvironmentSource>(source));
+			environmentChanged = true;
+		}
+		ImGui::SameLine();
+		ImGui::Checkbox("Auto Update", &m_rendererEnvironmentAutoUpdate);
+
+		if (m_rendererEnvironmentSettings.source != Engine::EnvironmentSource::AssetHdr)
+		{
+			environmentChanged |= ImGui::ColorEdit3(
+				"Sky Color", &m_rendererEnvironmentSettings.skyColor.x);
+			environmentChanged |= ImGui::ColorEdit3(
+				"Ground Color", &m_rendererEnvironmentSettings.groundColor.x);
+			const bool colorPanels =
+				m_rendererEnvironmentSettings.source ==
+				Engine::EnvironmentSource::ProceduralColorPanels;
+			if (!colorPanels)
+			{
+				environmentChanged |= ImGui::ColorEdit3(
+					"Env Light Color", &m_rendererEnvironmentSettings.lightColor.x);
+				static constexpr float defaultDirection[] = { 0.35f, 0.75f, 0.25f };
+				environmentChanged |= ImGuiWidgets::SliderFloat3WithControls(
+					"Env Light Direction",
+					&m_rendererEnvironmentSettings.lightDirection.x,
+					-1.0f,
+					1.0f,
+					0.05f,
+					defaultDirection);
+			}
+			environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
+				"Env Background",
+				&m_rendererEnvironmentSettings.backgroundIntensity,
+				0.0f,
+				4.0f,
+				0.05f,
+				0.6f);
+			if (!colorPanels)
+			{
+				environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
+					"Env Light Intensity",
+					&m_rendererEnvironmentSettings.lightIntensity,
+					0.0f,
+					40.0f,
+					0.5f,
+					6.0f);
+				environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
+					"Env Light Size",
+					&m_rendererEnvironmentSettings.lightSize,
+					0.01f,
+					0.8f,
+					0.01f,
+					0.12f);
+			}
+			environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
+				"Env Fill",
+				&m_rendererEnvironmentSettings.fillIntensity,
+				0.0f,
+				2.0f,
+				0.05f,
+				0.12f);
+			if (colorPanels)
+			{
+				environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
+					"Color Panel Intensity",
+					&m_rendererEnvironmentSettings.colorPanelIntensity,
+					0.0f,
+					8.0f,
+					0.1f,
+					1.5f);
+			}
+			if (m_rendererEnvironmentSettings.source ==
+				Engine::EnvironmentSource::ProceduralHorizon)
+			{
+				environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
+					"Horizon Width",
+					&m_rendererEnvironmentSettings.horizonSharpness,
+					0.01f,
+					0.5f,
+					0.01f,
+					0.08f);
+			}
+		}
+
+		m_rendererEnvironmentReloadPending |= environmentChanged;
+		if (ImGui::Button("Apply Environment"))
+		{
+			m_sceneRenderer.ReloadEnvironmentResources(m_rendererEnvironmentSettings);
+			m_rendererEnvironmentReloadPending = false;
+		}
+		if (m_rendererEnvironmentReloadPending &&
+			m_rendererEnvironmentAutoUpdate &&
+			!ImGui::IsAnyItemActive())
+		{
+			m_sceneRenderer.ReloadEnvironmentResources(m_rendererEnvironmentSettings);
+			m_rendererEnvironmentReloadPending = false;
+		}
+	}
 	ImGui::Separator();
 	if (ImGui::Button("Capture"))
 	{
@@ -1457,6 +1656,52 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 
 	ImGui::SeparatorText("Tank Design:");
 
+	if (ImGui::CollapsingHeader("Body Material"))
+	{
+		auto drawMaterial = [](const char* label, Tank::Rendering::BodyMaterialSettings& material)
+		{
+			if (ImGui::TreeNode(label))
+			{
+				ImGui::ColorEdit3("Albedo", &material.albedo.r);
+				ImGuiWidgets::SliderFloatWithControls(
+					"Roughness", &material.roughness, 0.04f, 1.0f, 0.02f, 0.8f);
+				ImGuiWidgets::SliderFloatWithControls(
+					"Metallic", &material.metallic, 0.0f, 1.0f, 0.05f, 0.0f);
+				ImGuiWidgets::SliderFloatWithControls(
+					"Ambient Occlusion",
+					&material.ambientOcclusion,
+					0.0f,
+					1.0f,
+					0.05f,
+					1.0f);
+				ImGuiWidgets::SliderFloatWithControls(
+					"Emissive", &material.emissive, 0.0f, 4.0f, 0.1f, 0.0f);
+				ImGui::TreePop();
+			}
+		};
+		drawMaterial("Hull Upper", m_tankVisualSettings.hullUpper);
+		drawMaterial("Hull Lower", m_tankVisualSettings.hullLower);
+		drawMaterial("Structure Upper", m_tankVisualSettings.structureUpper);
+		drawMaterial("Structure Lower", m_tankVisualSettings.structureLower);
+		if (ImGui::Button("Apply Body Materials"))
+		{
+			ApplyTrackedVehicleBodyColors();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Save Visual"))
+		{
+			SaveTankVisualSettings();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Load Visual"))
+		{
+			LoadTankVisualSettings();
+		}
+		if (!m_tankVisualSettingsStatus.empty())
+		{
+			ImGui::TextWrapped("%s", m_tankVisualSettingsStatus.c_str());
+		}
+	}
 	if (ImGui::Checkbox("Track Shoe Display", &m_trackShoeDisplay))
 	{
 		UpdateTrackedVehicleScene(state);
@@ -1722,6 +1967,104 @@ void TankSandboxApp::ResetTrackedVehicle()
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
 }
 
+void TankSandboxApp::ApplyTrackedVehicleBodyColors()
+{
+	Engine::SceneMesh& mesh = m_trackedVehicleSceneBuilder.GetMesh();
+	auto applyColor = [&mesh](
+		uint32_t materialId,
+		const Tank::Rendering::BodyMaterialSettings& settings)
+	{
+		if (materialId >= mesh.materials.size())
+		{
+			return;
+		}
+		const int textureIndex = mesh.materials[materialId].albedoTexIndex;
+		if (textureIndex < 0 || static_cast<size_t>(textureIndex) >= mesh.textures.size())
+		{
+			return;
+		}
+		Engine::SceneTexture& texture = mesh.textures[static_cast<size_t>(textureIndex)];
+		if (texture.pixels.size() < 4)
+		{
+			return;
+		}
+		texture.pixels[0] = static_cast<uint8_t>(
+			std::clamp(settings.albedo.r, 0.0f, 1.0f) * 255.0f);
+		texture.pixels[1] = static_cast<uint8_t>(
+			std::clamp(settings.albedo.g, 0.0f, 1.0f) * 255.0f);
+		texture.pixels[2] = static_cast<uint8_t>(
+			std::clamp(settings.albedo.b, 0.0f, 1.0f) * 255.0f);
+		texture.pixels[3] = 255;
+		Engine::SceneMaterial& material = mesh.materials[materialId];
+		material.roughnessFactor = std::clamp(settings.roughness, 0.04f, 1.0f);
+		material.metallicFactor = std::clamp(settings.metallic, 0.0f, 1.0f);
+		material.ambientOcclusionFactor =
+			std::clamp(settings.ambientOcclusion, 0.0f, 1.0f);
+		material.emissiveScale = std::clamp(settings.emissive, 0.0f, 4.0f);
+	};
+
+	applyColor(m_trackedVehicleModel.hullUpperMaterial, m_tankVisualSettings.hullUpper);
+	applyColor(m_trackedVehicleModel.hullLowerMaterial, m_tankVisualSettings.hullLower);
+	applyColor(
+		m_trackedVehicleModel.structureUpperMaterial,
+		m_tankVisualSettings.structureUpper);
+	applyColor(
+		m_trackedVehicleModel.structureLowerMaterial,
+		m_tankVisualSettings.structureLower);
+	m_sceneRenderer.ReloadSceneResources(m_trackedVehicleSceneBuilder.GetScene());
+}
+
+bool TankSandboxApp::SaveTankVisualSettings()
+{
+	const std::filesystem::path path(kTankVisualSettingsPath);
+	std::error_code errorCode;
+	std::filesystem::create_directories(path.parent_path(), errorCode);
+	if (errorCode)
+	{
+		m_tankVisualSettingsStatus = "Save failed: " + errorCode.message();
+		return false;
+	}
+
+	std::ofstream output(path, std::ios::binary | std::ios::trunc);
+	if (!output)
+	{
+		m_tankVisualSettingsStatus = "Save failed: cannot open file";
+		return false;
+	}
+	output << Tank::Rendering::SerializeTankVisualSettings(m_tankVisualSettings);
+	if (!output)
+	{
+		m_tankVisualSettingsStatus = "Save failed: cannot write file";
+		return false;
+	}
+	m_tankVisualSettingsStatus = std::string("Saved: ") + kTankVisualSettingsPath;
+	return true;
+}
+
+bool TankSandboxApp::LoadTankVisualSettings()
+{
+	std::ifstream input(kTankVisualSettingsPath, std::ios::binary);
+	if (!input)
+	{
+		m_tankVisualSettingsStatus = "Load failed: no saved settings";
+		return false;
+	}
+	const std::string json(
+		(std::istreambuf_iterator<char>(input)),
+		std::istreambuf_iterator<char>());
+	Tank::Rendering::TankVisualSettings loaded = m_tankVisualSettings;
+	std::string error;
+	if (!Tank::Rendering::DeserializeTankVisualSettings(json, loaded, &error))
+	{
+		m_tankVisualSettingsStatus = "Load failed: " + error;
+		return false;
+	}
+	m_tankVisualSettings = loaded;
+	ApplyTrackedVehicleBodyColors();
+	m_tankVisualSettingsStatus = std::string("Loaded: ") + kTankVisualSettingsPath;
+	return true;
+}
+
 bool TankSandboxApp::SaveTankSettings()
 {
 	const std::filesystem::path path = TankSettingsPath(m_tankSettingsSlot);
@@ -1858,8 +2201,28 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		floorMaterial =
 			m_trackedVehicleSceneBuilder.AddSolidColorMaterial(80, 80, 80, 255);
 	}
-	const uint32_t hullMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(55, 95, 65, 255);
-	const uint32_t upperMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 120, 80, 255);
+	auto addBodyMaterial = [this](const Tank::Rendering::BodyMaterialSettings& material)
+	{
+		const uint32_t materialId = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(
+			static_cast<uint8_t>(std::clamp(material.albedo.r, 0.0f, 1.0f) * 255.0f),
+			static_cast<uint8_t>(std::clamp(material.albedo.g, 0.0f, 1.0f) * 255.0f),
+			static_cast<uint8_t>(std::clamp(material.albedo.b, 0.0f, 1.0f) * 255.0f),
+			255);
+		Engine::SceneMaterial& sceneMaterial =
+			m_trackedVehicleSceneBuilder.GetMesh().materials[materialId];
+		sceneMaterial.roughnessFactor = std::clamp(material.roughness, 0.04f, 1.0f);
+		sceneMaterial.metallicFactor = std::clamp(material.metallic, 0.0f, 1.0f);
+		sceneMaterial.ambientOcclusionFactor =
+			std::clamp(material.ambientOcclusion, 0.0f, 1.0f);
+		sceneMaterial.emissiveScale = std::clamp(material.emissive, 0.0f, 4.0f);
+		return materialId;
+	};
+	m_trackedVehicleModel.hullUpperMaterial = addBodyMaterial(m_tankVisualSettings.hullUpper);
+	m_trackedVehicleModel.hullLowerMaterial = addBodyMaterial(m_tankVisualSettings.hullLower);
+	m_trackedVehicleModel.structureUpperMaterial =
+		addBodyMaterial(m_tankVisualSettings.structureUpper);
+	m_trackedVehicleModel.structureLowerMaterial =
+		addBodyMaterial(m_tankVisualSettings.structureLower);
 	const uint32_t leftTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 40, 45, 255);
 	const uint32_t rightTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(50, 50, 55, 255);
 	const uint32_t markerMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 60, 60, 255);
@@ -1895,34 +2258,59 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 			XMMatrixTranslation(0.0f, -0.1f, 0.0f),
 		floorMaterial);
 
-	m_trackedVehicleModel.lowerHull = 1;
+	m_trackedVehicleModel.hullUpper =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(2.16f, 0.5f, 3.5f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
-		hullMaterial);
-
-	m_trackedVehicleModel.upperStructure = 2;
+		XMMatrixScaling(2.16f, 0.25f, 3.5f) *
+			XMMatrixTranslation(0.0f, 2.125f, 0.0f),
+		m_trackedVehicleModel.hullUpperMaterial);
+	m_trackedVehicleModel.hullLower =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, 2.375f, 0.3f),
-		upperMaterial);
-
-	m_trackedVehicleModel.lowerStructure = 3;
+		XMMatrixScaling(2.16f, 0.25f, 3.5f) *
+			XMMatrixTranslation(0.0f, 1.875f, 0.0f),
+		m_trackedVehicleModel.hullLowerMaterial);
+	m_trackedVehicleModel.upperStructureUpper =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, 1.625f, 0.3f),
-		upperMaterial);
+		XMMatrixScaling(1.44f, 0.125f, 2.0f) *
+			XMMatrixTranslation(0.0f, 2.4375f, 0.3f),
+		m_trackedVehicleModel.structureUpperMaterial);
+	m_trackedVehicleModel.upperStructureLower =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(1.44f, 0.125f, 2.0f) *
+			XMMatrixTranslation(0.0f, 2.3125f, 0.3f),
+		m_trackedVehicleModel.structureLowerMaterial);
+	m_trackedVehicleModel.lowerStructureUpper =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(1.44f, 0.125f, 2.0f) *
+			XMMatrixTranslation(0.0f, 1.6875f, 0.3f),
+		m_trackedVehicleModel.structureUpperMaterial);
+	m_trackedVehicleModel.lowerStructureLower =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
+	m_trackedVehicleSceneBuilder.AddInstance(
+		XMMatrixScaling(1.44f, 0.125f, 2.0f) *
+			XMMatrixTranslation(0.0f, 1.5625f, 0.3f),
+		m_trackedVehicleModel.structureLowerMaterial);
 
-	m_trackedVehicleModel.leftTrack = 4;
+	m_trackedVehicleModel.leftTrack =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
 		XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
 		leftTrackMaterial);
 
-	m_trackedVehicleModel.rightTrack = 5;
+	m_trackedVehicleModel.rightTrack =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
 		XMMatrixTranslation(0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
 		rightTrackMaterial);
 
-	m_trackedVehicleModel.forwardMarker = 6;
+	m_trackedVehicleModel.forwardMarker =
+		m_trackedVehicleSceneBuilder.GetScene().instances.size();
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 2.0f, 2.5f),
 		markerMaterial);
@@ -2021,14 +2409,24 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 
 	struct Part { size_t index; XMMATRIX localTransform; };
 	const Part parts[] = {
-		{ m_trackedVehicleModel.lowerHull,
-			XMMatrixScaling(0.9f * chassisWidth, 0.5f, 0.875f * chassisLength) },
-		{ m_trackedVehicleModel.upperStructure,
-			XMMatrixScaling(0.6f * chassisWidth, 0.25f, 0.5f * chassisLength) *
-				XMMatrixTranslation(0.0f, 0.375f, 0.075f * chassisLength) },
-		{ m_trackedVehicleModel.lowerStructure,
-			XMMatrixScaling(0.6f * chassisWidth, 0.25f, 0.5f * chassisLength) *
-				XMMatrixTranslation(0.0f, -0.375f, 0.075f * chassisLength) },
+		{ m_trackedVehicleModel.hullUpper,
+			XMMatrixScaling(0.9f * chassisWidth, 0.25f, 0.875f * chassisLength) *
+				XMMatrixTranslation(0.0f, 0.125f, 0.0f) },
+		{ m_trackedVehicleModel.hullLower,
+			XMMatrixScaling(0.9f * chassisWidth, 0.25f, 0.875f * chassisLength) *
+				XMMatrixTranslation(0.0f, -0.125f, 0.0f) },
+		{ m_trackedVehicleModel.upperStructureUpper,
+			XMMatrixScaling(0.6f * chassisWidth, 0.125f, 0.5f * chassisLength) *
+				XMMatrixTranslation(0.0f, 0.4375f, 0.075f * chassisLength) },
+		{ m_trackedVehicleModel.upperStructureLower,
+			XMMatrixScaling(0.6f * chassisWidth, 0.125f, 0.5f * chassisLength) *
+				XMMatrixTranslation(0.0f, 0.3125f, 0.075f * chassisLength) },
+		{ m_trackedVehicleModel.lowerStructureUpper,
+			XMMatrixScaling(0.6f * chassisWidth, 0.125f, 0.5f * chassisLength) *
+				XMMatrixTranslation(0.0f, -0.3125f, 0.075f * chassisLength) },
+		{ m_trackedVehicleModel.lowerStructureLower,
+			XMMatrixScaling(0.6f * chassisWidth, 0.125f, 0.5f * chassisLength) *
+				XMMatrixTranslation(0.0f, -0.4375f, 0.075f * chassisLength) },
 		{ m_trackedVehicleModel.leftTrack,
 			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, chassisLength) *
 				XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 0.0f, 0.0f) },

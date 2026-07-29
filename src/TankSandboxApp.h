@@ -13,10 +13,12 @@
 #include "Runtime/SceneRenderer.h"
 #include "Runtime/SceneRendererDebugUi.h"
 #include "Runtime/SceneRendererSettings.h"
+#include "Renderer/EnvironmentMap.h"
 #include "Ui/ImGuiSystem.h"
 #include "Physics/BoxDropTest.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Rendering/TankVisualSettings.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
 
@@ -70,6 +72,9 @@ private:
     void DrawPhysicsTrackedVehicleUi();
     void EnterTrackedVehicleMode();
     void ResetTrackedVehicle();
+    void ApplyTrackedVehicleBodyColors();
+    bool SaveTankVisualSettings();
+    bool LoadTankVisualSettings();
     bool SaveTankSettings();
     bool LoadTankSettings();
     bool SaveEnvironmentSettings();
@@ -107,9 +112,12 @@ private:
     {
         static constexpr int kTrackShoeCountPerTrack = 32;
 
-        size_t lowerHull = 0;
-        size_t upperStructure = 0;
-        size_t lowerStructure = 0;
+        size_t hullUpper = 0;
+        size_t hullLower = 0;
+        size_t upperStructureUpper = 0;
+        size_t upperStructureLower = 0;
+        size_t lowerStructureUpper = 0;
+        size_t lowerStructureLower = 0;
         size_t leftTrack = 0;
         size_t rightTrack = 0;
         size_t forwardMarker = 0;
@@ -123,6 +131,10 @@ private:
         uint32_t wheelAirborneMaterial = 0;
         uint32_t debugContactMaterial = 0;
         uint32_t debugAirborneMaterial = 0;
+        uint32_t hullUpperMaterial = 0;
+        uint32_t hullLowerMaterial = 0;
+        uint32_t structureUpperMaterial = 0;
+        uint32_t structureLowerMaterial = 0;
     };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Tank::Physics::TankSettings m_trackedVehicleSettings;
@@ -148,12 +160,17 @@ private:
     bool m_trackedVehicleSingleStep = false;
     bool m_physicsDebugOverlay = false;
     bool m_trackShoeDisplay = true;
+    Tank::Rendering::TankVisualSettings m_tankVisualSettings;
     std::array<float, Tank::Physics::kTankTrackCount> m_trackShoeDistances = {};
     float m_trackShoeLastTimeSeconds = 0.0f;
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
+    Engine::ProceduralEnvironmentSettings m_rendererEnvironmentSettings;
+    bool m_rendererEnvironmentAutoUpdate = Engine::kUseGpuProceduralEnvMap;
+    bool m_rendererEnvironmentReloadPending = false;
     std::string m_rendererSettingsStatus;
     std::string m_tankSettingsStatus;
+    std::string m_tankVisualSettingsStatus;
     int m_tankSettingsSlot = 0;
     std::string m_environmentSettingsStatus;
     std::string m_screenshotStatus;
