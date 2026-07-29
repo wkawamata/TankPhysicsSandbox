@@ -17,7 +17,7 @@ namespace Tank::Physics
     struct TankSettings
     {
         float chassisMassKg = 4000.0f;
-        bool rollingInputEnabled = true;
+        bool rollingInputEnabled = false;
         float rollTorqueNm = 120000.0f;
         float rollDistanceM = 2.4f;
         float rollTorqueCutoffDegrees = 90.0f;
@@ -27,7 +27,8 @@ namespace Tank::Physics
         float trackSpacingM = 2.4f;
         float chassisWidthM = 2.4f;
         float chassisLengthM = 4.0f;
-        float wheelRadiusM = 0.3f;
+        float endWheelRadiusM = 0.4f;
+        float roadWheelRadiusM = 0.3f;
         int roadWheelCount = 3;
         float endWheelOffsetM = 0.0f;
         float twoRoadWheelOffsetM = 0.67f;

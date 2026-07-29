@@ -29,6 +29,8 @@ int main()
     }
 
     const Tank::Physics::Vec3 startPosition = test.State().bodyPosition;
+    const Tank::Physics::Quat startWheelRotation =
+        test.State().wheels[0].transform.rotation;
 
     Tank::Physics::TankInput input;
     input.throttle = 1.0f;
@@ -48,6 +50,16 @@ int main()
     passed &= Check(std::abs(state.bodyPosition.x - startPosition.x) < 0.5f,
         "straight input must not produce excessive sideways drift");
     passed &= Check(std::isfinite(state.linearVelocity.z), "forward velocity must be finite");
+    const Tank::Physics::Quat& finalWheelRotation =
+        state.wheels[0].transform.rotation;
+    const float wheelRotationDelta =
+        std::abs(finalWheelRotation.x - startWheelRotation.x) +
+        std::abs(finalWheelRotation.y - startWheelRotation.y) +
+        std::abs(finalWheelRotation.z - startWheelRotation.z) +
+        std::abs(finalWheelRotation.w - startWheelRotation.w);
+    passed &= Check(
+        wheelRotationDelta > 0.05f,
+        "wheel transform rotation must change while driving");
 
     if (!passed)
     {

@@ -114,10 +114,16 @@ namespace Tank::Physics
         m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 3.2f);
         m_settings.chassisWidthM = std::clamp(m_settings.chassisWidthM, 1.6f, 3.2f);
         m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
-        m_settings.wheelRadiusM = std::clamp(m_settings.wheelRadiusM, 0.2f, 0.5f);
+        m_settings.endWheelRadiusM =
+            std::clamp(m_settings.endWheelRadiusM, 0.2f, 0.6f);
+        m_settings.roadWheelRadiusM =
+            std::clamp(m_settings.roadWheelRadiusM, 0.2f, 0.5f);
         m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
         const float maximumEndWheelOffset =
-            (std::max)(0.0f, 0.5f * m_settings.chassisLengthM - m_settings.wheelRadiusM - 0.1f);
+            (std::max)(
+                0.0f,
+                0.5f * m_settings.chassisLengthM -
+                    m_settings.endWheelRadiusM - 0.1f);
         m_settings.endWheelOffsetM = std::clamp(
             m_settings.endWheelOffsetM,
             0.0f,
@@ -125,7 +131,7 @@ namespace Tank::Physics
         const float endWheelPosition =
             0.5f * m_settings.chassisLengthM - m_settings.endWheelOffsetM;
         const float maximumTwoRoadWheelOffset =
-            (std::max)(0.1f, endWheelPosition - m_settings.wheelRadiusM);
+            (std::max)(0.1f, endWheelPosition - m_settings.roadWheelRadiusM);
         m_settings.twoRoadWheelOffsetM = std::clamp(
             m_settings.twoRoadWheelOffsetM,
             0.1f,
@@ -138,7 +144,7 @@ namespace Tank::Physics
             std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
         m_impl = std::make_unique<Impl>(world);
 
-        const float wheelRadius = m_settings.wheelRadiusM;
+        const float roadWheelRadius = m_settings.roadWheelRadiusM;
         const float wheelWidth = m_settings.trackWidthM;
         const float halfVehicleWidth = 0.5f * m_settings.chassisWidthM;
         const float halfTrackSpacing = 0.5f * m_settings.trackSpacingM;
@@ -213,7 +219,10 @@ namespace Tank::Physics
                             : (w == 2 ? 0.0f : -m_settings.threeRoadWheelOffsetM);
                     }
                     wheel->mPosition =
-                        JPH::Vec3(0.0f, endWheel ? 0.0f : -wheelRadius, wheelZ);
+                        JPH::Vec3(
+                            0.0f,
+                            endWheel ? 0.0f : -roadWheelRadius,
+                            wheelZ);
                     wheel->mPosition.SetX(t == 0 ? halfTrackSpacing : -halfTrackSpacing);
                     if (upperSurface)
                     {
@@ -222,7 +231,9 @@ namespace Tank::Physics
                         wheel->mSteeringAxis = -JPH::Vec3::sAxisY();
                         wheel->mWheelUp = -JPH::Vec3::sAxisY();
                     }
-                    wheel->mRadius = wheelRadius;
+                    wheel->mRadius = endWheel
+                        ? m_settings.endWheelRadiusM
+                        : m_settings.roadWheelRadiusM;
                     wheel->mWidth = wheelWidth;
                     wheel->mSuspensionMinLength = suspensionMinLength;
                     wheel->mSuspensionMaxLength =

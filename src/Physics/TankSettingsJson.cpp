@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 1;
+        constexpr int kSchemaVersion = 2;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -60,7 +60,8 @@ namespace Tank::Physics
         json["trackSpacingM"] = settings.trackSpacingM;
         json["chassisWidthM"] = settings.chassisWidthM;
         json["chassisLengthM"] = settings.chassisLengthM;
-        json["wheelRadiusM"] = settings.wheelRadiusM;
+        json["endWheelRadiusM"] = settings.endWheelRadiusM;
+        json["roadWheelRadiusM"] = settings.roadWheelRadiusM;
         json["roadWheelCount"] = settings.roadWheelCount;
         json["endWheelOffsetM"] = settings.endWheelOffsetM;
         json["twoRoadWheelOffsetM"] = settings.twoRoadWheelOffsetM;
@@ -86,6 +87,29 @@ namespace Tank::Physics
             return false;
         }
 
+        int schemaVersion = 1;
+        const auto version = json.find("version");
+        if (version != json.end())
+        {
+            if (!version->is_number_integer())
+            {
+                if (error != nullptr)
+                {
+                    *error = "version must be an integer";
+                }
+                return false;
+            }
+            schemaVersion = version->get<int>();
+        }
+        if (schemaVersion < 1 || schemaVersion > kSchemaVersion)
+        {
+            if (error != nullptr)
+            {
+                *error = "unsupported version";
+            }
+            return false;
+        }
+
         TankSettings loaded = settings;
         ReadFloat(json, "chassisMassKg", loaded.chassisMassKg);
         ReadBool(json, "rollingInputEnabled", loaded.rollingInputEnabled);
@@ -98,7 +122,17 @@ namespace Tank::Physics
         ReadFloat(json, "trackSpacingM", loaded.trackSpacingM);
         ReadFloat(json, "chassisWidthM", loaded.chassisWidthM);
         ReadFloat(json, "chassisLengthM", loaded.chassisLengthM);
-        ReadFloat(json, "wheelRadiusM", loaded.wheelRadiusM);
+        const auto legacyWheelRadius = json.find("wheelRadiusM");
+        if (schemaVersion == 1 &&
+            legacyWheelRadius != json.end() &&
+            legacyWheelRadius->is_number())
+        {
+            const float radius = legacyWheelRadius->get<float>();
+            loaded.endWheelRadiusM = radius;
+            loaded.roadWheelRadiusM = radius;
+        }
+        ReadFloat(json, "endWheelRadiusM", loaded.endWheelRadiusM);
+        ReadFloat(json, "roadWheelRadiusM", loaded.roadWheelRadiusM);
         ReadInt(json, "roadWheelCount", loaded.roadWheelCount);
         ReadFloat(json, "endWheelOffsetM", loaded.endWheelOffsetM);
         ReadFloat(json, "twoRoadWheelOffsetM", loaded.twoRoadWheelOffsetM);

@@ -76,6 +76,29 @@ namespace Tank::Physics
             return false;
         }
 
+        int schemaVersion = 1;
+        const auto version = json.find("version");
+        if (version != json.end())
+        {
+            if (!version->is_number_integer())
+            {
+                if (error != nullptr)
+                {
+                    *error = "version must be an integer";
+                }
+                return false;
+            }
+            schemaVersion = version->get<int>();
+        }
+        if (schemaVersion < 1 || schemaVersion > kSchemaVersion)
+        {
+            if (error != nullptr)
+            {
+                *error = "unsupported version";
+            }
+            return false;
+        }
+
         PhysicsEnvironmentSettings loaded = settings;
         ReadFloat(json, "floorSizeM", loaded.floorSizeM);
         ReadFloat(json, "floorFriction", loaded.floorFriction);

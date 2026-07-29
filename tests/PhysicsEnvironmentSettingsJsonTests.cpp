@@ -40,6 +40,17 @@ int main()
         return 1;
     }
 
+    const Tank::Physics::PhysicsEnvironmentSettings beforeFutureVersion = loaded;
+    if (Tank::Physics::DeserializePhysicsEnvironmentSettings(
+            R"({"version":999,"floorSizeM":1.0})",
+            loaded,
+            &error) ||
+        !NearlyEqual(loaded.floorSizeM, beforeFutureVersion.floorSizeM))
+    {
+        std::cerr << "FAIL PhysicsEnvironmentSettings future version\n";
+        return 1;
+    }
+
     std::cout << "PASS PhysicsEnvironmentSettings JSON\n";
     return 0;
 }

@@ -105,6 +105,8 @@ private:
 
     struct TrackedVehicleModel
     {
+        static constexpr int kTrackShoeCountPerTrack = 32;
+
         size_t lowerHull = 0;
         size_t upperStructure = 0;
         size_t lowerStructure = 0;
@@ -115,6 +117,8 @@ private:
         std::array<size_t, Tank::Physics::kTankWheelCount> suspensionLines = {};
         std::array<size_t, Tank::Physics::kTankWheelCount> contactMarkers = {};
         std::array<size_t, Tank::Physics::kTankWheelCount> contactNormalLines = {};
+        std::array<std::array<size_t, kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount>
+            trackShoes = {};
         uint32_t wheelContactMaterial = 0;
         uint32_t wheelAirborneMaterial = 0;
         uint32_t debugContactMaterial = 0;
@@ -143,10 +147,14 @@ private:
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;
     bool m_physicsDebugOverlay = false;
+    bool m_trackShoeDisplay = true;
+    std::array<float, Tank::Physics::kTankTrackCount> m_trackShoeDistances = {};
+    float m_trackShoeLastTimeSeconds = 0.0f;
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     std::string m_rendererSettingsStatus;
     std::string m_tankSettingsStatus;
+    int m_tankSettingsSlot = 0;
     std::string m_environmentSettingsStatus;
     std::string m_screenshotStatus;
 

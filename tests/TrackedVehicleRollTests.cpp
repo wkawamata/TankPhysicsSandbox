@@ -26,7 +26,9 @@ int main()
     constexpr float dt = 1.0f / 60.0f;
 
     Tank::Physics::TrackedVehicleTest test;
-    test.Initialize();
+    Tank::Physics::TankSettings settings;
+    settings.rollingInputEnabled = true;
+    test.Initialize(settings);
     for (int i = 0; i < 180; ++i)
     {
         test.Step(dt);

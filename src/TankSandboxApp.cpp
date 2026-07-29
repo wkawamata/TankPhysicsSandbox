@@ -79,8 +79,14 @@ using namespace DirectX;
 namespace
 {
 	constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
-	constexpr const char* kTankSettingsPath = "Config/tank_physics.json";
+	constexpr const char* kLegacyTankSettingsPath = "Config/tank_physics.json";
 	constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
+
+	std::filesystem::path TankSettingsPath(int slot)
+	{
+		return std::filesystem::path("Config") /
+			("tank_physics_slot" + std::to_string(slot + 1) + ".json");
+	}
 
 	std::vector<uint8_t> CreateGroundGridTexture(uint32_t size)
 	{
@@ -205,6 +211,281 @@ namespace
 	{
 		instance.prevWorld = instance.world;
 		XMStoreFloat4x4(&instance.world, XMMatrixTranspose(world));
+	}
+
+	struct TrackShoePose
+	{
+		float y = 0.0f;
+		float z = 0.0f;
+		float tangentY = 0.0f;
+		float tangentZ = 1.0f;
+	};
+
+	struct TrackPathPoint
+	{
+		float y = 0.0f;
+		float z = 0.0f;
+		float tangentY = 0.0f;
+		float tangentZ = 1.0f;
+		float distanceFromStart = 0.0f;
+	};
+
+	struct TrackPathCandidate
+	{
+		float y = 0.0f;
+		float z = 0.0f;
+	};
+
+	float TrackPathCross(
+		const TrackPathCandidate& origin,
+		const TrackPathCandidate& a,
+		const TrackPathCandidate& b)
+	{
+		return
+			(a.z - origin.z) * (b.y - origin.y) -
+			(a.y - origin.y) * (b.z - origin.z);
+	}
+
+	std::vector<TrackPathPoint> BuildTrackPathFromCandidates(
+		std::vector<TrackPathCandidate> candidates)
+	{
+		std::sort(
+			candidates.begin(),
+			candidates.end(),
+			[](const TrackPathCandidate& a, const TrackPathCandidate& b)
+			{
+				return a.z != b.z ? a.z < b.z : a.y < b.y;
+			});
+
+		std::vector<TrackPathCandidate> hull;
+		hull.reserve(candidates.size() + 1);
+		for (const TrackPathCandidate& candidate : candidates)
+		{
+			while (hull.size() >= 2 &&
+				TrackPathCross(hull[hull.size() - 2], hull.back(), candidate) <= 0.0f)
+			{
+				hull.pop_back();
+			}
+			hull.push_back(candidate);
+		}
+
+		const size_t lowerHullSize = hull.size();
+		for (auto candidate = candidates.rbegin() + 1; candidate != candidates.rend(); ++candidate)
+		{
+			while (hull.size() > lowerHullSize &&
+				TrackPathCross(hull[hull.size() - 2], hull.back(), *candidate) <= 0.0f)
+			{
+				hull.pop_back();
+			}
+			hull.push_back(*candidate);
+		}
+
+		if (hull.size() < 4)
+		{
+			return {};
+		}
+		hull.back() = hull.front();
+
+		std::vector<TrackPathPoint> path;
+		path.reserve(hull.size());
+		for (const TrackPathCandidate& candidate : hull)
+		{
+			TrackPathPoint point;
+			point.y = candidate.y;
+			point.z = candidate.z;
+			if (!path.empty())
+			{
+				const TrackPathPoint& previous = path.back();
+				const float deltaY = point.y - previous.y;
+				const float deltaZ = point.z - previous.z;
+				const float segmentLength = std::sqrt(deltaY * deltaY + deltaZ * deltaZ);
+				point.distanceFromStart = previous.distanceFromStart + segmentLength;
+				if (segmentLength > 0.0f)
+				{
+					path.back().tangentY = deltaY / segmentLength;
+					path.back().tangentZ = deltaZ / segmentLength;
+				}
+			}
+			path.push_back(point);
+		}
+		path.back().tangentY = path.front().tangentY;
+		path.back().tangentZ = path.front().tangentZ;
+		return path;
+	}
+
+	std::vector<TrackPathPoint> BuildTrackPath(float chassisLength, float radius)
+	{
+		constexpr int kArcSegments = 8;
+		const float halfStraight = (std::max)(0.1f, 0.5f * chassisLength - radius);
+		std::vector<TrackPathPoint> path;
+		path.reserve(2 * kArcSegments + 4);
+
+		auto appendPoint = [&path](float y, float z)
+		{
+			TrackPathPoint point;
+			point.y = y;
+			point.z = z;
+			if (!path.empty())
+			{
+				const TrackPathPoint& previous = path.back();
+				const float deltaY = y - previous.y;
+				const float deltaZ = z - previous.z;
+				const float segmentLength = std::sqrt(deltaY * deltaY + deltaZ * deltaZ);
+				point.distanceFromStart = previous.distanceFromStart + segmentLength;
+				if (segmentLength > 0.0f)
+				{
+					path.back().tangentY = deltaY / segmentLength;
+					path.back().tangentZ = deltaZ / segmentLength;
+				}
+			}
+			path.push_back(point);
+		};
+
+		appendPoint(-radius, -halfStraight);
+		appendPoint(-radius, halfStraight);
+		for (int segment = 1; segment <= kArcSegments; ++segment)
+		{
+			const float angle =
+				-0.5f * XM_PI +
+				XM_PI * static_cast<float>(segment) / static_cast<float>(kArcSegments);
+			appendPoint(
+				radius * std::sin(angle),
+				halfStraight + radius * std::cos(angle));
+		}
+		appendPoint(radius, -halfStraight);
+		for (int segment = 1; segment <= kArcSegments; ++segment)
+		{
+			const float angle =
+				0.5f * XM_PI +
+				XM_PI * static_cast<float>(segment) / static_cast<float>(kArcSegments);
+			appendPoint(
+				radius * std::sin(angle),
+				-halfStraight + radius * std::cos(angle));
+		}
+
+		if (path.size() >= 2)
+		{
+			path.back().tangentY = path.front().tangentY;
+			path.back().tangentZ = path.front().tangentZ;
+		}
+		return path;
+	}
+
+	std::vector<TrackPathPoint> BuildTrackPathFromWheels(
+		const Tank::Physics::TrackedVehicleTestState& state,
+		const Tank::Physics::TankSettings& settings,
+		int trackIndex,
+		DirectX::FXMMATRIX inverseBodyTransform)
+	{
+		constexpr int kWheelPathSegments = 32;
+		constexpr float kTrackClearanceM = 0.08f;
+		std::vector<TrackPathCandidate> candidates;
+		candidates.reserve(
+			static_cast<size_t>(state.wheelCount) *
+			static_cast<size_t>(kWheelPathSegments));
+
+		const int wheelsPerSurface = settings.roadWheelCount + 2;
+		for (int wheelIndex = 0; wheelIndex < state.wheelCount; ++wheelIndex)
+		{
+			const Tank::Physics::TrackedWheelState& wheel =
+				state.wheels[static_cast<size_t>(wheelIndex)];
+			if (wheel.trackIndex != trackIndex)
+			{
+				continue;
+			}
+
+			const XMVECTOR worldCenter = XMVectorSet(
+				wheel.transform.position.x,
+				wheel.transform.position.y,
+				wheel.transform.position.z,
+				1.0f);
+			const XMVECTOR localCenter =
+				XMVector3TransformCoord(worldCenter, inverseBodyTransform);
+			const int wheelOnSurface = wheel.wheelIndex % wheelsPerSurface;
+			const bool endWheel =
+				wheelOnSurface == 0 || wheelOnSurface == wheelsPerSurface - 1;
+			const float wheelRadius = endWheel
+				? settings.endWheelRadiusM
+				: settings.roadWheelRadiusM;
+			const float pathRadius =
+				(wheelRadius + kTrackClearanceM) /
+				std::cos(XM_PI / static_cast<float>(kWheelPathSegments));
+
+			for (int segment = 0; segment < kWheelPathSegments; ++segment)
+			{
+				const float angle =
+					2.0f * XM_PI * static_cast<float>(segment) /
+					static_cast<float>(kWheelPathSegments);
+				candidates.push_back({
+					XMVectorGetY(localCenter) + pathRadius * std::sin(angle),
+					XMVectorGetZ(localCenter) + pathRadius * std::cos(angle) });
+			}
+		}
+
+		if (candidates.empty())
+		{
+			return {};
+		}
+		return BuildTrackPathFromCandidates(std::move(candidates));
+	}
+
+	TrackShoePose CalculateTrackShoePose(
+		const std::vector<TrackPathPoint>& path,
+		float distance)
+	{
+		if (path.size() < 2 || path.back().distanceFromStart <= 0.0f)
+		{
+			return {};
+		}
+
+		const float pathLength = path.back().distanceFromStart;
+		distance = std::fmod(distance, pathLength);
+		if (distance < 0.0f)
+		{
+			distance += pathLength;
+		}
+
+		const auto end = std::upper_bound(
+			path.begin(),
+			path.end(),
+			distance,
+			[](float value, const TrackPathPoint& point)
+			{
+				return value < point.distanceFromStart;
+			});
+		const size_t endIndex = static_cast<size_t>(std::distance(path.begin(), end));
+		const size_t nextIndex = (std::max)(size_t{ 1 }, endIndex);
+		const TrackPathPoint& start = path[nextIndex - 1];
+		const TrackPathPoint& next = path[nextIndex];
+		const float segmentLength = next.distanceFromStart - start.distanceFromStart;
+		const float t = segmentLength > 0.0f
+			? (distance - start.distanceFromStart) / segmentLength
+			: 0.0f;
+		const float tangentY = start.tangentY + (next.tangentY - start.tangentY) * t;
+		const float tangentZ = start.tangentZ + (next.tangentZ - start.tangentZ) * t;
+		const float tangentLength =
+			std::sqrt(tangentY * tangentY + tangentZ * tangentZ);
+
+		return {
+			start.y + (next.y - start.y) * t,
+			start.z + (next.z - start.z) * t,
+			tangentLength > 0.0f ? tangentY / tangentLength : 0.0f,
+			tangentLength > 0.0f ? tangentZ / tangentLength : 1.0f };
+	}
+
+	XMMATRIX MakeTrackShoeLocalTransform(
+		float x,
+		const TrackShoePose& pose,
+		float width,
+		float thickness,
+		float length)
+	{
+		const XMMATRIX orientation = XMMatrixSet(
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, pose.tangentZ, -pose.tangentY, 0.0f,
+			0.0f, pose.tangentY, pose.tangentZ, 0.0f,
+			x, pose.y, pose.z, 1.0f);
+		return XMMatrixScaling(width, thickness, length) * orientation;
 	}
 }
 
@@ -1166,6 +1447,10 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 
 	ImGui::SeparatorText("Tank Design:");
 
+	if (ImGui::Checkbox("Track Shoe Display", &m_trackShoeDisplay))
+	{
+		UpdateTrackedVehicleScene(state);
+	}
 	SliderFloatWithPendingColor(
 		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m",
 		IsPending(m_trackedVehicleSettings.trackWidthM, m_appliedTrackedVehicleSettings.trackWidthM));
@@ -1182,8 +1467,27 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		"Chassis Length", &m_trackedVehicleSettings.chassisLengthM, 3.0f, 5.5f, 0.1f, 4.0f, "%.2f m",
 		IsPending(m_trackedVehicleSettings.chassisLengthM, m_appliedTrackedVehicleSettings.chassisLengthM));
 	SliderFloatWithPendingColor(
-		"Wheel Radius", &m_trackedVehicleSettings.wheelRadiusM, 0.2f, 0.5f, 0.01f, 0.3f, "%.2f m",
-		IsPending(m_trackedVehicleSettings.wheelRadiusM, m_appliedTrackedVehicleSettings.wheelRadiusM));
+		"End Wheel Radius",
+		&m_trackedVehicleSettings.endWheelRadiusM,
+		0.2f,
+		0.6f,
+		0.01f,
+		0.4f,
+		"%.2f m",
+		IsPending(
+			m_trackedVehicleSettings.endWheelRadiusM,
+			m_appliedTrackedVehicleSettings.endWheelRadiusM));
+	SliderFloatWithPendingColor(
+		"Road Wheel Radius",
+		&m_trackedVehicleSettings.roadWheelRadiusM,
+		0.2f,
+		0.5f,
+		0.01f,
+		0.3f,
+		"%.2f m",
+		IsPending(
+			m_trackedVehicleSettings.roadWheelRadiusM,
+			m_appliedTrackedVehicleSettings.roadWheelRadiusM));
 	const char* wheelLayouts[] = { "1 + 2 + 1", "1 + 3 + 1", "1 + 4 + 1" };
 	int wheelLayoutIndex = std::clamp(m_trackedVehicleSettings.roadWheelCount, 2, 4) - 2;
 	if (ImGui::Combo("Wheel Layout", &wheelLayoutIndex, wheelLayouts, std::size(wheelLayouts)))
@@ -1230,6 +1534,17 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 				m_appliedTrackedVehicleSettings.threeRoadWheelOffsetM));
 	}
 	ImGui::Checkbox("Start Upside Down", &m_trackedVehicleSettings.startUpsideDown);
+	ImGui::TextUnformatted("Save Slot");
+	ImGui::SameLine();
+	for (int slot = 0; slot < 3; ++slot)
+	{
+		if (slot > 0)
+		{
+			ImGui::SameLine();
+		}
+		const std::string label = std::to_string(slot + 1);
+		ImGui::RadioButton(label.c_str(), &m_tankSettingsSlot, slot);
+	}
 	if (ImGui::Button("Apply & Reset"))
 	{
 		ResetTrackedVehicle();
@@ -1389,12 +1704,14 @@ void TankSandboxApp::ResetTrackedVehicle()
 		m_appliedEnvironmentSettings);
 	m_appliedTrackedVehicleSettings = m_trackedVehicleSettings;
 	m_trackedVehicleSingleStep = false;
+	m_trackShoeDistances.fill(0.0f);
+	m_trackShoeLastTimeSeconds = 0.0f;
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
 }
 
 bool TankSandboxApp::SaveTankSettings()
 {
-	const std::filesystem::path path(kTankSettingsPath);
+	const std::filesystem::path path = TankSettingsPath(m_tankSettingsSlot);
 	std::error_code errorCode;
 	std::filesystem::create_directories(path.parent_path(), errorCode);
 	if (errorCode)
@@ -1417,13 +1734,19 @@ bool TankSandboxApp::SaveTankSettings()
 		return false;
 	}
 
-	m_tankSettingsStatus = std::string("Saved: ") + kTankSettingsPath;
+	m_tankSettingsStatus = "Saved: " + path.string();
 	return true;
 }
 
 bool TankSandboxApp::LoadTankSettings()
 {
-	std::ifstream input(kTankSettingsPath, std::ios::binary);
+	std::filesystem::path path = TankSettingsPath(m_tankSettingsSlot);
+	std::ifstream input(path, std::ios::binary);
+	if (!input && m_tankSettingsSlot == 0)
+	{
+		path = kLegacyTankSettingsPath;
+		input = std::ifstream(path, std::ios::binary);
+	}
 	if (!input)
 	{
 		m_tankSettingsStatus = "Load failed: no saved settings";
@@ -1441,7 +1764,7 @@ bool TankSandboxApp::LoadTankSettings()
 
 	m_trackedVehicleSettings = loaded;
 	ResetTrackedVehicle();
-	m_tankSettingsStatus = std::string("Loaded: ") + kTankSettingsPath;
+	m_tankSettingsStatus = "Loaded: " + path.string();
 	return true;
 }
 
@@ -1541,8 +1864,15 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 210, 230, 255);
 	const uint32_t debugNormalMaterial =
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 225, 45, 255);
+	const uint32_t trackShoeMaterial =
+		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(32, 35, 38, 255);
 
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
+	const Engine::SceneMeshId wheelMesh = m_trackedVehicleSceneBuilder.AddCylinder(
+		1.0f,
+		1.0f,
+		16,
+		Engine::CylinderCapMode::Both);
 
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(
@@ -1589,8 +1919,22 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		m_trackedVehicleModel.wheels[static_cast<size_t>(i)] =
 			m_trackedVehicleSceneBuilder.GetScene().instances.size();
 		m_trackedVehicleSceneBuilder.AddInstance(
+			wheelMesh,
 			XMMatrixScaling(0.0f, 0.0f, 0.0f),
 			m_trackedVehicleModel.wheelAirborneMaterial);
+	}
+
+	for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
+	{
+		for (int shoe = 0; shoe < TrackedVehicleModel::kTrackShoeCountPerTrack; ++shoe)
+		{
+			m_trackedVehicleModel.trackShoes[static_cast<size_t>(track)]
+				[static_cast<size_t>(shoe)] =
+				m_trackedVehicleSceneBuilder.GetScene().instances.size();
+			m_trackedVehicleSceneBuilder.AddInstance(
+				XMMatrixScaling(0.0f, 0.0f, 0.0f),
+				trackShoeMaterial);
+		}
 	}
 
 	for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
@@ -1690,6 +2034,105 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		XMStoreFloat4x4(&inst.world, XMMatrixTranspose(world));
 	}
 
+	const float trackRadius = (std::max)(
+		m_trackedVehicleSettings.endWheelRadiusM,
+		m_trackedVehicleSettings.roadWheelRadiusM);
+	const float halfTrackSpacing = 0.5f * m_trackedVehicleSettings.trackSpacingM;
+	const XMMATRIX inverseBodyTransform = XMMatrixInverse(nullptr, bodyTransform);
+	std::array<std::vector<TrackPathPoint>, Tank::Physics::kTankTrackCount> trackPaths;
+	std::array<float, Tank::Physics::kTankTrackCount> trackPerimeters = {};
+	for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
+	{
+		trackPaths[static_cast<size_t>(track)] = BuildTrackPathFromWheels(
+			state,
+			m_trackedVehicleSettings,
+			track,
+			inverseBodyTransform);
+		if (trackPaths[static_cast<size_t>(track)].size() < 2)
+		{
+			trackPaths[static_cast<size_t>(track)] =
+				BuildTrackPath(chassisLength, trackRadius);
+		}
+		trackPerimeters[static_cast<size_t>(track)] =
+			trackPaths[static_cast<size_t>(track)].back().distanceFromStart;
+	}
+	const float trackDeltaTime = std::clamp(
+		state.timeSeconds - m_trackShoeLastTimeSeconds,
+		0.0f,
+		0.1f);
+	m_trackShoeLastTimeSeconds = state.timeSeconds;
+
+	const XMVECTOR bodyRotation = XMVectorSet(
+		state.bodyRotation.x,
+		state.bodyRotation.y,
+		state.bodyRotation.z,
+		state.bodyRotation.w);
+	const XMVECTOR bodyForward =
+		XMVector3Rotate(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), bodyRotation);
+	const XMVECTOR bodyUp =
+		XMVector3Rotate(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), bodyRotation);
+	const XMVECTOR linearVelocity = XMVectorSet(
+		state.linearVelocity.x,
+		state.linearVelocity.y,
+		state.linearVelocity.z,
+		0.0f);
+	const XMVECTOR angularVelocity = XMVectorSet(
+		state.angularVelocity.x,
+		state.angularVelocity.y,
+		state.angularVelocity.z,
+		0.0f);
+	const float forwardSpeed =
+		XMVectorGetX(XMVector3Dot(linearVelocity, bodyForward));
+	const float yawSpeed =
+		XMVectorGetX(XMVector3Dot(angularVelocity, bodyUp));
+	const std::array<float, Tank::Physics::kTankTrackCount> trackSpeeds = {
+		forwardSpeed + yawSpeed * halfTrackSpacing,
+		forwardSpeed - yawSpeed * halfTrackSpacing };
+	for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
+	{
+		m_trackShoeDistances[static_cast<size_t>(track)] -=
+			trackSpeeds[static_cast<size_t>(track)] * trackDeltaTime;
+		m_trackShoeDistances[static_cast<size_t>(track)] = std::fmod(
+			m_trackShoeDistances[static_cast<size_t>(track)],
+			trackPerimeters[static_cast<size_t>(track)]);
+	}
+
+	for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
+	{
+		const std::vector<TrackPathPoint>& trackPath =
+			trackPaths[static_cast<size_t>(track)];
+		const float trackPerimeter = trackPerimeters[static_cast<size_t>(track)];
+		const float shoeLength =
+			0.82f * trackPerimeter /
+			static_cast<float>(TrackedVehicleModel::kTrackShoeCountPerTrack);
+		const float trackX = track == 0 ? -halfTrackSpacing : halfTrackSpacing;
+		for (int shoe = 0; shoe < TrackedVehicleModel::kTrackShoeCountPerTrack; ++shoe)
+		{
+			Engine::InstanceData& instance =
+				scene.instances[m_trackedVehicleModel.trackShoes[static_cast<size_t>(track)]
+					[static_cast<size_t>(shoe)]];
+			if (!m_trackShoeDisplay)
+			{
+				SetInstanceWorld(instance, XMMatrixScaling(0.0f, 0.0f, 0.0f));
+				continue;
+			}
+
+			const float shoeDistance =
+				(static_cast<float>(shoe) + 0.5f) * trackPerimeter /
+					static_cast<float>(TrackedVehicleModel::kTrackShoeCountPerTrack) +
+				m_trackShoeDistances[static_cast<size_t>(track)];
+			const TrackShoePose pose =
+				CalculateTrackShoePose(trackPath, shoeDistance);
+			const XMMATRIX shoeLocal = MakeTrackShoeLocalTransform(
+				trackX,
+				pose,
+				m_trackedVehicleSettings.trackWidthM + 0.08f,
+				0.08f,
+				shoeLength);
+			SetInstanceWorld(instance, shoeLocal * bodyTransform);
+		}
+	}
+
 	for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
 	{
 		Engine::InstanceData& inst =
@@ -1699,31 +2142,39 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		if (i < state.wheelCount)
 		{
 			const Tank::Physics::TrackedWheelState& wheel = state.wheels[static_cast<size_t>(i)];
+			SetInstanceWorld(inst, XMMatrixScaling(0.0f, 0.0f, 0.0f));
+
 			const XMVECTOR wheelRotation = XMVectorSet(
 				wheel.transform.rotation.x,
 				wheel.transform.rotation.y,
 				wheel.transform.rotation.z,
 				wheel.transform.rotation.w);
+			const uint32_t wheelMaterial = wheel.hasContact
+				? m_trackedVehicleModel.wheelContactMaterial
+				: m_trackedVehicleModel.wheelAirborneMaterial;
+			const int wheelsPerSurface = m_trackedVehicleSettings.roadWheelCount + 2;
+			const int wheelOnSurface = wheel.wheelIndex % wheelsPerSurface;
+			const bool endWheel =
+				wheelOnSurface == 0 || wheelOnSurface == wheelsPerSurface - 1;
+			const float radius = endWheel
+				? m_trackedVehicleSettings.endWheelRadiusM
+				: m_trackedVehicleSettings.roadWheelRadiusM;
 			const XMMATRIX wheelWorld =
 				XMMatrixScaling(
-					2.0f * m_trackedVehicleSettings.wheelRadiusM,
+					radius,
 					m_trackedVehicleSettings.trackWidthM,
-					2.0f * m_trackedVehicleSettings.wheelRadiusM) *
+					radius) *
 				XMMatrixRotationQuaternion(wheelRotation) *
 				XMMatrixTranslation(
 					wheel.transform.position.x,
 					wheel.transform.position.y,
 					wheel.transform.position.z);
-			XMStoreFloat4x4(&inst.world, XMMatrixTranspose(wheelWorld));
-			inst.materialId = wheel.hasContact
-				? m_trackedVehicleModel.wheelContactMaterial
-				: m_trackedVehicleModel.wheelAirborneMaterial;
+			SetInstanceWorld(inst, wheelWorld);
+			inst.materialId = wheelMaterial;
 		}
 		else
 		{
-			XMStoreFloat4x4(
-				&inst.world,
-				XMMatrixTranspose(XMMatrixScaling(0.0f, 0.0f, 0.0f)));
+			SetInstanceWorld(inst, XMMatrixScaling(0.0f, 0.0f, 0.0f));
 			inst.materialId = m_trackedVehicleModel.wheelAirborneMaterial;
 		}
 	}
@@ -1748,16 +2199,23 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		}
 
 		const Tank::Physics::TrackedWheelState& wheel = state.wheels[wheelIndex];
+		const int wheelsPerSurface = m_trackedVehicleSettings.roadWheelCount + 2;
+		const int wheelOnSurface = wheel.wheelIndex % wheelsPerSurface;
+		const bool endWheel =
+			wheelOnSurface == 0 || wheelOnSurface == wheelsPerSurface - 1;
+		const float wheelRadius = endWheel
+			? m_trackedVehicleSettings.endWheelRadiusM
+			: m_trackedVehicleSettings.roadWheelRadiusM;
 		const Tank::Physics::Vec3 suspensionEnd = {
 			wheel.suspensionOrigin.x +
 				wheel.suspensionDirection.x *
-					(wheel.suspensionLength + m_trackedVehicleSettings.wheelRadiusM),
+					(wheel.suspensionLength + wheelRadius),
 			wheel.suspensionOrigin.y +
 				wheel.suspensionDirection.y *
-					(wheel.suspensionLength + m_trackedVehicleSettings.wheelRadiusM),
+					(wheel.suspensionLength + wheelRadius),
 			wheel.suspensionOrigin.z +
 				wheel.suspensionDirection.z *
-					(wheel.suspensionLength + m_trackedVehicleSettings.wheelRadiusM) };
+					(wheel.suspensionLength + wheelRadius) };
 		SetInstanceWorld(
 			suspensionLine,
 			MakeLineTransform(wheel.suspensionOrigin, suspensionEnd, 0.06f));
