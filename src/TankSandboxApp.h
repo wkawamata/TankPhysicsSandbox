@@ -160,6 +160,7 @@ private:
     bool m_trackedVehicleSingleStep = false;
     bool m_physicsDebugOverlay = false;
     bool m_trackShoeDisplay = true;
+    bool m_showTrackProxies = false;
     Tank::Rendering::TankVisualSettings m_tankVisualSettings;
     std::array<float, Tank::Physics::kTankTrackCount> m_trackShoeDistances = {};
     float m_trackShoeLastTimeSeconds = 0.0f;

@@ -1706,6 +1706,10 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	{
 		UpdateTrackedVehicleScene(state);
 	}
+	if (ImGui::Checkbox("Show Track Proxies", &m_showTrackProxies))
+	{
+		UpdateTrackedVehicleScene(state);
+	}
 	SliderFloatWithPendingColor(
 		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m",
 		IsPending(m_trackedVehicleSettings.trackWidthM, m_appliedTrackedVehicleSettings.trackWidthM));
@@ -2428,11 +2432,21 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 			XMMatrixScaling(0.6f * chassisWidth, 0.125f, 0.5f * chassisLength) *
 				XMMatrixTranslation(0.0f, -0.4375f, 0.075f * chassisLength) },
 		{ m_trackedVehicleModel.leftTrack,
-			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, chassisLength) *
-				XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 0.0f, 0.0f) },
+			m_showTrackProxies
+				? XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, chassisLength) *
+					XMMatrixTranslation(
+						-0.5f * m_trackedVehicleSettings.trackSpacingM,
+						0.0f,
+						0.0f)
+				: XMMatrixScaling(0.0f, 0.0f, 0.0f) },
 		{ m_trackedVehicleModel.rightTrack,
-			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, chassisLength) *
-				XMMatrixTranslation(0.5f * m_trackedVehicleSettings.trackSpacingM, 0.0f, 0.0f) },
+			m_showTrackProxies
+				? XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, chassisLength) *
+					XMMatrixTranslation(
+						0.5f * m_trackedVehicleSettings.trackSpacingM,
+						0.0f,
+						0.0f)
+				: XMMatrixScaling(0.0f, 0.0f, 0.0f) },
 		{ m_trackedVehicleModel.forwardMarker,
 			XMMatrixScaling(0.3f, 0.3f, 0.3f) *
 				XMMatrixTranslation(0.0f, 0.0f, 0.625f * chassisLength) },
