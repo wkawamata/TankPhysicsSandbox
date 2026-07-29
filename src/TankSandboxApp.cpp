@@ -65,62 +65,6 @@ namespace
 		return std::copysign(std::min(magnitude, 1.0f), normalized);
 	}
 
-	void ApplyEnvironmentPreset(
-		Engine::ProceduralEnvironmentSettings& settings,
-		Engine::EnvironmentSource source)
-	{
-		settings = {};
-		settings.source = source;
-
-		switch (source)
-		{
-		case Engine::EnvironmentSource::ProceduralStudio:
-			settings.skyColor = { 0.50f, 0.52f, 0.54f };
-			settings.groundColor = { 0.16f, 0.16f, 0.15f };
-			settings.lightColor = { 1.0f, 0.98f, 0.92f };
-			settings.lightDirection = { 0.25f, 0.85f, 0.35f };
-			settings.backgroundIntensity = 0.35f;
-			settings.lightIntensity = 4.0f;
-			settings.lightSize = 0.22f;
-			settings.fillIntensity = 0.08f;
-			break;
-		case Engine::EnvironmentSource::ProceduralSun:
-			settings.skyColor = { 0.25f, 0.43f, 0.75f };
-			settings.groundColor = { 0.09f, 0.075f, 0.055f };
-			settings.lightColor = { 1.0f, 0.82f, 0.52f };
-			settings.lightDirection = { 0.22f, 0.72f, 0.66f };
-			settings.backgroundIntensity = 0.20f;
-			settings.lightIntensity = 32.0f;
-			settings.lightSize = 0.035f;
-			settings.fillIntensity = 0.03f;
-			break;
-		case Engine::EnvironmentSource::ProceduralColorPanels:
-			settings.skyColor = { 0.02f, 0.02f, 0.025f };
-			settings.groundColor = { 0.015f, 0.015f, 0.015f };
-			settings.lightColor = { 1.0f, 1.0f, 1.0f };
-			settings.lightDirection = { 0.35f, 0.75f, 0.25f };
-			settings.backgroundIntensity = 0.05f;
-			settings.lightIntensity = 0.0f;
-			settings.lightSize = 0.12f;
-			settings.fillIntensity = 0.02f;
-			settings.colorPanelIntensity = 3.5f;
-			break;
-		case Engine::EnvironmentSource::ProceduralHorizon:
-			settings.skyColor = { 0.34f, 0.50f, 0.86f };
-			settings.groundColor = { 0.18f, 0.15f, 0.10f };
-			settings.lightColor = { 1.0f, 0.86f, 0.62f };
-			settings.lightDirection = { 0.1f, 0.08f, 0.99f };
-			settings.backgroundIntensity = 0.45f;
-			settings.lightIntensity = 5.0f;
-			settings.lightSize = 0.12f;
-			settings.fillIntensity = 0.03f;
-			settings.horizonSharpness = 0.035f;
-			break;
-		case Engine::EnvironmentSource::AssetHdr:
-		default:
-			break;
-		}
-	}
 }
 
 #include "Physics/BoxDropTest.h"
@@ -676,6 +620,10 @@ void TankSandboxApp::OnInit()
 
 	m_defaultRendererSettings = m_sceneRenderer.CaptureSettings();
 	LoadRendererSettings();
+	m_environmentMappingUi.lighting = m_sceneRenderer.GetLightingParams();
+	m_environmentMappingUi.iblEnabled =
+		m_environmentMappingUi.lighting.diffuseIblEnabled ||
+		m_environmentMappingUi.lighting.specularIblEnabled;
 	m_gamepad.Initialize();
 
 	if (m_autoSceneMode.has_value())
@@ -944,7 +892,18 @@ void TankSandboxApp::UpdateUiFrame()
 
 	// RtPbrSurvey Debug at top-right of viewport
 	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 430, 10), ImGuiCond_FirstUseEver);
-	RtPbrSurvey::SceneRendererDebugUi::Draw(m_sceneRenderer, &m_rendererDebugOpen);
+	const RtPbrSurveyEngine::LightingParams currentLighting =
+		m_sceneRenderer.GetLightingParams();
+	m_environmentMappingUi.lighting.lightDirection = currentLighting.lightDirection;
+	m_environmentMappingUi.lighting.lightColor = currentLighting.lightColor;
+	m_environmentMappingUi.lighting.diffuseIntensity = currentLighting.diffuseIntensity;
+	m_environmentMappingUi.lighting.directLightEnabled = currentLighting.directLightEnabled;
+	m_environmentMappingUi.lighting.emissiveEnabled = currentLighting.emissiveEnabled;
+	RtPbrSurvey::SceneRendererDebugUi::Draw(
+		m_sceneRenderer,
+		&m_rendererDebugOpen,
+		"RtPbrSurvey Debug",
+		&m_environmentMappingUi);
 
 	// Renderer Settings to the left of RtPbrSurvey Debug
 	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 740, 10), ImGuiCond_FirstUseEver);
@@ -1033,146 +992,6 @@ void TankSandboxApp::DrawRendererSettingsUi()
 	if (!m_rendererSettingsStatus.empty())
 	{
 		ImGui::TextWrapped("%s", m_rendererSettingsStatus.c_str());
-	}
-	if (ImGui::CollapsingHeader("Environment Mapping", ImGuiTreeNodeFlags_DefaultOpen))
-	{
-		auto lighting = m_sceneRenderer.GetLightingParams();
-		bool lightingChanged = false;
-		bool iblEnabled = lighting.diffuseIblEnabled || lighting.specularIblEnabled;
-		if (ImGui::Checkbox("IBL Enabled", &iblEnabled))
-		{
-			lighting.diffuseIblEnabled = iblEnabled;
-			lighting.specularIblEnabled = iblEnabled;
-			lightingChanged = true;
-		}
-		ImGui::BeginDisabled(!iblEnabled);
-		lightingChanged |= ImGuiWidgets::SliderFloatWithControls(
-			"IBL Intensity", &lighting.iblIntensity, 0.0f, 2.0f, 0.05f, 1.0f);
-		lightingChanged |= ImGui::Checkbox("Diffuse IBL", &lighting.diffuseIblEnabled);
-		ImGui::SameLine();
-		lightingChanged |= ImGui::Checkbox("Specular IBL", &lighting.specularIblEnabled);
-		ImGui::EndDisabled();
-		lightingChanged |= ImGui::Checkbox("Show Skybox", &lighting.skyboxEnabled);
-		lightingChanged |= ImGui::Checkbox("Skybox Preview", &lighting.skyboxPreview);
-		ImGui::BeginDisabled(!lighting.skyboxPreview);
-		lightingChanged |= ImGuiWidgets::SliderFloatWithControls(
-			"Skybox Preview Exposure",
-			&lighting.skyboxPreviewExposure,
-			0.0f,
-			2.0f,
-			0.05f,
-			1.0f);
-		ImGui::EndDisabled();
-		if (lightingChanged)
-		{
-			m_sceneRenderer.SetLightingParams(lighting);
-		}
-
-		bool environmentChanged = false;
-		int source = static_cast<int>(m_rendererEnvironmentSettings.source);
-		if (ImGui::Combo(
-			"Source",
-			&source,
-			"Asset HDR\0Procedural Studio\0Procedural Sun\0"
-			"Procedural Color Panels\0Procedural Horizon\0"))
-		{
-			ApplyEnvironmentPreset(
-				m_rendererEnvironmentSettings,
-				static_cast<Engine::EnvironmentSource>(source));
-			environmentChanged = true;
-		}
-		ImGui::SameLine();
-		ImGui::Checkbox("Auto Update", &m_rendererEnvironmentAutoUpdate);
-
-		if (m_rendererEnvironmentSettings.source != Engine::EnvironmentSource::AssetHdr)
-		{
-			environmentChanged |= ImGui::ColorEdit3(
-				"Sky Color", &m_rendererEnvironmentSettings.skyColor.x);
-			environmentChanged |= ImGui::ColorEdit3(
-				"Ground Color", &m_rendererEnvironmentSettings.groundColor.x);
-			const bool colorPanels =
-				m_rendererEnvironmentSettings.source ==
-				Engine::EnvironmentSource::ProceduralColorPanels;
-			if (!colorPanels)
-			{
-				environmentChanged |= ImGui::ColorEdit3(
-					"Env Light Color", &m_rendererEnvironmentSettings.lightColor.x);
-				static constexpr float defaultDirection[] = { 0.35f, 0.75f, 0.25f };
-				environmentChanged |= ImGuiWidgets::SliderFloat3WithControls(
-					"Env Light Direction",
-					&m_rendererEnvironmentSettings.lightDirection.x,
-					-1.0f,
-					1.0f,
-					0.05f,
-					defaultDirection);
-			}
-			environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
-				"Env Background",
-				&m_rendererEnvironmentSettings.backgroundIntensity,
-				0.0f,
-				4.0f,
-				0.05f,
-				0.6f);
-			if (!colorPanels)
-			{
-				environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
-					"Env Light Intensity",
-					&m_rendererEnvironmentSettings.lightIntensity,
-					0.0f,
-					40.0f,
-					0.5f,
-					6.0f);
-				environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
-					"Env Light Size",
-					&m_rendererEnvironmentSettings.lightSize,
-					0.01f,
-					0.8f,
-					0.01f,
-					0.12f);
-			}
-			environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
-				"Env Fill",
-				&m_rendererEnvironmentSettings.fillIntensity,
-				0.0f,
-				2.0f,
-				0.05f,
-				0.12f);
-			if (colorPanels)
-			{
-				environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
-					"Color Panel Intensity",
-					&m_rendererEnvironmentSettings.colorPanelIntensity,
-					0.0f,
-					8.0f,
-					0.1f,
-					1.5f);
-			}
-			if (m_rendererEnvironmentSettings.source ==
-				Engine::EnvironmentSource::ProceduralHorizon)
-			{
-				environmentChanged |= ImGuiWidgets::SliderFloatWithControls(
-					"Horizon Width",
-					&m_rendererEnvironmentSettings.horizonSharpness,
-					0.01f,
-					0.5f,
-					0.01f,
-					0.08f);
-			}
-		}
-
-		m_rendererEnvironmentReloadPending |= environmentChanged;
-		if (ImGui::Button("Apply Environment"))
-		{
-			m_sceneRenderer.ReloadEnvironmentResources(m_rendererEnvironmentSettings);
-			m_rendererEnvironmentReloadPending = false;
-		}
-		if (m_rendererEnvironmentReloadPending &&
-			m_rendererEnvironmentAutoUpdate &&
-			!ImGui::IsAnyItemActive())
-		{
-			m_sceneRenderer.ReloadEnvironmentResources(m_rendererEnvironmentSettings);
-			m_rendererEnvironmentReloadPending = false;
-		}
 	}
 	ImGui::Separator();
 	if (ImGui::Button("Capture"))
@@ -1284,6 +1103,10 @@ bool TankSandboxApp::LoadRendererSettings()
 	}
 
 	m_sceneRenderer.ApplySettings(settings);
+	m_environmentMappingUi.lighting = m_sceneRenderer.GetLightingParams();
+	m_environmentMappingUi.iblEnabled =
+		m_environmentMappingUi.lighting.diffuseIblEnabled ||
+		m_environmentMappingUi.lighting.specularIblEnabled;
 	m_rendererSettingsStatus = "Loaded";
 	return true;
 }
@@ -1291,6 +1114,10 @@ bool TankSandboxApp::LoadRendererSettings()
 void TankSandboxApp::ResetRendererSettings()
 {
 	m_sceneRenderer.ApplySettings(m_defaultRendererSettings);
+	m_environmentMappingUi.lighting = m_sceneRenderer.GetLightingParams();
+	m_environmentMappingUi.iblEnabled =
+		m_environmentMappingUi.lighting.diffuseIblEnabled ||
+		m_environmentMappingUi.lighting.specularIblEnabled;
 	m_rendererSettingsStatus = "Reset to Tank defaults";
 }
 
@@ -1660,34 +1487,46 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	{
 		auto drawMaterial = [](const char* label, Tank::Rendering::BodyMaterialSettings& material)
 		{
+			bool changed = false;
 			if (ImGui::TreeNode(label))
 			{
-				ImGui::ColorEdit3("Albedo", &material.albedo.r);
-				ImGuiWidgets::SliderFloatWithControls(
+				changed |= ImGui::ColorEdit3("Albedo", &material.albedo.r);
+				changed |= ImGuiWidgets::SliderFloatWithControls(
 					"Roughness", &material.roughness, 0.04f, 1.0f, 0.02f, 0.8f);
-				ImGuiWidgets::SliderFloatWithControls(
+				changed |= ImGuiWidgets::SliderFloatWithControls(
 					"Metallic", &material.metallic, 0.0f, 1.0f, 0.05f, 0.0f);
-				ImGuiWidgets::SliderFloatWithControls(
+				changed |= ImGuiWidgets::SliderFloatWithControls(
 					"Ambient Occlusion",
 					&material.ambientOcclusion,
 					0.0f,
 					1.0f,
 					0.05f,
 					1.0f);
-				ImGuiWidgets::SliderFloatWithControls(
+				changed |= ImGuiWidgets::SliderFloatWithControls(
 					"Emissive", &material.emissive, 0.0f, 4.0f, 0.1f, 0.0f);
 				ImGui::TreePop();
 			}
+			return changed;
 		};
-		drawMaterial("Hull Upper", m_tankVisualSettings.hullUpper);
-		drawMaterial("Hull Lower", m_tankVisualSettings.hullLower);
-		drawMaterial("Structure Upper", m_tankVisualSettings.structureUpper);
-		drawMaterial("Structure Lower", m_tankVisualSettings.structureLower);
-		if (ImGui::Button("Apply Body Materials"))
+		bool materialChanged = false;
+		materialChanged |= drawMaterial("Hull Upper", m_tankVisualSettings.hullUpper);
+		materialChanged |= drawMaterial("Hull Lower", m_tankVisualSettings.hullLower);
+		materialChanged |= drawMaterial(
+			"Structure Upper", m_tankVisualSettings.structureUpper);
+		materialChanged |= drawMaterial(
+			"Structure Lower", m_tankVisualSettings.structureLower);
+		materialChanged |= drawMaterial("Wheels", m_tankVisualSettings.wheels);
+		materialChanged |= drawMaterial("Track Shoes", m_tankVisualSettings.trackShoes);
+		materialChanged |= drawMaterial(
+			"Track Proxies", m_tankVisualSettings.trackProxies);
+		materialChanged |= drawMaterial(
+			"Forward Marker", m_tankVisualSettings.forwardMarker);
+		m_tankVisualMaterialApplyPending |= materialChanged;
+		if (m_tankVisualMaterialApplyPending && !ImGui::IsAnyItemActive())
 		{
-			ApplyTrackedVehicleBodyColors();
+			ApplyTrackedVehicleMaterials();
+			m_tankVisualMaterialApplyPending = false;
 		}
-		ImGui::SameLine();
 		if (ImGui::Button("Save Visual"))
 		{
 			SaveTankVisualSettings();
@@ -1971,7 +1810,7 @@ void TankSandboxApp::ResetTrackedVehicle()
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
 }
 
-void TankSandboxApp::ApplyTrackedVehicleBodyColors()
+void TankSandboxApp::ApplyTrackedVehicleMaterials()
 {
 	Engine::SceneMesh& mesh = m_trackedVehicleSceneBuilder.GetMesh();
 	auto applyColor = [&mesh](
@@ -2015,6 +1854,12 @@ void TankSandboxApp::ApplyTrackedVehicleBodyColors()
 	applyColor(
 		m_trackedVehicleModel.structureLowerMaterial,
 		m_tankVisualSettings.structureLower);
+	applyColor(m_trackedVehicleModel.wheelMaterial, m_tankVisualSettings.wheels);
+	applyColor(m_trackedVehicleModel.trackShoeMaterial, m_tankVisualSettings.trackShoes);
+	applyColor(m_trackedVehicleModel.trackProxyMaterial, m_tankVisualSettings.trackProxies);
+	applyColor(
+		m_trackedVehicleModel.forwardMarkerMaterial,
+		m_tankVisualSettings.forwardMarker);
 	m_sceneRenderer.ReloadSceneResources(m_trackedVehicleSceneBuilder.GetScene());
 }
 
@@ -2064,7 +1909,7 @@ bool TankSandboxApp::LoadTankVisualSettings()
 		return false;
 	}
 	m_tankVisualSettings = loaded;
-	ApplyTrackedVehicleBodyColors();
+	ApplyTrackedVehicleMaterials();
 	m_tankVisualSettingsStatus = std::string("Loaded: ") + kTankVisualSettingsPath;
 	return true;
 }
@@ -2227,15 +2072,15 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		addBodyMaterial(m_tankVisualSettings.structureUpper);
 	m_trackedVehicleModel.structureLowerMaterial =
 		addBodyMaterial(m_tankVisualSettings.structureLower);
-	const uint32_t leftTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 40, 45, 255);
-	const uint32_t rightTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(50, 50, 55, 255);
-	const uint32_t markerMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 60, 60, 255);
+	m_trackedVehicleModel.trackProxyMaterial =
+		addBodyMaterial(m_tankVisualSettings.trackProxies);
+	m_trackedVehicleModel.forwardMarkerMaterial =
+		addBodyMaterial(m_tankVisualSettings.forwardMarker);
+	m_trackedVehicleModel.wheelMaterial = addBodyMaterial(m_tankVisualSettings.wheels);
+	m_trackedVehicleModel.trackShoeMaterial =
+		addBodyMaterial(m_tankVisualSettings.trackShoes);
 	const uint32_t obstacleMaterial =
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 95, 135, 255);
-	m_trackedVehicleModel.wheelContactMaterial =
-		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 200, 90, 255);
-	m_trackedVehicleModel.wheelAirborneMaterial =
-		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(230, 140, 40, 255);
 	m_trackedVehicleModel.debugContactMaterial =
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(60, 230, 90, 255);
 	m_trackedVehicleModel.debugAirborneMaterial =
@@ -2244,8 +2089,6 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 210, 230, 255);
 	const uint32_t debugNormalMaterial =
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 225, 45, 255);
-	const uint32_t trackShoeMaterial =
-		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(32, 35, 38, 255);
 
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
 	const Engine::SceneMeshId wheelMesh = m_trackedVehicleSceneBuilder.AddCylinder(
@@ -2304,20 +2147,20 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
 		XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
-		leftTrackMaterial);
+		m_trackedVehicleModel.trackProxyMaterial);
 
 	m_trackedVehicleModel.rightTrack =
 		m_trackedVehicleSceneBuilder.GetScene().instances.size();
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
 		XMMatrixTranslation(0.5f * m_trackedVehicleSettings.trackSpacingM, 2.0f, 0.0f),
-		rightTrackMaterial);
+		m_trackedVehicleModel.trackProxyMaterial);
 
 	m_trackedVehicleModel.forwardMarker =
 		m_trackedVehicleSceneBuilder.GetScene().instances.size();
 	m_trackedVehicleSceneBuilder.AddInstance(
 		XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 2.0f, 2.5f),
-		markerMaterial);
+		m_trackedVehicleModel.forwardMarkerMaterial);
 
 	for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
 	{
@@ -2326,7 +2169,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		m_trackedVehicleSceneBuilder.AddInstance(
 			wheelMesh,
 			XMMatrixScaling(0.0f, 0.0f, 0.0f),
-			m_trackedVehicleModel.wheelAirborneMaterial);
+			m_trackedVehicleModel.wheelMaterial);
 	}
 
 	for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
@@ -2338,7 +2181,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 				m_trackedVehicleSceneBuilder.GetScene().instances.size();
 			m_trackedVehicleSceneBuilder.AddInstance(
 				XMMatrixScaling(0.0f, 0.0f, 0.0f),
-				trackShoeMaterial);
+				m_trackedVehicleModel.trackShoeMaterial);
 		}
 	}
 
@@ -2574,9 +2417,6 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 				wheel.transform.rotation.y,
 				wheel.transform.rotation.z,
 				wheel.transform.rotation.w);
-			const uint32_t wheelMaterial = wheel.hasContact
-				? m_trackedVehicleModel.wheelContactMaterial
-				: m_trackedVehicleModel.wheelAirborneMaterial;
 			const int wheelsPerSurface = m_trackedVehicleSettings.roadWheelCount + 2;
 			const int wheelOnSurface = wheel.wheelIndex % wheelsPerSurface;
 			const bool endWheel =
@@ -2595,12 +2435,12 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 					wheel.transform.position.y,
 					wheel.transform.position.z);
 			SetInstanceWorld(inst, wheelWorld);
-			inst.materialId = wheelMaterial;
+			inst.materialId = m_trackedVehicleModel.wheelMaterial;
 		}
 		else
 		{
 			SetInstanceWorld(inst, XMMatrixScaling(0.0f, 0.0f, 0.0f));
-			inst.materialId = m_trackedVehicleModel.wheelAirborneMaterial;
+			inst.materialId = m_trackedVehicleModel.wheelMaterial;
 		}
 	}
 

@@ -13,7 +13,6 @@
 #include "Runtime/SceneRenderer.h"
 #include "Runtime/SceneRendererDebugUi.h"
 #include "Runtime/SceneRendererSettings.h"
-#include "Renderer/EnvironmentMap.h"
 #include "Ui/ImGuiSystem.h"
 #include "Physics/BoxDropTest.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
@@ -72,7 +71,7 @@ private:
     void DrawPhysicsTrackedVehicleUi();
     void EnterTrackedVehicleMode();
     void ResetTrackedVehicle();
-    void ApplyTrackedVehicleBodyColors();
+    void ApplyTrackedVehicleMaterials();
     bool SaveTankVisualSettings();
     bool LoadTankVisualSettings();
     bool SaveTankSettings();
@@ -127,8 +126,10 @@ private:
         std::array<size_t, Tank::Physics::kTankWheelCount> contactNormalLines = {};
         std::array<std::array<size_t, kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount>
             trackShoes = {};
-        uint32_t wheelContactMaterial = 0;
-        uint32_t wheelAirborneMaterial = 0;
+        uint32_t wheelMaterial = 0;
+        uint32_t trackShoeMaterial = 0;
+        uint32_t trackProxyMaterial = 0;
+        uint32_t forwardMarkerMaterial = 0;
         uint32_t debugContactMaterial = 0;
         uint32_t debugAirborneMaterial = 0;
         uint32_t hullUpperMaterial = 0;
@@ -161,14 +162,13 @@ private:
     bool m_physicsDebugOverlay = false;
     bool m_trackShoeDisplay = true;
     bool m_showTrackProxies = false;
+    bool m_tankVisualMaterialApplyPending = false;
     Tank::Rendering::TankVisualSettings m_tankVisualSettings;
     std::array<float, Tank::Physics::kTankTrackCount> m_trackShoeDistances = {};
     float m_trackShoeLastTimeSeconds = 0.0f;
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
-    Engine::ProceduralEnvironmentSettings m_rendererEnvironmentSettings;
-    bool m_rendererEnvironmentAutoUpdate = Engine::kUseGpuProceduralEnvMap;
-    bool m_rendererEnvironmentReloadPending = false;
+    RtPbrSurvey::EnvironmentMappingUiState m_environmentMappingUi;
     std::string m_rendererSettingsStatus;
     std::string m_tankSettingsStatus;
     std::string m_tankVisualSettingsStatus;

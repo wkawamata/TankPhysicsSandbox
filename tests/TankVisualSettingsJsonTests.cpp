@@ -28,6 +28,8 @@ int main()
     source.hullUpper.metallic = 0.7f;
     source.hullUpper.ambientOcclusion = 0.8f;
     source.hullUpper.emissive = 0.25f;
+    source.wheels.metallic = 0.9f;
+    source.trackShoes.roughness = 0.35f;
 
     Tank::Rendering::TankVisualSettings loaded;
     std::string error;
@@ -47,6 +49,20 @@ int main()
         "ambient occlusion must round trip");
     passed &= Check(NearlyEqual(loaded.hullUpper.emissive, 0.25f),
         "emissive must round trip");
+    passed &= Check(NearlyEqual(loaded.wheels.metallic, 0.9f),
+        "wheel material must round trip");
+    passed &= Check(NearlyEqual(loaded.trackShoes.roughness, 0.35f),
+        "track shoe material must round trip");
+
+    Tank::Rendering::TankVisualSettings versionOne;
+    passed &= Check(
+        Tank::Rendering::DeserializeTankVisualSettings(
+            R"({"version":1,"hullUpper":{"roughness":0.25}})",
+            versionOne,
+            &error),
+        "version 1 settings must remain readable");
+    passed &= Check(NearlyEqual(versionOne.hullUpper.roughness, 0.25f),
+        "version 1 material must load");
 
     const Tank::Rendering::TankVisualSettings beforeInvalid = loaded;
     passed &= Check(

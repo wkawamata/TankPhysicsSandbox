@@ -6,7 +6,7 @@ namespace Tank::Rendering
 {
     namespace
     {
-        constexpr int kSchemaVersion = 1;
+        constexpr int kSchemaVersion = 2;
 
         nlohmann::json SerializeMaterial(const BodyMaterialSettings& material)
         {
@@ -64,6 +64,10 @@ namespace Tank::Rendering
         json["hullLower"] = SerializeMaterial(settings.hullLower);
         json["structureUpper"] = SerializeMaterial(settings.structureUpper);
         json["structureLower"] = SerializeMaterial(settings.structureLower);
+        json["wheels"] = SerializeMaterial(settings.wheels);
+        json["trackShoes"] = SerializeMaterial(settings.trackShoes);
+        json["trackProxies"] = SerializeMaterial(settings.trackProxies);
+        json["forwardMarker"] = SerializeMaterial(settings.forwardMarker);
         return json.dump(2);
     }
 
@@ -85,7 +89,9 @@ namespace Tank::Rendering
 
         const auto version = json.find("version");
         if (version != json.end() &&
-            (!version->is_number_integer() || version->get<int>() != kSchemaVersion))
+            (!version->is_number_integer() ||
+             version->get<int>() < 1 ||
+             version->get<int>() > kSchemaVersion))
         {
             if (error != nullptr)
             {
@@ -99,6 +105,10 @@ namespace Tank::Rendering
         ReadMaterial(json, "hullLower", loaded.hullLower);
         ReadMaterial(json, "structureUpper", loaded.structureUpper);
         ReadMaterial(json, "structureLower", loaded.structureLower);
+        ReadMaterial(json, "wheels", loaded.wheels);
+        ReadMaterial(json, "trackShoes", loaded.trackShoes);
+        ReadMaterial(json, "trackProxies", loaded.trackProxies);
+        ReadMaterial(json, "forwardMarker", loaded.forwardMarker);
         settings = loaded;
         if (error != nullptr)
         {
