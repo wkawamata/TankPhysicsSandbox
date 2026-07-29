@@ -1,6 +1,7 @@
 #include "TrackedVehicleTest.h"
 #include "PhysicsWorld.h"
 #include "TankController.h"
+#include "TestObstacleLayout.h"
 
 #include <Jolt/Jolt.h>
 
@@ -9,6 +10,7 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <algorithm>
+#include <vector>
 
 JPH_SUPPRESS_WARNINGS
 
@@ -25,13 +27,19 @@ namespace Tank::Physics
         PhysicsWorld world;
         TankController controller;
         JPH::BodyID floorBodyId;
+        std::vector<JPH::BodyID> obstacleBodyIds;
         bool hasFloorBody = false;
 
         ~Impl()
         {
+            JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
+            for (const JPH::BodyID obstacleBodyId : obstacleBodyIds)
+            {
+                bodyInterface.RemoveBody(obstacleBodyId);
+                bodyInterface.DestroyBody(obstacleBodyId);
+            }
             if (hasFloorBody)
             {
-                JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
                 bodyInterface.RemoveBody(floorBodyId);
                 bodyInterface.DestroyBody(floorBodyId);
             }
@@ -79,6 +87,34 @@ namespace Tank::Physics
         m_impl->floorBodyId = floorBody->GetID();
         m_impl->hasFloorBody = true;
         bodyInterface.AddBody(m_impl->floorBodyId, JPH::EActivation::DontActivate);
+
+        const std::vector<TestObstaclePlacement> obstacleLayout =
+            GenerateTestObstacleLayout(environmentSettings);
+        m_impl->obstacleBodyIds.reserve(obstacleLayout.size());
+        for (const TestObstaclePlacement& obstacle : obstacleLayout)
+        {
+            JPH::BodyCreationSettings obstacleSettings(
+                new JPH::BoxShape(JPH::Vec3(
+                    0.5f * kPassengerCarWidthM,
+                    0.5f * kPassengerCarHeightM,
+                    0.5f * kPassengerCarLengthM)),
+                JPH::RVec3(
+                    obstacle.position.x,
+                    obstacle.position.y,
+                    obstacle.position.z),
+                JPH::Quat::sRotation(JPH::Vec3::sAxisY(), obstacle.yawRadians),
+                JPH::EMotionType::Static,
+                Layers::NonMoving);
+            obstacleSettings.mFriction = floorFriction;
+
+            JPH::Body* obstacleBody = bodyInterface.CreateBody(obstacleSettings);
+            if (obstacleBody != nullptr)
+            {
+                const JPH::BodyID obstacleBodyId = obstacleBody->GetID();
+                m_impl->obstacleBodyIds.push_back(obstacleBodyId);
+                bodyInterface.AddBody(obstacleBodyId, JPH::EActivation::DontActivate);
+            }
+        }
 
         m_impl->controller.Initialize(m_impl->world, settings);
     }

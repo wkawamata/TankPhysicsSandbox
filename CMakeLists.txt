@@ -47,6 +47,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/TankSettingsJson.cpp
     src/Physics/TankSettingsJson.h
     src/Physics/TankTypes.h
+    src/Physics/TestObstacleLayout.cpp
+    src/Physics/TestObstacleLayout.h
     src/Physics/TrackedVehicleTest.cpp
     src/Physics/TrackedVehicleTest.h
 )
@@ -233,6 +235,22 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.PhysicsEnvironmentSettingsJson
         COMMAND PhysicsEnvironmentSettingsJsonTests
+    )
+
+    add_executable(TestObstacleLayoutTests
+        tests/TestObstacleLayoutTests.cpp
+    )
+    target_link_libraries(TestObstacleLayoutTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TestObstacleLayoutTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_test(
+        NAME TankPhysics.TestObstacleLayout
+        COMMAND TestObstacleLayoutTests
     )
 
     add_executable(TankInputMapperTests

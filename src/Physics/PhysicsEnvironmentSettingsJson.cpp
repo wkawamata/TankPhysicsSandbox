@@ -31,6 +31,18 @@ namespace Tank::Physics
                 value = entry->get<bool>();
             }
         }
+
+        void ReadInt(
+            const nlohmann::json& object,
+            const char* name,
+            int& value)
+        {
+            const auto entry = object.find(name);
+            if (entry != object.end() && entry->is_number_integer())
+            {
+                value = entry->get<int>();
+            }
+        }
     }
 
     std::string SerializePhysicsEnvironmentSettings(
@@ -42,6 +54,9 @@ namespace Tank::Physics
         json["floorFriction"] = settings.floorFriction;
         json["gridEnabled"] = settings.gridEnabled;
         json["gridSpacingM"] = settings.gridSpacingM;
+        json["obstacleCount"] = settings.obstacleCount;
+        json["obstacleSeed"] = settings.obstacleSeed;
+        json["obstacleAreaSizeM"] = settings.obstacleAreaSizeM;
         return json.dump(2);
     }
 
@@ -66,6 +81,9 @@ namespace Tank::Physics
         ReadFloat(json, "floorFriction", loaded.floorFriction);
         ReadBool(json, "gridEnabled", loaded.gridEnabled);
         ReadFloat(json, "gridSpacingM", loaded.gridSpacingM);
+        ReadInt(json, "obstacleCount", loaded.obstacleCount);
+        ReadInt(json, "obstacleSeed", loaded.obstacleSeed);
+        ReadFloat(json, "obstacleAreaSizeM", loaded.obstacleAreaSizeM);
         settings = loaded;
         if (error != nullptr)
         {

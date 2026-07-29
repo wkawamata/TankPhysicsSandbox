@@ -70,6 +70,7 @@ namespace
 #include "Physics/PhysicsEnvironmentSettingsJson.h"
 #include "Physics/TankSettingsJson.h"
 #include "Physics/TankTypes.h"
+#include "Physics/TestObstacleLayout.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "Input/GamepadState.h"
 
@@ -129,6 +130,29 @@ namespace
 			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
 		}
 		const bool changed = ImGuiWidgets::SliderFloatWithControls(
+			label, value, min, max, delta, defaultValue, format);
+		if (pending)
+		{
+			ImGui::PopStyleColor();
+		}
+		return changed;
+	}
+
+	bool SliderIntWithPendingColor(
+		const char* label,
+		int* value,
+		int min,
+		int max,
+		int delta,
+		int defaultValue,
+		const char* format,
+		bool pending)
+	{
+		if (pending)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+		}
+		const bool changed = ImGuiWidgets::SliderIntWithControls(
 			label, value, min, max, delta, defaultValue, format);
 		if (pending)
 		{
@@ -963,6 +987,35 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		5.0f,
 		"%.1f m",
 		IsPending(m_environmentSettings.gridSpacingM, m_appliedEnvironmentSettings.gridSpacingM));
+	SliderIntWithPendingColor(
+		"Obstacle Count",
+		&m_environmentSettings.obstacleCount,
+		0,
+		100,
+		1,
+		20,
+		"%d",
+		m_environmentSettings.obstacleCount != m_appliedEnvironmentSettings.obstacleCount);
+	SliderIntWithPendingColor(
+		"Obstacle Seed",
+		&m_environmentSettings.obstacleSeed,
+		0,
+		9999,
+		1,
+		1,
+		"%d",
+		m_environmentSettings.obstacleSeed != m_appliedEnvironmentSettings.obstacleSeed);
+	SliderFloatWithPendingColor(
+		"Obstacle Area",
+		&m_environmentSettings.obstacleAreaSizeM,
+		20.0f,
+		500.0f,
+		10.0f,
+		100.0f,
+		"%.0f m",
+		IsPending(
+			m_environmentSettings.obstacleAreaSizeM,
+			m_appliedEnvironmentSettings.obstacleAreaSizeM));
 	if (ImGui::Button("Apply Ground & Reset"))
 	{
 		EnterTrackedVehicleMode();
@@ -1412,6 +1465,8 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	const uint32_t leftTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(40, 40, 45, 255);
 	const uint32_t rightTrackMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(50, 50, 55, 255);
 	const uint32_t markerMaterial = m_trackedVehicleSceneBuilder.AddSolidColorMaterial(255, 60, 60, 255);
+	const uint32_t obstacleMaterial =
+		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 95, 135, 255);
 	m_trackedVehicleModel.wheelContactMaterial =
 		m_trackedVehicleSceneBuilder.AddSolidColorMaterial(70, 200, 90, 255);
 	m_trackedVehicleModel.wheelAirborneMaterial =
@@ -1466,6 +1521,22 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 		m_trackedVehicleSceneBuilder.AddInstance(
 			XMMatrixScaling(0.0f, 0.0f, 0.0f),
 			m_trackedVehicleModel.wheelAirborneMaterial);
+	}
+
+	for (const Tank::Physics::TestObstaclePlacement& obstacle :
+		Tank::Physics::GenerateTestObstacleLayout(m_environmentSettings))
+	{
+		m_trackedVehicleSceneBuilder.AddInstance(
+			XMMatrixScaling(
+				Tank::Physics::kPassengerCarWidthM,
+				Tank::Physics::kPassengerCarHeightM,
+				Tank::Physics::kPassengerCarLengthM) *
+			XMMatrixRotationY(obstacle.yawRadians) *
+			XMMatrixTranslation(
+				obstacle.position.x,
+				obstacle.position.y,
+				obstacle.position.z),
+			obstacleMaterial);
 	}
 
 	Engine::CameraState camera;

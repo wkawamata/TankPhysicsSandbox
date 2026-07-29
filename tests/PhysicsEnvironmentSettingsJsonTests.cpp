@@ -18,6 +18,9 @@ int main()
     source.floorFriction = 0.65f;
     source.gridEnabled = false;
     source.gridSpacingM = 2.5f;
+    source.obstacleCount = 35;
+    source.obstacleSeed = 42;
+    source.obstacleAreaSizeM = 180.0f;
 
     Tank::Physics::PhysicsEnvironmentSettings loaded;
     std::string error;
@@ -28,7 +31,10 @@ int main()
         !NearlyEqual(loaded.floorSizeM, source.floorSizeM) ||
         !NearlyEqual(loaded.floorFriction, source.floorFriction) ||
         loaded.gridEnabled != source.gridEnabled ||
-        !NearlyEqual(loaded.gridSpacingM, source.gridSpacingM))
+        !NearlyEqual(loaded.gridSpacingM, source.gridSpacingM) ||
+        loaded.obstacleCount != source.obstacleCount ||
+        loaded.obstacleSeed != source.obstacleSeed ||
+        !NearlyEqual(loaded.obstacleAreaSizeM, source.obstacleAreaSizeM))
     {
         std::cerr << "FAIL PhysicsEnvironmentSettings JSON: " << error << "\n";
         return 1;
