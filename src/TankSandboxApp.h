@@ -117,7 +117,9 @@ private:
     };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Tank::Physics::TankSettings m_trackedVehicleSettings;
+    Tank::Physics::TankSettings m_appliedTrackedVehicleSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
+    Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
     Tank::Platform::Windows::WindowsGamepad m_gamepad;
     Engine::SceneBuilder m_trackedVehicleSceneBuilder;
     TrackedVehicleModel m_trackedVehicleModel;

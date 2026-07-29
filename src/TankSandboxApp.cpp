@@ -108,6 +108,34 @@ namespace
 		}
 		return pixels;
 	}
+
+	bool IsPending(float value, float appliedValue)
+	{
+		return std::abs(value - appliedValue) > 0.0001f;
+	}
+
+	bool SliderFloatWithPendingColor(
+		const char* label,
+		float* value,
+		float min,
+		float max,
+		float delta,
+		float defaultValue,
+		const char* format,
+		bool pending)
+	{
+		if (pending)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+		}
+		const bool changed = ImGuiWidgets::SliderFloatWithControls(
+			label, value, min, max, delta, defaultValue, format);
+		if (pending)
+		{
+			ImGui::PopStyleColor();
+		}
+		return changed;
+	}
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -905,13 +933,36 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	}
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
 	ImGui::SeparatorText("Ground");
-	ImGuiWidgets::SliderFloatWithControls(
-		"Floor Size", &m_environmentSettings.floorSizeM, 20.0f, 1000.0f, 10.0f, 200.0f, "%.0f m");
-	ImGuiWidgets::SliderFloatWithControls(
-		"Floor Friction", &m_environmentSettings.floorFriction, 0.0f, 2.0f, 0.05f, 0.6f, "%.2f");
+	SliderFloatWithPendingColor(
+		"Floor Size",
+		&m_environmentSettings.floorSizeM,
+		20.0f,
+		1000.0f,
+		10.0f,
+		200.0f,
+		"%.0f m",
+		IsPending(m_environmentSettings.floorSizeM, m_appliedEnvironmentSettings.floorSizeM));
+	SliderFloatWithPendingColor(
+		"Floor Friction",
+		&m_environmentSettings.floorFriction,
+		0.0f,
+		2.0f,
+		0.05f,
+		0.6f,
+		"%.2f",
+		IsPending(
+			m_environmentSettings.floorFriction,
+			m_appliedEnvironmentSettings.floorFriction));
 	ImGui::Checkbox("Grid Enabled", &m_environmentSettings.gridEnabled);
-	ImGuiWidgets::SliderFloatWithControls(
-		"Grid Spacing", &m_environmentSettings.gridSpacingM, 0.5f, 20.0f, 0.5f, 5.0f, "%.1f m");
+	SliderFloatWithPendingColor(
+		"Grid Spacing",
+		&m_environmentSettings.gridSpacingM,
+		0.5f,
+		20.0f,
+		0.5f,
+		5.0f,
+		"%.1f m",
+		IsPending(m_environmentSettings.gridSpacingM, m_appliedEnvironmentSettings.gridSpacingM));
 	if (ImGui::Button("Apply Ground & Reset"))
 	{
 		EnterTrackedVehicleMode();
@@ -931,108 +982,137 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		ImGui::TextWrapped("%s", m_environmentSettingsStatus.c_str());
 	}
 	ImGui::SeparatorText("Physics Settings");
-	ImGuiWidgets::SliderFloatWithControls(
+	SliderFloatWithPendingColor(
 		"Chassis Mass",
 		&m_trackedVehicleSettings.chassisMassKg,
 		1000.0f,
 		8000.0f,
 		100.0f,
 		4000.0f,
-		"%.0f kg");
+		"%.0f kg",
+		IsPending(
+			m_trackedVehicleSettings.chassisMassKg,
+			m_appliedTrackedVehicleSettings.chassisMassKg));
 
 	ImGui::SeparatorText("Rolling Parameter:");
 
 	ImGui::Checkbox("Rolling Input", &m_trackedVehicleSettings.rollingInputEnabled);
-	ImGuiWidgets::SliderFloatWithControls(
+	SliderFloatWithPendingColor(
 		"Roll Torque",
 		&m_trackedVehicleSettings.rollTorqueNm,
 		20000.0f,
 		300000.0f,
 		5000.0f,
 		120000.0f,
-		"%.0f N m");
-	ImGuiWidgets::SliderFloatWithControls(
+		"%.0f N m",
+		IsPending(m_trackedVehicleSettings.rollTorqueNm, m_appliedTrackedVehicleSettings.rollTorqueNm));
+	SliderFloatWithPendingColor(
 		"Roll Distance",
 		&m_trackedVehicleSettings.rollDistanceM,
 		0.5f,
 		5.0f,
 		0.1f,
 		2.4f,
-		"%.2f m");
-	ImGuiWidgets::SliderFloatWithControls(
+		"%.2f m",
+		IsPending(m_trackedVehicleSettings.rollDistanceM, m_appliedTrackedVehicleSettings.rollDistanceM));
+	SliderFloatWithPendingColor(
 		"Torque Cutoff Angle",
 		&m_trackedVehicleSettings.rollTorqueCutoffDegrees,
 		45.0f,
 		120.0f,
 		5.0f,
 		90.0f,
-		"%.0f deg");
-	ImGuiWidgets::SliderFloatWithControls(
+		"%.0f deg",
+		IsPending(
+			m_trackedVehicleSettings.rollTorqueCutoffDegrees,
+			m_appliedTrackedVehicleSettings.rollTorqueCutoffDegrees));
+	SliderFloatWithPendingColor(
 		"Stabilization Torque",
 		&m_trackedVehicleSettings.rollStabilizationTorqueNm,
 		0.0f,
 		100000.0f,
 		5000.0f,
 		30000.0f,
-		"%.0f N m");
-	ImGuiWidgets::SliderFloatWithControls(
+		"%.0f N m",
+		IsPending(
+			m_trackedVehicleSettings.rollStabilizationTorqueNm,
+			m_appliedTrackedVehicleSettings.rollStabilizationTorqueNm));
+	SliderFloatWithPendingColor(
 		"Stabilization Damping",
 		&m_trackedVehicleSettings.rollStabilizationDampingNms,
 		0.0f,
 		50000.0f,
 		1000.0f,
 		10000.0f,
-		"%.0f N m s");
+		"%.0f N m s",
+		IsPending(
+			m_trackedVehicleSettings.rollStabilizationDampingNms,
+			m_appliedTrackedVehicleSettings.rollStabilizationDampingNms));
 
 	ImGui::SeparatorText("Tank Design:");
 
-	ImGuiWidgets::SliderFloatWithControls(
-		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m");
-	ImGuiWidgets::SliderFloatWithControls(
-		"Track Spacing", &m_trackedVehicleSettings.trackSpacingM, 1.8f, 3.2f, 0.1f, 2.4f, "%.2f m");
-	ImGuiWidgets::SliderFloatWithControls(
-		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x");
-	ImGuiWidgets::SliderFloatWithControls(
-		"Chassis Width", &m_trackedVehicleSettings.chassisWidthM, 1.6f, 3.2f, 0.1f, 2.4f, "%.2f m");
-	ImGuiWidgets::SliderFloatWithControls(
-		"Chassis Length", &m_trackedVehicleSettings.chassisLengthM, 3.0f, 5.5f, 0.1f, 4.0f, "%.2f m");
-	ImGuiWidgets::SliderFloatWithControls(
-		"Wheel Radius", &m_trackedVehicleSettings.wheelRadiusM, 0.2f, 0.5f, 0.01f, 0.3f, "%.2f m");
+	SliderFloatWithPendingColor(
+		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m",
+		IsPending(m_trackedVehicleSettings.trackWidthM, m_appliedTrackedVehicleSettings.trackWidthM));
+	SliderFloatWithPendingColor(
+		"Track Spacing", &m_trackedVehicleSettings.trackSpacingM, 1.8f, 3.2f, 0.1f, 2.4f, "%.2f m",
+		IsPending(m_trackedVehicleSettings.trackSpacingM, m_appliedTrackedVehicleSettings.trackSpacingM));
+	SliderFloatWithPendingColor(
+		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
+		IsPending(m_trackedVehicleSettings.rideHeightScale, m_appliedTrackedVehicleSettings.rideHeightScale));
+	SliderFloatWithPendingColor(
+		"Chassis Width", &m_trackedVehicleSettings.chassisWidthM, 1.6f, 3.2f, 0.1f, 2.4f, "%.2f m",
+		IsPending(m_trackedVehicleSettings.chassisWidthM, m_appliedTrackedVehicleSettings.chassisWidthM));
+	SliderFloatWithPendingColor(
+		"Chassis Length", &m_trackedVehicleSettings.chassisLengthM, 3.0f, 5.5f, 0.1f, 4.0f, "%.2f m",
+		IsPending(m_trackedVehicleSettings.chassisLengthM, m_appliedTrackedVehicleSettings.chassisLengthM));
+	SliderFloatWithPendingColor(
+		"Wheel Radius", &m_trackedVehicleSettings.wheelRadiusM, 0.2f, 0.5f, 0.01f, 0.3f, "%.2f m",
+		IsPending(m_trackedVehicleSettings.wheelRadiusM, m_appliedTrackedVehicleSettings.wheelRadiusM));
 	const char* wheelLayouts[] = { "1 + 2 + 1", "1 + 3 + 1", "1 + 4 + 1" };
 	int wheelLayoutIndex = std::clamp(m_trackedVehicleSettings.roadWheelCount, 2, 4) - 2;
 	if (ImGui::Combo("Wheel Layout", &wheelLayoutIndex, wheelLayouts, std::size(wheelLayouts)))
 	{
 		m_trackedVehicleSettings.roadWheelCount = wheelLayoutIndex + 2;
 	}
-	ImGuiWidgets::SliderFloatWithControls(
+	SliderFloatWithPendingColor(
 		"End Wheel Offset",
 		&m_trackedVehicleSettings.endWheelOffsetM,
 		0.0f,
 		1.0f,
 		0.05f,
 		0.0f,
-		"%.2f m");
+		"%.2f m",
+		IsPending(
+			m_trackedVehicleSettings.endWheelOffsetM,
+			m_appliedTrackedVehicleSettings.endWheelOffsetM));
 	if (m_trackedVehicleSettings.roadWheelCount == 2)
 	{
-		ImGuiWidgets::SliderFloatWithControls(
+		SliderFloatWithPendingColor(
 			"Middle Wheel Offset",
 			&m_trackedVehicleSettings.twoRoadWheelOffsetM,
 			0.1f,
 			2.0f,
 			0.05f,
 			0.67f,
-			"%.2f m");
+			"%.2f m",
+			IsPending(
+				m_trackedVehicleSettings.twoRoadWheelOffsetM,
+				m_appliedTrackedVehicleSettings.twoRoadWheelOffsetM));
 	}
 	else if (m_trackedVehicleSettings.roadWheelCount == 3)
 	{
-		ImGuiWidgets::SliderFloatWithControls(
+		SliderFloatWithPendingColor(
 			"Middle Wheel Offset",
 			&m_trackedVehicleSettings.threeRoadWheelOffsetM,
 			0.1f,
 			2.0f,
 			0.05f,
 			1.0f,
-			"%.2f m");
+			"%.2f m",
+			IsPending(
+				m_trackedVehicleSettings.threeRoadWheelOffsetM,
+				m_appliedTrackedVehicleSettings.threeRoadWheelOffsetM));
 	}
 	ImGui::Checkbox("Start Upside Down", &m_trackedVehicleSettings.startUpsideDown);
 	if (ImGui::Button("Apply & Reset"))
@@ -1189,7 +1269,10 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 
 void TankSandboxApp::ResetTrackedVehicle()
 {
-	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings, m_environmentSettings);
+	m_trackedVehicleTest.Initialize(
+		m_trackedVehicleSettings,
+		m_appliedEnvironmentSettings);
+	m_appliedTrackedVehicleSettings = m_trackedVehicleSettings;
 	m_trackedVehicleSingleStep = false;
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
 }
@@ -1395,6 +1478,8 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	ActivateOrbitCamera(m_trackedVehicleSceneBuilder.GetScene(), { 0.0f, 0.8f, 0.0f });
 
 	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings, m_environmentSettings);
+	m_appliedTrackedVehicleSettings = m_trackedVehicleSettings;
+	m_appliedEnvironmentSettings = m_environmentSettings;
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
 	m_trackedVehiclePaused = false;
 	m_trackedVehicleSingleStep = false;
