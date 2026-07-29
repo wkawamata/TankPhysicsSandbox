@@ -60,6 +60,8 @@ int main()
         "ride height must default to 80 percent");
     passed &= Check(NearlyEqual(controller.Settings().twoRoadWheelOffsetM, 0.67f),
         "two road wheel offset must preserve its default");
+    passed &= Check(NearlyEqual(controller.Settings().endWheelOffsetM, 0.0f),
+        "end wheel offset must default to the chassis ends");
     passed &= Check(NearlyEqual(controller.Settings().threeRoadWheelOffsetM, 1.0f),
         "three road wheel offset must preserve its default");
 

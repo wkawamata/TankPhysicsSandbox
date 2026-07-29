@@ -36,6 +36,7 @@ int main()
     source.chassisLengthM = 4.75f;
     source.wheelRadiusM = 0.38f;
     source.roadWheelCount = 4;
+    source.endWheelOffsetM = 0.35f;
     source.twoRoadWheelOffsetM = 0.82f;
     source.threeRoadWheelOffsetM = 1.15f;
     source.rideHeightScale = 0.75f;
@@ -79,6 +80,8 @@ int main()
         "wheel radius must round trip");
     passed &= Check(loaded.roadWheelCount == source.roadWheelCount,
         "road wheel count must round trip");
+    passed &= Check(NearlyEqual(loaded.endWheelOffsetM, source.endWheelOffsetM),
+        "end wheel offset must round trip");
     passed &= Check(NearlyEqual(loaded.twoRoadWheelOffsetM, source.twoRoadWheelOffsetM),
         "two road wheel offset must round trip");
     passed &= Check(NearlyEqual(loaded.threeRoadWheelOffsetM, source.threeRoadWheelOffsetM),

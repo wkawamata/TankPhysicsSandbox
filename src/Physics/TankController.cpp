@@ -116,8 +116,16 @@ namespace Tank::Physics
         m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
         m_settings.wheelRadiusM = std::clamp(m_settings.wheelRadiusM, 0.2f, 0.5f);
         m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
+        const float maximumEndWheelOffset =
+            (std::max)(0.0f, 0.5f * m_settings.chassisLengthM - m_settings.wheelRadiusM - 0.1f);
+        m_settings.endWheelOffsetM = std::clamp(
+            m_settings.endWheelOffsetM,
+            0.0f,
+            (std::min)(1.0f, maximumEndWheelOffset));
+        const float endWheelPosition =
+            0.5f * m_settings.chassisLengthM - m_settings.endWheelOffsetM;
         const float maximumTwoRoadWheelOffset =
-            (std::max)(0.1f, 0.5f * m_settings.chassisLengthM - m_settings.wheelRadiusM);
+            (std::max)(0.1f, endWheelPosition - m_settings.wheelRadiusM);
         m_settings.twoRoadWheelOffsetM = std::clamp(
             m_settings.twoRoadWheelOffsetM,
             0.1f,
@@ -188,6 +196,10 @@ namespace Tank::Physics
                     const bool endWheel = w == 0 || w == numWheelsPerSurface - 1;
                     float wheelZ =
                         halfVehicleLength - wheelFraction * m_settings.chassisLengthM;
+                    if (endWheel)
+                    {
+                        wheelZ = w == 0 ? endWheelPosition : -endWheelPosition;
+                    }
                     if (m_settings.roadWheelCount == 2 && !endWheel)
                     {
                         wheelZ = w == 1

@@ -1004,6 +1004,14 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	{
 		m_trackedVehicleSettings.roadWheelCount = wheelLayoutIndex + 2;
 	}
+	ImGuiWidgets::SliderFloatWithControls(
+		"End Wheel Offset",
+		&m_trackedVehicleSettings.endWheelOffsetM,
+		0.0f,
+		1.0f,
+		0.05f,
+		0.0f,
+		"%.2f m");
 	if (m_trackedVehicleSettings.roadWheelCount == 2)
 	{
 		ImGuiWidgets::SliderFloatWithControls(

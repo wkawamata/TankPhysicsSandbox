@@ -117,6 +117,7 @@ int main()
     {
         Tank::Physics::TankSettings layoutSettings;
         layoutSettings.roadWheelCount = roadWheelCount;
+        layoutSettings.endWheelOffsetM = 0.4f;
         if (roadWheelCount == 2)
         {
             layoutSettings.twoRoadWheelOffsetM = 1.1f;
@@ -135,6 +136,14 @@ int main()
         passed &= Check(
             layoutTest.State().wheelCount == expectedLayoutWheelCount,
             "selected road wheel layout must set the physics wheel count");
+        const int lastLowerWheel = roadWheelCount + 1;
+        passed &= Check(
+            std::abs(layoutTest.State().wheels[0].transform.position.z - 1.6f) < 0.01f,
+            "front end wheel must use the configured inward offset");
+        passed &= Check(
+            std::abs(layoutTest.State().wheels[static_cast<size_t>(lastLowerWheel)]
+                    .transform.position.z + 1.6f) < 0.01f,
+            "rear end wheel must use the configured inward offset");
         if (roadWheelCount == 2)
         {
             const float frontMiddleZ = layoutTest.State().wheels[1].transform.position.z;
