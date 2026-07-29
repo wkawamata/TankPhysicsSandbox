@@ -62,6 +62,8 @@ namespace Tank::Physics
         json["chassisLengthM"] = settings.chassisLengthM;
         json["wheelRadiusM"] = settings.wheelRadiusM;
         json["roadWheelCount"] = settings.roadWheelCount;
+        json["twoRoadWheelOffsetM"] = settings.twoRoadWheelOffsetM;
+        json["threeRoadWheelOffsetM"] = settings.threeRoadWheelOffsetM;
         json["rideHeightScale"] = settings.rideHeightScale;
         json["startUpsideDown"] = settings.startUpsideDown;
         return json.dump(2);
@@ -97,6 +99,8 @@ namespace Tank::Physics
         ReadFloat(json, "chassisLengthM", loaded.chassisLengthM);
         ReadFloat(json, "wheelRadiusM", loaded.wheelRadiusM);
         ReadInt(json, "roadWheelCount", loaded.roadWheelCount);
+        ReadFloat(json, "twoRoadWheelOffsetM", loaded.twoRoadWheelOffsetM);
+        ReadFloat(json, "threeRoadWheelOffsetM", loaded.threeRoadWheelOffsetM);
         ReadFloat(json, "rideHeightScale", loaded.rideHeightScale);
         ReadBool(json, "startUpsideDown", loaded.startUpsideDown);
         settings = loaded;

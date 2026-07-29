@@ -116,6 +116,16 @@ namespace Tank::Physics
         m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
         m_settings.wheelRadiusM = std::clamp(m_settings.wheelRadiusM, 0.2f, 0.5f);
         m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
+        const float maximumTwoRoadWheelOffset =
+            (std::max)(0.1f, 0.5f * m_settings.chassisLengthM - m_settings.wheelRadiusM);
+        m_settings.twoRoadWheelOffsetM = std::clamp(
+            m_settings.twoRoadWheelOffsetM,
+            0.1f,
+            (std::min)(2.0f, maximumTwoRoadWheelOffset));
+        m_settings.threeRoadWheelOffsetM = std::clamp(
+            m_settings.threeRoadWheelOffsetM,
+            0.1f,
+            (std::min)(2.0f, maximumTwoRoadWheelOffset));
         m_settings.rideHeightScale =
             std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
         m_impl = std::make_unique<Impl>(world);
@@ -175,9 +185,21 @@ namespace Tank::Physics
                     JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
                     const float wheelFraction =
                         static_cast<float>(w) / static_cast<float>(numWheelsPerSurface - 1);
-                    const float wheelZ =
-                        halfVehicleLength - wheelFraction * m_settings.chassisLengthM;
                     const bool endWheel = w == 0 || w == numWheelsPerSurface - 1;
+                    float wheelZ =
+                        halfVehicleLength - wheelFraction * m_settings.chassisLengthM;
+                    if (m_settings.roadWheelCount == 2 && !endWheel)
+                    {
+                        wheelZ = w == 1
+                            ? m_settings.twoRoadWheelOffsetM
+                            : -m_settings.twoRoadWheelOffsetM;
+                    }
+                    else if (m_settings.roadWheelCount == 3 && !endWheel)
+                    {
+                        wheelZ = w == 1
+                            ? m_settings.threeRoadWheelOffsetM
+                            : (w == 2 ? 0.0f : -m_settings.threeRoadWheelOffsetM);
+                    }
                     wheel->mPosition =
                         JPH::Vec3(0.0f, endWheel ? 0.0f : -wheelRadius, wheelZ);
                     wheel->mPosition.SetX(t == 0 ? halfTrackSpacing : -halfTrackSpacing);

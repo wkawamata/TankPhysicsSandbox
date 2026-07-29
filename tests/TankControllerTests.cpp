@@ -58,6 +58,10 @@ int main()
         "track spacing must default to 2.4 m");
     passed &= Check(NearlyEqual(controller.Settings().rideHeightScale, 0.8f),
         "ride height must default to 80 percent");
+    passed &= Check(NearlyEqual(controller.Settings().twoRoadWheelOffsetM, 0.67f),
+        "two road wheel offset must preserve its default");
+    passed &= Check(NearlyEqual(controller.Settings().threeRoadWheelOffsetM, 1.0f),
+        "three road wheel offset must preserve its default");
 
     Tank::Physics::TankInput input;
     input.throttle = 2.0f;

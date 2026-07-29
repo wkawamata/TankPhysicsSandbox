@@ -29,6 +29,8 @@ namespace Tank::Physics
         float chassisLengthM = 4.0f;
         float wheelRadiusM = 0.3f;
         int roadWheelCount = 3;
+        float twoRoadWheelOffsetM = 0.67f;
+        float threeRoadWheelOffsetM = 1.0f;
         float rideHeightScale = 0.8f;
         bool startUpsideDown = false;
     };

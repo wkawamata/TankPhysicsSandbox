@@ -1004,6 +1004,28 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	{
 		m_trackedVehicleSettings.roadWheelCount = wheelLayoutIndex + 2;
 	}
+	if (m_trackedVehicleSettings.roadWheelCount == 2)
+	{
+		ImGuiWidgets::SliderFloatWithControls(
+			"Middle Wheel Offset",
+			&m_trackedVehicleSettings.twoRoadWheelOffsetM,
+			0.1f,
+			2.0f,
+			0.05f,
+			0.67f,
+			"%.2f m");
+	}
+	else if (m_trackedVehicleSettings.roadWheelCount == 3)
+	{
+		ImGuiWidgets::SliderFloatWithControls(
+			"Middle Wheel Offset",
+			&m_trackedVehicleSettings.threeRoadWheelOffsetM,
+			0.1f,
+			2.0f,
+			0.05f,
+			1.0f,
+			"%.2f m");
+	}
 	ImGui::Checkbox("Start Upside Down", &m_trackedVehicleSettings.startUpsideDown);
 	if (ImGui::Button("Apply & Reset"))
 	{

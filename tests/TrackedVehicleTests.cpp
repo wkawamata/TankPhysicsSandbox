@@ -117,6 +117,14 @@ int main()
     {
         Tank::Physics::TankSettings layoutSettings;
         layoutSettings.roadWheelCount = roadWheelCount;
+        if (roadWheelCount == 2)
+        {
+            layoutSettings.twoRoadWheelOffsetM = 1.1f;
+        }
+        else if (roadWheelCount == 3)
+        {
+            layoutSettings.threeRoadWheelOffsetM = 1.25f;
+        }
         Tank::Physics::TrackedVehicleTest layoutTest;
         layoutTest.Initialize(layoutSettings);
         layoutTest.Step(dt);
@@ -127,6 +135,27 @@ int main()
         passed &= Check(
             layoutTest.State().wheelCount == expectedLayoutWheelCount,
             "selected road wheel layout must set the physics wheel count");
+        if (roadWheelCount == 2)
+        {
+            const float frontMiddleZ = layoutTest.State().wheels[1].transform.position.z;
+            const float rearMiddleZ = layoutTest.State().wheels[2].transform.position.z;
+            passed &= Check(std::abs(frontMiddleZ - 1.1f) < 0.01f,
+                "front middle wheel must use the configured positive offset");
+            passed &= Check(std::abs(rearMiddleZ + 1.1f) < 0.01f,
+                "rear middle wheel must use the configured negative offset");
+        }
+        else if (roadWheelCount == 3)
+        {
+            const float frontMiddleZ = layoutTest.State().wheels[1].transform.position.z;
+            const float centerMiddleZ = layoutTest.State().wheels[2].transform.position.z;
+            const float rearMiddleZ = layoutTest.State().wheels[3].transform.position.z;
+            passed &= Check(std::abs(frontMiddleZ - 1.25f) < 0.01f,
+                "front middle wheel must use the configured positive offset");
+            passed &= Check(std::abs(centerMiddleZ) < 0.01f,
+                "center middle wheel must remain centered");
+            passed &= Check(std::abs(rearMiddleZ + 1.25f) < 0.01f,
+                "rear middle wheel must use the configured negative offset");
+        }
     }
 
     if (!passed)
