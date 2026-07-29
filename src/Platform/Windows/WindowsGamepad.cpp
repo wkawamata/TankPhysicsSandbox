@@ -120,7 +120,6 @@ namespace Tank::Platform::Windows
         {
             state.leftStickX = gamepadState.leftThumbstickX;
             state.leftStickY = gamepadState.leftThumbstickY;
-            state.brakePressed = (gamepadState.buttons & GameInputGamepadA) != 0;
         }
         else
         {
@@ -129,11 +128,12 @@ namespace Tank::Platform::Windows
                 state.leftStickX = state.rawAxes[0];
                 state.leftStickY = -state.rawAxes[1];
             }
-            constexpr std::uint32_t brakeButtonIndex = 3;
-            if (rawButtonCount > brakeButtonIndex)
-            {
-                state.brakePressed = state.rawButtons[brakeButtonIndex];
-            }
+        }
+
+        if (rawButtonCount > Input::GamepadState::BrakeButtonIndex)
+        {
+            state.brakePressed =
+                state.rawButtons[Input::GamepadState::BrakeButtonIndex];
         }
     }
 

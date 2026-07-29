@@ -37,6 +37,9 @@ add_library(TankPhysicsCore STATIC
     src/Physics/BoxDropTest.cpp
     src/Physics/BoxDropTest.h
     src/Physics/PhysicsTypes.h
+    src/Physics/PhysicsEnvironmentSettings.h
+    src/Physics/PhysicsEnvironmentSettingsJson.cpp
+    src/Physics/PhysicsEnvironmentSettingsJson.h
     src/Physics/PhysicsWorld.cpp
     src/Physics/PhysicsWorld.h
     src/Physics/TankController.cpp
@@ -214,6 +217,22 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TankSettingsJson
         COMMAND TankSettingsJsonTests
+    )
+
+    add_executable(PhysicsEnvironmentSettingsJsonTests
+        tests/PhysicsEnvironmentSettingsJsonTests.cpp
+    )
+    target_link_libraries(PhysicsEnvironmentSettingsJsonTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(PhysicsEnvironmentSettingsJsonTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_test(
+        NAME TankPhysics.PhysicsEnvironmentSettingsJson
+        COMMAND PhysicsEnvironmentSettingsJsonTests
     )
 
     add_executable(TankInputMapperTests

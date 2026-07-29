@@ -47,10 +47,30 @@
 #include <system_error>
 #include <vector>
 
+namespace
+{
+	constexpr float kAnalogTrackDeadzone = 0.1f;
+
+	float NormalizeRawGamepadAxis(float value)
+	{
+		const float normalized = std::clamp((value - 0.5f) * 2.0f, -1.0f, 1.0f);
+		if (std::abs(normalized) <= kAnalogTrackDeadzone)
+		{
+			return 0.0f;
+		}
+
+		const float magnitude =
+			(std::abs(normalized) - kAnalogTrackDeadzone) / (1.0f - kAnalogTrackDeadzone);
+		return std::copysign(std::min(magnitude, 1.0f), normalized);
+	}
+}
+
 #include "Physics/BoxDropTest.h"
+#include "Physics/PhysicsEnvironmentSettingsJson.h"
 #include "Physics/TankSettingsJson.h"
 #include "Physics/TankTypes.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Input/GamepadState.h"
 
 using namespace DirectX;
 
@@ -58,6 +78,7 @@ namespace
 {
 	constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
 	constexpr const char* kTankSettingsPath = "Config/tank_physics.json";
+	constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -469,7 +490,31 @@ void TankSandboxApp::DrawCameraUi()
 		return;
 	}
 
+	ImGui::SetNextWindowSizeConstraints(ImVec2(260.0f, 190.0f), ImVec2(1000.0f, 1000.0f));
 	ImGui::Begin("Camera");
+	if (m_appMode == AppMode::PhysicsTrackedVehicle)
+	{
+		ImGui::SeparatorText("Angle");
+		if (ImGui::Button("Rear High"))
+		{
+			ApplyTrackedVehicleCameraPreset({ 0.0f, 9.2f, -16.0f });
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Rear Quarter"))
+		{
+			ApplyTrackedVehicleCameraPreset({ 10.0f, 7.0f, -14.0f });
+		}
+		if (ImGui::Button("Side High"))
+		{
+			ApplyTrackedVehicleCameraPreset({ 16.0f, 6.0f, 0.0f });
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Top Rear"))
+		{
+			ApplyTrackedVehicleCameraPreset({ 0.0f, 18.0f, -4.0f });
+		}
+		ImGui::SeparatorText("Projection");
+	}
 	int projection = static_cast<int>(camera->projection);
 	bool changed = false;
 	changed |= ImGui::RadioButton(
@@ -743,6 +788,7 @@ void TankSandboxApp::DrawPhysicsBoxDropUi()
 void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 {
 	const Tank::Physics::TrackedVehicleTestState& state = m_trackedVehicleTest.State();
+	ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 	ImGui::Begin("Tracked Vehicle");
 	ImGui::Text("Step: %d", state.stepIndex);
 	ImGui::Text("Time: %.2f s", state.timeSeconds);
@@ -772,15 +818,15 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		ImGui::TextUnformatted("Gamepad: Connected");
 		ImGui::Text("Device: %s",
 			gamepadState.deviceName.empty()
-				? "Controller (name unavailable; identify by VID/PID)"
-				: gamepadState.deviceName.c_str());
+			? "Controller (name unavailable; identify by VID/PID)"
+			: gamepadState.deviceName.c_str());
 		ImGui::Text("VID: %04X  PID: %04X", gamepadState.vendorId, gamepadState.productId);
 		ImGui::Text("Buttons: %u  Axes: %u  Switches: %u",
 			gamepadState.buttonCount, gamepadState.axisCount, gamepadState.switchCount);
 		ImGui::Text("Gamepad mapping: %s", gamepadState.hasGamepadMapping ? "yes" : "no");
 		if (!gamepadState.hasGamepadMapping)
 		{
-			ImGui::TextUnformatted("Raw fallback: axes 0/1, button 3 brake");
+			ImGui::TextUnformatted("Raw fallback: axes 0/1");
 			for (std::uint32_t axis = 0;
 				axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
 				++axis)
@@ -825,11 +871,40 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		ImGui::Text("Left Stick: X %.2f  Y %.2f",
 			gamepadState.leftStickX, gamepadState.leftStickY);
 		ImGui::Text("Brake: %s", gamepadState.brakePressed ? "On" : "Off");
+		ImGui::Text("Brake binding: raw button %u",
+			Tank::Input::GamepadState::BrakeButtonIndex);
 	}
 	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
+	ImGui::SeparatorText("Ground");
+	ImGui::SliderFloat(
+		"Floor Size", &m_environmentSettings.floorSizeM, 20.0f, 1000.0f, "%.0f m");
+	ImGui::SliderFloat(
+		"Floor Friction", &m_environmentSettings.floorFriction, 0.0f, 2.0f, "%.2f");
+	if (ImGui::Button("Apply Ground & Reset"))
+	{
+		EnterTrackedVehicleMode();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Save Ground"))
+	{
+		SaveEnvironmentSettings();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Load Ground"))
+	{
+		LoadEnvironmentSettings();
+	}
+	if (!m_environmentSettingsStatus.empty())
+	{
+		ImGui::TextWrapped("%s", m_environmentSettingsStatus.c_str());
+	}
 	ImGui::SeparatorText("Physics Settings");
 	ImGui::SliderFloat(
 		"Chassis Mass", &m_trackedVehicleSettings.chassisMassKg, 1000.0f, 8000.0f, "%.0f kg");
+
+	ImGui::SeparatorText("Rolling Parameter:");
+
+	ImGui::Checkbox("Rolling Input", &m_trackedVehicleSettings.rollingInputEnabled);
 	ImGui::SliderFloat(
 		"Roll Torque", &m_trackedVehicleSettings.rollTorqueNm, 20000.0f, 300000.0f, "%.0f N m");
 	ImGui::SliderFloat(
@@ -852,12 +927,27 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		0.0f,
 		50000.0f,
 		"%.0f N m s");
+
+	ImGui::SeparatorText("Tank Design:");
+
 	ImGui::SliderFloat(
 		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, "%.2f m");
 	ImGui::SliderFloat(
 		"Track Spacing", &m_trackedVehicleSettings.trackSpacingM, 1.8f, 3.2f, "%.2f m");
 	ImGui::SliderFloat(
-		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.7f, 0.9f, "%.2f x");
+		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.5f, 1.1f, "%.2f x");
+	ImGui::SliderFloat(
+		"Chassis Width", &m_trackedVehicleSettings.chassisWidthM, 1.6f, 3.2f, "%.2f m");
+	ImGui::SliderFloat(
+		"Chassis Length", &m_trackedVehicleSettings.chassisLengthM, 3.0f, 5.5f, "%.2f m");
+	ImGui::SliderFloat(
+		"Wheel Radius", &m_trackedVehicleSettings.wheelRadiusM, 0.2f, 0.5f, "%.2f m");
+	const char* wheelLayouts[] = { "1 + 2 + 1", "1 + 3 + 1", "1 + 4 + 1" };
+	int wheelLayoutIndex = std::clamp(m_trackedVehicleSettings.roadWheelCount, 2, 4) - 2;
+	if (ImGui::Combo("Wheel Layout", &wheelLayoutIndex, wheelLayouts, std::size(wheelLayouts)))
+	{
+		m_trackedVehicleSettings.roadWheelCount = wheelLayoutIndex + 2;
+	}
 	ImGui::Checkbox("Start Upside Down", &m_trackedVehicleSettings.startUpsideDown);
 	if (ImGui::Button("Apply & Reset"))
 	{
@@ -893,6 +983,23 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	{
 		ResetTrackedVehicle();
 	}
+	ImGui::SeparatorText("Track Input");
+	ImGui::Text(
+		"Analog track axes 1 / 3: %s",
+		m_analogTracksConnected ? "connected" : "not connected");
+	ImGui::Text(
+		"Left %.2f  Right %.2f  Roll %.2f",
+		m_analogLeftTrack,
+		m_analogRightTrack,
+		m_analogRoll);
+	const Tank::Physics::TrackedDriverInput& driverInput =
+		m_trackedVehicleTest.DriverInput();
+	ImGui::Text(
+		"SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",
+		driverInput.forward,
+		driverInput.leftRatio,
+		driverInput.rightRatio,
+		driverInput.brake);
 	ImGui::Separator();
 	ImGui::Text("Press ESC to return to the top menu.");
 	ImGui::End();
@@ -901,8 +1008,48 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 void TankSandboxApp::UpdateTrackedVehicleInput()
 {
 	Tank::Physics::TankInput input;
+	const Tank::Input::GamepadState& gamepadState = m_gamepad.State();
+	m_analogTracksConnected = gamepadState.connected && gamepadState.axisCount >= 4;
+
+	m_analogLeftTrack =
+		m_analogTracksConnected ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[3]) : 0.0f;
+	m_analogRightTrack =
+		m_analogTracksConnected ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[1]) : 0.0f;
+	const float analogRollAxis0 =
+		m_analogTracksConnected ? NormalizeRawGamepadAxis(gamepadState.rawAxes[0]) : 0.0f;
+	const float analogRollAxis2 =
+		m_analogTracksConnected ? NormalizeRawGamepadAxis(gamepadState.rawAxes[2]) : 0.0f;
+
+	m_analogRoll = std::clamp((analogRollAxis0 + analogRollAxis2) * 0.5f, -1.0f, 1.0f);
+
+	if (m_analogLeftTrack != 0.0f || m_analogRightTrack != 0.0f)
+	{
+		const float maximumMagnitude =
+			std::max(std::abs(m_analogLeftTrack), std::abs(m_analogRightTrack));
+		if (m_analogLeftTrack <= 0.0f && m_analogRightTrack <= 0.0f)
+		{
+			input.throttle = -maximumMagnitude;
+			input.leftTrack = -m_analogLeftTrack / maximumMagnitude;
+			input.rightTrack = -m_analogRightTrack / maximumMagnitude;
+		}
+		else
+		{
+			input.throttle = maximumMagnitude;
+			input.leftTrack = m_analogLeftTrack / maximumMagnitude;
+			input.rightTrack = m_analogRightTrack / maximumMagnitude;
+		}
+		input.roll = m_analogRoll != 0.0f
+			? m_analogRoll
+			: (m_rollLeft ? 1.0f : (m_rollRight ? -1.0f : 0.0f));
+		input.brake = m_brake;
+		m_trackedVehicleTest.SetInput(input);
+		return;
+	}
+
 	input.throttle = m_moveForward ? 1.0f : (m_moveBackward ? -1.0f : 0.0f);
-	input.roll = m_rollLeft ? 1.0f : (m_rollRight ? -1.0f : 0.0f);
+	input.roll = m_analogRoll != 0.0f
+		? m_analogRoll
+		: (m_rollLeft ? 1.0f : (m_rollRight ? -1.0f : 0.0f));
 	input.brake = m_brake;
 
 	if (m_turnLeft != m_turnRight)
@@ -928,12 +1075,12 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 		}
 	}
 
-	const Tank::Input::GamepadState& gamepadState = m_gamepad.State();
 	const bool gamepadActive =
+		!m_analogTracksConnected &&
 		gamepadState.connected &&
 		(std::abs(gamepadState.leftStickX) > 0.05f ||
-		 std::abs(gamepadState.leftStickY) > 0.05f ||
-		 gamepadState.brakePressed);
+			std::abs(gamepadState.leftStickY) > 0.05f ||
+			gamepadState.brakePressed);
 	if (gamepadActive)
 	{
 		const bool keyboardBrake = input.brake;
@@ -943,12 +1090,20 @@ void TankSandboxApp::UpdateTrackedVehicleInput()
 		input.roll = keyboardRoll;
 	}
 
+	if (m_analogTracksConnected &&
+		m_analogLeftTrack == 0.0f &&
+		m_analogRightTrack == 0.0f &&
+		input.throttle == 0.0f)
+	{
+		input.brakeAmount = 0.15f;
+	}
+
 	m_trackedVehicleTest.SetInput(input);
 }
 
 void TankSandboxApp::ResetTrackedVehicle()
 {
-	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings);
+	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings, m_environmentSettings);
 	m_trackedVehicleSingleStep = false;
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
 }
@@ -1006,6 +1161,59 @@ bool TankSandboxApp::LoadTankSettings()
 	return true;
 }
 
+bool TankSandboxApp::SaveEnvironmentSettings()
+{
+	const std::filesystem::path path(kEnvironmentSettingsPath);
+	std::error_code errorCode;
+	std::filesystem::create_directories(path.parent_path(), errorCode);
+	if (errorCode)
+	{
+		m_environmentSettingsStatus = "Save failed: " + errorCode.message();
+		return false;
+	}
+
+	std::ofstream output(path, std::ios::binary | std::ios::trunc);
+	if (!output)
+	{
+		m_environmentSettingsStatus = "Save failed: cannot open file";
+		return false;
+	}
+
+	output << Tank::Physics::SerializePhysicsEnvironmentSettings(m_environmentSettings);
+	if (!output)
+	{
+		m_environmentSettingsStatus = "Save failed: cannot write file";
+		return false;
+	}
+
+	m_environmentSettingsStatus = std::string("Saved: ") + kEnvironmentSettingsPath;
+	return true;
+}
+
+bool TankSandboxApp::LoadEnvironmentSettings()
+{
+	std::ifstream input(kEnvironmentSettingsPath, std::ios::binary);
+	if (!input)
+	{
+		m_environmentSettingsStatus = "Load failed: no saved settings";
+		return false;
+	}
+
+	const std::string json((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+	Tank::Physics::PhysicsEnvironmentSettings loaded = m_environmentSettings;
+	std::string error;
+	if (!Tank::Physics::DeserializePhysicsEnvironmentSettings(json, loaded, &error))
+	{
+		m_environmentSettingsStatus = "Load failed: " + error;
+		return false;
+	}
+
+	m_environmentSettings = loaded;
+	EnterTrackedVehicleMode();
+	m_environmentSettingsStatus = std::string("Loaded: ") + kEnvironmentSettingsPath;
+	return true;
+}
+
 void TankSandboxApp::EnterTrackedVehicleMode()
 {
 	m_trackedVehicleSceneBuilder.Clear();
@@ -1024,7 +1232,11 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	m_trackedVehicleSceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
 
 	m_trackedVehicleSceneBuilder.AddInstance(
-		XMMatrixScaling(40.0f, 0.2f, 40.0f) * XMMatrixTranslation(0.0f, -0.1f, 0.0f),
+		XMMatrixScaling(
+			m_environmentSettings.floorSizeM,
+			0.2f,
+			m_environmentSettings.floorSizeM) *
+			XMMatrixTranslation(0.0f, -0.1f, 0.0f),
 		floorMaterial);
 
 	m_trackedVehicleModel.lowerHull = 1;
@@ -1069,15 +1281,16 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	}
 
 	Engine::CameraState camera;
-	camera.pos = { 8.0f, 5.0f, -12.0f };
-	camera.gazePoint = { 0.0f, 1.0f, 0.0f };
-	camera.fov = 60.0f;
+	camera.pos = { 0.0f, 10.0f, -16.0f };
+	camera.gazePoint = { 0.0f, 0.8f, 0.0f };
+	camera.fov = 35.0f;
 	camera.nearZ = 0.001f;
 	camera.farZ = 10000.0f;
 	m_trackedVehicleSceneBuilder.SetCamera(camera);
-	ActivateOrbitCamera(m_trackedVehicleSceneBuilder.GetScene(), { 0.0f, 1.0f, 0.0f });
+	ActivateOrbitCamera(m_trackedVehicleSceneBuilder.GetScene(), { 0.0f, 0.8f, 0.0f });
 
-	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings);
+	m_trackedVehicleTest.Initialize(m_trackedVehicleSettings, m_environmentSettings);
+	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
 	m_trackedVehiclePaused = false;
 	m_trackedVehicleSingleStep = false;
 	m_sceneRenderer.SetScene(m_trackedVehicleSceneBuilder.GetScene());
@@ -1095,23 +1308,28 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 	const XMMATRIX bodyTransform =
 		XMMatrixRotationQuaternion(rotation) *
 		XMMatrixTranslation(state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
+	const float chassisWidth = m_trackedVehicleSettings.chassisWidthM;
+	const float chassisLength = m_trackedVehicleSettings.chassisLengthM;
 
 	struct Part { size_t index; XMMATRIX localTransform; };
 	const Part parts[] = {
 		{ m_trackedVehicleModel.lowerHull,
-			XMMatrixScaling(2.16f, 0.5f, 3.5f) },
+			XMMatrixScaling(0.9f * chassisWidth, 0.5f, 0.875f * chassisLength) },
 		{ m_trackedVehicleModel.upperStructure,
-			XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, 0.375f, 0.3f) },
+			XMMatrixScaling(0.6f * chassisWidth, 0.25f, 0.5f * chassisLength) *
+				XMMatrixTranslation(0.0f, 0.375f, 0.075f * chassisLength) },
 		{ m_trackedVehicleModel.lowerStructure,
-			XMMatrixScaling(1.44f, 0.25f, 2.0f) * XMMatrixTranslation(0.0f, -0.375f, 0.3f) },
+			XMMatrixScaling(0.6f * chassisWidth, 0.25f, 0.5f * chassisLength) *
+				XMMatrixTranslation(0.0f, -0.375f, 0.075f * chassisLength) },
 		{ m_trackedVehicleModel.leftTrack,
-			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
+			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, chassisLength) *
 				XMMatrixTranslation(-0.5f * m_trackedVehicleSettings.trackSpacingM, 0.0f, 0.0f) },
 		{ m_trackedVehicleModel.rightTrack,
-			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, 4.0f) *
+			XMMatrixScaling(m_trackedVehicleSettings.trackWidthM, 0.5f, chassisLength) *
 				XMMatrixTranslation(0.5f * m_trackedVehicleSettings.trackSpacingM, 0.0f, 0.0f) },
 		{ m_trackedVehicleModel.forwardMarker,
-			XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 0.0f, 2.5f) },
+			XMMatrixScaling(0.3f, 0.3f, 0.3f) *
+				XMMatrixTranslation(0.0f, 0.0f, 0.625f * chassisLength) },
 	};
 	for (const Part& part : parts)
 	{
@@ -1136,7 +1354,10 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 				wheel.transform.rotation.z,
 				wheel.transform.rotation.w);
 			const XMMATRIX wheelWorld =
-				XMMatrixScaling(0.6f, m_trackedVehicleSettings.trackWidthM, 0.6f) *
+				XMMatrixScaling(
+					2.0f * m_trackedVehicleSettings.wheelRadiusM,
+					m_trackedVehicleSettings.trackWidthM,
+					2.0f * m_trackedVehicleSettings.wheelRadiusM) *
 				XMMatrixRotationQuaternion(wheelRotation) *
 				XMMatrixTranslation(
 					wheel.transform.position.x,
@@ -1165,6 +1386,25 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		state.bodyPosition.y + 0.5f,
 		state.bodyPosition.z });
 	m_sceneRenderer.SetScene(scene);
+}
+
+void TankSandboxApp::ApplyTrackedVehicleCameraPreset(const XMFLOAT3& offset)
+{
+	const Tank::Physics::TrackedVehicleTestState& state = m_trackedVehicleTest.State();
+	const XMFLOAT3 pivot = {
+		state.bodyPosition.x,
+		state.bodyPosition.y + 0.5f,
+		state.bodyPosition.z
+	};
+	Engine::Scene& scene = m_trackedVehicleSceneBuilder.GetScene();
+	scene.camera.pos = {
+		pivot.x + offset.x,
+		pivot.y + offset.y,
+		pivot.z + offset.z
+	};
+	scene.camera.gazePoint = pivot;
+	ActivateOrbitCamera(scene, pivot);
+	m_sceneRenderer.SetCamera(scene.camera);
 }
 
 void TankSandboxApp::ActivateOrbitCamera(Engine::Scene& scene, const XMFLOAT3& pivot)

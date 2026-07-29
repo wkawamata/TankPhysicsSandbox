@@ -24,6 +24,7 @@ int main()
 {
     Tank::Physics::TankSettings source;
     source.chassisMassKg = 5200.0f;
+    source.rollingInputEnabled = false;
     source.rollTorqueNm = 175000.0f;
     source.rollDistanceM = 3.0f;
     source.rollTorqueCutoffDegrees = 80.0f;
@@ -31,6 +32,10 @@ int main()
     source.rollStabilizationDampingNms = 14000.0f;
     source.trackWidthM = 0.42f;
     source.trackSpacingM = 2.75f;
+    source.chassisWidthM = 2.65f;
+    source.chassisLengthM = 4.75f;
+    source.wheelRadiusM = 0.38f;
+    source.roadWheelCount = 4;
     source.rideHeightScale = 0.75f;
     source.startUpsideDown = true;
 
@@ -45,6 +50,8 @@ int main()
         "serialized settings must deserialize");
     passed &= Check(NearlyEqual(loaded.chassisMassKg, source.chassisMassKg),
         "chassis mass must round trip");
+    passed &= Check(loaded.rollingInputEnabled == source.rollingInputEnabled,
+        "rolling input enabled must round trip");
     passed &= Check(NearlyEqual(loaded.rollTorqueNm, source.rollTorqueNm),
         "roll torque must round trip");
     passed &= Check(NearlyEqual(loaded.rollDistanceM, source.rollDistanceM),
@@ -62,6 +69,14 @@ int main()
         "track width must round trip");
     passed &= Check(NearlyEqual(loaded.trackSpacingM, source.trackSpacingM),
         "track spacing must round trip");
+    passed &= Check(NearlyEqual(loaded.chassisWidthM, source.chassisWidthM),
+        "chassis width must round trip");
+    passed &= Check(NearlyEqual(loaded.chassisLengthM, source.chassisLengthM),
+        "chassis length must round trip");
+    passed &= Check(NearlyEqual(loaded.wheelRadiusM, source.wheelRadiusM),
+        "wheel radius must round trip");
+    passed &= Check(loaded.roadWheelCount == source.roadWheelCount,
+        "road wheel count must round trip");
     passed &= Check(NearlyEqual(loaded.rideHeightScale, source.rideHeightScale),
         "ride height must round trip");
     passed &= Check(loaded.startUpsideDown == source.startUpsideDown,

@@ -15,6 +15,7 @@
 #include "Runtime/SceneRendererSettings.h"
 #include "Ui/ImGuiSystem.h"
 #include "Physics/BoxDropTest.h"
+#include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
@@ -71,8 +72,11 @@ private:
     void ResetTrackedVehicle();
     bool SaveTankSettings();
     bool LoadTankSettings();
+    bool SaveEnvironmentSettings();
+    bool LoadEnvironmentSettings();
     void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
     void UpdateTrackedVehicleInput();
+    void ApplyTrackedVehicleCameraPreset(const DirectX::XMFLOAT3& offset);
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
     void ApplyActiveCameraScene();
     Engine::CameraState* ActiveCamera();
@@ -113,6 +117,7 @@ private:
     };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Tank::Physics::TankSettings m_trackedVehicleSettings;
+    Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
     Tank::Platform::Windows::WindowsGamepad m_gamepad;
     Engine::SceneBuilder m_trackedVehicleSceneBuilder;
     TrackedVehicleModel m_trackedVehicleModel;
@@ -124,12 +129,17 @@ private:
     bool m_rollLeft = false;
     bool m_rollRight = false;
     bool m_brake = false;
+    bool m_analogTracksConnected = false;
+    float m_analogLeftTrack = 0.0f;
+    float m_analogRightTrack = 0.0f;
+    float m_analogRoll = 0.0f;
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     std::string m_rendererSettingsStatus;
     std::string m_tankSettingsStatus;
+    std::string m_environmentSettingsStatus;
     std::string m_screenshotStatus;
 
     // Auto scene entry and screenshot for CLI.

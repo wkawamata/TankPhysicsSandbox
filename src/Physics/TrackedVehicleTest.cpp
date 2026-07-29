@@ -8,6 +8,8 @@
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
+#include <algorithm>
+
 JPH_SUPPRESS_WARNINGS
 
 namespace Tank::Physics
@@ -46,6 +48,13 @@ namespace Tank::Physics
 
     void TrackedVehicleTest::Initialize(const TankSettings& settings)
     {
+        Initialize(settings, {});
+    }
+
+    void TrackedVehicleTest::Initialize(
+        const TankSettings& settings,
+        const PhysicsEnvironmentSettings& environmentSettings)
+    {
         m_state = {};
 
         m_impl = std::make_unique<Impl>();
@@ -53,13 +62,18 @@ namespace Tank::Physics
 
         JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
 
+        const float floorSizeM =
+            std::clamp(environmentSettings.floorSizeM, 20.0f, 1000.0f);
+        const float floorFriction =
+            std::clamp(environmentSettings.floorFriction, 0.0f, 2.0f);
+        const float floorHalfExtent = 0.5f * floorSizeM;
         JPH::BodyCreationSettings floorSettings(
-            new JPH::BoxShape(JPH::Vec3(100.0f, 1.0f, 100.0f)),
+            new JPH::BoxShape(JPH::Vec3(floorHalfExtent, 1.0f, floorHalfExtent)),
             JPH::RVec3(0.0, -1.0, 0.0),
             JPH::Quat::sIdentity(),
             JPH::EMotionType::Static,
             Layers::NonMoving);
-        floorSettings.mFriction = 0.8f;
+        floorSettings.mFriction = floorFriction;
 
         JPH::Body* floorBody = bodyInterface.CreateBody(floorSettings);
         m_impl->floorBodyId = floorBody->GetID();
@@ -73,6 +87,12 @@ namespace Tank::Physics
     {
         static const TankSettings defaultSettings;
         return m_impl != nullptr ? m_impl->controller.Settings() : defaultSettings;
+    }
+
+    const TrackedDriverInput& TrackedVehicleTest::DriverInput() const
+    {
+        static const TrackedDriverInput defaultInput;
+        return m_impl != nullptr ? m_impl->controller.DriverInput() : defaultInput;
     }
 
     void TrackedVehicleTest::SetInput(const TankInput& input)

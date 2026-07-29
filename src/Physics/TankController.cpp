@@ -112,15 +112,19 @@ namespace Tank::Physics
             (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
         m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 0.6f);
         m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 3.2f);
+        m_settings.chassisWidthM = std::clamp(m_settings.chassisWidthM, 1.6f, 3.2f);
+        m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
+        m_settings.wheelRadiusM = std::clamp(m_settings.wheelRadiusM, 0.2f, 0.5f);
+        m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
         m_settings.rideHeightScale =
-            std::clamp(m_settings.rideHeightScale, 0.7f, 0.9f);
+            std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
         m_impl = std::make_unique<Impl>(world);
 
-        const float wheelRadius = 0.3f;
+        const float wheelRadius = m_settings.wheelRadiusM;
         const float wheelWidth = m_settings.trackWidthM;
-        const float halfVehicleWidth = 1.2f;
+        const float halfVehicleWidth = 0.5f * m_settings.chassisWidthM;
         const float halfTrackSpacing = 0.5f * m_settings.trackSpacingM;
-        const float halfVehicleLength = 2.0f;
+        const float halfVehicleLength = 0.5f * m_settings.chassisLengthM;
         const float halfVehicleHeight = 0.5f;
         const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
         const float suspensionMaxLength = 0.5f * m_settings.rideHeightScale;
@@ -159,16 +163,7 @@ namespace Tank::Physics
         {
             JPH::VehicleTrackSettings& track = controllerSettings->mTracks[t];
 
-            static const JPH::Vec3 lowerWheelPos[] = {
-                JPH::Vec3(0.0f, 0.0f, 2.0f),
-                JPH::Vec3(0.0f, -0.3f, 1.0f),
-                JPH::Vec3(0.0f, -0.3f, 0.0f),
-                JPH::Vec3(0.0f, -0.3f, -1.0f),
-                JPH::Vec3(0.0f, 0.0f, -2.0f),
-            };
-
-            constexpr int numWheelsPerSurface =
-                static_cast<int>(sizeof(lowerWheelPos) / sizeof(lowerWheelPos[0]));
+            const int numWheelsPerSurface = m_settings.roadWheelCount + 2;
             track.mDrivenWheel =
                 static_cast<JPH::uint>(vehicle.mWheels.size() + numWheelsPerSurface - 1);
 
@@ -178,7 +173,13 @@ namespace Tank::Physics
                 for (int w = 0; w < numWheelsPerSurface; ++w)
                 {
                     JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
-                    wheel->mPosition = lowerWheelPos[w];
+                    const float wheelFraction =
+                        static_cast<float>(w) / static_cast<float>(numWheelsPerSurface - 1);
+                    const float wheelZ =
+                        halfVehicleLength - wheelFraction * m_settings.chassisLengthM;
+                    const bool endWheel = w == 0 || w == numWheelsPerSurface - 1;
+                    wheel->mPosition =
+                        JPH::Vec3(0.0f, endWheel ? 0.0f : -wheelRadius, wheelZ);
                     wheel->mPosition.SetX(t == 0 ? halfTrackSpacing : -halfTrackSpacing);
                     if (upperSurface)
                     {
@@ -191,7 +192,7 @@ namespace Tank::Physics
                     wheel->mWidth = wheelWidth;
                     wheel->mSuspensionMinLength = suspensionMinLength;
                     wheel->mSuspensionMaxLength =
-                        (w == 0 || w == numWheelsPerSurface - 1)
+                        endWheel
                         ? suspensionMinLength
                         : suspensionMaxLength;
                     wheel->mSuspensionSpring.mFrequency = suspensionFrequency;
@@ -217,7 +218,9 @@ namespace Tank::Physics
         m_input.steering = ClampNormalized(input.steering);
         m_input.leftTrack = ClampNormalized(input.leftTrack);
         m_input.rightTrack = ClampNormalized(input.rightTrack);
-        m_input.roll = ClampNormalized(input.roll);
+        m_input.roll =
+            m_settings.rollingInputEnabled ? ClampNormalized(input.roll) : 0.0f;
+        m_input.brakeAmount = std::clamp(input.brakeAmount, 0.0f, 1.0f);
         m_input.brake = input.brake;
     }
 
@@ -334,7 +337,8 @@ namespace Tank::Physics
         float forward = m_input.throttle;
         float leftRatio = ToJoltTrackRatio(m_input.leftTrack);
         float rightRatio = ToJoltTrackRatio(m_input.rightTrack);
-        float brake = m_input.brake ? 1.0f : 0.0f;
+        float brake = m_input.brake ? 1.0f : m_input.brakeAmount;
+        m_driverInput = {forward, leftRatio, rightRatio, brake};
 
         JPH::TrackedVehicleController* controller =
             static_cast<JPH::TrackedVehicleController*>(
@@ -382,6 +386,8 @@ namespace Tank::Physics
             static_cast<float>(angularVelocity.GetZ())};
 
         const auto& wheels = m_impl->vehicleConstraint->GetWheels();
+        const int wheelsPerSurface = m_settings.roadWheelCount + 2;
+        const int wheelsPerTrack = wheelsPerSurface * kTankSurfacesPerTrack;
         m_state.wheelCount = (std::min)(static_cast<int>(wheels.size()), kTankWheelCount);
         for (int i = 0; i < m_state.wheelCount; ++i)
         {
@@ -394,9 +400,9 @@ namespace Tank::Physics
             const JPH::Quat wheelRotation = wheelTransform.GetQuaternion();
 
             TrackedWheelState& wheelState = m_state.wheels[static_cast<size_t>(i)];
-            wheelState.trackIndex = i / kTankWheelsPerTrack;
-            wheelState.wheelIndex = i % kTankWheelsPerTrack;
-            wheelState.upperSurface = wheelState.wheelIndex >= kTankWheelsPerSurface;
+            wheelState.trackIndex = i / wheelsPerTrack;
+            wheelState.wheelIndex = i % wheelsPerTrack;
+            wheelState.upperSurface = wheelState.wheelIndex >= wheelsPerSurface;
             wheelState.transform.position = {
                 static_cast<float>(wheelPosition.GetX()),
                 static_cast<float>(wheelPosition.GetY()),

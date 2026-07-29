@@ -81,20 +81,23 @@ int main()
     passed &= Check(angularSpeedSquared < 0.04f,
         "neutral body angular speed must settle below 0.2 rad/s");
 
-    passed &= Check(state.wheelCount == Tank::Physics::kTankWheelCount,
+    const int wheelsPerSurface = settings.roadWheelCount + 2;
+    const int wheelsPerTrack = wheelsPerSurface * Tank::Physics::kTankSurfacesPerTrack;
+    const int expectedWheelCount = wheelsPerTrack * Tank::Physics::kTankTrackCount;
+    passed &= Check(state.wheelCount == expectedWheelCount,
         "tracked vehicle must expose all ten wheel snapshots");
 
     int contactCount = 0;
     for (int i = 0; i < state.wheelCount; ++i)
     {
         const Tank::Physics::TrackedWheelState& wheel = state.wheels[static_cast<size_t>(i)];
-        passed &= Check(wheel.trackIndex == i / Tank::Physics::kTankWheelsPerTrack,
+        passed &= Check(wheel.trackIndex == i / wheelsPerTrack,
             "wheel track index must match snapshot order");
-        passed &= Check(wheel.wheelIndex == i % Tank::Physics::kTankWheelsPerTrack,
+        passed &= Check(wheel.wheelIndex == i % wheelsPerTrack,
             "wheel index must match snapshot order");
         passed &= Check(
             wheel.upperSurface ==
-                (wheel.wheelIndex >= Tank::Physics::kTankWheelsPerSurface),
+                (wheel.wheelIndex >= wheelsPerSurface),
             "wheel surface flag must match snapshot order");
         passed &= Check(IsFinite(wheel.transform.position.x), "wheel position X must be finite");
         passed &= Check(IsFinite(wheel.transform.position.y), "wheel position Y must be finite");
@@ -109,6 +112,22 @@ int main()
         contactCount += wheel.hasContact ? 1 : 0;
     }
     passed &= Check(contactCount > 0, "at least one wheel must contact the floor");
+
+    for (int roadWheelCount = 2; roadWheelCount <= 4; ++roadWheelCount)
+    {
+        Tank::Physics::TankSettings layoutSettings;
+        layoutSettings.roadWheelCount = roadWheelCount;
+        Tank::Physics::TrackedVehicleTest layoutTest;
+        layoutTest.Initialize(layoutSettings);
+        layoutTest.Step(dt);
+        const int expectedLayoutWheelCount =
+            Tank::Physics::kTankTrackCount *
+            Tank::Physics::kTankSurfacesPerTrack *
+            (roadWheelCount + 2);
+        passed &= Check(
+            layoutTest.State().wheelCount == expectedLayoutWheelCount,
+            "selected road wheel layout must set the physics wheel count");
+    }
 
     if (!passed)
     {

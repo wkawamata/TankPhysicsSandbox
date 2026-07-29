@@ -25,6 +25,7 @@ namespace Tank::Physics
         void PostStep(float deltaTimeSeconds);
 
         const TankInput& Input() const { return m_input; }
+        const TrackedDriverInput& DriverInput() const { return m_driverInput; }
         const TankState& State() const { return m_state; }
         const TankSettings& Settings() const { return m_settings; }
 
@@ -32,6 +33,7 @@ namespace Tank::Physics
         struct Impl;
 
         TankInput m_input = {};
+        TrackedDriverInput m_driverInput = {};
         TankState m_state = {};
         TankSettings m_settings = {};
         std::unique_ptr<Impl> m_impl;
