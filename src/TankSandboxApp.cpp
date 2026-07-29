@@ -181,7 +181,7 @@ void TankSandboxApp::OnInit()
 	camera.pos = { 0.0f, 0.0f, -3.0f };
 	camera.gazePoint = { 0.0f, 0.0f, 0.0f };
 	camera.fov = 60.0f;
-	camera.nearZ = 0.001f;
+	camera.nearZ = 0.1f;
 	camera.farZ = 10000.0f;
 	builder.SetCamera(camera);
 
@@ -738,7 +738,7 @@ void TankSandboxApp::EnterBoxDropMode()
 	camera.pos = { 0.0f, 4.0f, -12.0f };
 	camera.gazePoint = { 0.0f, 1.0f, 0.0f };
 	camera.fov = 60.0f;
-	camera.nearZ = 0.001f;
+	camera.nearZ = 0.1f;
 	camera.farZ = 10000.0f;
 	m_boxDropSceneBuilder.SetCamera(camera);
 	ActivateOrbitCamera(m_boxDropSceneBuilder.GetScene(), { 0.0f, 1.0f, 0.0f });
@@ -1284,7 +1284,7 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	camera.pos = { 0.0f, 10.0f, -16.0f };
 	camera.gazePoint = { 0.0f, 0.8f, 0.0f };
 	camera.fov = 35.0f;
-	camera.nearZ = 0.001f;
+	camera.nearZ = 0.1f;
 	camera.farZ = 10000.0f;
 	m_trackedVehicleSceneBuilder.SetCamera(camera);
 	ActivateOrbitCamera(m_trackedVehicleSceneBuilder.GetScene(), { 0.0f, 0.8f, 0.0f });
