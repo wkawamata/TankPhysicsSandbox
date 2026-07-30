@@ -19,6 +19,9 @@
 #include "Runtime/SceneRendererSettings.h"
 #include "Rendering/CameraSettings.h"
 #include "Ui/ImGuiSystem.h"
+#include "Ui/CameraPanel.h"
+#include "Ui/RendererSettingsPanel.h"
+#include "Ui/TrackedVehiclePanel.h"
 #include "Physics/BoxDropTest.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TrackedVehicleTest.h"
@@ -66,8 +69,6 @@ private:
     void InitializeImGui();
     void UpdateUiFrame();
     void DrawToolUi();
-    void DrawCameraUi();
-    void DrawRendererSettingsUi();
     void RequestScreenshot();
     void UpdateScreenshotResult();
     bool SaveRendererSettings();
@@ -77,7 +78,6 @@ private:
     bool LoadCameraSettings();
     void DrawTopMenuUi();
     void DrawPhysicsBoxDropUi();
-    void DrawPhysicsTrackedVehicleUi();
     void EnterTrackedVehicleMode();
     void ResetTrackedVehicle();
     void ApplyTrackedVehicleMaterials();
@@ -152,6 +152,11 @@ private:
     bool m_tankVisualSettingsAutoLoad = true;
     std::string m_environmentSettingsStatus;
     std::string m_screenshotStatus;
+
+    // UI panel contexts
+    Ui::CameraPanelContext m_cameraPanelCtx;
+    Ui::RendererSettingsPanelContext m_rendererPanelCtx;
+    Ui::TrackedVehiclePanelContext m_trackedVehiclePanelCtx;
 
     // Auto scene entry and screenshot for CLI.
     std::optional<AppMode> m_autoSceneMode;

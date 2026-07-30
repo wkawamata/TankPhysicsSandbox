@@ -83,58 +83,6 @@ namespace
 {
 	constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
 	constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
-
-	bool IsPending(float value, float appliedValue)
-	{
-		return std::abs(value - appliedValue) > 0.0001f;
-	}
-
-	bool SliderFloatWithPendingColor(
-		const char* label,
-		float* value,
-		float min,
-		float max,
-		float delta,
-		float defaultValue,
-		const char* format,
-		bool pending)
-	{
-		if (pending)
-		{
-			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
-		}
-		const bool changed = ImGuiWidgets::SliderFloatWithControls(
-			label, value, min, max, delta, defaultValue, format);
-		if (pending)
-		{
-			ImGui::PopStyleColor();
-		}
-		return changed;
-	}
-
-	bool SliderIntWithPendingColor(
-		const char* label,
-		int* value,
-		int min,
-		int max,
-		int delta,
-		int defaultValue,
-		const char* format,
-		bool pending)
-	{
-		if (pending)
-		{
-			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
-		}
-		const bool changed = ImGuiWidgets::SliderIntWithControls(
-			label, value, min, max, delta, defaultValue, format);
-		if (pending)
-		{
-			ImGui::PopStyleColor();
-		}
-		return changed;
-	}
-
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -278,6 +226,60 @@ void TankSandboxApp::OnInit()
 		LoadTankVisualSettings(false);
 	}
 	m_gamepad.Initialize();
+
+	m_cameraPanelCtx.cameraController = &m_cameraController;
+	m_cameraPanelCtx.setCamera = [this](const Engine::CameraState& c) { m_sceneRenderer.SetCamera(c); };
+	m_cameraPanelCtx.activateOrbitCamera = [this](Engine::Scene& scene, const DirectX::XMFLOAT3& pivot)
+		{ ActivateOrbitCamera(scene, pivot); };
+	m_cameraPanelCtx.saveCamera = [this]() { SaveCameraSettings(); };
+	m_cameraPanelCtx.loadCamera = [this]() { LoadCameraSettings(); };
+
+	m_rendererPanelCtx.settingsStatus = &m_rendererSettingsStatus;
+	m_rendererPanelCtx.screenshotStatus = &m_screenshotStatus;
+	m_rendererPanelCtx.saveSettings = [this]() { SaveRendererSettings(); };
+	m_rendererPanelCtx.loadSettings = [this]() { LoadRendererSettings(); };
+	m_rendererPanelCtx.resetSettings = [this]() { ResetRendererSettings(); };
+	m_rendererPanelCtx.requestScreenshot = [this]() { RequestScreenshot(); };
+
+	m_trackedVehiclePanelCtx.state = &m_trackedVehicleTest.State();
+	m_trackedVehiclePanelCtx.driverInput = &m_trackedVehicleTest.DriverInput();
+	m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_physicsDebugOverlay;
+	m_trackedVehiclePanelCtx.trackShoeDisplay = &m_trackShoeDisplay;
+	m_trackedVehiclePanelCtx.showTrackProxies = &m_showTrackProxies;
+	m_trackedVehiclePanelCtx.trackedVehiclePaused = &m_trackedVehiclePaused;
+	m_trackedVehiclePanelCtx.trackedVehicleSingleStep = &m_trackedVehicleSingleStep;
+	m_trackedVehiclePanelCtx.tankSettingsSlot = &m_tankSettingsSlot;
+	m_trackedVehiclePanelCtx.tankSettingsAutoLoad = &m_tankSettingsAutoLoad;
+	m_trackedVehiclePanelCtx.tankVisualSettingsAutoLoad = &m_tankVisualSettingsAutoLoad;
+	m_trackedVehiclePanelCtx.tankVisualMaterialApplyPending = &m_tankVisualMaterialApplyPending;
+	m_trackedVehiclePanelCtx.tankSettingsStatus = &m_tankSettingsStatus;
+	m_trackedVehiclePanelCtx.tankVisualSettingsStatus = &m_tankVisualSettingsStatus;
+	m_trackedVehiclePanelCtx.envSettingsStatus = &m_environmentSettingsStatus;
+	m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleSettings;
+	m_trackedVehiclePanelCtx.appliedTankSettings = &m_appliedTrackedVehicleSettings;
+	m_trackedVehiclePanelCtx.envSettings = &m_environmentSettings;
+	m_trackedVehiclePanelCtx.appliedEnvSettings = &m_appliedEnvironmentSettings;
+	m_trackedVehiclePanelCtx.visualSettings = &m_tankVisualSettings;
+	m_trackedVehiclePanelCtx.updateScene = [this]()
+	{
+		m_trackedVehiclePresenter.UpdateScene(
+			m_trackedVehicleTest.State(),
+			m_trackedVehicleSettings,
+			m_tankVisualSettings,
+			m_trackShoeDisplay,
+			m_showTrackProxies,
+			m_physicsDebugOverlay);
+		m_sceneRenderer.SetScene(m_trackedVehiclePresenter.GetScene());
+	};
+	m_trackedVehiclePanelCtx.enterTrackedVehicleMode = [this]() { EnterTrackedVehicleMode(); };
+	m_trackedVehiclePanelCtx.resetTrackedVehicle = [this]() { ResetTrackedVehicle(); };
+	m_trackedVehiclePanelCtx.applyMaterials = [this]() { ApplyTrackedVehicleMaterials(); };
+	m_trackedVehiclePanelCtx.saveTankSettings = [this]() { SaveTankSettings(); };
+	m_trackedVehiclePanelCtx.loadTankSettings = [this]() { LoadTankSettings(); };
+	m_trackedVehiclePanelCtx.saveTankVisualSettings = [this]() { SaveTankVisualSettings(); };
+	m_trackedVehiclePanelCtx.loadTankVisualSettings = [this]() { LoadTankVisualSettings(); };
+	m_trackedVehiclePanelCtx.saveEnvSettings = [this]() { SaveEnvironmentSettings(); };
+	m_trackedVehiclePanelCtx.loadEnvSettings = [this]() { LoadEnvironmentSettings(); };
 
 	if (m_autoSceneMode.has_value())
 	{
@@ -572,8 +574,13 @@ void TankSandboxApp::UpdateUiFrame()
 
 	const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
+	m_cameraPanelCtx.camera = ActiveCamera();
+	m_cameraPanelCtx.trackedVehicleActive = (m_appMode == AppMode::PhysicsTrackedVehicle);
+	m_cameraPanelCtx.vehicleState = &m_trackedVehicleTest.State();
+	m_cameraPanelCtx.vehicleScene = &m_trackedVehiclePresenter.GetScene();
+
 	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 950, 10), ImGuiCond_FirstUseEver);
-	DrawCameraUi();
+	Ui::DrawCameraPanel(m_cameraPanelCtx);
 
 	// RtPbrSurvey Debug at top-right of viewport
 	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 430, 10), ImGuiCond_FirstUseEver);
@@ -592,259 +599,14 @@ void TankSandboxApp::UpdateUiFrame()
 
 	// Renderer Settings to the left of RtPbrSurvey Debug
 	ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 740, 10), ImGuiCond_FirstUseEver);
-	DrawRendererSettingsUi();
+	Ui::DrawRendererSettingsPanel(m_rendererPanelCtx);
 
 	m_imguiSystem.EndFrame();
 }
 
-void TankSandboxApp::DrawCameraUi()
-{
-	Engine::CameraState* camera = ActiveCamera();
-	if (camera == nullptr)
-	{
-		return;
-	}
 
-	ImGui::SetNextWindowSizeConstraints(ImVec2(260.0f, 190.0f), ImVec2(1000.0f, 1000.0f));
-	ImGui::Begin("Camera");
-	ImGui::SeparatorText("Save Slot");
-	for (int slot = 0; slot < 3; ++slot)
-	{
-		if (slot > 0)
-		{
-			ImGui::SameLine();
-		}
-		const std::string label = std::to_string(slot + 1);
-		if (ImGui::RadioButton(
-			label.c_str(),
-			m_cameraController.SelectedSlot() == slot))
-		{
-			Tank::App::CameraSettingsStore store(m_cameraController.SelectedSlot());
-			m_cameraController.SelectSlot(slot, m_cameraController.AutoLoad(), store);
-		}
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("Debug", m_cameraController.SelectedSlot() == 3))
-	{
-		Tank::App::CameraSettingsStore store(m_cameraController.SelectedSlot());
-		m_cameraController.SelectSlot(3, m_cameraController.AutoLoad(), store);
-	}
-	ImGui::SameLine();
-	{
-		bool autoLoad = m_cameraController.AutoLoad();
-		if (ImGui::Checkbox("AutoLoad", &autoLoad))
-		{
-			m_cameraController.SetAutoLoad(autoLoad);
-		}
-	}
-	if (ImGui::Button("Save Camera"))
-	{
-		SaveCameraSettings();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Load Camera"))
-	{
-		LoadCameraSettings();
-	}
-	if (!m_cameraController.Status().empty())
-	{
-		ImGui::TextWrapped("%s", m_cameraController.Status().c_str());
-	}
-	if (m_appMode == AppMode::PhysicsTrackedVehicle)
-	{
-		bool follow = m_cameraController.FollowEnabled();
-		if (ImGui::Checkbox("Follow Tank", &follow))
-		{
-			m_cameraController.SetFollowEnabled(follow);
-			m_cameraController.ResetFollowState();
-			if (!follow)
-			{
-				const Tank::Physics::TrackedVehicleTestState& state =
-					m_trackedVehicleTest.State();
-			ActivateOrbitCamera(
-				m_trackedVehiclePresenter.GetScene(),
-				{
-					state.bodyPosition.x,
-					state.bodyPosition.y + 0.5f,
-					state.bodyPosition.z });
-			}
-		}
-		ImGui::BeginDisabled(!m_cameraController.FollowEnabled());
-		{
-			float dist = m_cameraController.FollowDistance();
-			if (ImGuiWidgets::SliderFloatWithControls(
-				"Follow Distance", &dist, 4.0f, 250.0f, 0.5f, 16.0f))
-			{
-				m_cameraController.SetFollowDistance(dist);
-			}
-		}
-		{
-			float val = m_cameraController.LookDownDegrees();
-			if (ImGuiWidgets::SliderFloatWithControls(
-				"Look Down Angle", &val, 0.0f, 89.0f, 1.0f, 25.0f, "%.1f deg"))
-			{
-				m_cameraController.SetLookDownDegrees(val);
-			}
-		}
-		{
-			float val = m_cameraController.PositionSpeed();
-			if (ImGuiWidgets::SliderFloatWithControls(
-				"Position Speed", &val, 0.5f, 20.0f, 0.5f, 5.0f))
-			{
-				m_cameraController.SetPositionSpeed(val);
-			}
-		}
-		{
-			float val = m_cameraController.RotationSpeed();
-			if (ImGuiWidgets::SliderFloatWithControls(
-				"Rotation Speed", &val, 0.5f, 20.0f, 0.5f, 8.0f))
-			{
-				m_cameraController.SetRotationSpeed(val);
-			}
-		}
-		{
-			float val = m_cameraController.YawSpeedLimitDegrees();
-			if (ImGuiWidgets::SliderFloatWithControls(
-				"Yaw Speed Limit", &val, 15.0f, 720.0f, 15.0f, 180.0f, "%.0f deg/s"))
-			{
-				m_cameraController.SetYawSpeedLimitDegrees(val);
-			}
-		}
-		{
-			float val = m_cameraController.YawDamping();
-			if (ImGuiWidgets::SliderFloatWithControls(
-				"Yaw Damping", &val, 0.5f, 30.0f, 0.5f, 8.0f))
-			{
-				m_cameraController.SetYawDamping(val);
-			}
-		}
-		{
-			float val = m_cameraController.Damping();
-			if (ImGuiWidgets::SliderFloatWithControls(
-				"Damping", &val, 0.1f, 2.0f, 0.05f, 1.0f))
-			{
-				m_cameraController.SetDamping(val);
-			}
-		}
-		ImGui::EndDisabled();
-		ImGui::BeginDisabled(m_cameraController.FollowEnabled());
-		ImGui::SeparatorText("Angle");
-		if (ImGui::Button("Rear High"))
-		{
-			const Tank::Physics::TrackedVehicleTestState& state =
-				m_trackedVehicleTest.State();
-			m_cameraController.ApplyCameraPreset(
-				{ 0.0f, 9.2f, -16.0f }, state,
-				m_trackedVehiclePresenter.GetScene().camera);
-			ActivateOrbitCamera(
-				m_trackedVehiclePresenter.GetScene(),
-				{ state.bodyPosition.x, state.bodyPosition.y + 0.5f, state.bodyPosition.z });
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Rear Quarter"))
-		{
-			const Tank::Physics::TrackedVehicleTestState& state =
-				m_trackedVehicleTest.State();
-			m_cameraController.ApplyCameraPreset(
-				{ 10.0f, 7.0f, -14.0f }, state,
-				m_trackedVehiclePresenter.GetScene().camera);
-			ActivateOrbitCamera(
-				m_trackedVehiclePresenter.GetScene(),
-				{ state.bodyPosition.x, state.bodyPosition.y + 0.5f, state.bodyPosition.z });
-		}
-		if (ImGui::Button("Side High"))
-		{
-			const Tank::Physics::TrackedVehicleTestState& state =
-				m_trackedVehicleTest.State();
-			m_cameraController.ApplyCameraPreset(
-				{ 16.0f, 6.0f, 0.0f }, state,
-				m_trackedVehiclePresenter.GetScene().camera);
-			ActivateOrbitCamera(
-				m_trackedVehiclePresenter.GetScene(),
-				{ state.bodyPosition.x, state.bodyPosition.y + 0.5f, state.bodyPosition.z });
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Top Rear"))
-		{
-			const Tank::Physics::TrackedVehicleTestState& state =
-				m_trackedVehicleTest.State();
-			m_cameraController.ApplyCameraPreset(
-				{ 0.0f, 18.0f, -4.0f }, state,
-				m_trackedVehiclePresenter.GetScene().camera);
-			ActivateOrbitCamera(
-				m_trackedVehiclePresenter.GetScene(),
-				{ state.bodyPosition.x, state.bodyPosition.y + 0.5f, state.bodyPosition.z });
-		}
-		ImGui::EndDisabled();
-		ImGui::SeparatorText("Projection");
-	}
-	int projection = static_cast<int>(camera->projection);
-	bool changed = false;
-	changed |= ImGui::RadioButton(
-		"Perspective", &projection, static_cast<int>(Engine::CameraProjection::Perspective));
-	ImGui::SameLine();
-	changed |= ImGui::RadioButton(
-		"Orthographic", &projection, static_cast<int>(Engine::CameraProjection::Orthographic));
-	camera->projection = static_cast<Engine::CameraProjection>(projection);
 
-	if (camera->projection == Engine::CameraProjection::Perspective)
-	{
-		const bool fovChanged =
-			ImGui::SliderFloat("FOV Y", &camera->fov, 20.0f, 120.0f, "%.1f deg");
-		changed |= fovChanged;
-		if (fovChanged)
-		{
-			m_cameraController.ResetFollowState();
-		}
-	}
-	else
-	{
-		changed |= ImGui::SliderFloat(
-			"Ortho Height", &camera->orthographicHeight, 1.0f, 50.0f, "%.1f");
-	}
 
-	if (changed)
-	{
-		m_sceneRenderer.SetCamera(*camera);
-	}
-	ImGui::End();
-}
-
-void TankSandboxApp::DrawRendererSettingsUi()
-{
-	ImGui::Begin("Renderer Settings");
-	ImGui::TextUnformatted(kRendererSettingsPath);
-	if (ImGui::Button("Save"))
-	{
-		SaveRendererSettings();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Load"))
-	{
-		LoadRendererSettings();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Reset"))
-	{
-		ResetRendererSettings();
-	}
-	if (!m_rendererSettingsStatus.empty())
-	{
-		ImGui::TextWrapped("%s", m_rendererSettingsStatus.c_str());
-	}
-	ImGui::Separator();
-	if (ImGui::Button("Capture"))
-	{
-		RequestScreenshot();
-	}
-	ImGui::SameLine();
-	ImGui::TextUnformatted("F12");
-	if (!m_screenshotStatus.empty())
-	{
-		ImGui::TextWrapped("%s", m_screenshotStatus.c_str());
-	}
-	ImGui::End();
-}
 
 void TankSandboxApp::RequestScreenshot()
 {
@@ -1015,7 +777,17 @@ void TankSandboxApp::DrawToolUi()
 		DrawPhysicsBoxDropUi();
 		break;
 	case AppMode::PhysicsTrackedVehicle:
-		DrawPhysicsTrackedVehicleUi();
+		{
+			const Tank::Input::GamepadState& gp = m_gamepad.State();
+			m_trackedVehiclePanelCtx.gamepadState = gp;
+			m_trackedVehiclePanelCtx.gamepadAvailable = m_gamepad.IsAvailable();
+			m_trackedVehiclePanelCtx.cpuFrameTimeMs = m_sceneRenderer.CpuFrameTimeMs();
+			m_trackedVehiclePanelCtx.analogLeftTrack = m_analogLeftTrack;
+			m_trackedVehiclePanelCtx.analogRightTrack = m_analogRightTrack;
+			m_trackedVehiclePanelCtx.analogRoll = m_analogRoll;
+			m_trackedVehiclePanelCtx.analogTracksConnected = m_analogTracksConnected;
+			Ui::DrawTrackedVehiclePanel(m_trackedVehiclePanelCtx);
+		}
 		break;
 	}
 }
@@ -1072,600 +844,7 @@ void TankSandboxApp::DrawPhysicsBoxDropUi()
 	ImGui::End();
 }
 
-void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
-{
-	const Tank::Physics::TrackedVehicleTestState& state = m_trackedVehicleTest.State();
-	ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
-	ImGui::Begin("Tracked Vehicle");
-	ImGui::Text("Step: %d", state.stepIndex);
-	ImGui::Text("Time: %.2f s", state.timeSeconds);
-	ImGui::Text("Position: %.2f, %.2f, %.2f",
-		state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
-	int wheelContactCount = 0;
-	for (int i = 0; i < state.wheelCount; ++i)
-	{
-		wheelContactCount += state.wheels[static_cast<size_t>(i)].hasContact ? 1 : 0;
-	}
-	ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
-	ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
-	if (ImGui::Checkbox("Physics Debug Overlay", &m_physicsDebugOverlay))
-	{
-		m_trackedVehiclePresenter.UpdateScene(
-			state,
-			m_trackedVehicleSettings,
-			m_tankVisualSettings,
-			m_trackShoeDisplay,
-			m_showTrackProxies,
-			m_physicsDebugOverlay);
-		m_sceneRenderer.SetScene(m_trackedVehiclePresenter.GetScene());
-	}
-	if (m_physicsDebugOverlay)
-	{
-		ImGui::TextUnformatted("Cyan: suspension  Green/Orange: contact  Yellow: normal");
-	}
-	ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
-	ImGui::Text("Q/E roll, Space brake");
-	const Tank::Input::GamepadState& gamepadState = m_gamepad.State();
-	if (ImGui::CollapsingHeader("Gamepad"))
-	{
-		if (!m_gamepad.IsAvailable())
-		{
-			ImGui::TextUnformatted("Gamepad: GameInput unavailable");
-		}
-		else if (!gamepadState.connected)
-		{
-			ImGui::TextUnformatted("Gamepad: Not connected");
-		}
-		else
-		{
-			ImGui::TextUnformatted("Gamepad: Connected");
-			ImGui::Text("Device: %s",
-				gamepadState.deviceName.empty()
-				? "Controller (name unavailable; identify by VID/PID)"
-				: gamepadState.deviceName.c_str());
-			ImGui::Text("VID: %04X  PID: %04X", gamepadState.vendorId, gamepadState.productId);
-			ImGui::Text("Buttons: %u  Axes: %u  Switches: %u",
-				gamepadState.buttonCount, gamepadState.axisCount, gamepadState.switchCount);
-			ImGui::Text("Gamepad mapping: %s", gamepadState.hasGamepadMapping ? "yes" : "no");
-			if (!gamepadState.hasGamepadMapping)
-			{
-				ImGui::TextUnformatted("Raw fallback: axes 0/1");
-				for (std::uint32_t axis = 0;
-					axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
-					++axis)
-				{
-					ImGui::Text("Axis %u: %.3f", axis, gamepadState.rawAxes[axis]);
-				}
-				ImGui::TextUnformatted("Pressed raw buttons:");
-				ImGui::SameLine();
-				bool anyButtonPressed = false;
-				for (std::uint32_t button = 0;
-					button < gamepadState.buttonCount && button < gamepadState.rawButtons.size();
-					++button)
-				{
-					if (!gamepadState.rawButtons[button])
-					{
-						continue;
-					}
-					ImGui::SameLine();
-					ImGui::Text("%u", button);
-					anyButtonPressed = true;
-				}
-				if (!anyButtonPressed)
-				{
-					ImGui::SameLine();
-					ImGui::TextUnformatted("none");
-				}
-				static constexpr const char* switchNames[] = {
-					"Center", "Up", "Up-Right", "Right", "Down-Right",
-					"Down", "Down-Left", "Left", "Up-Left"
-				};
-				for (std::uint32_t switchIndex = 0;
-					switchIndex < gamepadState.switchCount &&
-					switchIndex < gamepadState.rawSwitches.size();
-					++switchIndex)
-				{
-					const std::uint32_t position = gamepadState.rawSwitches[switchIndex];
-					const char* positionName =
-						position < std::size(switchNames) ? switchNames[position] : "Unknown";
-					ImGui::Text("Switch %u: %s", switchIndex, positionName);
-				}
-			}
-			ImGui::Text("Left Stick: X %.2f  Y %.2f",
-				gamepadState.leftStickX, gamepadState.leftStickY);
-			ImGui::Text("Brake: %s", gamepadState.brakePressed ? "On" : "Off");
-			ImGui::Text("Brake binding: raw button %u",
-				Tank::Input::GamepadState::BrakeButtonIndex);
-		}
-	}
-	ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
-	if (ImGui::CollapsingHeader("Ground"))
-	{
-		SliderFloatWithPendingColor(
-			"Floor Size",
-			&m_environmentSettings.floorSizeM,
-			20.0f,
-			1000.0f,
-			10.0f,
-			200.0f,
-			"%.0f m",
-			IsPending(m_environmentSettings.floorSizeM, m_appliedEnvironmentSettings.floorSizeM));
-		SliderFloatWithPendingColor(
-			"Floor Friction",
-			&m_environmentSettings.floorFriction,
-			0.0f,
-			2.0f,
-			0.05f,
-			0.6f,
-			"%.2f",
-			IsPending(
-				m_environmentSettings.floorFriction,
-				m_appliedEnvironmentSettings.floorFriction));
-		ImGui::Checkbox("Grid Enabled", &m_environmentSettings.gridEnabled);
-		SliderFloatWithPendingColor(
-			"Grid Spacing",
-			&m_environmentSettings.gridSpacingM,
-			0.5f,
-			20.0f,
-			0.5f,
-			5.0f,
-			"%.1f m",
-			IsPending(m_environmentSettings.gridSpacingM, m_appliedEnvironmentSettings.gridSpacingM));
-		SliderIntWithPendingColor(
-			"Obstacle Count",
-			&m_environmentSettings.obstacleCount,
-			0,
-			100,
-			1,
-			20,
-			"%d",
-			m_environmentSettings.obstacleCount != m_appliedEnvironmentSettings.obstacleCount);
-		SliderIntWithPendingColor(
-			"Obstacle Seed",
-			&m_environmentSettings.obstacleSeed,
-			0,
-			9999,
-			1,
-			1,
-			"%d",
-			m_environmentSettings.obstacleSeed != m_appliedEnvironmentSettings.obstacleSeed);
-		SliderFloatWithPendingColor(
-			"Obstacle Area",
-			&m_environmentSettings.obstacleAreaSizeM,
-			20.0f,
-			500.0f,
-			10.0f,
-			100.0f,
-			"%.0f m",
-			IsPending(
-				m_environmentSettings.obstacleAreaSizeM,
-				m_appliedEnvironmentSettings.obstacleAreaSizeM));
-		if (ImGui::Button("Apply Ground & Reset"))
-		{
-			EnterTrackedVehicleMode();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Save Ground"))
-		{
-			SaveEnvironmentSettings();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Load Ground"))
-		{
-			LoadEnvironmentSettings();
-		}
-		if (!m_environmentSettingsStatus.empty())
-		{
-			ImGui::TextWrapped("%s", m_environmentSettingsStatus.c_str());
-		}
-	}
-	ImGui::SeparatorText("Physics Settings");
-	SliderFloatWithPendingColor(
-		"Chassis Mass",
-		&m_trackedVehicleSettings.chassisMassKg,
-		1000.0f,
-		8000.0f,
-		100.0f,
-		4000.0f,
-		"%.0f kg",
-		IsPending(
-			m_trackedVehicleSettings.chassisMassKg,
-			m_appliedTrackedVehicleSettings.chassisMassKg));
-	ImGui::Checkbox("Neutral Brake", &m_trackedVehicleSettings.neutralBrakeEnabled);
-	SliderFloatWithPendingColor(
-		"Neutral Brake Strength",
-		&m_trackedVehicleSettings.neutralBrakeAmount,
-		0.0f,
-		1.0f,
-		0.05f,
-		0.15f,
-		"%.2f",
-		false);
 
-	ImGui::SeparatorText("Rolling Parameter:");
-
-	ImGui::Checkbox("Rolling Input", &m_trackedVehicleSettings.rollingInputEnabled);
-	SliderFloatWithPendingColor(
-		"Roll Torque",
-		&m_trackedVehicleSettings.rollTorqueNm,
-		20000.0f,
-		300000.0f,
-		5000.0f,
-		120000.0f,
-		"%.0f N m",
-		IsPending(m_trackedVehicleSettings.rollTorqueNm, m_appliedTrackedVehicleSettings.rollTorqueNm));
-	SliderFloatWithPendingColor(
-		"Roll Distance",
-		&m_trackedVehicleSettings.rollDistanceM,
-		0.5f,
-		5.0f,
-		0.1f,
-		2.4f,
-		"%.2f m",
-		IsPending(m_trackedVehicleSettings.rollDistanceM, m_appliedTrackedVehicleSettings.rollDistanceM));
-	SliderFloatWithPendingColor(
-		"Torque Cutoff Angle",
-		&m_trackedVehicleSettings.rollTorqueCutoffDegrees,
-		45.0f,
-		120.0f,
-		5.0f,
-		90.0f,
-		"%.0f deg",
-		IsPending(
-			m_trackedVehicleSettings.rollTorqueCutoffDegrees,
-			m_appliedTrackedVehicleSettings.rollTorqueCutoffDegrees));
-	SliderFloatWithPendingColor(
-		"Stabilization Torque",
-		&m_trackedVehicleSettings.rollStabilizationTorqueNm,
-		0.0f,
-		100000.0f,
-		5000.0f,
-		30000.0f,
-		"%.0f N m",
-		IsPending(
-			m_trackedVehicleSettings.rollStabilizationTorqueNm,
-			m_appliedTrackedVehicleSettings.rollStabilizationTorqueNm));
-	SliderFloatWithPendingColor(
-		"Stabilization Damping",
-		&m_trackedVehicleSettings.rollStabilizationDampingNms,
-		0.0f,
-		50000.0f,
-		1000.0f,
-		10000.0f,
-		"%.0f N m s",
-		IsPending(
-			m_trackedVehicleSettings.rollStabilizationDampingNms,
-			m_appliedTrackedVehicleSettings.rollStabilizationDampingNms));
-
-	ImGui::SeparatorText("Tank Design:");
-
-	if (ImGui::CollapsingHeader("Body Material"))
-	{
-		auto drawMaterial = [](const char* label, Tank::Rendering::BodyMaterialSettings& material)
-		{
-			bool changed = false;
-			if (ImGui::TreeNode(label))
-			{
-				changed |= ImGui::ColorEdit3("Albedo", &material.albedo.r);
-				changed |= ImGuiWidgets::SliderFloatWithControls(
-					"Roughness", &material.roughness, 0.04f, 1.0f, 0.02f, 0.8f);
-				changed |= ImGuiWidgets::SliderFloatWithControls(
-					"Metallic", &material.metallic, 0.0f, 1.0f, 0.05f, 0.0f);
-				changed |= ImGuiWidgets::SliderFloatWithControls(
-					"Ambient Occlusion",
-					&material.ambientOcclusion,
-					0.0f,
-					1.0f,
-					0.05f,
-					1.0f);
-				changed |= ImGuiWidgets::SliderFloatWithControls(
-					"Emissive", &material.emissive, 0.0f, 4.0f, 0.1f, 0.0f);
-				ImGui::TreePop();
-			}
-			return changed;
-		};
-		bool materialChanged = false;
-		materialChanged |= drawMaterial("Hull Upper", m_tankVisualSettings.hullUpper);
-		materialChanged |= drawMaterial("Hull Lower", m_tankVisualSettings.hullLower);
-		materialChanged |= drawMaterial(
-			"Structure Upper", m_tankVisualSettings.structureUpper);
-		materialChanged |= drawMaterial(
-			"Structure Lower", m_tankVisualSettings.structureLower);
-		materialChanged |= drawMaterial("Wheels", m_tankVisualSettings.wheels);
-		materialChanged |= ImGui::Checkbox(
-			"Color Wheels by Contact",
-			&m_tankVisualSettings.colorWheelsByContact);
-		ImGui::BeginDisabled(!m_tankVisualSettings.colorWheelsByContact);
-		materialChanged |= drawMaterial(
-			"Contacted Wheels",
-			m_tankVisualSettings.contactedWheels);
-		ImGui::EndDisabled();
-		materialChanged |= drawMaterial("Track Shoes", m_tankVisualSettings.trackShoes);
-		materialChanged |= drawMaterial(
-			"Track Proxies", m_tankVisualSettings.trackProxies);
-		materialChanged |= drawMaterial(
-			"Forward Marker", m_tankVisualSettings.forwardMarker);
-		m_tankVisualMaterialApplyPending |= materialChanged;
-		if (m_tankVisualMaterialApplyPending && !ImGui::IsAnyItemActive())
-		{
-			ApplyTrackedVehicleMaterials();
-			m_tankVisualMaterialApplyPending = false;
-		}
-		if (ImGui::Button("Save Visual"))
-		{
-			SaveTankVisualSettings();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Load Visual"))
-		{
-			LoadTankVisualSettings();
-		}
-		ImGui::SameLine();
-		ImGui::Checkbox("AutoLoad##TankVisual", &m_tankVisualSettingsAutoLoad);
-		if (!m_tankVisualSettingsStatus.empty())
-		{
-			ImGui::TextWrapped("%s", m_tankVisualSettingsStatus.c_str());
-		}
-	}
-	if (ImGui::Checkbox("Track Shoe Display", &m_trackShoeDisplay))
-	{
-		m_trackedVehiclePresenter.UpdateScene(
-			state,
-			m_trackedVehicleSettings,
-			m_tankVisualSettings,
-			m_trackShoeDisplay,
-			m_showTrackProxies,
-			m_physicsDebugOverlay);
-		m_sceneRenderer.SetScene(m_trackedVehiclePresenter.GetScene());
-	}
-	if (ImGui::Checkbox("Show Track Proxies", &m_showTrackProxies))
-	{
-		m_trackedVehiclePresenter.UpdateScene(
-			state,
-			m_trackedVehicleSettings,
-			m_tankVisualSettings,
-			m_trackShoeDisplay,
-			m_showTrackProxies,
-			m_physicsDebugOverlay);
-		m_sceneRenderer.SetScene(m_trackedVehiclePresenter.GetScene());
-	}
-	SliderFloatWithPendingColor(
-		"Track Width", &m_trackedVehicleSettings.trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m",
-		IsPending(m_trackedVehicleSettings.trackWidthM, m_appliedTrackedVehicleSettings.trackWidthM));
-	SliderFloatWithPendingColor(
-		"Track Spacing", &m_trackedVehicleSettings.trackSpacingM, 1.8f, 3.2f, 0.1f, 2.4f, "%.2f m",
-		IsPending(m_trackedVehicleSettings.trackSpacingM, m_appliedTrackedVehicleSettings.trackSpacingM));
-	ImGui::SeparatorText("Turn Traction:");
-	SliderFloatWithPendingColor(
-		"Stationary Inner Track Ratio",
-		&m_trackedVehicleSettings.stationaryTurnInnerTrackRatio,
-		0.0f,
-		1.0f,
-		0.05f,
-		0.0f,
-		"%.2f x",
-		IsPending(
-			m_trackedVehicleSettings.stationaryTurnInnerTrackRatio,
-			m_appliedTrackedVehicleSettings.stationaryTurnInnerTrackRatio));
-	SliderFloatWithPendingColor(
-		"Stationary Left Track",
-		&m_trackedVehicleSettings.stationaryTurnLeftTraction,
-		0.0f,
-		1.0f,
-		0.05f,
-		1.0f,
-		"%.2f x",
-		IsPending(
-			m_trackedVehicleSettings.stationaryTurnLeftTraction,
-			m_appliedTrackedVehicleSettings.stationaryTurnLeftTraction));
-	SliderFloatWithPendingColor(
-		"Stationary Right Track",
-		&m_trackedVehicleSettings.stationaryTurnRightTraction,
-		0.0f,
-		1.0f,
-		0.05f,
-		1.0f,
-		"%.2f x",
-		IsPending(
-			m_trackedVehicleSettings.stationaryTurnRightTraction,
-			m_appliedTrackedVehicleSettings.stationaryTurnRightTraction));
-	SliderFloatWithPendingColor(
-		"Pivot Left Track",
-		&m_trackedVehicleSettings.pivotTurnLeftTraction,
-		0.0f,
-		1.0f,
-		0.05f,
-		1.0f,
-		"%.2f x",
-		IsPending(
-			m_trackedVehicleSettings.pivotTurnLeftTraction,
-			m_appliedTrackedVehicleSettings.pivotTurnLeftTraction));
-	SliderFloatWithPendingColor(
-		"Pivot Right Track",
-		&m_trackedVehicleSettings.pivotTurnRightTraction,
-		0.0f,
-		1.0f,
-		0.05f,
-		1.0f,
-		"%.2f x",
-		IsPending(
-			m_trackedVehicleSettings.pivotTurnRightTraction,
-			m_appliedTrackedVehicleSettings.pivotTurnRightTraction));
-	ImGui::SeparatorText("Body Yaw:");
-	SliderFloatWithPendingColor(
-		"Yaw Speed Limit",
-		&m_trackedVehicleSettings.yawSpeedLimitDegrees,
-		15.0f,
-		720.0f,
-		5.0f,
-		720.0f,
-		"%.0f deg/s",
-		IsPending(
-			m_trackedVehicleSettings.yawSpeedLimitDegrees,
-			m_appliedTrackedVehicleSettings.yawSpeedLimitDegrees));
-	SliderFloatWithPendingColor(
-		"Yaw Damping",
-		&m_trackedVehicleSettings.yawDamping,
-		0.0f,
-		30.0f,
-		0.5f,
-		0.0f,
-		"%.1f /s",
-		IsPending(
-			m_trackedVehicleSettings.yawDamping,
-			m_appliedTrackedVehicleSettings.yawDamping));
-	SliderFloatWithPendingColor(
-		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
-		IsPending(m_trackedVehicleSettings.rideHeightScale, m_appliedTrackedVehicleSettings.rideHeightScale));
-	SliderFloatWithPendingColor(
-		"Chassis Width", &m_trackedVehicleSettings.chassisWidthM, 1.6f, 3.2f, 0.1f, 2.4f, "%.2f m",
-		IsPending(m_trackedVehicleSettings.chassisWidthM, m_appliedTrackedVehicleSettings.chassisWidthM));
-	SliderFloatWithPendingColor(
-		"Chassis Length", &m_trackedVehicleSettings.chassisLengthM, 3.0f, 5.5f, 0.1f, 4.0f, "%.2f m",
-		IsPending(m_trackedVehicleSettings.chassisLengthM, m_appliedTrackedVehicleSettings.chassisLengthM));
-	SliderFloatWithPendingColor(
-		"End Wheel Radius",
-		&m_trackedVehicleSettings.endWheelRadiusM,
-		0.2f,
-		0.6f,
-		0.01f,
-		0.4f,
-		"%.2f m",
-		IsPending(
-			m_trackedVehicleSettings.endWheelRadiusM,
-			m_appliedTrackedVehicleSettings.endWheelRadiusM));
-	SliderFloatWithPendingColor(
-		"Road Wheel Radius",
-		&m_trackedVehicleSettings.roadWheelRadiusM,
-		0.2f,
-		0.5f,
-		0.01f,
-		0.3f,
-		"%.2f m",
-		IsPending(
-			m_trackedVehicleSettings.roadWheelRadiusM,
-			m_appliedTrackedVehicleSettings.roadWheelRadiusM));
-	const char* wheelLayouts[] = { "1 + 2 + 1", "1 + 3 + 1", "1 + 4 + 1" };
-	int wheelLayoutIndex = std::clamp(m_trackedVehicleSettings.roadWheelCount, 2, 4) - 2;
-	if (ImGui::Combo("Wheel Layout", &wheelLayoutIndex, wheelLayouts, std::size(wheelLayouts)))
-	{
-		m_trackedVehicleSettings.roadWheelCount = wheelLayoutIndex + 2;
-	}
-	SliderFloatWithPendingColor(
-		"End Wheel Offset",
-		&m_trackedVehicleSettings.endWheelOffsetM,
-		0.0f,
-		1.0f,
-		0.05f,
-		0.0f,
-		"%.2f m",
-		IsPending(
-			m_trackedVehicleSettings.endWheelOffsetM,
-			m_appliedTrackedVehicleSettings.endWheelOffsetM));
-	if (m_trackedVehicleSettings.roadWheelCount == 2)
-	{
-		SliderFloatWithPendingColor(
-			"Middle Wheel Offset",
-			&m_trackedVehicleSettings.twoRoadWheelOffsetM,
-			0.1f,
-			2.0f,
-			0.05f,
-			0.67f,
-			"%.2f m",
-			IsPending(
-				m_trackedVehicleSettings.twoRoadWheelOffsetM,
-				m_appliedTrackedVehicleSettings.twoRoadWheelOffsetM));
-	}
-	else if (m_trackedVehicleSettings.roadWheelCount == 3)
-	{
-		SliderFloatWithPendingColor(
-			"Middle Wheel Offset",
-			&m_trackedVehicleSettings.threeRoadWheelOffsetM,
-			0.1f,
-			2.0f,
-			0.05f,
-			1.0f,
-			"%.2f m",
-			IsPending(
-				m_trackedVehicleSettings.threeRoadWheelOffsetM,
-				m_appliedTrackedVehicleSettings.threeRoadWheelOffsetM));
-	}
-	ImGui::Checkbox("Start Upside Down", &m_trackedVehicleSettings.startUpsideDown);
-	ImGui::TextUnformatted("Save Slot");
-	ImGui::SameLine();
-	for (int slot = 0; slot < 3; ++slot)
-	{
-		if (slot > 0)
-		{
-			ImGui::SameLine();
-		}
-		const std::string label = std::to_string(slot + 1);
-		if (ImGui::RadioButton(label.c_str(), m_tankSettingsSlot == slot))
-		{
-			m_tankSettingsSlot = slot;
-			if (m_tankSettingsAutoLoad)
-			{
-				LoadTankSettings();
-			}
-		}
-	}
-	ImGui::SameLine();
-	ImGui::Checkbox("AutoLoad##TankSettings", &m_tankSettingsAutoLoad);
-	if (ImGui::Button("Apply & Reset"))
-	{
-		ResetTrackedVehicle();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Save"))
-	{
-		SaveTankSettings();
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Load"))
-	{
-		LoadTankSettings();
-	}
-	if (!m_tankSettingsStatus.empty())
-	{
-		ImGui::TextWrapped("%s", m_tankSettingsStatus.c_str());
-	}
-	ImGui::SeparatorText("Simulation");
-	if (ImGui::Button(m_trackedVehiclePaused ? "Resume" : "Pause"))
-	{
-		m_trackedVehiclePaused = !m_trackedVehiclePaused;
-	}
-	ImGui::SameLine();
-	ImGui::BeginDisabled(!m_trackedVehiclePaused);
-	if (ImGui::Button("Step Fwd"))
-	{
-		m_trackedVehicleSingleStep = true;
-	}
-	ImGui::EndDisabled();
-	if (ImGui::Button("Reset"))
-	{
-		ResetTrackedVehicle();
-	}
-	ImGui::SeparatorText("Track Input");
-	ImGui::Text(
-		"Analog track axes 1 / 3: %s",
-		m_analogTracksConnected ? "connected" : "not connected");
-	ImGui::Text(
-		"Left %.2f  Right %.2f  Roll %.2f",
-		m_analogLeftTrack,
-		m_analogRightTrack,
-		m_analogRoll);
-	const Tank::Physics::TrackedDriverInput& driverInput =
-		m_trackedVehicleTest.DriverInput();
-	ImGui::Text(
-		"SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",
-		driverInput.forward,
-		driverInput.leftRatio,
-		driverInput.rightRatio,
-		driverInput.brake);
-	ImGui::Separator();
-	ImGui::Text("Press ESC to return to the top menu.");
-	ImGui::End();
-}
 
 void TankSandboxApp::UpdateTrackedVehicleInput()
 {

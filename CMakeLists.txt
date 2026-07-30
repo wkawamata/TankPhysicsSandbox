@@ -132,6 +132,12 @@ add_executable(TankSandbox
     src/Rendering/PhysicsDebugOverlay.cpp
     src/Rendering/TrackedVehicleScenePresenter.h
     src/Rendering/TrackedVehicleScenePresenter.cpp
+    src/Ui/CameraPanel.cpp
+    src/Ui/CameraPanel.h
+    src/Ui/RendererSettingsPanel.cpp
+    src/Ui/RendererSettingsPanel.h
+    src/Ui/TrackedVehiclePanel.cpp
+    src/Ui/TrackedVehiclePanel.h
     src/TankSandboxApp.cpp
     src/TankSandboxApp.h
     src/stdafx.h
