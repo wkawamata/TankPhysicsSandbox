@@ -362,10 +362,16 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
     else if (key == VK_SPACE) m_brake = false;
 }
 
+bool TankSandboxApp::IsMouseCameraBlocked() const
+{
+    return m_appMode == AppMode::PhysicsTrackedVehicle
+        && m_cameraController.FollowEnabled()
+        && !m_cameraController.IsDebugSlot();
+}
+
 void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 {
-    if (m_appMode != AppMode::TopMenu &&
-        !(m_appMode == AppMode::PhysicsTrackedVehicle && m_cameraController.FollowEnabled()))
+    if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
     {
         m_debugCameraController.OnMouseDown(button, x, y);
     }
@@ -373,8 +379,7 @@ void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 {
-    if (m_appMode != AppMode::TopMenu &&
-        !(m_appMode == AppMode::PhysicsTrackedVehicle && m_cameraController.FollowEnabled()))
+    if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
     {
         m_debugCameraController.OnMouseUp(button, x, y);
         ApplyActiveCameraScene();
@@ -383,8 +388,7 @@ void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseMove(int x, int y)
 {
-    if (m_appMode != AppMode::TopMenu &&
-        !(m_appMode == AppMode::PhysicsTrackedVehicle && m_cameraController.FollowEnabled()))
+    if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
     {
         m_debugCameraController.OnMouseMove(x, y);
         ApplyActiveCameraScene();
@@ -393,8 +397,7 @@ void TankSandboxApp::OnMouseMove(int x, int y)
 
 void TankSandboxApp::OnMouseWheel(int wheelDelta)
 {
-    if (m_appMode != AppMode::TopMenu &&
-        !(m_appMode == AppMode::PhysicsTrackedVehicle && m_cameraController.FollowEnabled()))
+    if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
     {
         m_debugCameraController.OnMouseWheel(wheelDelta, false);
         ApplyActiveCameraScene();
@@ -434,6 +437,20 @@ void TankSandboxApp::OnIdle()
             m_turnLeft, m_turnRight, m_pivotTurnModifier,
             m_rollLeft, m_rollRight, m_brake);
         m_trackedVehicleMode.Step(m_sceneRenderer, m_cameraController);
+
+        if (m_cameraController.IsDebugSlot() && m_cameraController.FollowEnabled())
+        {
+            const Tank::Physics::TrackedVehicleTestState& state = m_trackedVehicleMode.TestState();
+            const DirectX::XMFLOAT3 pivot = {
+                state.bodyPosition.x,
+                state.bodyPosition.y + 0.5f,
+                state.bodyPosition.z };
+            m_debugCameraController.SetObjectViewerState(
+                m_debugCameraController.ObjectViewerYaw(),
+                m_debugCameraController.ObjectViewerPitch(),
+                m_debugCameraController.ObjectViewerDistance(),
+                pivot);
+        }
     }
     if (Engine::CameraState* camera = ActiveCamera())
     {
@@ -732,6 +749,15 @@ bool TankSandboxApp::LoadCameraSettings()
     {
         return false;
     }
+
+    if (m_cameraController.IsDebugSlot() && m_appMode == AppMode::PhysicsTrackedVehicle)
+    {
+        const Tank::Physics::TrackedVehicleTestState& state = m_trackedVehicleMode.TestState();
+        ActivateOrbitCamera(m_trackedVehicleMode.GetScene(),
+            { state.bodyPosition.x, state.bodyPosition.y + 0.5f, state.bodyPosition.z });
+        return true;
+    }
+
     if (!m_cameraController.EnsureSlotLoaded(
         m_cameraController.SelectedSlot()))
     {

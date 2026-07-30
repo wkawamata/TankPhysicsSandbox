@@ -80,6 +80,7 @@ private:
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
     void ApplyActiveCameraScene();
     Engine::CameraState* ActiveCamera();
+    bool IsMouseCameraBlocked() const;
     void FlushD3d12DebugLog();
     void LogFps(float cpuFrameTimeMs);
 

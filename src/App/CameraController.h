@@ -22,14 +22,16 @@ namespace Tank::App
     {
     public:
         static constexpr int kSlotCount = 4;
+        static constexpr int kDebugSlot = 3;
 
         CameraController();
 
-        // Slot management.
-        int SelectedSlot() const { return m_selectedSlot; }
-        void SetAutoLoad(bool enabled) { m_autoLoad = enabled; }
-        bool AutoLoad() const { return m_autoLoad; }
-        const std::string& Status() const { return m_status; }
+    // Slot management.
+    int SelectedSlot() const { return m_selectedSlot; }
+    bool IsDebugSlot() const { return m_selectedSlot == kDebugSlot; }
+    void SetAutoLoad(bool enabled) { m_autoLoad = enabled; }
+    bool AutoLoad() const { return m_autoLoad; }
+    const std::string& Status() const { return m_status; }
 
         bool EnsureSlotLoaded(int slot);
         bool SelectSlot(int slot, bool load);

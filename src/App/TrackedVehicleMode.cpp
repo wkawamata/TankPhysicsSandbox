@@ -198,10 +198,13 @@ void TrackedVehicleMode::Step(
 
     if (Engine::CameraState* camera = ActiveCamera())
     {
-        cameraController.UpdateFollowCamera(
-            m_test.State(),
-            kPhysicsFixedDt,
-            *camera);
+        if (!cameraController.IsDebugSlot())
+        {
+            cameraController.UpdateFollowCamera(
+                m_test.State(),
+                kPhysicsFixedDt,
+                *camera);
+        }
     }
 }
 
