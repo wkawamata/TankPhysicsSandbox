@@ -64,6 +64,12 @@ int main()
         "end wheel offset must default to the chassis ends");
     passed &= Check(NearlyEqual(controller.Settings().threeRoadWheelOffsetM, 1.0f),
         "three road wheel offset must preserve its default");
+    passed &= Check(NearlyEqual(controller.Settings().stationaryTurnLeftTraction, 1.0f),
+        "stationary turn left traction must default to one");
+    passed &= Check(NearlyEqual(controller.Settings().stationaryTurnInnerTrackRatio, 0.0f),
+        "stationary turn inner track ratio must default to zero");
+    passed &= Check(NearlyEqual(controller.Settings().pivotTurnRightTraction, 1.0f),
+        "pivot turn right traction must default to one");
 
     Tank::Physics::TankInput input;
     input.throttle = 2.0f;
@@ -120,6 +126,39 @@ int main()
     disabledRollController.SetInput(disabledRollInput);
     passed &= Check(NearlyEqual(disabledRollController.Input().roll, 0.0f),
         "disabled rolling input must suppress roll commands");
+
+    Tank::Physics::TankSettings tractionSettings;
+    tractionSettings.stationaryTurnLeftTraction = 0.4f;
+    tractionSettings.stationaryTurnRightTraction = 0.6f;
+    tractionSettings.stationaryTurnInnerTrackRatio = 0.5f;
+    tractionSettings.pivotTurnLeftTraction = 0.7f;
+    tractionSettings.pivotTurnRightTraction = 0.8f;
+    Tank::Physics::TankController tractionController;
+    tractionController.Initialize(world, tractionSettings);
+
+    Tank::Physics::TankInput tractionInput;
+    tractionInput.throttle = 1.0f;
+    tractionInput.leftTrack = 0.0f;
+    tractionInput.rightTrack = 1.0f;
+    tractionController.SetInput(tractionInput);
+    tractionController.PreStep();
+    passed &= Check(
+        NearlyEqual(tractionController.DriverInput().leftRatio, 0.2f),
+        "stationary inner track must use its ratio and traction coefficient");
+    passed &= Check(
+        NearlyEqual(tractionController.DriverInput().rightRatio, 0.6f),
+        "stationary driven track must use its traction coefficient");
+
+    tractionInput.leftTrack = -1.0f;
+    tractionInput.rightTrack = 1.0f;
+    tractionController.SetInput(tractionInput);
+    tractionController.PreStep();
+    passed &= Check(
+        NearlyEqual(tractionController.DriverInput().leftRatio, -0.7f),
+        "pivot left track must use its traction coefficient");
+    passed &= Check(
+        NearlyEqual(tractionController.DriverInput().rightRatio, 0.8f),
+        "pivot right track must use its traction coefficient");
 
     if (!passed)
     {

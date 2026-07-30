@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 3;
+        constexpr int kSchemaVersion = 5;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -69,6 +69,11 @@ namespace Tank::Physics
         json["rideHeightScale"] = settings.rideHeightScale;
         json["neutralBrakeEnabled"] = settings.neutralBrakeEnabled;
         json["neutralBrakeAmount"] = settings.neutralBrakeAmount;
+        json["stationaryTurnInnerTrackRatio"] = settings.stationaryTurnInnerTrackRatio;
+        json["stationaryTurnLeftTraction"] = settings.stationaryTurnLeftTraction;
+        json["stationaryTurnRightTraction"] = settings.stationaryTurnRightTraction;
+        json["pivotTurnLeftTraction"] = settings.pivotTurnLeftTraction;
+        json["pivotTurnRightTraction"] = settings.pivotTurnRightTraction;
         json["startUpsideDown"] = settings.startUpsideDown;
         return json.dump(2);
     }
@@ -142,6 +147,14 @@ namespace Tank::Physics
         ReadFloat(json, "rideHeightScale", loaded.rideHeightScale);
         ReadBool(json, "neutralBrakeEnabled", loaded.neutralBrakeEnabled);
         ReadFloat(json, "neutralBrakeAmount", loaded.neutralBrakeAmount);
+        ReadFloat(
+            json,
+            "stationaryTurnInnerTrackRatio",
+            loaded.stationaryTurnInnerTrackRatio);
+        ReadFloat(json, "stationaryTurnLeftTraction", loaded.stationaryTurnLeftTraction);
+        ReadFloat(json, "stationaryTurnRightTraction", loaded.stationaryTurnRightTraction);
+        ReadFloat(json, "pivotTurnLeftTraction", loaded.pivotTurnLeftTraction);
+        ReadFloat(json, "pivotTurnRightTraction", loaded.pivotTurnRightTraction);
         ReadBool(json, "startUpsideDown", loaded.startUpsideDown);
         settings = loaded;
         if (error != nullptr)

@@ -29,6 +29,8 @@ int main()
     source.hullUpper.ambientOcclusion = 0.8f;
     source.hullUpper.emissive = 0.25f;
     source.wheels.metallic = 0.9f;
+    source.colorWheelsByContact = true;
+    source.contactedWheels.albedo = { 0.2f, 0.8f, 0.3f };
     source.trackShoes.roughness = 0.35f;
 
     Tank::Rendering::TankVisualSettings loaded;
@@ -51,6 +53,10 @@ int main()
         "emissive must round trip");
     passed &= Check(NearlyEqual(loaded.wheels.metallic, 0.9f),
         "wheel material must round trip");
+    passed &= Check(loaded.colorWheelsByContact,
+        "wheel contact color toggle must round trip");
+    passed &= Check(NearlyEqual(loaded.contactedWheels.albedo.g, 0.8f),
+        "contacted wheel material must round trip");
     passed &= Check(NearlyEqual(loaded.trackShoes.roughness, 0.35f),
         "track shoe material must round trip");
 

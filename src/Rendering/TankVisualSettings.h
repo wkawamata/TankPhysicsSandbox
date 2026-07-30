@@ -30,6 +30,9 @@ namespace Tank::Rendering
             { 0.22f, 0.38f, 0.26f }, 0.85f, 0.0f, 1.0f, 0.0f };
         BodyMaterialSettings wheels = {
             { 0.16f, 0.17f, 0.18f }, 0.65f, 0.2f, 1.0f, 0.0f };
+        bool colorWheelsByContact = false;
+        BodyMaterialSettings contactedWheels = {
+            { 0.27f, 0.78f, 0.35f }, 0.55f, 0.1f, 1.0f, 0.0f };
         BodyMaterialSettings trackShoes = {
             { 0.13f, 0.14f, 0.15f }, 0.75f, 0.35f, 1.0f, 0.0f };
         BodyMaterialSettings trackProxies = {

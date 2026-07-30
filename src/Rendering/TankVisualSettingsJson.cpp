@@ -6,7 +6,7 @@ namespace Tank::Rendering
 {
     namespace
     {
-        constexpr int kSchemaVersion = 2;
+        constexpr int kSchemaVersion = 3;
 
         nlohmann::json SerializeMaterial(const BodyMaterialSettings& material)
         {
@@ -65,6 +65,8 @@ namespace Tank::Rendering
         json["structureUpper"] = SerializeMaterial(settings.structureUpper);
         json["structureLower"] = SerializeMaterial(settings.structureLower);
         json["wheels"] = SerializeMaterial(settings.wheels);
+        json["colorWheelsByContact"] = settings.colorWheelsByContact;
+        json["contactedWheels"] = SerializeMaterial(settings.contactedWheels);
         json["trackShoes"] = SerializeMaterial(settings.trackShoes);
         json["trackProxies"] = SerializeMaterial(settings.trackProxies);
         json["forwardMarker"] = SerializeMaterial(settings.forwardMarker);
@@ -106,6 +108,12 @@ namespace Tank::Rendering
         ReadMaterial(json, "structureUpper", loaded.structureUpper);
         ReadMaterial(json, "structureLower", loaded.structureLower);
         ReadMaterial(json, "wheels", loaded.wheels);
+        const auto colorWheelsByContact = json.find("colorWheelsByContact");
+        if (colorWheelsByContact != json.end() && colorWheelsByContact->is_boolean())
+        {
+            loaded.colorWheelsByContact = colorWheelsByContact->get<bool>();
+        }
+        ReadMaterial(json, "contactedWheels", loaded.contactedWheels);
         ReadMaterial(json, "trackShoes", loaded.trackShoes);
         ReadMaterial(json, "trackProxies", loaded.trackProxies);
         ReadMaterial(json, "forwardMarker", loaded.forwardMarker);

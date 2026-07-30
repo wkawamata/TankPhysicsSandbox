@@ -66,6 +66,8 @@ private:
     bool SaveRendererSettings();
     bool LoadRendererSettings();
     void ResetRendererSettings();
+    bool SaveCameraSettings();
+    bool LoadCameraSettings();
     void DrawTopMenuUi();
     void DrawPhysicsBoxDropUi();
     void DrawPhysicsTrackedVehicleUi();
@@ -80,6 +82,9 @@ private:
     bool LoadEnvironmentSettings();
     void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
     void UpdateTrackedVehicleInput();
+    void UpdateTrackedVehicleFollowCamera(
+        const Tank::Physics::TrackedVehicleTestState& state,
+        float deltaTimeSeconds);
     void ApplyTrackedVehicleCameraPreset(const DirectX::XMFLOAT3& offset);
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
     void ApplyActiveCameraScene();
@@ -127,6 +132,7 @@ private:
         std::array<std::array<size_t, kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount>
             trackShoes = {};
         uint32_t wheelMaterial = 0;
+        uint32_t contactedWheelMaterial = 0;
         uint32_t trackShoeMaterial = 0;
         uint32_t trackProxyMaterial = 0;
         uint32_t forwardMarkerMaterial = 0;
@@ -159,6 +165,20 @@ private:
     float m_analogRoll = 0.0f;
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;
+    bool m_trackedVehicleCameraFollow = false;
+    float m_trackedVehicleCameraFollowDistance = 16.0f;
+    float m_trackedVehicleCameraLookDownDegrees = 25.0f;
+    float m_trackedVehicleCameraPositionSpeed = 5.0f;
+    float m_trackedVehicleCameraRotationSpeed = 8.0f;
+    float m_trackedVehicleCameraDamping = 1.0f;
+    float m_trackedVehicleCameraYawSpeedLimitDegrees = 180.0f;
+    float m_trackedVehicleCameraYawDamping = 8.0f;
+    DirectX::XMFLOAT3 m_trackedVehicleCameraVelocity = {};
+    float m_trackedVehicleCameraOrbitYaw = 0.0f;
+    float m_trackedVehicleCameraYawVelocity = 0.0f;
+    bool m_trackedVehicleCameraOrbitInitialized = false;
+    int m_cameraSettingsSlot = 0;
+    std::string m_cameraSettingsStatus;
     bool m_physicsDebugOverlay = false;
     bool m_trackShoeDisplay = true;
     bool m_showTrackProxies = false;

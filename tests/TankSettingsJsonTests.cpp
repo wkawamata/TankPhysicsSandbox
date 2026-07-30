@@ -43,6 +43,11 @@ int main()
     source.rideHeightScale = 0.75f;
     source.neutralBrakeEnabled = false;
     source.neutralBrakeAmount = 0.35f;
+    source.stationaryTurnInnerTrackRatio = 0.25f;
+    source.stationaryTurnLeftTraction = 0.6f;
+    source.stationaryTurnRightTraction = 0.7f;
+    source.pivotTurnLeftTraction = 0.8f;
+    source.pivotTurnRightTraction = 0.9f;
     source.startUpsideDown = true;
 
     Tank::Physics::TankSettings loaded;
@@ -97,6 +102,27 @@ int main()
         "neutral brake enabled must round trip");
     passed &= Check(NearlyEqual(loaded.neutralBrakeAmount, source.neutralBrakeAmount),
         "neutral brake amount must round trip");
+    passed &= Check(
+        NearlyEqual(
+            loaded.stationaryTurnInnerTrackRatio,
+            source.stationaryTurnInnerTrackRatio),
+        "stationary turn inner track ratio must round trip");
+    passed &= Check(
+        NearlyEqual(
+            loaded.stationaryTurnLeftTraction,
+            source.stationaryTurnLeftTraction),
+        "stationary turn left traction must round trip");
+    passed &= Check(
+        NearlyEqual(
+            loaded.stationaryTurnRightTraction,
+            source.stationaryTurnRightTraction),
+        "stationary turn right traction must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.pivotTurnLeftTraction, source.pivotTurnLeftTraction),
+        "pivot turn left traction must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.pivotTurnRightTraction, source.pivotTurnRightTraction),
+        "pivot turn right traction must round trip");
     passed &= Check(loaded.startUpsideDown == source.startUpsideDown,
         "start orientation must round trip");
 

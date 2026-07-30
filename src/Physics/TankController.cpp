@@ -380,8 +380,35 @@ namespace Tank::Physics
         }
 
         float forward = m_input.throttle;
-        float leftRatio = ToJoltTrackRatio(m_input.leftTrack);
-        float rightRatio = ToJoltTrackRatio(m_input.rightTrack);
+        float leftTrack = m_input.leftTrack;
+        float rightTrack = m_input.rightTrack;
+        constexpr float turnInputEpsilon = 0.001f;
+        const bool stationaryTurn =
+            (std::abs(leftTrack) < turnInputEpsilon) !=
+            (std::abs(rightTrack) < turnInputEpsilon);
+        const bool pivotTurn = leftTrack * rightTrack < 0.0f;
+        if (stationaryTurn)
+        {
+            const float innerTrackRatio =
+                std::clamp(m_settings.stationaryTurnInnerTrackRatio, 0.0f, 1.0f);
+            if (std::abs(leftTrack) < turnInputEpsilon)
+            {
+                leftTrack = std::copysign(innerTrackRatio, rightTrack);
+            }
+            else
+            {
+                rightTrack = std::copysign(innerTrackRatio, leftTrack);
+            }
+            leftTrack *= std::clamp(m_settings.stationaryTurnLeftTraction, 0.0f, 1.0f);
+            rightTrack *= std::clamp(m_settings.stationaryTurnRightTraction, 0.0f, 1.0f);
+        }
+        else if (pivotTurn)
+        {
+            leftTrack *= std::clamp(m_settings.pivotTurnLeftTraction, 0.0f, 1.0f);
+            rightTrack *= std::clamp(m_settings.pivotTurnRightTraction, 0.0f, 1.0f);
+        }
+        float leftRatio = ToJoltTrackRatio(leftTrack);
+        float rightRatio = ToJoltTrackRatio(rightTrack);
         float brake = m_input.brake ? 1.0f : m_input.brakeAmount;
         m_driverInput = {forward, leftRatio, rightRatio, brake};
 

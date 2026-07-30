@@ -73,6 +73,7 @@ namespace
 #include "Physics/TankTypes.h"
 #include "Physics/TestObstacleLayout.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Rendering/CameraSettings.h"
 #include "Rendering/TankVisualSettingsJson.h"
 #include "Input/GamepadState.h"
 
@@ -89,6 +90,12 @@ namespace
 	{
 		return std::filesystem::path("Config") /
 			("tank_physics_slot" + std::to_string(slot + 1) + ".json");
+	}
+
+	std::filesystem::path CameraSettingsPath(int slot)
+	{
+		return std::filesystem::path("Config") /
+			("camera_slot" + std::to_string(slot + 1) + ".json");
 	}
 
 	std::vector<uint8_t> CreateGroundGridTexture(uint32_t size)
@@ -708,7 +715,8 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
 
 void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 {
-	if (m_appMode != AppMode::TopMenu)
+	if (m_appMode != AppMode::TopMenu &&
+		!(m_appMode == AppMode::PhysicsTrackedVehicle && m_trackedVehicleCameraFollow))
 	{
 		m_debugCameraController.OnMouseDown(button, x, y);
 	}
@@ -716,7 +724,8 @@ void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 {
-	if (m_appMode != AppMode::TopMenu)
+	if (m_appMode != AppMode::TopMenu &&
+		!(m_appMode == AppMode::PhysicsTrackedVehicle && m_trackedVehicleCameraFollow))
 	{
 		m_debugCameraController.OnMouseUp(button, x, y);
 		ApplyActiveCameraScene();
@@ -725,7 +734,8 @@ void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseMove(int x, int y)
 {
-	if (m_appMode != AppMode::TopMenu)
+	if (m_appMode != AppMode::TopMenu &&
+		!(m_appMode == AppMode::PhysicsTrackedVehicle && m_trackedVehicleCameraFollow))
 	{
 		m_debugCameraController.OnMouseMove(x, y);
 		ApplyActiveCameraScene();
@@ -734,7 +744,8 @@ void TankSandboxApp::OnMouseMove(int x, int y)
 
 void TankSandboxApp::OnMouseWheel(int wheelDelta)
 {
-	if (m_appMode != AppMode::TopMenu)
+	if (m_appMode != AppMode::TopMenu &&
+		!(m_appMode == AppMode::PhysicsTrackedVehicle && m_trackedVehicleCameraFollow))
 	{
 		m_debugCameraController.OnMouseWheel(wheelDelta, false);
 		ApplyActiveCameraScene();
@@ -767,6 +778,9 @@ void TankSandboxApp::OnIdle()
 			UpdateTrackedVehicleScene(state);
 			m_trackedVehicleSingleStep = false;
 		}
+		UpdateTrackedVehicleFollowCamera(
+			m_trackedVehicleTest.State(),
+			kPhysicsFixedDt);
 	}
 
 	UpdateUiFrame();
@@ -922,8 +936,102 @@ void TankSandboxApp::DrawCameraUi()
 
 	ImGui::SetNextWindowSizeConstraints(ImVec2(260.0f, 190.0f), ImVec2(1000.0f, 1000.0f));
 	ImGui::Begin("Camera");
+	ImGui::SeparatorText("Save Slot");
+	for (int slot = 0; slot < 3; ++slot)
+	{
+		if (slot > 0)
+		{
+			ImGui::SameLine();
+		}
+		const std::string label = std::to_string(slot + 1);
+		ImGui::RadioButton(label.c_str(), &m_cameraSettingsSlot, slot);
+	}
+	if (ImGui::Button("Save Camera"))
+	{
+		SaveCameraSettings();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Load Camera"))
+	{
+		LoadCameraSettings();
+	}
+	if (!m_cameraSettingsStatus.empty())
+	{
+		ImGui::TextWrapped("%s", m_cameraSettingsStatus.c_str());
+	}
 	if (m_appMode == AppMode::PhysicsTrackedVehicle)
 	{
+		if (ImGui::Checkbox("Follow Tank", &m_trackedVehicleCameraFollow))
+		{
+			m_trackedVehicleCameraVelocity = {};
+			m_trackedVehicleCameraYawVelocity = 0.0f;
+			m_trackedVehicleCameraOrbitInitialized = false;
+			if (!m_trackedVehicleCameraFollow)
+			{
+				const Tank::Physics::TrackedVehicleTestState& state =
+					m_trackedVehicleTest.State();
+				ActivateOrbitCamera(
+					m_trackedVehicleSceneBuilder.GetScene(),
+					{
+						state.bodyPosition.x,
+						state.bodyPosition.y + 0.5f,
+						state.bodyPosition.z });
+			}
+		}
+		ImGui::BeginDisabled(!m_trackedVehicleCameraFollow);
+		ImGuiWidgets::SliderFloatWithControls(
+			"Follow Distance",
+			&m_trackedVehicleCameraFollowDistance,
+			4.0f,
+			100.0f,
+			0.5f,
+			16.0f);
+		ImGuiWidgets::SliderFloatWithControls(
+			"Look Down Angle",
+			&m_trackedVehicleCameraLookDownDegrees,
+			0.0f,
+			89.0f,
+			1.0f,
+			25.0f,
+			"%.1f deg");
+		ImGuiWidgets::SliderFloatWithControls(
+			"Position Speed",
+			&m_trackedVehicleCameraPositionSpeed,
+			0.5f,
+			20.0f,
+			0.5f,
+			5.0f);
+		ImGuiWidgets::SliderFloatWithControls(
+			"Rotation Speed",
+			&m_trackedVehicleCameraRotationSpeed,
+			0.5f,
+			20.0f,
+			0.5f,
+			8.0f);
+		ImGuiWidgets::SliderFloatWithControls(
+			"Yaw Speed Limit",
+			&m_trackedVehicleCameraYawSpeedLimitDegrees,
+			15.0f,
+			720.0f,
+			15.0f,
+			180.0f,
+			"%.0f deg/s");
+		ImGuiWidgets::SliderFloatWithControls(
+			"Yaw Damping",
+			&m_trackedVehicleCameraYawDamping,
+			0.5f,
+			30.0f,
+			0.5f,
+			8.0f);
+		ImGuiWidgets::SliderFloatWithControls(
+			"Damping",
+			&m_trackedVehicleCameraDamping,
+			0.1f,
+			2.0f,
+			0.05f,
+			1.0f);
+		ImGui::EndDisabled();
+		ImGui::BeginDisabled(m_trackedVehicleCameraFollow);
 		ImGui::SeparatorText("Angle");
 		if (ImGui::Button("Rear High"))
 		{
@@ -943,6 +1051,7 @@ void TankSandboxApp::DrawCameraUi()
 		{
 			ApplyTrackedVehicleCameraPreset({ 0.0f, 18.0f, -4.0f });
 		}
+		ImGui::EndDisabled();
 		ImGui::SeparatorText("Projection");
 	}
 	int projection = static_cast<int>(camera->projection);
@@ -1119,6 +1228,131 @@ void TankSandboxApp::ResetRendererSettings()
 		m_environmentMappingUi.lighting.diffuseIblEnabled ||
 		m_environmentMappingUi.lighting.specularIblEnabled;
 	m_rendererSettingsStatus = "Reset to Tank defaults";
+}
+
+bool TankSandboxApp::SaveCameraSettings()
+{
+	const Engine::CameraState* camera = ActiveCamera();
+	if (camera == nullptr)
+	{
+		m_cameraSettingsStatus = "Save failed: no active camera";
+		return false;
+	}
+
+	Tank::Rendering::CameraSettings settings;
+	settings.position[0] = camera->pos.x;
+	settings.position[1] = camera->pos.y;
+	settings.position[2] = camera->pos.z;
+	settings.gazePoint[0] = camera->gazePoint.x;
+	settings.gazePoint[1] = camera->gazePoint.y;
+	settings.gazePoint[2] = camera->gazePoint.z;
+	settings.projection = static_cast<int>(camera->projection);
+	settings.fovDegrees = camera->fov;
+	settings.orthographicHeight = camera->orthographicHeight;
+	settings.followTank = m_trackedVehicleCameraFollow;
+	settings.followDistance = m_trackedVehicleCameraFollowDistance;
+	settings.lookDownDegrees = m_trackedVehicleCameraLookDownDegrees;
+	settings.positionSpeed = m_trackedVehicleCameraPositionSpeed;
+	settings.rotationSpeed = m_trackedVehicleCameraRotationSpeed;
+	settings.damping = m_trackedVehicleCameraDamping;
+	settings.yawSpeedLimitDegrees = m_trackedVehicleCameraYawSpeedLimitDegrees;
+	settings.yawDamping = m_trackedVehicleCameraYawDamping;
+
+	const std::filesystem::path path = CameraSettingsPath(m_cameraSettingsSlot);
+	std::error_code error;
+	std::filesystem::create_directories(path.parent_path(), error);
+	std::ofstream output(path, std::ios::binary | std::ios::trunc);
+	if (!output)
+	{
+		m_cameraSettingsStatus = "Save failed: cannot write file";
+		return false;
+	}
+	output << Tank::Rendering::SerializeCameraSettings(settings);
+	if (!output)
+	{
+		m_cameraSettingsStatus = "Save failed: write error";
+		return false;
+	}
+	m_cameraSettingsStatus = "Saved: " + path.string();
+	return true;
+}
+
+bool TankSandboxApp::LoadCameraSettings()
+{
+	Engine::CameraState* camera = ActiveCamera();
+	if (camera == nullptr)
+	{
+		m_cameraSettingsStatus = "Load failed: no active camera";
+		return false;
+	}
+
+	const std::filesystem::path path = CameraSettingsPath(m_cameraSettingsSlot);
+	std::ifstream input(path, std::ios::binary);
+	if (!input)
+	{
+		m_cameraSettingsStatus = "No saved camera in slot";
+		return false;
+	}
+	const std::string json(
+		(std::istreambuf_iterator<char>(input)),
+		std::istreambuf_iterator<char>());
+	Tank::Rendering::CameraSettings settings;
+	std::string error;
+	if (!Tank::Rendering::DeserializeCameraSettings(json, settings, &error))
+	{
+		m_cameraSettingsStatus = "Load failed: " + error;
+		return false;
+	}
+
+	camera->pos = {
+		settings.position[0],
+		settings.position[1],
+		settings.position[2] };
+	camera->gazePoint = {
+		settings.gazePoint[0],
+		settings.gazePoint[1],
+		settings.gazePoint[2] };
+	camera->projection =
+		settings.projection == static_cast<int>(Engine::CameraProjection::Orthographic)
+		? Engine::CameraProjection::Orthographic
+		: Engine::CameraProjection::Perspective;
+	camera->fov = std::clamp(settings.fovDegrees, 20.0f, 120.0f);
+	camera->orthographicHeight =
+		std::clamp(settings.orthographicHeight, 1.0f, 50.0f);
+	m_trackedVehicleCameraFollow = settings.followTank;
+	m_trackedVehicleCameraFollowDistance =
+		std::clamp(settings.followDistance, 4.0f, 100.0f);
+	m_trackedVehicleCameraLookDownDegrees =
+		std::clamp(settings.lookDownDegrees, 0.0f, 89.0f);
+	m_trackedVehicleCameraPositionSpeed =
+		std::clamp(settings.positionSpeed, 0.5f, 20.0f);
+	m_trackedVehicleCameraRotationSpeed =
+		std::clamp(settings.rotationSpeed, 0.5f, 20.0f);
+	m_trackedVehicleCameraDamping =
+		std::clamp(settings.damping, 0.1f, 2.0f);
+	m_trackedVehicleCameraYawSpeedLimitDegrees =
+		std::clamp(settings.yawSpeedLimitDegrees, 15.0f, 720.0f);
+	m_trackedVehicleCameraYawDamping =
+		std::clamp(settings.yawDamping, 0.5f, 30.0f);
+	m_trackedVehicleCameraVelocity = {};
+	m_trackedVehicleCameraYawVelocity = 0.0f;
+	m_trackedVehicleCameraOrbitInitialized = false;
+
+	if (m_appMode == AppMode::PhysicsTrackedVehicle &&
+		!m_trackedVehicleCameraFollow)
+	{
+		const Tank::Physics::TrackedVehicleTestState& state =
+			m_trackedVehicleTest.State();
+		ActivateOrbitCamera(
+			m_trackedVehicleSceneBuilder.GetScene(),
+			{
+				state.bodyPosition.x,
+				state.bodyPosition.y + 0.5f,
+				state.bodyPosition.z });
+	}
+	m_sceneRenderer.SetCamera(*camera);
+	m_cameraSettingsStatus = "Loaded: " + path.string();
+	return true;
 }
 
 void TankSandboxApp::DrawToolUi()
@@ -1516,6 +1750,14 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		materialChanged |= drawMaterial(
 			"Structure Lower", m_tankVisualSettings.structureLower);
 		materialChanged |= drawMaterial("Wheels", m_tankVisualSettings.wheels);
+		materialChanged |= ImGui::Checkbox(
+			"Color Wheels by Contact",
+			&m_tankVisualSettings.colorWheelsByContact);
+		ImGui::BeginDisabled(!m_tankVisualSettings.colorWheelsByContact);
+		materialChanged |= drawMaterial(
+			"Contacted Wheels",
+			m_tankVisualSettings.contactedWheels);
+		ImGui::EndDisabled();
 		materialChanged |= drawMaterial("Track Shoes", m_tankVisualSettings.trackShoes);
 		materialChanged |= drawMaterial(
 			"Track Proxies", m_tankVisualSettings.trackProxies);
@@ -1555,6 +1797,62 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 	SliderFloatWithPendingColor(
 		"Track Spacing", &m_trackedVehicleSettings.trackSpacingM, 1.8f, 3.2f, 0.1f, 2.4f, "%.2f m",
 		IsPending(m_trackedVehicleSettings.trackSpacingM, m_appliedTrackedVehicleSettings.trackSpacingM));
+	ImGui::SeparatorText("Turn Traction:");
+	SliderFloatWithPendingColor(
+		"Stationary Inner Track Ratio",
+		&m_trackedVehicleSettings.stationaryTurnInnerTrackRatio,
+		0.0f,
+		1.0f,
+		0.05f,
+		0.0f,
+		"%.2f x",
+		IsPending(
+			m_trackedVehicleSettings.stationaryTurnInnerTrackRatio,
+			m_appliedTrackedVehicleSettings.stationaryTurnInnerTrackRatio));
+	SliderFloatWithPendingColor(
+		"Stationary Left Track",
+		&m_trackedVehicleSettings.stationaryTurnLeftTraction,
+		0.0f,
+		1.0f,
+		0.05f,
+		1.0f,
+		"%.2f x",
+		IsPending(
+			m_trackedVehicleSettings.stationaryTurnLeftTraction,
+			m_appliedTrackedVehicleSettings.stationaryTurnLeftTraction));
+	SliderFloatWithPendingColor(
+		"Stationary Right Track",
+		&m_trackedVehicleSettings.stationaryTurnRightTraction,
+		0.0f,
+		1.0f,
+		0.05f,
+		1.0f,
+		"%.2f x",
+		IsPending(
+			m_trackedVehicleSettings.stationaryTurnRightTraction,
+			m_appliedTrackedVehicleSettings.stationaryTurnRightTraction));
+	SliderFloatWithPendingColor(
+		"Pivot Left Track",
+		&m_trackedVehicleSettings.pivotTurnLeftTraction,
+		0.0f,
+		1.0f,
+		0.05f,
+		1.0f,
+		"%.2f x",
+		IsPending(
+			m_trackedVehicleSettings.pivotTurnLeftTraction,
+			m_appliedTrackedVehicleSettings.pivotTurnLeftTraction));
+	SliderFloatWithPendingColor(
+		"Pivot Right Track",
+		&m_trackedVehicleSettings.pivotTurnRightTraction,
+		0.0f,
+		1.0f,
+		0.05f,
+		1.0f,
+		"%.2f x",
+		IsPending(
+			m_trackedVehicleSettings.pivotTurnRightTraction,
+			m_appliedTrackedVehicleSettings.pivotTurnRightTraction));
 	SliderFloatWithPendingColor(
 		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
 		IsPending(m_trackedVehicleSettings.rideHeightScale, m_appliedTrackedVehicleSettings.rideHeightScale));
@@ -1805,6 +2103,9 @@ void TankSandboxApp::ResetTrackedVehicle()
 		m_appliedEnvironmentSettings);
 	m_appliedTrackedVehicleSettings = m_trackedVehicleSettings;
 	m_trackedVehicleSingleStep = false;
+	m_trackedVehicleCameraVelocity = {};
+	m_trackedVehicleCameraYawVelocity = 0.0f;
+	m_trackedVehicleCameraOrbitInitialized = false;
 	m_trackShoeDistances.fill(0.0f);
 	m_trackShoeLastTimeSeconds = 0.0f;
 	UpdateTrackedVehicleScene(m_trackedVehicleTest.State());
@@ -1855,6 +2156,9 @@ void TankSandboxApp::ApplyTrackedVehicleMaterials()
 		m_trackedVehicleModel.structureLowerMaterial,
 		m_tankVisualSettings.structureLower);
 	applyColor(m_trackedVehicleModel.wheelMaterial, m_tankVisualSettings.wheels);
+	applyColor(
+		m_trackedVehicleModel.contactedWheelMaterial,
+		m_tankVisualSettings.contactedWheels);
 	applyColor(m_trackedVehicleModel.trackShoeMaterial, m_tankVisualSettings.trackShoes);
 	applyColor(m_trackedVehicleModel.trackProxyMaterial, m_tankVisualSettings.trackProxies);
 	applyColor(
@@ -2077,6 +2381,8 @@ void TankSandboxApp::EnterTrackedVehicleMode()
 	m_trackedVehicleModel.forwardMarkerMaterial =
 		addBodyMaterial(m_tankVisualSettings.forwardMarker);
 	m_trackedVehicleModel.wheelMaterial = addBodyMaterial(m_tankVisualSettings.wheels);
+	m_trackedVehicleModel.contactedWheelMaterial =
+		addBodyMaterial(m_tankVisualSettings.contactedWheels);
 	m_trackedVehicleModel.trackShoeMaterial =
 		addBodyMaterial(m_tankVisualSettings.trackShoes);
 	const uint32_t obstacleMaterial =
@@ -2435,7 +2741,10 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 					wheel.transform.position.y,
 					wheel.transform.position.z);
 			SetInstanceWorld(inst, wheelWorld);
-			inst.materialId = m_trackedVehicleModel.wheelMaterial;
+			inst.materialId =
+				m_tankVisualSettings.colorWheelsByContact && wheel.hasContact
+				? m_trackedVehicleModel.contactedWheelMaterial
+				: m_trackedVehicleModel.wheelMaterial;
 		}
 		else
 		{
@@ -2521,15 +2830,128 @@ void TankSandboxApp::UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehic
 		}
 	}
 
-	m_debugCameraController.SetObjectViewerState(
-		m_debugCameraController.ObjectViewerYaw(),
-		m_debugCameraController.ObjectViewerPitch(),
-		m_debugCameraController.ObjectViewerDistance(),
-		{
+	if (!m_trackedVehicleCameraFollow)
+	{
+		m_debugCameraController.SetObjectViewerState(
+			m_debugCameraController.ObjectViewerYaw(),
+			m_debugCameraController.ObjectViewerPitch(),
+			m_debugCameraController.ObjectViewerDistance(),
+			{
+				state.bodyPosition.x,
+				state.bodyPosition.y + 0.5f,
+				state.bodyPosition.z });
+	}
+	m_sceneRenderer.SetScene(scene);
+}
+
+void TankSandboxApp::UpdateTrackedVehicleFollowCamera(
+	const Tank::Physics::TrackedVehicleTestState& state,
+	float deltaTimeSeconds)
+{
+	if (!m_trackedVehicleCameraFollow || deltaTimeSeconds <= 0.0f)
+	{
+		return;
+	}
+
+	Engine::Scene& scene = m_trackedVehicleSceneBuilder.GetScene();
+	Engine::CameraState& camera = scene.camera;
+	const XMVECTOR bodyRotation = XMQuaternionNormalize(XMVectorSet(
+		state.bodyRotation.x,
+		state.bodyRotation.y,
+		state.bodyRotation.z,
+		state.bodyRotation.w));
+	const XMVECTOR forward = XMVector3Normalize(
+		XMVector3Rotate(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), bodyRotation));
+	const XMVECTOR pivot = XMVectorSet(
 		state.bodyPosition.x,
 		state.bodyPosition.y + 0.5f,
-		state.bodyPosition.z });
-	m_sceneRenderer.SetScene(scene);
+		state.bodyPosition.z,
+		1.0f);
+	XMVECTOR position = XMLoadFloat3(&camera.pos);
+	XMVECTOR velocity = XMLoadFloat3(&m_trackedVehicleCameraVelocity);
+	const float positionSpeed =
+		std::clamp(m_trackedVehicleCameraPositionSpeed, 0.5f, 20.0f);
+	const float damping = std::clamp(m_trackedVehicleCameraDamping, 0.1f, 2.0f);
+	const float dt = std::min(deltaTimeSeconds, 1.0f / 30.0f);
+	const float rotationAlpha =
+		1.0f -
+		std::exp(
+			-std::clamp(m_trackedVehicleCameraRotationSpeed, 0.5f, 20.0f) *
+			dt / damping);
+	XMFLOAT3 forwardVector = {};
+	XMStoreFloat3(&forwardVector, forward);
+	const float desiredRearYaw =
+		std::atan2(-forwardVector.x, -forwardVector.z);
+	if (!m_trackedVehicleCameraOrbitInitialized)
+	{
+		XMFLOAT3 pivotPosition = {};
+		XMStoreFloat3(&pivotPosition, pivot);
+		m_trackedVehicleCameraOrbitYaw = std::atan2(
+			camera.pos.x - pivotPosition.x,
+			camera.pos.z - pivotPosition.z);
+		m_trackedVehicleCameraYawVelocity = 0.0f;
+		m_trackedVehicleCameraOrbitInitialized = true;
+	}
+	const float yawDelta = std::remainder(
+		desiredRearYaw - m_trackedVehicleCameraOrbitYaw,
+		XM_2PI);
+	const float yawSpeedLimit =
+		XMConvertToRadians(std::clamp(
+			m_trackedVehicleCameraYawSpeedLimitDegrees,
+			15.0f,
+			720.0f));
+	const float desiredYawVelocity = std::clamp(
+		yawDelta *
+			std::clamp(m_trackedVehicleCameraRotationSpeed, 0.5f, 20.0f),
+		-yawSpeedLimit,
+		yawSpeedLimit);
+	const float yawVelocityAlpha =
+		1.0f -
+		std::exp(
+			-std::clamp(m_trackedVehicleCameraYawDamping, 0.5f, 30.0f) * dt);
+	m_trackedVehicleCameraYawVelocity +=
+		(desiredYawVelocity - m_trackedVehicleCameraYawVelocity) *
+		yawVelocityAlpha;
+	const float yawStep = m_trackedVehicleCameraYawVelocity * dt;
+	if (std::abs(yawStep) >= std::abs(yawDelta))
+	{
+		m_trackedVehicleCameraOrbitYaw = desiredRearYaw;
+		m_trackedVehicleCameraYawVelocity = 0.0f;
+	}
+	else
+	{
+		m_trackedVehicleCameraOrbitYaw += yawStep;
+	}
+	const float lookDownRadians =
+		XMConvertToRadians(
+			std::clamp(m_trackedVehicleCameraLookDownDegrees, 0.0f, 89.0f));
+	const float horizontalDistance =
+		std::cos(lookDownRadians) * m_trackedVehicleCameraFollowDistance;
+	const float verticalDistance =
+		std::sin(lookDownRadians) * m_trackedVehicleCameraFollowDistance;
+	const XMVECTOR desiredPosition =
+		pivot +
+		XMVectorSet(
+			std::sin(m_trackedVehicleCameraOrbitYaw) *
+				horizontalDistance,
+			verticalDistance,
+			std::cos(m_trackedVehicleCameraOrbitYaw) *
+				horizontalDistance,
+			0.0f);
+	const XMVECTOR acceleration =
+		(desiredPosition - position) * (positionSpeed * positionSpeed) -
+		velocity * (2.0f * damping * positionSpeed);
+	velocity += acceleration * dt;
+	position += velocity * dt;
+	XMStoreFloat3(&camera.pos, position);
+	XMStoreFloat3(&m_trackedVehicleCameraVelocity, velocity);
+
+	const XMVECTOR desiredGaze = pivot;
+	const XMVECTOR currentGaze = XMLoadFloat3(&camera.gazePoint);
+	XMStoreFloat3(
+		&camera.gazePoint,
+		XMVectorLerp(currentGaze, desiredGaze, rotationAlpha));
+	m_sceneRenderer.SetCamera(camera);
 }
 
 void TankSandboxApp::ApplyTrackedVehicleCameraPreset(const XMFLOAT3& offset)

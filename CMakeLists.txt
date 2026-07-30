@@ -113,6 +113,8 @@ target_link_libraries(TankWindowsInput
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
     src/main.cpp
+    src/Rendering/CameraSettings.h
+    src/Rendering/CameraSettingsJson.cpp
     src/Rendering/TankVisualSettings.h
     src/Rendering/TankVisualSettingsJson.cpp
     src/Rendering/TankVisualSettingsJson.h
@@ -252,6 +254,20 @@ if(BUILD_TESTING)
     add_test(
         NAME TankRendering.TankVisualSettingsJson
         COMMAND TankVisualSettingsJsonTests
+    )
+
+    add_executable(CameraSettingsJsonTests
+        src/Rendering/CameraSettingsJson.cpp
+        tests/CameraSettingsJsonTests.cpp
+    )
+    target_include_directories(CameraSettingsJsonTests PRIVATE src)
+    target_link_libraries(CameraSettingsJsonTests PRIVATE nlohmann_json::nlohmann_json)
+    if(MSVC)
+        target_compile_options(CameraSettingsJsonTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(
+        NAME TankRendering.CameraSettingsJson
+        COMMAND CameraSettingsJsonTests
     )
 
     add_executable(TestObstacleLayoutTests
