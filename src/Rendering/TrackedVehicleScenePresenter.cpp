@@ -1,6 +1,7 @@
 #include "TrackedVehicleScenePresenter.h"
 
 #include "Physics/TestObstacleLayout.h"
+#include "Rendering/PhysicsDebugOverlay.h"
 
 #include <DirectXMath.h>
 #include <DirectXMathConvert.inl>
@@ -49,46 +50,6 @@ namespace
     {
         instance.prevWorld = instance.world;
         XMStoreFloat4x4(&instance.world, XMMatrixTranspose(world));
-    }
-
-    XMMATRIX MakeLineTransform(
-        const Tank::Physics::Vec3& start,
-        const Tank::Physics::Vec3& end,
-        float thickness)
-    {
-        const XMVECTOR startVector = XMVectorSet(start.x, start.y, start.z, 1.0f);
-        const XMVECTOR endVector = XMVectorSet(end.x, end.y, end.z, 1.0f);
-        const XMVECTOR delta = XMVectorSubtract(endVector, startVector);
-        const float length = XMVectorGetX(XMVector3Length(delta));
-        if (length <= 0.0001f)
-        {
-            return XMMatrixScaling(0.0f, 0.0f, 0.0f);
-        }
-
-        const XMVECTOR forward = XMVectorScale(delta, 1.0f / length);
-        const float forwardY = std::abs(XMVectorGetY(forward));
-        const XMVECTOR referenceUp =
-            forwardY < 0.99f
-            ? XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
-            : XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-        const XMVECTOR right = XMVector3Normalize(XMVector3Cross(referenceUp, forward));
-        const XMVECTOR up = XMVector3Cross(forward, right);
-        const XMVECTOR midpoint = XMVectorScale(XMVectorAdd(startVector, endVector), 0.5f);
-
-        XMFLOAT3 rightValues;
-        XMFLOAT3 upValues;
-        XMFLOAT3 forwardValues;
-        XMFLOAT3 midpointValues;
-        XMStoreFloat3(&rightValues, right);
-        XMStoreFloat3(&upValues, up);
-        XMStoreFloat3(&forwardValues, forward);
-        XMStoreFloat3(&midpointValues, midpoint);
-        const XMMATRIX orientation = XMMatrixSet(
-            rightValues.x, rightValues.y, rightValues.z, 0.0f,
-            upValues.x, upValues.y, upValues.z, 0.0f,
-            forwardValues.x, forwardValues.y, forwardValues.z, 0.0f,
-            midpointValues.x, midpointValues.y, midpointValues.z, 1.0f);
-        return XMMatrixScaling(thickness, thickness, length) * orientation;
     }
 
     struct TrackShoePose
@@ -370,7 +331,7 @@ namespace
 void TrackedVehicleScenePresenter::BuildScene(
     const Tank::Physics::PhysicsEnvironmentSettings& envSettings,
     const Tank::Rendering::TankVisualSettings& visualSettings,
-    const Tank::Physics::TankSettings& tankSettings)
+    const Tank::Physics::TankSettings&)
 {
     m_sceneBuilder.Clear();
 
@@ -430,15 +391,6 @@ void TrackedVehicleScenePresenter::BuildScene(
 
     const uint32_t obstacleMaterial =
         m_sceneBuilder.AddSolidColorMaterial(70, 95, 135, 255);
-    m_model.debugContactMaterial =
-        m_sceneBuilder.AddSolidColorMaterial(60, 230, 90, 255);
-    m_model.debugAirborneMaterial =
-        m_sceneBuilder.AddSolidColorMaterial(255, 145, 35, 255);
-    const uint32_t debugSuspensionMaterial =
-        m_sceneBuilder.AddSolidColorMaterial(40, 210, 230, 255);
-    const uint32_t debugNormalMaterial =
-        m_sceneBuilder.AddSolidColorMaterial(255, 225, 45, 255);
-
     m_sceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
     const Engine::SceneMeshId wheelMesh = m_sceneBuilder.AddCylinder(
         1.0f,
@@ -491,20 +443,6 @@ void TrackedVehicleScenePresenter::BuildScene(
             XMMatrixTranslation(0.0f, 1.5625f, 0.3f),
         m_model.structureLowerMaterial);
 
-    m_model.leftTrack =
-        m_sceneBuilder.GetScene().instances.size();
-    m_sceneBuilder.AddInstance(
-        XMMatrixScaling(tankSettings.trackWidthM, 0.5f, 4.0f) *
-        XMMatrixTranslation(-0.5f * tankSettings.trackSpacingM, 2.0f, 0.0f),
-        m_model.trackProxyMaterial);
-
-    m_model.rightTrack =
-        m_sceneBuilder.GetScene().instances.size();
-    m_sceneBuilder.AddInstance(
-        XMMatrixScaling(tankSettings.trackWidthM, 0.5f, 4.0f) *
-        XMMatrixTranslation(0.5f * tankSettings.trackSpacingM, 2.0f, 0.0f),
-        m_model.trackProxyMaterial);
-
     m_model.forwardMarker =
         m_sceneBuilder.GetScene().instances.size();
     m_sceneBuilder.AddInstance(
@@ -534,25 +472,7 @@ void TrackedVehicleScenePresenter::BuildScene(
         }
     }
 
-    for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
-    {
-        const size_t wheelIndex = static_cast<size_t>(i);
-        m_model.suspensionLines[wheelIndex] =
-            m_sceneBuilder.GetScene().instances.size();
-        m_sceneBuilder.AddInstance(
-            XMMatrixScaling(0.0f, 0.0f, 0.0f),
-            debugSuspensionMaterial);
-        m_model.contactMarkers[wheelIndex] =
-            m_sceneBuilder.GetScene().instances.size();
-        m_sceneBuilder.AddInstance(
-            XMMatrixScaling(0.0f, 0.0f, 0.0f),
-            m_model.debugAirborneMaterial);
-        m_model.contactNormalLines[wheelIndex] =
-            m_sceneBuilder.GetScene().instances.size();
-        m_sceneBuilder.AddInstance(
-            XMMatrixScaling(0.0f, 0.0f, 0.0f),
-            debugNormalMaterial);
-    }
+    m_physicsDebugOverlay.BuildScene(m_model.trackProxyMaterial);
 
     for (const Tank::Physics::TestObstaclePlacement& obstacle :
         Tank::Physics::GenerateTestObstacleLayout(envSettings))
@@ -619,22 +539,6 @@ void TrackedVehicleScenePresenter::UpdateScene(
         { m_model.lowerStructureLower,
             XMMatrixScaling(0.6f * chassisWidth, 0.125f, 0.5f * chassisLength) *
                 XMMatrixTranslation(0.0f, -0.4375f, 0.075f * chassisLength) },
-        { m_model.leftTrack,
-            showTrackProxies
-                ? XMMatrixScaling(tankSettings.trackWidthM, 0.5f, chassisLength) *
-                    XMMatrixTranslation(
-                        -0.5f * tankSettings.trackSpacingM,
-                        0.0f,
-                        0.0f)
-                : XMMatrixScaling(0.0f, 0.0f, 0.0f) },
-        { m_model.rightTrack,
-            showTrackProxies
-                ? XMMatrixScaling(tankSettings.trackWidthM, 0.5f, chassisLength) *
-                    XMMatrixTranslation(
-                        0.5f * tankSettings.trackSpacingM,
-                        0.0f,
-                        0.0f)
-                : XMMatrixScaling(0.0f, 0.0f, 0.0f) },
         { m_model.forwardMarker,
             XMMatrixScaling(0.3f, 0.3f, 0.3f) *
                 XMMatrixTranslation(0.0f, 0.0f, 0.625f * chassisLength) },
@@ -792,82 +696,8 @@ void TrackedVehicleScenePresenter::UpdateScene(
         }
     }
 
-    for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
-    {
-        const size_t wheelIndex = static_cast<size_t>(i);
-        Engine::InstanceData& suspensionLine =
-            scene.instances[m_model.suspensionLines[wheelIndex]];
-        Engine::InstanceData& contactMarker =
-            scene.instances[m_model.contactMarkers[wheelIndex]];
-        Engine::InstanceData& contactNormalLine =
-            scene.instances[m_model.contactNormalLines[wheelIndex]];
-
-        if (!physicsDebugOverlay || i >= state.wheelCount)
-        {
-            const XMMATRIX hidden = XMMatrixScaling(0.0f, 0.0f, 0.0f);
-            SetInstanceWorld(suspensionLine, hidden);
-            SetInstanceWorld(contactMarker, hidden);
-            SetInstanceWorld(contactNormalLine, hidden);
-            continue;
-        }
-
-        const Tank::Physics::TrackedWheelState& wheel = state.wheels[wheelIndex];
-        const int wheelsPerSurface = tankSettings.roadWheelCount + 2;
-        const int wheelOnSurface = wheel.wheelIndex % wheelsPerSurface;
-        const bool endWheel =
-            wheelOnSurface == 0 || wheelOnSurface == wheelsPerSurface - 1;
-        const float wheelRadius = endWheel
-            ? tankSettings.endWheelRadiusM
-            : tankSettings.roadWheelRadiusM;
-        const Tank::Physics::Vec3 suspensionEnd = {
-            wheel.suspensionOrigin.x +
-                wheel.suspensionDirection.x *
-                    (wheel.suspensionLength + wheelRadius),
-            wheel.suspensionOrigin.y +
-                wheel.suspensionDirection.y *
-                    (wheel.suspensionLength + wheelRadius),
-            wheel.suspensionOrigin.z +
-                wheel.suspensionDirection.z *
-                    (wheel.suspensionLength + wheelRadius) };
-        SetInstanceWorld(
-            suspensionLine,
-            MakeLineTransform(wheel.suspensionOrigin, suspensionEnd, 0.06f));
-
-        const Tank::Physics::Vec3 markerPosition = wheel.hasContact
-            ? Tank::Physics::Vec3 {
-                wheel.contactPosition.x + wheel.contactNormal.x * 0.08f,
-                wheel.contactPosition.y + wheel.contactNormal.y * 0.08f,
-                wheel.contactPosition.z + wheel.contactNormal.z * 0.08f }
-            : wheel.transform.position;
-        SetInstanceWorld(
-            contactMarker,
-            XMMatrixScaling(0.22f, 0.22f, 0.22f) *
-            XMMatrixTranslation(markerPosition.x, markerPosition.y, markerPosition.z));
-        contactMarker.materialId = wheel.hasContact
-            ? m_model.debugContactMaterial
-            : m_model.debugAirborneMaterial;
-
-        if (wheel.hasContact)
-        {
-            const Tank::Physics::Vec3 normalStart = {
-                wheel.contactPosition.x + wheel.contactNormal.x * 0.08f,
-                wheel.contactPosition.y + wheel.contactNormal.y * 0.08f,
-                wheel.contactPosition.z + wheel.contactNormal.z * 0.08f };
-            const Tank::Physics::Vec3 normalEnd = {
-                normalStart.x + wheel.contactNormal.x * 2.0f,
-                normalStart.y + wheel.contactNormal.y * 2.0f,
-                normalStart.z + wheel.contactNormal.z * 2.0f };
-            SetInstanceWorld(
-                contactNormalLine,
-                MakeLineTransform(normalStart, normalEnd, 0.06f));
-        }
-        else
-        {
-            SetInstanceWorld(
-                contactNormalLine,
-                XMMatrixScaling(0.0f, 0.0f, 0.0f));
-        }
-    }
+    m_physicsDebugOverlay.UpdateScene(
+        state, tankSettings, showTrackProxies, physicsDebugOverlay);
 }
 
 void TrackedVehicleScenePresenter::ApplyMaterials(

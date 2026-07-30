@@ -3,6 +3,7 @@
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TankTypes.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Rendering/PhysicsDebugOverlay.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Scene/SceneBuilder.h"
 
@@ -23,13 +24,8 @@ public:
         size_t upperStructureLower = 0;
         size_t lowerStructureUpper = 0;
         size_t lowerStructureLower = 0;
-        size_t leftTrack = 0;
-        size_t rightTrack = 0;
         size_t forwardMarker = 0;
         std::array<size_t, Tank::Physics::kTankWheelCount> wheels = {};
-        std::array<size_t, Tank::Physics::kTankWheelCount> suspensionLines = {};
-        std::array<size_t, Tank::Physics::kTankWheelCount> contactMarkers = {};
-        std::array<size_t, Tank::Physics::kTankWheelCount> contactNormalLines = {};
         std::array<std::array<size_t, kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount>
             trackShoes = {};
         uint32_t wheelMaterial = 0;
@@ -37,8 +33,6 @@ public:
         uint32_t trackShoeMaterial = 0;
         uint32_t trackProxyMaterial = 0;
         uint32_t forwardMarkerMaterial = 0;
-        uint32_t debugContactMaterial = 0;
-        uint32_t debugAirborneMaterial = 0;
         uint32_t hullUpperMaterial = 0;
         uint32_t hullLowerMaterial = 0;
         uint32_t structureUpperMaterial = 0;
@@ -69,6 +63,7 @@ public:
 
 private:
     Engine::SceneBuilder m_sceneBuilder;
+    PhysicsDebugOverlay m_physicsDebugOverlay{m_sceneBuilder};
     TrackedVehicleModel m_model;
     std::array<float, Tank::Physics::kTankTrackCount> m_trackShoeDistances = {};
     float m_trackShoeLastTimeSeconds = 0.0f;

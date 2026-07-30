@@ -128,6 +128,8 @@ add_executable(TankSandbox
     src/Rendering/TankVisualSettings.h
     src/Rendering/TankVisualSettingsJson.cpp
     src/Rendering/TankVisualSettingsJson.h
+    src/Rendering/PhysicsDebugOverlay.h
+    src/Rendering/PhysicsDebugOverlay.cpp
     src/Rendering/TrackedVehicleScenePresenter.h
     src/Rendering/TrackedVehicleScenePresenter.cpp
     src/TankSandboxApp.cpp
