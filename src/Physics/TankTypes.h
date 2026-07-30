@@ -94,6 +94,8 @@ namespace Tank::Physics
         TransformState body = {};
         Vec3 linearVelocity = {};
         Vec3 angularVelocity = {};
+        float yawSpeedDegrees = 0.0f;
+        bool yawSpeedLimited = false;
         std::array<TrackedWheelState, kTankWheelCount> wheels = {};
         int wheelCount = 0;
         bool sleeping = false;

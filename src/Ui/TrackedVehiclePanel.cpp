@@ -633,6 +633,20 @@ namespace Ui
             ctx.analogLeftTrack,
             ctx.analogRightTrack,
             ctx.analogRoll);
+        if (state.yawSpeedLimited)
+        {
+            ImGui::PushStyleColor(
+                ImGuiCol_Text,
+                ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
+        }
+        ImGui::Text(
+            "Tank Yaw Speed: %+.1f deg/s%s",
+            state.yawSpeedDegrees,
+            state.yawSpeedLimited ? "  LIMITED" : "");
+        if (state.yawSpeedLimited)
+        {
+            ImGui::PopStyleColor();
+        }
         const Tank::Physics::TrackedDriverInput& driverInput = *ctx.driverInput;
         ImGui::Text(
             "SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",

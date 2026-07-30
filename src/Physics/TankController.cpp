@@ -444,6 +444,7 @@ namespace Tank::Physics
             m_settings.yawSpeedLimitDegrees,
             15.0f,
             720.0f) * JPH::JPH_PI / 180.0f;
+        m_state.yawSpeedLimited = std::abs(yawVelocity) > yawSpeedLimit;
         float limitedYawVelocity =
             std::clamp(yawVelocity, -yawSpeedLimit, yawSpeedLimit);
         constexpr float turnInputEpsilon = 0.001f;
@@ -456,6 +457,8 @@ namespace Tank::Physics
                 30.0f);
             limitedYawVelocity *= std::exp(-yawDamping * deltaTimeSeconds);
         }
+        m_state.yawSpeedDegrees =
+            limitedYawVelocity * 180.0f / JPH::JPH_PI;
         angularVelocity += bodyUp * (limitedYawVelocity - yawVelocity);
         bodyInterface.SetAngularVelocity(m_impl->bodyId, angularVelocity);
 
