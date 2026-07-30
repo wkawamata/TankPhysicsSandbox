@@ -115,7 +115,7 @@ namespace Tank::Physics
         m_settings.chassisWidthM = std::clamp(m_settings.chassisWidthM, 1.6f, 3.2f);
         m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
         m_settings.endWheelRadiusM =
-            std::clamp(m_settings.endWheelRadiusM, 0.2f, 0.6f);
+            std::clamp(m_settings.endWheelRadiusM, 0.01f, 0.6f);
         m_settings.roadWheelRadiusM =
             std::clamp(m_settings.roadWheelRadiusM, 0.2f, 0.5f);
         m_settings.clutchReleaseTimeSeconds =

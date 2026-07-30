@@ -515,7 +515,7 @@ namespace Ui
         SliderFloatWithPendingColor(
             "End Wheel Radius",
             &ctx.tankSettings->endWheelRadiusM,
-            0.2f,
+            0.01f,
             0.6f,
             0.01f,
             0.4f,

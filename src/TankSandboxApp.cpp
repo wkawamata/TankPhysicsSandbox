@@ -399,8 +399,20 @@ void TankSandboxApp::OnMouseWheel(int wheelDelta)
 {
     if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
     {
-        m_debugCameraController.OnMouseWheel(wheelDelta, false);
-        ApplyActiveCameraScene();
+        Engine::CameraState* camera = ActiveCamera();
+        if (camera != nullptr &&
+            camera->projection == Engine::CameraProjection::Orthographic)
+        {
+            const float steps = static_cast<float>(wheelDelta) / static_cast<float>(WHEEL_DELTA);
+            camera->orthographicHeight = std::clamp(
+                camera->orthographicHeight - steps, 1.0f, 200.0f);
+            ApplyActiveCameraScene();
+        }
+        else
+        {
+            m_debugCameraController.OnMouseWheel(wheelDelta, false);
+            ApplyActiveCameraScene();
+        }
     }
 }
 
