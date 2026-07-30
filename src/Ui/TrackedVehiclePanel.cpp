@@ -406,12 +406,6 @@ namespace Ui
         {
             if (ctx.updateScene) ctx.updateScene();
         }
-        SliderFloatWithPendingColor(
-            "Track Width", &ctx.tankSettings->trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m",
-            IsPending(ctx.tankSettings->trackWidthM, ctx.appliedTankSettings->trackWidthM));
-        SliderFloatWithPendingColor(
-            "Track Spacing", &ctx.tankSettings->trackSpacingM, 1.8f, 3.2f, 0.1f, 2.4f, "%.2f m",
-            IsPending(ctx.tankSettings->trackSpacingM, ctx.appliedTankSettings->trackSpacingM));
         ImGui::SeparatorText("Turn Traction:");
         SliderFloatWithPendingColor(
             "Stationary Inner Track Ratio",
@@ -503,6 +497,13 @@ namespace Ui
             IsPending(
                 ctx.tankSettings->yawDamping,
                 ctx.appliedTankSettings->yawDamping));
+        ImGui::SeparatorText("Track Layout Adjustment:");
+        SliderFloatWithPendingColor(
+            "Track Width", &ctx.tankSettings->trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m",
+            IsPending(ctx.tankSettings->trackWidthM, ctx.appliedTankSettings->trackWidthM));
+        SliderFloatWithPendingColor(
+            "Track Spacing", &ctx.tankSettings->trackSpacingM, 1.8f, 3.2f, 0.1f, 2.4f, "%.2f m",
+            IsPending(ctx.tankSettings->trackSpacingM, ctx.appliedTankSettings->trackSpacingM));
         SliderFloatWithPendingColor(
             "Suspension Stroke", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
             IsPending(ctx.tankSettings->rideHeightScale, ctx.appliedTankSettings->rideHeightScale));
