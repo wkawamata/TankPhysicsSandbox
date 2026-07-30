@@ -31,8 +31,11 @@ namespace Tank::App
         bool AutoLoad() const { return m_autoLoad; }
         const std::string& Status() const { return m_status; }
 
-        bool EnsureSlotLoaded(int slot, CameraSettingsStore& store);
-        void SelectSlot(int slot, bool load, CameraSettingsStore& store);
+        bool EnsureSlotLoaded(int slot);
+        void SelectSlot(int slot, bool load);
+        void SetSlotSettings(
+            int slot,
+            const Tank::Rendering::CameraSettings& settings);
         void UpdateSlotCache(const Engine::CameraState& camera);
 
         // Camera capture/apply.
@@ -76,10 +79,9 @@ namespace Tank::App
             Engine::CameraState& camera);
 
         // Button cycle.
-        void OnButton4Pressed(CameraSettingsStore& store);
-        void OnButton7Pressed(CameraSettingsStore& store);
-        void UpdateButtonStates(bool button4Pressed, bool button7Pressed,
-            CameraSettingsStore& store);
+        void OnButton4Pressed();
+        void OnButton7Pressed();
+        void UpdateButtonStates(bool button4Pressed, bool button7Pressed);
 
     // File loaded tracking (for cache).
     bool IsSlotFileLoaded(int slot) const

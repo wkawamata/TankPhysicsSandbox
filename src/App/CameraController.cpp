@@ -104,7 +104,7 @@ namespace Tank::App
         ResetFollowState();
     }
 
-    bool CameraController::EnsureSlotLoaded(int slot, CameraSettingsStore& store)
+    bool CameraController::EnsureSlotLoaded(int slot)
     {
         const size_t slotIndex = static_cast<size_t>(std::clamp(slot, 0, 3));
         if (m_fileLoaded[slotIndex] && m_cache[slotIndex].has_value())
@@ -112,6 +112,7 @@ namespace Tank::App
             return true;
         }
         Tank::Rendering::CameraSettings settings;
+        CameraSettingsStore store(static_cast<int>(slotIndex));
         if (!store.Read(settings, m_status))
         {
             return false;
@@ -122,7 +123,7 @@ namespace Tank::App
         return true;
     }
 
-    void CameraController::SelectSlot(int slot, bool load, CameraSettingsStore& store)
+    void CameraController::SelectSlot(int slot, bool load)
     {
         const size_t currentSlot = static_cast<size_t>(m_selectedSlot);
         if (!m_cache[currentSlot].has_value())
@@ -137,8 +138,18 @@ namespace Tank::App
         m_selectedSlot = std::clamp(slot, 0, 3);
         if (load)
         {
-            EnsureSlotLoaded(m_selectedSlot, store);
+            EnsureSlotLoaded(m_selectedSlot);
         }
+    }
+
+    void CameraController::SetSlotSettings(
+        int slot,
+        const Tank::Rendering::CameraSettings& settings)
+    {
+        const size_t slotIndex = static_cast<size_t>(std::clamp(slot, 0, 3));
+        m_cache[slotIndex] = settings;
+        m_dirty[slotIndex] = false;
+        m_fileLoaded[slotIndex] = true;
     }
 
     void CameraController::UpdateSlotCache(const Engine::CameraState& camera)
@@ -347,26 +358,27 @@ namespace Tank::App
         camera.gazePoint = pivot;
     }
 
-    void CameraController::OnButton4Pressed(CameraSettingsStore& store)
+    void CameraController::OnButton4Pressed()
     {
-        SelectSlot((m_selectedSlot + 1) % 3, true, store);
+        SelectSlot((m_selectedSlot + 1) % 3, true);
     }
 
-    void CameraController::OnButton7Pressed(CameraSettingsStore& store)
+    void CameraController::OnButton7Pressed()
     {
-        SelectSlot((m_selectedSlot + 2) % 3, true, store);
+        SelectSlot((m_selectedSlot + 2) % 3, true);
     }
 
-    void CameraController::UpdateButtonStates(bool button4Pressed, bool button7Pressed,
-        CameraSettingsStore& store)
+    void CameraController::UpdateButtonStates(
+        bool button4Pressed,
+        bool button7Pressed)
     {
         if (button4Pressed && !m_button4WasPressed)
         {
-            OnButton4Pressed(store);
+            OnButton4Pressed();
         }
         else if (button7Pressed && !m_button7WasPressed)
         {
-            OnButton7Pressed(store);
+            OnButton7Pressed();
         }
         m_button4WasPressed = button4Pressed;
         m_button7WasPressed = button7Pressed;

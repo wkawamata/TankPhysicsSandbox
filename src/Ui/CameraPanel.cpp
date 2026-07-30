@@ -35,15 +35,17 @@ namespace Ui
                 label.c_str(),
                 ctx.cameraController->SelectedSlot() == slot))
             {
-                Tank::App::CameraSettingsStore store(ctx.cameraController->SelectedSlot());
-                ctx.cameraController->SelectSlot(slot, ctx.cameraController->AutoLoad(), store);
+                ctx.cameraController->SelectSlot(
+                    slot,
+                    ctx.cameraController->AutoLoad());
             }
         }
         ImGui::SameLine();
         if (ImGui::RadioButton("Debug", ctx.cameraController->SelectedSlot() == 3))
         {
-            Tank::App::CameraSettingsStore store(ctx.cameraController->SelectedSlot());
-            ctx.cameraController->SelectSlot(3, ctx.cameraController->AutoLoad(), store);
+            ctx.cameraController->SelectSlot(
+                3,
+                ctx.cameraController->AutoLoad());
         }
         ImGui::SameLine();
         {

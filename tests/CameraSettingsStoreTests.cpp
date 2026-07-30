@@ -26,10 +26,13 @@ namespace
 int main()
 {
     bool passed = true;
+    const std::filesystem::path testRoot =
+        std::filesystem::current_path() / "CameraSettingsStoreTestsTemp";
+    std::filesystem::remove_all(testRoot);
 
     // Round-trip write/read.
     {
-        Tank::App::CameraSettingsStore store(0);
+        Tank::App::CameraSettingsStore store(0, testRoot);
         Tank::Rendering::CameraSettings source;
         source.position[0] = 3.0f;
         source.fovDegrees = 45.0f;
@@ -52,7 +55,7 @@ int main()
 
     // Missing file.
     {
-        Tank::App::CameraSettingsStore store(0);
+        Tank::App::CameraSettingsStore store(0, testRoot);
         std::filesystem::remove(store.Path());
 
         Tank::Rendering::CameraSettings settings;
@@ -65,7 +68,7 @@ int main()
 
     // Invalid JSON.
     {
-        Tank::App::CameraSettingsStore store(0);
+        Tank::App::CameraSettingsStore store(0, testRoot);
         {
             std::ofstream out(store.Path(), std::ios::binary | std::ios::trunc);
             out << "{invalid}";
@@ -80,6 +83,7 @@ int main()
         std::filesystem::remove(store.Path());
     }
 
+    std::filesystem::remove_all(testRoot);
     if (!passed)
     {
         return 1;

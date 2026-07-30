@@ -7,19 +7,23 @@
 namespace Tank::App
 {
 
-    std::filesystem::path CameraSettingsStore::MakePath(int slot)
+    std::filesystem::path CameraSettingsStore::MakePath(
+        int slot,
+        const std::filesystem::path& rootDirectory)
     {
         if (slot == 3)
         {
-            return std::filesystem::path("Config") / "camera_debug.json";
+            return rootDirectory / "camera_debug.json";
         }
-        return std::filesystem::path("Config") /
+        return rootDirectory /
             ("camera_slot" + std::to_string(slot + 1) + ".json");
     }
 
-    CameraSettingsStore::CameraSettingsStore(int slot)
+    CameraSettingsStore::CameraSettingsStore(
+        int slot,
+        const std::filesystem::path& rootDirectory)
         : m_slot(std::clamp(slot, 0, 3))
-        , m_path(MakePath(m_slot))
+        , m_path(MakePath(m_slot, rootDirectory))
     {
     }
 

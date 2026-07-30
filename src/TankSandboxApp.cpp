@@ -415,11 +415,9 @@ void TankSandboxApp::OnIdle()
         m_gamepad.Poll();
         {
             const Tank::Input::GamepadState& gp = m_gamepad.State();
-            Tank::App::CameraSettingsStore store(m_cameraController.SelectedSlot());
             m_cameraController.UpdateButtonStates(
                 gp.connected && gp.buttonCount > 4 && gp.rawButtons[4],
-                gp.connected && gp.buttonCount > 7 && gp.rawButtons[7],
-                store);
+                gp.connected && gp.buttonCount > 7 && gp.rawButtons[7]);
         }
         m_trackedVehicleMode.UpdateInput(
             m_gamepad.State(),
@@ -712,8 +710,9 @@ bool TankSandboxApp::SaveCameraSettings()
     {
         return false;
     }
-    m_cameraController.EnsureSlotLoaded(
-        m_cameraController.SelectedSlot(), store);
+    m_cameraController.SetSlotSettings(
+        m_cameraController.SelectedSlot(),
+        settings);
     return true;
 }
 
@@ -724,9 +723,8 @@ bool TankSandboxApp::LoadCameraSettings()
     {
         return false;
     }
-    Tank::App::CameraSettingsStore store(m_cameraController.SelectedSlot());
     if (!m_cameraController.EnsureSlotLoaded(
-        m_cameraController.SelectedSlot(), store))
+        m_cameraController.SelectedSlot()))
     {
         return false;
     }
@@ -794,6 +792,10 @@ void TankSandboxApp::EnterTrackedVehicleMode()
     m_trackedVehicleMode.Enter(m_sceneRenderer);
     ActivateOrbitCamera(m_trackedVehicleMode.GetScene(), { 0.0f, 0.8f, 0.0f });
     m_appMode = AppMode::PhysicsTrackedVehicle;
+    if (m_cameraController.AutoLoad())
+    {
+        LoadCameraSettings();
+    }
 }
 
 void TankSandboxApp::ActivateOrbitCamera(Engine::Scene& scene, const XMFLOAT3& pivot)
