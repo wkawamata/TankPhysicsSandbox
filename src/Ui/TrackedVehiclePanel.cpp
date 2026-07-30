@@ -7,6 +7,7 @@
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
 #include "imgui.h"
+#include "imgui_stdlib.h"
 #include <ImGuiWidgets.h>
 
 #include <cmath>
@@ -642,6 +643,10 @@ namespace Ui
         if (ctx.tankSettingsStatus && !ctx.tankSettingsStatus->empty())
         {
             ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
+        }
+        if (ctx.tankModelExportPath)
+        {
+            ImGui::InputText("Export Path", ctx.tankModelExportPath);
         }
         if (ImGui::Button("Export Tank glTF"))
         {

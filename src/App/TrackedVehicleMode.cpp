@@ -376,6 +376,6 @@ bool TrackedVehicleMode::ExportTankModel()
         m_presenter.GetScene(),
         parts,
         m_test.State(),
-        "Exports/Tank.gltf",
+        m_tankModelExportPath,
         m_tankModelExportStatus);
 }

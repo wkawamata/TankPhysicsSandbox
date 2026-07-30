@@ -230,6 +230,8 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.tankSettingsStatus = &m_trackedVehicleMode.TankSettingsStatus();
     m_trackedVehiclePanelCtx.tankVisualSettingsStatus = &m_trackedVehicleMode.TankVisualSettingsStatus();
     m_trackedVehiclePanelCtx.envSettingsStatus = &m_trackedVehicleMode.EnvSettingsStatus();
+    m_trackedVehiclePanelCtx.tankModelExportPath =
+        &m_trackedVehicleMode.TankModelExportPath();
     m_trackedVehiclePanelCtx.tankModelExportStatus =
         &m_trackedVehicleMode.TankModelExportStatus();
     m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleMode.Settings();

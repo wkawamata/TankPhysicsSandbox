@@ -74,6 +74,7 @@ public:
     bool SaveEnvironmentSettings();
     bool LoadEnvironmentSettings();
     bool ExportTankModel();
+    std::string& TankModelExportPath() { return m_tankModelExportPath; }
     std::string& TankModelExportStatus() { return m_tankModelExportStatus; }
 
     bool IsActive() const { return m_active; }
@@ -110,6 +111,7 @@ private:
     std::string m_tankSettingsStatus;
     std::string m_tankVisualSettingsStatus;
     std::string m_environmentSettingsStatus;
+    std::string m_tankModelExportPath = "Exports/Tank.gltf";
     std::string m_tankModelExportStatus;
 
     float m_analogLeftTrack = 0.0f;

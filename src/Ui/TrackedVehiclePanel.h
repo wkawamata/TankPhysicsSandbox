@@ -40,6 +40,7 @@ namespace Ui
         std::string* tankSettingsStatus = nullptr;
         std::string* tankVisualSettingsStatus = nullptr;
         std::string* envSettingsStatus = nullptr;
+        std::string* tankModelExportPath = nullptr;
         std::string* tankModelExportStatus = nullptr;
 
         Tank::Physics::TankSettings* tankSettings = nullptr;
