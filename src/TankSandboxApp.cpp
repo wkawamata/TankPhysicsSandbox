@@ -784,11 +784,20 @@ void TankSandboxApp::OnIdle()
 			cameraGamepadState.connected &&
 			cameraGamepadState.buttonCount > 4 &&
 			cameraGamepadState.rawButtons[4];
+		const bool cameraButton7Pressed =
+			cameraGamepadState.connected &&
+			cameraGamepadState.buttonCount > 7 &&
+			cameraGamepadState.rawButtons[7];
 		if (cameraButton4Pressed && !m_cameraButton4WasPressed)
 		{
 			SelectCameraSlot((m_cameraSettingsSlot + 1) % 3, true);
 		}
+		else if (cameraButton7Pressed && !m_cameraButton7WasPressed)
+		{
+			SelectCameraSlot((m_cameraSettingsSlot + 2) % 3, true);
+		}
 		m_cameraButton4WasPressed = cameraButton4Pressed;
+		m_cameraButton7WasPressed = cameraButton7Pressed;
 		UpdateTrackedVehicleInput();
 		if (!m_trackedVehiclePaused || m_trackedVehicleSingleStep)
 		{

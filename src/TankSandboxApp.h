@@ -202,6 +202,7 @@ private:
     Tank::Rendering::CameraSettings m_cameraTransitionStart = {};
     Tank::Rendering::CameraSettings m_cameraTransitionTarget = {};
     bool m_cameraButton4WasPressed = false;
+    bool m_cameraButton7WasPressed = false;
     bool m_physicsDebugOverlay = false;
     bool m_trackShoeDisplay = true;
     bool m_showTrackProxies = false;
