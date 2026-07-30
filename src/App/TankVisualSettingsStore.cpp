@@ -7,8 +7,9 @@
 namespace Tank::App
 {
 
-    TankVisualSettingsStore::TankVisualSettingsStore()
-        : m_path("Config/tank_visual.json")
+    TankVisualSettingsStore::TankVisualSettingsStore(
+        const std::filesystem::path& rootDirectory)
+        : m_path(rootDirectory / "tank_visual.json")
     {
     }
 

@@ -26,10 +26,13 @@ namespace
 int main()
 {
     bool passed = true;
+    const std::filesystem::path testRoot =
+        std::filesystem::current_path() / "TankSettingsStoreTestsTemp";
+    std::filesystem::remove_all(testRoot);
 
     // Round-trip write/read.
     {
-        Tank::App::TankSettingsStore store(0);
+        Tank::App::TankSettingsStore store(0, testRoot);
         Tank::Physics::TankSettings source;
         source.chassisMassKg = 5200.0f;
         source.trackWidthM = 0.42f;
@@ -51,7 +54,7 @@ int main()
 
     // Missing file.
     {
-        Tank::App::TankSettingsStore store(1);
+        Tank::App::TankSettingsStore store(1, testRoot);
         std::filesystem::remove(store.Path());
 
         Tank::Physics::TankSettings settings;
@@ -64,7 +67,7 @@ int main()
 
     // Invalid JSON.
     {
-        Tank::App::TankSettingsStore store(1);
+        Tank::App::TankSettingsStore store(1, testRoot);
         {
             std::ofstream out(store.Path(), std::ios::binary | std::ios::trunc);
             out << "{invalid}";
@@ -79,6 +82,7 @@ int main()
         std::filesystem::remove(store.Path());
     }
 
+    std::filesystem::remove_all(testRoot);
     if (!passed)
     {
         return 1;

@@ -7,20 +7,20 @@
 namespace Tank::App
 {
 
-    namespace
+    std::filesystem::path TankSettingsStore::MakePath(
+        int slot,
+        const std::filesystem::path& rootDirectory)
     {
-        constexpr const char* kLegacyTankSettingsPath = "Config/tank_physics.json";
-    }
-
-    std::filesystem::path TankSettingsStore::MakePath(int slot)
-    {
-        return std::filesystem::path("Config") /
+        return rootDirectory /
             ("tank_physics_slot" + std::to_string(slot + 1) + ".json");
     }
 
-    TankSettingsStore::TankSettingsStore(int slot)
+    TankSettingsStore::TankSettingsStore(
+        int slot,
+        const std::filesystem::path& rootDirectory)
         : m_slot(std::clamp(slot, 0, 2))
-        , m_path(MakePath(m_slot))
+        , m_path(MakePath(m_slot, rootDirectory))
+        , m_legacyPath(rootDirectory / "tank_physics.json")
     {
     }
 
@@ -32,7 +32,7 @@ namespace Tank::App
         std::ifstream input(path, std::ios::binary);
         if (!input && m_slot == 0)
         {
-            path = kLegacyTankSettingsPath;
+            path = m_legacyPath;
             input = std::ifstream(path, std::ios::binary);
         }
         if (!input)

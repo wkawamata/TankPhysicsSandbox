@@ -11,7 +11,8 @@ namespace Tank::App
     class TankVisualSettingsStore
     {
     public:
-        TankVisualSettingsStore();
+        explicit TankVisualSettingsStore(
+            const std::filesystem::path& rootDirectory = "Config");
 
         bool Read(Tank::Rendering::TankVisualSettings& settings, std::string& status);
         bool Write(const Tank::Rendering::TankVisualSettings& settings, std::string& status);
