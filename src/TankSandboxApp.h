@@ -23,6 +23,8 @@
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
+#include "Rendering/BoxDropScenePresenter.h"
+#include "Rendering/TrackedVehicleScenePresenter.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
 
@@ -85,13 +87,11 @@ private:
     bool LoadTankSettings(bool apply = true);
     bool SaveEnvironmentSettings();
     bool LoadEnvironmentSettings();
-    void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
     void UpdateTrackedVehicleInput();
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
     void ApplyActiveCameraScene();
     Engine::CameraState* ActiveCamera();
     void EnterBoxDropMode();
-    void UpdateBoxDropScene(const Tank::Physics::BoxDropState& state);
     void FlushD3d12DebugLog();
     void LogFps(float cpuFrameTimeMs);
 
@@ -107,51 +107,20 @@ private:
     RtPbrSurvey::DebugCameraController m_debugCameraController;
     AppMode m_appMode = AppMode::TopMenu;
 
-    // Box drop physics test and scene
+    // Scene presenters
+    BoxDropScenePresenter m_boxDropPresenter;
+    TrackedVehicleScenePresenter m_trackedVehiclePresenter;
+
+    // Box drop physics test
     Tank::Physics::BoxDropTest m_boxDropTest;
-    Engine::SceneBuilder m_boxDropSceneBuilder;
-    size_t m_boxDropBoxInstanceIndex = 0;
     static constexpr float kPhysicsFixedDt = 1.0f / 60.0f;
 
-    struct TrackedVehicleModel
-    {
-        static constexpr int kTrackShoeCountPerTrack = 32;
-
-        size_t hullUpper = 0;
-        size_t hullLower = 0;
-        size_t upperStructureUpper = 0;
-        size_t upperStructureLower = 0;
-        size_t lowerStructureUpper = 0;
-        size_t lowerStructureLower = 0;
-        size_t leftTrack = 0;
-        size_t rightTrack = 0;
-        size_t forwardMarker = 0;
-        std::array<size_t, Tank::Physics::kTankWheelCount> wheels = {};
-        std::array<size_t, Tank::Physics::kTankWheelCount> suspensionLines = {};
-        std::array<size_t, Tank::Physics::kTankWheelCount> contactMarkers = {};
-        std::array<size_t, Tank::Physics::kTankWheelCount> contactNormalLines = {};
-        std::array<std::array<size_t, kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount>
-            trackShoes = {};
-        uint32_t wheelMaterial = 0;
-        uint32_t contactedWheelMaterial = 0;
-        uint32_t trackShoeMaterial = 0;
-        uint32_t trackProxyMaterial = 0;
-        uint32_t forwardMarkerMaterial = 0;
-        uint32_t debugContactMaterial = 0;
-        uint32_t debugAirborneMaterial = 0;
-        uint32_t hullUpperMaterial = 0;
-        uint32_t hullLowerMaterial = 0;
-        uint32_t structureUpperMaterial = 0;
-        uint32_t structureLowerMaterial = 0;
-    };
     Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
     Tank::Physics::TankSettings m_trackedVehicleSettings;
     Tank::Physics::TankSettings m_appliedTrackedVehicleSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
     Tank::Platform::Windows::WindowsGamepad m_gamepad;
-    Engine::SceneBuilder m_trackedVehicleSceneBuilder;
-    TrackedVehicleModel m_trackedVehicleModel;
     bool m_moveForward = false;
     bool m_moveBackward = false;
     bool m_turnLeft = false;
@@ -172,8 +141,6 @@ private:
     bool m_showTrackProxies = false;
     bool m_tankVisualMaterialApplyPending = false;
     Tank::Rendering::TankVisualSettings m_tankVisualSettings;
-    std::array<float, Tank::Physics::kTankTrackCount> m_trackShoeDistances = {};
-    float m_trackShoeLastTimeSeconds = 0.0f;
     bool m_rendererDebugOpen = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     RtPbrSurvey::EnvironmentMappingUiState m_environmentMappingUi;

@@ -121,11 +121,15 @@ add_executable(TankSandbox
     src/App/TankSettingsStore.h
     src/App/TankVisualSettingsStore.cpp
     src/App/TankVisualSettingsStore.h
+    src/Rendering/BoxDropScenePresenter.h
+    src/Rendering/BoxDropScenePresenter.cpp
     src/Rendering/CameraSettings.h
     src/Rendering/CameraSettingsJson.cpp
     src/Rendering/TankVisualSettings.h
     src/Rendering/TankVisualSettingsJson.cpp
     src/Rendering/TankVisualSettingsJson.h
+    src/Rendering/TrackedVehicleScenePresenter.h
+    src/Rendering/TrackedVehicleScenePresenter.cpp
     src/TankSandboxApp.cpp
     src/TankSandboxApp.h
     src/stdafx.h
