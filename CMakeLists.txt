@@ -113,6 +113,12 @@ target_link_libraries(TankWindowsInput
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
     src/main.cpp
+    src/App/CameraSettingsStore.cpp
+    src/App/CameraSettingsStore.h
+    src/App/TankSettingsStore.cpp
+    src/App/TankSettingsStore.h
+    src/App/TankVisualSettingsStore.cpp
+    src/App/TankVisualSettingsStore.h
     src/Rendering/CameraSettings.h
     src/Rendering/CameraSettingsJson.cpp
     src/Rendering/TankVisualSettings.h
@@ -170,6 +176,42 @@ if(MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(CameraSettingsStoreTests
+        src/App/CameraSettingsStore.cpp
+        src/Rendering/CameraSettingsJson.cpp
+        tests/CameraSettingsStoreTests.cpp
+    )
+    target_include_directories(CameraSettingsStoreTests PRIVATE src)
+    target_link_libraries(CameraSettingsStoreTests PRIVATE nlohmann_json::nlohmann_json)
+
+    add_executable(TankSettingsStoreTests
+        src/App/TankSettingsStore.cpp
+        tests/TankSettingsStoreTests.cpp
+    )
+    target_include_directories(TankSettingsStoreTests PRIVATE src)
+    target_link_libraries(TankSettingsStoreTests PRIVATE TankPhysicsCore nlohmann_json::nlohmann_json)
+
+    add_executable(TankVisualSettingsStoreTests
+        src/App/TankVisualSettingsStore.cpp
+        src/Rendering/TankVisualSettingsJson.cpp
+        tests/TankVisualSettingsStoreTests.cpp
+    )
+    target_include_directories(TankVisualSettingsStoreTests PRIVATE src)
+    target_link_libraries(TankVisualSettingsStoreTests PRIVATE nlohmann_json::nlohmann_json)
+
+    add_test(
+        NAME TankApp.CameraSettingsStore
+        COMMAND CameraSettingsStoreTests
+    )
+    add_test(
+        NAME TankApp.TankSettingsStore
+        COMMAND TankSettingsStoreTests
+    )
+    add_test(
+        NAME TankApp.TankVisualSettingsStore
+        COMMAND TankVisualSettingsStoreTests
+    )
+
     add_executable(TankControllerTests
         tests/TankControllerTests.cpp
     )

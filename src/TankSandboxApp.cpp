@@ -82,25 +82,7 @@ using namespace DirectX;
 namespace
 {
 	constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
-	constexpr const char* kLegacyTankSettingsPath = "Config/tank_physics.json";
 	constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
-	constexpr const char* kTankVisualSettingsPath = "Config/tank_visual.json";
-
-	std::filesystem::path TankSettingsPath(int slot)
-	{
-		return std::filesystem::path("Config") /
-			("tank_physics_slot" + std::to_string(slot + 1) + ".json");
-	}
-
-	std::filesystem::path CameraSettingsPath(int slot)
-	{
-		if (slot == 3)
-		{
-			return std::filesystem::path("Config") / "camera_debug.json";
-		}
-		return std::filesystem::path("Config") /
-			("camera_slot" + std::to_string(slot + 1) + ".json");
-	}
 
 	std::vector<uint8_t> CreateGroundGridTexture(uint32_t size)
 	{
@@ -1292,25 +1274,14 @@ bool TankSandboxApp::SaveCameraSettings()
 	}
 	const Tank::Rendering::CameraSettings settings = CaptureCameraSettings();
 
-	const std::filesystem::path path = CameraSettingsPath(m_cameraSettingsSlot);
-	std::error_code error;
-	std::filesystem::create_directories(path.parent_path(), error);
-	std::ofstream output(path, std::ios::binary | std::ios::trunc);
-	if (!output)
+	Tank::App::CameraSettingsStore store(m_cameraSettingsSlot);
+	if (!store.Write(settings, m_cameraSettingsStatus))
 	{
-		m_cameraSettingsStatus = "Save failed: cannot write file";
-		return false;
-	}
-	output << Tank::Rendering::SerializeCameraSettings(settings);
-	if (!output)
-	{
-		m_cameraSettingsStatus = "Save failed: write error";
 		return false;
 	}
 	m_cameraSettingsCache[static_cast<size_t>(m_cameraSettingsSlot)] = settings;
 	m_cameraSettingsDirty[static_cast<size_t>(m_cameraSettingsSlot)] = false;
 	m_cameraSettingsFileLoaded[static_cast<size_t>(m_cameraSettingsSlot)] = true;
-	m_cameraSettingsStatus = "Saved: " + path.string();
 	return true;
 }
 
@@ -1365,21 +1336,10 @@ bool TankSandboxApp::EnsureCameraSlotLoaded(int slot)
 	{
 		return true;
 	}
-	const std::filesystem::path path = CameraSettingsPath(static_cast<int>(slotIndex));
-	std::ifstream input(path, std::ios::binary);
-	if (!input)
-	{
-		m_cameraSettingsStatus = "No saved camera in slot";
-		return false;
-	}
-	const std::string json(
-		(std::istreambuf_iterator<char>(input)),
-		std::istreambuf_iterator<char>());
+	Tank::App::CameraSettingsStore store(static_cast<int>(slotIndex));
 	Tank::Rendering::CameraSettings settings;
-	std::string error;
-	if (!Tank::Rendering::DeserializeCameraSettings(json, settings, &error))
+	if (!store.Read(settings, m_cameraSettingsStatus))
 	{
-		m_cameraSettingsStatus = "Load failed: " + error;
 		return false;
 	}
 	m_cameraSettingsCache[slotIndex] = settings;
@@ -2425,47 +2385,16 @@ void TankSandboxApp::ApplyTrackedVehicleMaterials()
 
 bool TankSandboxApp::SaveTankVisualSettings()
 {
-	const std::filesystem::path path(kTankVisualSettingsPath);
-	std::error_code errorCode;
-	std::filesystem::create_directories(path.parent_path(), errorCode);
-	if (errorCode)
-	{
-		m_tankVisualSettingsStatus = "Save failed: " + errorCode.message();
-		return false;
-	}
-
-	std::ofstream output(path, std::ios::binary | std::ios::trunc);
-	if (!output)
-	{
-		m_tankVisualSettingsStatus = "Save failed: cannot open file";
-		return false;
-	}
-	output << Tank::Rendering::SerializeTankVisualSettings(m_tankVisualSettings);
-	if (!output)
-	{
-		m_tankVisualSettingsStatus = "Save failed: cannot write file";
-		return false;
-	}
-	m_tankVisualSettingsStatus = std::string("Saved: ") + kTankVisualSettingsPath;
-	return true;
+	Tank::App::TankVisualSettingsStore store;
+	return store.Write(m_tankVisualSettings, m_tankVisualSettingsStatus);
 }
 
 bool TankSandboxApp::LoadTankVisualSettings(bool apply)
 {
-	std::ifstream input(kTankVisualSettingsPath, std::ios::binary);
-	if (!input)
-	{
-		m_tankVisualSettingsStatus = "Load failed: no saved settings";
-		return false;
-	}
-	const std::string json(
-		(std::istreambuf_iterator<char>(input)),
-		std::istreambuf_iterator<char>());
+	Tank::App::TankVisualSettingsStore store;
 	Tank::Rendering::TankVisualSettings loaded = m_tankVisualSettings;
-	std::string error;
-	if (!Tank::Rendering::DeserializeTankVisualSettings(json, loaded, &error))
+	if (!store.Read(loaded, m_tankVisualSettingsStatus))
 	{
-		m_tankVisualSettingsStatus = "Load failed: " + error;
 		return false;
 	}
 	m_tankVisualSettings = loaded;
@@ -2473,69 +2402,28 @@ bool TankSandboxApp::LoadTankVisualSettings(bool apply)
 	{
 		ApplyTrackedVehicleMaterials();
 	}
-	m_tankVisualSettingsStatus = std::string("Loaded: ") + kTankVisualSettingsPath;
 	return true;
 }
 
 bool TankSandboxApp::SaveTankSettings()
 {
-	const std::filesystem::path path = TankSettingsPath(m_tankSettingsSlot);
-	std::error_code errorCode;
-	std::filesystem::create_directories(path.parent_path(), errorCode);
-	if (errorCode)
-	{
-		m_tankSettingsStatus = "Save failed: " + errorCode.message();
-		return false;
-	}
-
-	std::ofstream output(path, std::ios::binary | std::ios::trunc);
-	if (!output)
-	{
-		m_tankSettingsStatus = "Save failed: cannot open file";
-		return false;
-	}
-
-	output << Tank::Physics::SerializeTankSettings(m_trackedVehicleSettings);
-	if (!output)
-	{
-		m_tankSettingsStatus = "Save failed: cannot write file";
-		return false;
-	}
-
-	m_tankSettingsStatus = "Saved: " + path.string();
-	return true;
+	Tank::App::TankSettingsStore store(m_tankSettingsSlot);
+	return store.Write(m_trackedVehicleSettings, m_tankSettingsStatus);
 }
 
 bool TankSandboxApp::LoadTankSettings(bool apply)
 {
-	std::filesystem::path path = TankSettingsPath(m_tankSettingsSlot);
-	std::ifstream input(path, std::ios::binary);
-	if (!input && m_tankSettingsSlot == 0)
-	{
-		path = kLegacyTankSettingsPath;
-		input = std::ifstream(path, std::ios::binary);
-	}
-	if (!input)
-	{
-		m_tankSettingsStatus = "Load failed: no saved settings";
-		return false;
-	}
-
-	const std::string json((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+	Tank::App::TankSettingsStore store(m_tankSettingsSlot);
 	Tank::Physics::TankSettings loaded = m_trackedVehicleSettings;
-	std::string error;
-	if (!Tank::Physics::DeserializeTankSettings(json, loaded, &error))
+	if (!store.Read(loaded, m_tankSettingsStatus))
 	{
-		m_tankSettingsStatus = "Load failed: " + error;
 		return false;
 	}
-
 	m_trackedVehicleSettings = loaded;
 	if (apply)
 	{
 		ResetTrackedVehicle();
 	}
-	m_tankSettingsStatus = "Loaded: " + path.string();
 	return true;
 }
 

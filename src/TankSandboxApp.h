@@ -8,6 +8,9 @@
 #include <dxgi1_6.h>
 #include <d3d12sdklayers.h>
 
+#include "App/CameraSettingsStore.h"
+#include "App/TankSettingsStore.h"
+#include "App/TankVisualSettingsStore.h"
 #include "Engine/Rhi/Dx12/GraphicsDevice.h"
 #include "Camera/DebugCameraController.h"
 #include "Runtime/SceneRenderer.h"
