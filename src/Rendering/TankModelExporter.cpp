@@ -54,7 +54,7 @@ namespace Tank::Rendering
         }
     }
 
-    bool ExportTankGlb(
+    bool ExportTankGltf(
         const Engine::Scene& scene,
         const std::vector<TankExportPart>& parts,
         const Tank::Physics::TrackedVehicleTestState& state,
@@ -172,9 +172,15 @@ namespace Tank::Rendering
             indices.reserve(range.indexCount);
             for (uint32_t i = 0; i + 2 < range.indexCount; i += 3)
             {
-                const uint32_t a = scene.mesh->indices[range.firstIndex + i];
-                const uint32_t b = scene.mesh->indices[range.firstIndex + i + 1];
-                const uint32_t c = scene.mesh->indices[range.firstIndex + i + 2];
+                const uint32_t a =
+                    scene.mesh->indices[range.firstIndex + i] -
+                    range.firstVertex;
+                const uint32_t b =
+                    scene.mesh->indices[range.firstIndex + i + 1] -
+                    range.firstVertex;
+                const uint32_t c =
+                    scene.mesh->indices[range.firstIndex + i + 2] -
+                    range.firstVertex;
                 indices.insert(indices.end(), { a, c, b });
             }
 
@@ -206,6 +212,7 @@ namespace Tank::Rendering
                 TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER);
 
             tinygltf::Primitive primitive;
+            primitive.mode = TINYGLTF_MODE_TRIANGLES;
             primitive.attributes["POSITION"] = AddAccessor(
                 model, posView, TINYGLTF_COMPONENT_TYPE_FLOAT,
                 TINYGLTF_TYPE_VEC3, range.vertexCount, minimum, maximum);
@@ -245,7 +252,7 @@ namespace Tank::Rendering
         }
         tinygltf::TinyGLTF writer;
         if (!writer.WriteGltfSceneToFile(
-                &model, path.string(), true, true, true, true))
+                &model, path.string(), false, false, true, false))
         {
             status = "Export failed: writer error";
             return false;

@@ -16,7 +16,7 @@ namespace Tank::Rendering
         std::string name;
     };
 
-    bool ExportTankGlb(
+    bool ExportTankGltf(
         const Engine::Scene& scene,
         const std::vector<TankExportPart>& parts,
         const Tank::Physics::TrackedVehicleTestState& state,

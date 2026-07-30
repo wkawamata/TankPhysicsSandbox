@@ -620,7 +620,7 @@ namespace Ui
         {
             ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
         }
-        if (ImGui::Button("Export Tank GLB"))
+        if (ImGui::Button("Export Tank glTF"))
         {
             if (ctx.exportTankModel) ctx.exportTankModel();
         }
