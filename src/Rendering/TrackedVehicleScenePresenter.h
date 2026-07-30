@@ -60,6 +60,7 @@ public:
     Engine::Scene& GetScene();
     const Engine::Scene& GetScene() const;
     TrackedVehicleModel& Model();
+    const TrackedVehicleModel& Model() const;
 
 private:
     Engine::SceneBuilder m_sceneBuilder;

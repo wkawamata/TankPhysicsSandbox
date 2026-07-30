@@ -132,6 +132,8 @@ add_executable(TankSandbox
     src/Rendering/TankVisualSettings.h
     src/Rendering/TankVisualSettingsJson.cpp
     src/Rendering/TankVisualSettingsJson.h
+    src/Rendering/TankModelExporter.cpp
+    src/Rendering/TankModelExporter.h
     src/Rendering/PhysicsDebugOverlay.h
     src/Rendering/PhysicsDebugOverlay.cpp
     src/Rendering/TrackedVehicleScenePresenter.h
@@ -157,6 +159,7 @@ set_target_properties(TankSandbox PROPERTIES WIN32_EXECUTABLE TRUE)
 target_include_directories(TankSandbox
     PRIVATE
         External/JoltPhysics
+        "${TINYGLTF_INCLUDE_DIR}"
 )
 
 target_link_libraries(TankSandbox
@@ -194,6 +197,19 @@ if(MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(TankModelExporterTests
+        src/Rendering/TankModelExporter.cpp
+        tests/TankModelExporterTests.cpp
+    )
+    target_precompile_headers(TankModelExporterTests PRIVATE src/stdafx.h)
+    target_include_directories(TankModelExporterTests PRIVATE
+        src
+        "${TINYGLTF_INCLUDE_DIR}")
+    target_link_libraries(TankModelExporterTests PRIVATE
+        TankPhysicsCore
+        RtPbrSurvey::SceneRenderer)
+    add_test(NAME TankRendering.ModelExporter COMMAND TankModelExporterTests)
+
     add_executable(CameraSettingsStoreTests
         src/App/CameraSettingsStore.cpp
         src/Rendering/CameraSettingsJson.cpp

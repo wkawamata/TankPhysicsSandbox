@@ -73,6 +73,8 @@ public:
     bool LoadTankVisualSettings(bool apply, RtPbrSurvey::SceneRenderer& renderer);
     bool SaveEnvironmentSettings();
     bool LoadEnvironmentSettings();
+    bool ExportTankModel();
+    std::string& TankModelExportStatus() { return m_tankModelExportStatus; }
 
     bool IsActive() const { return m_active; }
     void SetPhysicsDebugOverlayDefault(bool enabled) { m_physicsDebugOverlay = enabled; }
@@ -108,6 +110,7 @@ private:
     std::string m_tankSettingsStatus;
     std::string m_tankVisualSettingsStatus;
     std::string m_environmentSettingsStatus;
+    std::string m_tankModelExportStatus;
 
     float m_analogLeftTrack = 0.0f;
     float m_analogRightTrack = 0.0f;

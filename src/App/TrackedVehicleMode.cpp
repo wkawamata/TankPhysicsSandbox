@@ -6,6 +6,7 @@
 #include "Physics/PhysicsEnvironmentSettingsJson.h"
 #include "Physics/TankSettingsJson.h"
 #include "Rendering/TankVisualSettingsJson.h"
+#include "Rendering/TankModelExporter.h"
 #include "Runtime/SceneRenderer.h"
 
 #include <algorithm>
@@ -333,4 +334,45 @@ bool TrackedVehicleMode::LoadEnvironmentSettings()
     m_environmentSettings = loaded;
     m_environmentSettingsStatus = std::string("Loaded: ") + kEnvironmentSettingsPath;
     return true;
+}
+
+bool TrackedVehicleMode::ExportTankModel()
+{
+    const TrackedVehicleScenePresenter::TrackedVehicleModel& model =
+        m_presenter.Model();
+    std::vector<Tank::Rendering::TankExportPart> parts = {
+        { model.hullUpper, "Hull_Upper" },
+        { model.hullLower, "Hull_Lower" },
+        { model.upperStructureUpper, "UpperStructure_Upper" },
+        { model.upperStructureLower, "UpperStructure_Lower" },
+        { model.lowerStructureUpper, "LowerStructure_Upper" },
+        { model.lowerStructureLower, "LowerStructure_Lower" },
+        { model.forwardMarker, "ForwardMarker" },
+    };
+    for (int wheel = 0; wheel < m_test.State().wheelCount; ++wheel)
+    {
+        parts.push_back({
+            model.wheels[static_cast<size_t>(wheel)],
+            "Wheel_" + std::to_string(wheel) });
+    }
+    for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
+    {
+        for (int shoe = 0;
+             shoe < TrackedVehicleScenePresenter::TrackedVehicleModel::
+                 kTrackShoeCountPerTrack;
+             ++shoe)
+        {
+            parts.push_back({
+                model.trackShoes[static_cast<size_t>(track)]
+                    [static_cast<size_t>(shoe)],
+                "Track_" + std::to_string(track) +
+                    "_Shoe_" + std::to_string(shoe) });
+        }
+    }
+    return Tank::Rendering::ExportTankGlb(
+        m_presenter.GetScene(),
+        parts,
+        m_test.State(),
+        "Exports/Tank.glb",
+        m_tankModelExportStatus);
 }

@@ -780,3 +780,9 @@ TrackedVehicleScenePresenter::TrackedVehicleModel& TrackedVehicleScenePresenter:
 {
     return m_model;
 }
+
+const TrackedVehicleScenePresenter::TrackedVehicleModel&
+TrackedVehicleScenePresenter::Model() const
+{
+    return m_model;
+}

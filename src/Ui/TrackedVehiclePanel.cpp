@@ -620,6 +620,14 @@ namespace Ui
         {
             ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
         }
+        if (ImGui::Button("Export Tank GLB"))
+        {
+            if (ctx.exportTankModel) ctx.exportTankModel();
+        }
+        if (ctx.tankModelExportStatus && !ctx.tankModelExportStatus->empty())
+        {
+            ImGui::TextWrapped("%s", ctx.tankModelExportStatus->c_str());
+        }
         ImGui::SeparatorText("Simulation");
         if (ImGui::Button(*ctx.trackedVehiclePaused ? "Resume" : "Pause"))
         {

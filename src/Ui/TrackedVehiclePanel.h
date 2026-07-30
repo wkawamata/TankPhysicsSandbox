@@ -40,6 +40,7 @@ namespace Ui
         std::string* tankSettingsStatus = nullptr;
         std::string* tankVisualSettingsStatus = nullptr;
         std::string* envSettingsStatus = nullptr;
+        std::string* tankModelExportStatus = nullptr;
 
         Tank::Physics::TankSettings* tankSettings = nullptr;
         const Tank::Physics::TankSettings* appliedTankSettings = nullptr;
@@ -57,6 +58,7 @@ namespace Ui
         std::function<void()> loadTankVisualSettings;
         std::function<void()> saveEnvSettings;
         std::function<void()> loadEnvSettings;
+        std::function<void()> exportTankModel;
     };
 
     void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx);

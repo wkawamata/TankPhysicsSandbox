@@ -230,6 +230,8 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.tankSettingsStatus = &m_trackedVehicleMode.TankSettingsStatus();
     m_trackedVehiclePanelCtx.tankVisualSettingsStatus = &m_trackedVehicleMode.TankVisualSettingsStatus();
     m_trackedVehiclePanelCtx.envSettingsStatus = &m_trackedVehicleMode.EnvSettingsStatus();
+    m_trackedVehiclePanelCtx.tankModelExportStatus =
+        &m_trackedVehicleMode.TankModelExportStatus();
     m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleMode.Settings();
     m_trackedVehiclePanelCtx.appliedTankSettings = &m_trackedVehicleMode.AppliedSettings();
     m_trackedVehiclePanelCtx.envSettings = &m_trackedVehicleMode.EnvSettings();
@@ -274,6 +276,10 @@ void TankSandboxApp::OnInit()
         {
             EnterTrackedVehicleMode();
         }
+    };
+    m_trackedVehiclePanelCtx.exportTankModel = [this]()
+    {
+        m_trackedVehicleMode.ExportTankModel();
     };
 
     if (m_autoSceneMode.has_value())
