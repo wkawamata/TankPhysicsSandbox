@@ -113,6 +113,8 @@ target_link_libraries(TankWindowsInput
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
     src/main.cpp
+    src/App/BoxDropMode.cpp
+    src/App/BoxDropMode.h
     src/App/CameraController.cpp
     src/App/CameraController.h
     src/App/CameraSettingsStore.cpp
@@ -121,6 +123,8 @@ add_executable(TankSandbox
     src/App/TankSettingsStore.h
     src/App/TankVisualSettingsStore.cpp
     src/App/TankVisualSettingsStore.h
+    src/App/TrackedVehicleMode.cpp
+    src/App/TrackedVehicleMode.h
     src/Rendering/BoxDropScenePresenter.h
     src/Rendering/BoxDropScenePresenter.cpp
     src/Rendering/CameraSettings.h

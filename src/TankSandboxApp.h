@@ -8,10 +8,12 @@
 #include <dxgi1_6.h>
 #include <d3d12sdklayers.h>
 
+#include "App/BoxDropMode.h"
 #include "App/CameraController.h"
 #include "App/CameraSettingsStore.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
+#include "App/TrackedVehicleMode.h"
 #include "Engine/Rhi/Dx12/GraphicsDevice.h"
 #include "Camera/DebugCameraController.h"
 #include "Runtime/SceneRenderer.h"
@@ -22,12 +24,8 @@
 #include "Ui/CameraPanel.h"
 #include "Ui/RendererSettingsPanel.h"
 #include "Ui/TrackedVehiclePanel.h"
-#include "Physics/BoxDropTest.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
-#include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
-#include "Rendering/BoxDropScenePresenter.h"
-#include "Rendering/TrackedVehicleScenePresenter.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
 
@@ -77,21 +75,11 @@ private:
     bool SaveCameraSettings();
     bool LoadCameraSettings();
     void DrawTopMenuUi();
-    void DrawPhysicsBoxDropUi();
     void EnterTrackedVehicleMode();
-    void ResetTrackedVehicle();
-    void ApplyTrackedVehicleMaterials();
-    bool SaveTankVisualSettings();
-    bool LoadTankVisualSettings(bool apply = true);
-    bool SaveTankSettings();
-    bool LoadTankSettings(bool apply = true);
-    bool SaveEnvironmentSettings();
-    bool LoadEnvironmentSettings();
-    void UpdateTrackedVehicleInput();
+    void EnterBoxDropMode();
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
     void ApplyActiveCameraScene();
     Engine::CameraState* ActiveCamera();
-    void EnterBoxDropMode();
     void FlushD3d12DebugLog();
     void LogFps(float cpuFrameTimeMs);
 
@@ -107,19 +95,11 @@ private:
     RtPbrSurvey::DebugCameraController m_debugCameraController;
     AppMode m_appMode = AppMode::TopMenu;
 
-    // Scene presenters
-    BoxDropScenePresenter m_boxDropPresenter;
-    TrackedVehicleScenePresenter m_trackedVehiclePresenter;
+    // Mode state
+    BoxDropMode m_boxDropMode;
+    TrackedVehicleMode m_trackedVehicleMode;
 
-    // Box drop physics test
-    Tank::Physics::BoxDropTest m_boxDropTest;
-    static constexpr float kPhysicsFixedDt = 1.0f / 60.0f;
-
-    Tank::Physics::TrackedVehicleTest m_trackedVehicleTest;
-    Tank::Physics::TankSettings m_trackedVehicleSettings;
-    Tank::Physics::TankSettings m_appliedTrackedVehicleSettings;
-    Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
-    Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
+    // Platform input (owned here to avoid mixing platform input with physics mode)
     Tank::Platform::Windows::WindowsGamepad m_gamepad;
     bool m_moveForward = false;
     bool m_moveBackward = false;
@@ -129,34 +109,21 @@ private:
     bool m_rollLeft = false;
     bool m_rollRight = false;
     bool m_brake = false;
-    bool m_analogTracksConnected = false;
-    float m_analogLeftTrack = 0.0f;
-    float m_analogRightTrack = 0.0f;
-    float m_analogRoll = 0.0f;
-    bool m_trackedVehiclePaused = false;
-    bool m_trackedVehicleSingleStep = false;
+
+    // Camera
     Tank::App::CameraController m_cameraController;
-    bool m_physicsDebugOverlay = false;
-    bool m_trackShoeDisplay = true;
-    bool m_showTrackProxies = false;
-    bool m_tankVisualMaterialApplyPending = false;
-    Tank::Rendering::TankVisualSettings m_tankVisualSettings;
-    bool m_rendererDebugOpen = true;
-    RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
-    RtPbrSurvey::EnvironmentMappingUiState m_environmentMappingUi;
-    std::string m_rendererSettingsStatus;
-    std::string m_tankSettingsStatus;
-    std::string m_tankVisualSettingsStatus;
-    int m_tankSettingsSlot = 0;
-    bool m_tankSettingsAutoLoad = true;
-    bool m_tankVisualSettingsAutoLoad = true;
-    std::string m_environmentSettingsStatus;
-    std::string m_screenshotStatus;
 
     // UI panel contexts
     Ui::CameraPanelContext m_cameraPanelCtx;
     Ui::RendererSettingsPanelContext m_rendererPanelCtx;
     Ui::TrackedVehiclePanelContext m_trackedVehiclePanelCtx;
+
+    // Renderer state
+    bool m_rendererDebugOpen = true;
+    RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
+    RtPbrSurvey::EnvironmentMappingUiState m_environmentMappingUi;
+    std::string m_rendererSettingsStatus;
+    std::string m_screenshotStatus;
 
     // Auto scene entry and screenshot for CLI.
     std::optional<AppMode> m_autoSceneMode;
