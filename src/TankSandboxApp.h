@@ -8,6 +8,7 @@
 #include <dxgi1_6.h>
 #include <d3d12sdklayers.h>
 
+#include "App/CameraController.h"
 #include "App/CameraSettingsStore.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
@@ -72,14 +73,6 @@ private:
     void ResetRendererSettings();
     bool SaveCameraSettings();
     bool LoadCameraSettings();
-    Tank::Rendering::CameraSettings CaptureCameraSettings();
-    void ApplyCameraSettings(
-        const Tank::Rendering::CameraSettings& settings,
-        bool smooth);
-    bool EnsureCameraSlotLoaded(int slot);
-    void SelectCameraSlot(int slot, bool load);
-    void UpdateCameraTransition(float deltaTimeSeconds);
-    void UpdateCameraSlotCache();
     void DrawTopMenuUi();
     void DrawPhysicsBoxDropUi();
     void DrawPhysicsTrackedVehicleUi();
@@ -94,10 +87,6 @@ private:
     bool LoadEnvironmentSettings();
     void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
     void UpdateTrackedVehicleInput();
-    void UpdateTrackedVehicleFollowCamera(
-        const Tank::Physics::TrackedVehicleTestState& state,
-        float deltaTimeSeconds);
-    void ApplyTrackedVehicleCameraPreset(const DirectX::XMFLOAT3& offset);
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
     void ApplyActiveCameraScene();
     Engine::CameraState* ActiveCamera();
@@ -177,35 +166,7 @@ private:
     float m_analogRoll = 0.0f;
     bool m_trackedVehiclePaused = false;
     bool m_trackedVehicleSingleStep = false;
-    bool m_trackedVehicleCameraFollow = false;
-    float m_trackedVehicleCameraFollowDistance = 16.0f;
-    float m_trackedVehicleCameraLookDownDegrees = 25.0f;
-    float m_trackedVehicleCameraPositionSpeed = 5.0f;
-    float m_trackedVehicleCameraRotationSpeed = 8.0f;
-    float m_trackedVehicleCameraDamping = 1.0f;
-    float m_trackedVehicleCameraYawSpeedLimitDegrees = 180.0f;
-    float m_trackedVehicleCameraYawDamping = 8.0f;
-    DirectX::XMFLOAT3 m_trackedVehicleCameraVelocity = {};
-    float m_trackedVehicleCameraFovTarget = 35.0f;
-    float m_trackedVehicleCameraFovVelocity = 0.0f;
-    bool m_trackedVehicleCameraFovSpringActive = false;
-    float m_trackedVehicleCameraOrbitYaw = 0.0f;
-    float m_trackedVehicleCameraYawVelocity = 0.0f;
-    bool m_trackedVehicleCameraOrbitInitialized = false;
-    int m_cameraSettingsSlot = 0;
-    std::string m_cameraSettingsStatus;
-    bool m_cameraSettingsAutoLoad = true;
-    std::array<std::optional<Tank::Rendering::CameraSettings>, 4>
-        m_cameraSettingsCache = {};
-    std::array<bool, 4> m_cameraSettingsDirty = {};
-    std::array<bool, 4> m_cameraSettingsFileLoaded = {};
-    bool m_cameraTransitionActive = false;
-    float m_cameraTransitionTime = 0.0f;
-    float m_cameraTransitionDuration = 0.75f;
-    Tank::Rendering::CameraSettings m_cameraTransitionStart = {};
-    Tank::Rendering::CameraSettings m_cameraTransitionTarget = {};
-    bool m_cameraButton4WasPressed = false;
-    bool m_cameraButton7WasPressed = false;
+    Tank::App::CameraController m_cameraController;
     bool m_physicsDebugOverlay = false;
     bool m_trackShoeDisplay = true;
     bool m_showTrackProxies = false;
