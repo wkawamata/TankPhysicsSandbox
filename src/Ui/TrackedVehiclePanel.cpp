@@ -468,6 +468,18 @@ namespace Ui
             IsPending(
                 ctx.tankSettings->pivotTurnRightTraction,
                 ctx.appliedTankSettings->pivotTurnRightTraction));
+        ImGui::SeparatorText("Drive Response:");
+        SliderFloatWithPendingColor(
+            "Clutch Release",
+            &ctx.tankSettings->clutchReleaseTimeSeconds,
+            0.01f,
+            0.5f,
+            0.01f,
+            0.08f,
+            "%.2f s",
+            IsPending(
+                ctx.tankSettings->clutchReleaseTimeSeconds,
+                ctx.appliedTankSettings->clutchReleaseTimeSeconds));
         ImGui::SeparatorText("Body Yaw:");
         SliderFloatWithPendingColor(
             "Yaw Speed Limit",
