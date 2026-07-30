@@ -13,6 +13,7 @@
 #include "Runtime/SceneRenderer.h"
 #include "Runtime/SceneRendererDebugUi.h"
 #include "Runtime/SceneRendererSettings.h"
+#include "Rendering/CameraSettings.h"
 #include "Ui/ImGuiSystem.h"
 #include "Physics/BoxDropTest.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
@@ -68,6 +69,14 @@ private:
     void ResetRendererSettings();
     bool SaveCameraSettings();
     bool LoadCameraSettings();
+    Tank::Rendering::CameraSettings CaptureCameraSettings();
+    void ApplyCameraSettings(
+        const Tank::Rendering::CameraSettings& settings,
+        bool smooth);
+    bool EnsureCameraSlotLoaded(int slot);
+    void SelectCameraSlot(int slot, bool load);
+    void UpdateCameraTransition(float deltaTimeSeconds);
+    void UpdateCameraSlotCache();
     void DrawTopMenuUi();
     void DrawPhysicsBoxDropUi();
     void DrawPhysicsTrackedVehicleUi();
@@ -75,9 +84,9 @@ private:
     void ResetTrackedVehicle();
     void ApplyTrackedVehicleMaterials();
     bool SaveTankVisualSettings();
-    bool LoadTankVisualSettings();
+    bool LoadTankVisualSettings(bool apply = true);
     bool SaveTankSettings();
-    bool LoadTankSettings();
+    bool LoadTankSettings(bool apply = true);
     bool SaveEnvironmentSettings();
     bool LoadEnvironmentSettings();
     void UpdateTrackedVehicleScene(const Tank::Physics::TrackedVehicleTestState& state);
@@ -174,11 +183,25 @@ private:
     float m_trackedVehicleCameraYawSpeedLimitDegrees = 180.0f;
     float m_trackedVehicleCameraYawDamping = 8.0f;
     DirectX::XMFLOAT3 m_trackedVehicleCameraVelocity = {};
+    float m_trackedVehicleCameraFovTarget = 35.0f;
+    float m_trackedVehicleCameraFovVelocity = 0.0f;
+    bool m_trackedVehicleCameraFovSpringActive = false;
     float m_trackedVehicleCameraOrbitYaw = 0.0f;
     float m_trackedVehicleCameraYawVelocity = 0.0f;
     bool m_trackedVehicleCameraOrbitInitialized = false;
     int m_cameraSettingsSlot = 0;
     std::string m_cameraSettingsStatus;
+    bool m_cameraSettingsAutoLoad = true;
+    std::array<std::optional<Tank::Rendering::CameraSettings>, 3>
+        m_cameraSettingsCache = {};
+    std::array<bool, 3> m_cameraSettingsDirty = {};
+    std::array<bool, 3> m_cameraSettingsFileLoaded = {};
+    bool m_cameraTransitionActive = false;
+    float m_cameraTransitionTime = 0.0f;
+    float m_cameraTransitionDuration = 0.75f;
+    Tank::Rendering::CameraSettings m_cameraTransitionStart = {};
+    Tank::Rendering::CameraSettings m_cameraTransitionTarget = {};
+    bool m_cameraButton4WasPressed = false;
     bool m_physicsDebugOverlay = false;
     bool m_trackShoeDisplay = true;
     bool m_showTrackProxies = false;
@@ -193,6 +216,8 @@ private:
     std::string m_tankSettingsStatus;
     std::string m_tankVisualSettingsStatus;
     int m_tankSettingsSlot = 0;
+    bool m_tankSettingsAutoLoad = true;
+    bool m_tankVisualSettingsAutoLoad = true;
     std::string m_environmentSettingsStatus;
     std::string m_screenshotStatus;
 

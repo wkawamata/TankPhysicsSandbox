@@ -631,6 +631,14 @@ void TankSandboxApp::OnInit()
 	m_environmentMappingUi.iblEnabled =
 		m_environmentMappingUi.lighting.diffuseIblEnabled ||
 		m_environmentMappingUi.lighting.specularIblEnabled;
+	if (m_tankSettingsAutoLoad)
+	{
+		LoadTankSettings(false);
+	}
+	if (m_tankVisualSettingsAutoLoad)
+	{
+		LoadTankVisualSettings(false);
+	}
 	m_gamepad.Initialize();
 
 	if (m_autoSceneMode.has_value())
@@ -771,6 +779,16 @@ void TankSandboxApp::OnIdle()
 	else if (m_appMode == AppMode::PhysicsTrackedVehicle)
 	{
 		m_gamepad.Poll();
+		const Tank::Input::GamepadState& cameraGamepadState = m_gamepad.State();
+		const bool cameraButton4Pressed =
+			cameraGamepadState.connected &&
+			cameraGamepadState.buttonCount > 4 &&
+			cameraGamepadState.rawButtons[4];
+		if (cameraButton4Pressed && !m_cameraButton4WasPressed)
+		{
+			SelectCameraSlot((m_cameraSettingsSlot + 1) % 3, true);
+		}
+		m_cameraButton4WasPressed = cameraButton4Pressed;
 		UpdateTrackedVehicleInput();
 		if (!m_trackedVehiclePaused || m_trackedVehicleSingleStep)
 		{
@@ -782,6 +800,8 @@ void TankSandboxApp::OnIdle()
 			m_trackedVehicleTest.State(),
 			kPhysicsFixedDt);
 	}
+	UpdateCameraTransition(kPhysicsFixedDt);
+	UpdateCameraSlotCache();
 
 	UpdateUiFrame();
 
@@ -944,8 +964,15 @@ void TankSandboxApp::DrawCameraUi()
 			ImGui::SameLine();
 		}
 		const std::string label = std::to_string(slot + 1);
-		ImGui::RadioButton(label.c_str(), &m_cameraSettingsSlot, slot);
+		if (ImGui::RadioButton(
+			label.c_str(),
+			m_cameraSettingsSlot == slot))
+		{
+			SelectCameraSlot(slot, m_cameraSettingsAutoLoad);
+		}
 	}
+	ImGui::SameLine();
+	ImGui::Checkbox("AutoLoad", &m_cameraSettingsAutoLoad);
 	if (ImGui::Button("Save Camera"))
 	{
 		SaveCameraSettings();
@@ -983,7 +1010,7 @@ void TankSandboxApp::DrawCameraUi()
 			"Follow Distance",
 			&m_trackedVehicleCameraFollowDistance,
 			4.0f,
-			100.0f,
+			250.0f,
 			0.5f,
 			16.0f);
 		ImGuiWidgets::SliderFloatWithControls(
@@ -1065,7 +1092,15 @@ void TankSandboxApp::DrawCameraUi()
 
 	if (camera->projection == Engine::CameraProjection::Perspective)
 	{
-		changed |= ImGui::SliderFloat("FOV Y", &camera->fov, 20.0f, 120.0f, "%.1f deg");
+		const bool fovChanged =
+			ImGui::SliderFloat("FOV Y", &camera->fov, 20.0f, 120.0f, "%.1f deg");
+		changed |= fovChanged;
+		if (fovChanged)
+		{
+			m_trackedVehicleCameraFovTarget = camera->fov;
+			m_trackedVehicleCameraFovVelocity = 0.0f;
+			m_trackedVehicleCameraFovSpringActive = false;
+		}
 	}
 	else
 	{
@@ -1232,14 +1267,57 @@ void TankSandboxApp::ResetRendererSettings()
 
 bool TankSandboxApp::SaveCameraSettings()
 {
-	const Engine::CameraState* camera = ActiveCamera();
-	if (camera == nullptr)
+	if (ActiveCamera() == nullptr)
 	{
 		m_cameraSettingsStatus = "Save failed: no active camera";
 		return false;
 	}
+	const Tank::Rendering::CameraSettings settings = CaptureCameraSettings();
 
+	const std::filesystem::path path = CameraSettingsPath(m_cameraSettingsSlot);
+	std::error_code error;
+	std::filesystem::create_directories(path.parent_path(), error);
+	std::ofstream output(path, std::ios::binary | std::ios::trunc);
+	if (!output)
+	{
+		m_cameraSettingsStatus = "Save failed: cannot write file";
+		return false;
+	}
+	output << Tank::Rendering::SerializeCameraSettings(settings);
+	if (!output)
+	{
+		m_cameraSettingsStatus = "Save failed: write error";
+		return false;
+	}
+	m_cameraSettingsCache[static_cast<size_t>(m_cameraSettingsSlot)] = settings;
+	m_cameraSettingsDirty[static_cast<size_t>(m_cameraSettingsSlot)] = false;
+	m_cameraSettingsFileLoaded[static_cast<size_t>(m_cameraSettingsSlot)] = true;
+	m_cameraSettingsStatus = "Saved: " + path.string();
+	return true;
+}
+
+bool TankSandboxApp::LoadCameraSettings()
+{
+	if (!EnsureCameraSlotLoaded(m_cameraSettingsSlot))
+	{
+		return false;
+	}
+	ApplyCameraSettings(
+		*m_cameraSettingsCache[static_cast<size_t>(m_cameraSettingsSlot)],
+		true);
+	m_cameraSettingsStatus =
+		"Loaded slot " + std::to_string(m_cameraSettingsSlot + 1);
+	return true;
+}
+
+Tank::Rendering::CameraSettings TankSandboxApp::CaptureCameraSettings()
+{
 	Tank::Rendering::CameraSettings settings;
+	const Engine::CameraState* camera = ActiveCamera();
+	if (camera == nullptr)
+	{
+		return settings;
+	}
 	settings.position[0] = camera->pos.x;
 	settings.position[1] = camera->pos.y;
 	settings.position[2] = camera->pos.z;
@@ -1257,36 +1335,18 @@ bool TankSandboxApp::SaveCameraSettings()
 	settings.damping = m_trackedVehicleCameraDamping;
 	settings.yawSpeedLimitDegrees = m_trackedVehicleCameraYawSpeedLimitDegrees;
 	settings.yawDamping = m_trackedVehicleCameraYawDamping;
-
-	const std::filesystem::path path = CameraSettingsPath(m_cameraSettingsSlot);
-	std::error_code error;
-	std::filesystem::create_directories(path.parent_path(), error);
-	std::ofstream output(path, std::ios::binary | std::ios::trunc);
-	if (!output)
-	{
-		m_cameraSettingsStatus = "Save failed: cannot write file";
-		return false;
-	}
-	output << Tank::Rendering::SerializeCameraSettings(settings);
-	if (!output)
-	{
-		m_cameraSettingsStatus = "Save failed: write error";
-		return false;
-	}
-	m_cameraSettingsStatus = "Saved: " + path.string();
-	return true;
+	return settings;
 }
 
-bool TankSandboxApp::LoadCameraSettings()
+bool TankSandboxApp::EnsureCameraSlotLoaded(int slot)
 {
-	Engine::CameraState* camera = ActiveCamera();
-	if (camera == nullptr)
+	const size_t slotIndex = static_cast<size_t>(std::clamp(slot, 0, 2));
+	if (m_cameraSettingsFileLoaded[slotIndex] &&
+		m_cameraSettingsCache[slotIndex].has_value())
 	{
-		m_cameraSettingsStatus = "Load failed: no active camera";
-		return false;
+		return true;
 	}
-
-	const std::filesystem::path path = CameraSettingsPath(m_cameraSettingsSlot);
+	const std::filesystem::path path = CameraSettingsPath(static_cast<int>(slotIndex));
 	std::ifstream input(path, std::ios::binary);
 	if (!input)
 	{
@@ -1303,7 +1363,50 @@ bool TankSandboxApp::LoadCameraSettings()
 		m_cameraSettingsStatus = "Load failed: " + error;
 		return false;
 	}
+	m_cameraSettingsCache[slotIndex] = settings;
+	m_cameraSettingsDirty[slotIndex] = false;
+	m_cameraSettingsFileLoaded[slotIndex] = true;
+	return true;
+}
 
+void TankSandboxApp::ApplyCameraSettings(
+	const Tank::Rendering::CameraSettings& settings,
+	bool smooth)
+{
+	if (ActiveCamera() == nullptr)
+	{
+		return;
+	}
+	if (smooth && settings.followTank)
+	{
+		Engine::CameraState* camera = ActiveCamera();
+		const XMFLOAT3 currentPosition = camera->pos;
+		const XMFLOAT3 currentGazePoint = camera->gazePoint;
+		const float currentFov = camera->fov;
+		ApplyCameraSettings(settings, false);
+		camera->pos = currentPosition;
+		camera->gazePoint = currentGazePoint;
+		camera->fov = currentFov;
+		m_trackedVehicleCameraFovTarget =
+			std::clamp(settings.fovDegrees, 20.0f, 120.0f);
+		m_trackedVehicleCameraFovVelocity = 0.0f;
+		m_trackedVehicleCameraFovSpringActive =
+			std::abs(camera->fov - m_trackedVehicleCameraFovTarget) > 0.001f;
+		m_cameraTransitionActive = false;
+		m_sceneRenderer.SetCamera(*camera);
+		return;
+	}
+	if (smooth)
+	{
+		m_cameraTransitionStart = CaptureCameraSettings();
+		m_cameraTransitionTarget = settings;
+		m_cameraTransitionTime = 0.0f;
+		m_cameraTransitionActive = true;
+		m_trackedVehicleCameraFollow = false;
+		return;
+	}
+
+	Engine::CameraState* camera = ActiveCamera();
 	camera->pos = {
 		settings.position[0],
 		settings.position[1],
@@ -1317,11 +1420,14 @@ bool TankSandboxApp::LoadCameraSettings()
 		? Engine::CameraProjection::Orthographic
 		: Engine::CameraProjection::Perspective;
 	camera->fov = std::clamp(settings.fovDegrees, 20.0f, 120.0f);
+	m_trackedVehicleCameraFovTarget = camera->fov;
+	m_trackedVehicleCameraFovVelocity = 0.0f;
+	m_trackedVehicleCameraFovSpringActive = false;
 	camera->orthographicHeight =
 		std::clamp(settings.orthographicHeight, 1.0f, 50.0f);
 	m_trackedVehicleCameraFollow = settings.followTank;
 	m_trackedVehicleCameraFollowDistance =
-		std::clamp(settings.followDistance, 4.0f, 100.0f);
+		std::clamp(settings.followDistance, 4.0f, 250.0f);
 	m_trackedVehicleCameraLookDownDegrees =
 		std::clamp(settings.lookDownDegrees, 0.0f, 89.0f);
 	m_trackedVehicleCameraPositionSpeed =
@@ -1335,24 +1441,121 @@ bool TankSandboxApp::LoadCameraSettings()
 	m_trackedVehicleCameraYawDamping =
 		std::clamp(settings.yawDamping, 0.5f, 30.0f);
 	m_trackedVehicleCameraVelocity = {};
+	m_trackedVehicleCameraFovVelocity = 0.0f;
+	m_trackedVehicleCameraFovSpringActive = false;
 	m_trackedVehicleCameraYawVelocity = 0.0f;
 	m_trackedVehicleCameraOrbitInitialized = false;
-
-	if (m_appMode == AppMode::PhysicsTrackedVehicle &&
-		!m_trackedVehicleCameraFollow)
-	{
-		const Tank::Physics::TrackedVehicleTestState& state =
-			m_trackedVehicleTest.State();
-		ActivateOrbitCamera(
-			m_trackedVehicleSceneBuilder.GetScene(),
-			{
-				state.bodyPosition.x,
-				state.bodyPosition.y + 0.5f,
-				state.bodyPosition.z });
-	}
 	m_sceneRenderer.SetCamera(*camera);
-	m_cameraSettingsStatus = "Loaded: " + path.string();
-	return true;
+}
+
+void TankSandboxApp::SelectCameraSlot(int slot, bool load)
+{
+	const size_t currentSlot = static_cast<size_t>(m_cameraSettingsSlot);
+	if (!m_cameraSettingsCache[currentSlot].has_value() &&
+		ActiveCamera() != nullptr)
+	{
+		m_cameraSettingsCache[currentSlot] = CaptureCameraSettings();
+		m_cameraSettingsDirty[currentSlot] = true;
+	}
+	else
+	{
+		UpdateCameraSlotCache();
+	}
+	m_cameraSettingsSlot = std::clamp(slot, 0, 2);
+	if (load)
+	{
+		LoadCameraSettings();
+	}
+}
+
+void TankSandboxApp::UpdateCameraTransition(float deltaTimeSeconds)
+{
+	if (!m_cameraTransitionActive || ActiveCamera() == nullptr)
+	{
+		return;
+	}
+	m_cameraTransitionTime += std::max(deltaTimeSeconds, 0.0f);
+	const float normalizedTime = std::clamp(
+		m_cameraTransitionTime / m_cameraTransitionDuration,
+		0.0f,
+		1.0f);
+	const float t = normalizedTime * normalizedTime * (3.0f - 2.0f * normalizedTime);
+	Tank::Rendering::CameraSettings blended = m_cameraTransitionStart;
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		blended.position[axis] =
+			std::lerp(
+				m_cameraTransitionStart.position[axis],
+				m_cameraTransitionTarget.position[axis],
+				t);
+		blended.gazePoint[axis] =
+			std::lerp(
+				m_cameraTransitionStart.gazePoint[axis],
+				m_cameraTransitionTarget.gazePoint[axis],
+				t);
+	}
+	blended.fovDegrees =
+		std::lerp(
+			m_cameraTransitionStart.fovDegrees,
+			m_cameraTransitionTarget.fovDegrees,
+			t);
+	blended.orthographicHeight =
+		std::lerp(
+			m_cameraTransitionStart.orthographicHeight,
+			m_cameraTransitionTarget.orthographicHeight,
+			t);
+	blended.followDistance =
+		std::lerp(
+			m_cameraTransitionStart.followDistance,
+			m_cameraTransitionTarget.followDistance,
+			t);
+	blended.lookDownDegrees =
+		std::lerp(
+			m_cameraTransitionStart.lookDownDegrees,
+			m_cameraTransitionTarget.lookDownDegrees,
+			t);
+	blended.followTank = false;
+	blended.projection = normalizedTime < 0.5f
+		? m_cameraTransitionStart.projection
+		: m_cameraTransitionTarget.projection;
+	ApplyCameraSettings(blended, false);
+	if (normalizedTime >= 1.0f)
+	{
+		m_cameraTransitionActive = false;
+		ApplyCameraSettings(m_cameraTransitionTarget, false);
+	}
+}
+
+void TankSandboxApp::UpdateCameraSlotCache()
+{
+	if (m_cameraTransitionActive || ActiveCamera() == nullptr)
+	{
+		return;
+	}
+	const size_t slot = static_cast<size_t>(m_cameraSettingsSlot);
+	if (!m_cameraSettingsCache[slot].has_value())
+	{
+		return;
+	}
+	Tank::Rendering::CameraSettings current = CaptureCameraSettings();
+	if (current.followTank && m_cameraSettingsCache[slot]->followTank)
+	{
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			current.position[axis] = m_cameraSettingsCache[slot]->position[axis];
+			current.gazePoint[axis] = m_cameraSettingsCache[slot]->gazePoint[axis];
+		}
+	}
+	if (!m_cameraSettingsDirty[slot] &&
+		Tank::Rendering::SerializeCameraSettings(current) !=
+			Tank::Rendering::SerializeCameraSettings(*m_cameraSettingsCache[slot]))
+	{
+		m_cameraSettingsDirty[slot] = true;
+	}
+	if (m_cameraSettingsDirty[slot])
+	{
+		m_cameraSettingsCache[slot] = current;
+	}
 }
 
 void TankSandboxApp::DrawToolUi()
@@ -1778,6 +1981,8 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		{
 			LoadTankVisualSettings();
 		}
+		ImGui::SameLine();
+		ImGui::Checkbox("AutoLoad##TankVisual", &m_tankVisualSettingsAutoLoad);
 		if (!m_tankVisualSettingsStatus.empty())
 		{
 			ImGui::TextWrapped("%s", m_tankVisualSettingsStatus.c_str());
@@ -1939,8 +2144,17 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 			ImGui::SameLine();
 		}
 		const std::string label = std::to_string(slot + 1);
-		ImGui::RadioButton(label.c_str(), &m_tankSettingsSlot, slot);
+		if (ImGui::RadioButton(label.c_str(), m_tankSettingsSlot == slot))
+		{
+			m_tankSettingsSlot = slot;
+			if (m_tankSettingsAutoLoad)
+			{
+				LoadTankSettings();
+			}
+		}
 	}
+	ImGui::SameLine();
+	ImGui::Checkbox("AutoLoad##TankSettings", &m_tankSettingsAutoLoad);
 	if (ImGui::Button("Apply & Reset"))
 	{
 		ResetTrackedVehicle();
@@ -2194,7 +2408,7 @@ bool TankSandboxApp::SaveTankVisualSettings()
 	return true;
 }
 
-bool TankSandboxApp::LoadTankVisualSettings()
+bool TankSandboxApp::LoadTankVisualSettings(bool apply)
 {
 	std::ifstream input(kTankVisualSettingsPath, std::ios::binary);
 	if (!input)
@@ -2213,7 +2427,10 @@ bool TankSandboxApp::LoadTankVisualSettings()
 		return false;
 	}
 	m_tankVisualSettings = loaded;
-	ApplyTrackedVehicleMaterials();
+	if (apply)
+	{
+		ApplyTrackedVehicleMaterials();
+	}
 	m_tankVisualSettingsStatus = std::string("Loaded: ") + kTankVisualSettingsPath;
 	return true;
 }
@@ -2247,7 +2464,7 @@ bool TankSandboxApp::SaveTankSettings()
 	return true;
 }
 
-bool TankSandboxApp::LoadTankSettings()
+bool TankSandboxApp::LoadTankSettings(bool apply)
 {
 	std::filesystem::path path = TankSettingsPath(m_tankSettingsSlot);
 	std::ifstream input(path, std::ios::binary);
@@ -2272,7 +2489,10 @@ bool TankSandboxApp::LoadTankSettings()
 	}
 
 	m_trackedVehicleSettings = loaded;
-	ResetTrackedVehicle();
+	if (apply)
+	{
+		ResetTrackedVehicle();
+	}
 	m_tankSettingsStatus = "Loaded: " + path.string();
 	return true;
 }
@@ -2945,6 +3165,23 @@ void TankSandboxApp::UpdateTrackedVehicleFollowCamera(
 	position += velocity * dt;
 	XMStoreFloat3(&camera.pos, position);
 	XMStoreFloat3(&m_trackedVehicleCameraVelocity, velocity);
+	if (m_trackedVehicleCameraFovSpringActive)
+	{
+		const float fovAcceleration =
+			(m_trackedVehicleCameraFovTarget - camera.fov) *
+				(positionSpeed * positionSpeed) -
+			m_trackedVehicleCameraFovVelocity *
+				(2.0f * damping * positionSpeed);
+		m_trackedVehicleCameraFovVelocity += fovAcceleration * dt;
+		camera.fov += m_trackedVehicleCameraFovVelocity * dt;
+		if (std::abs(m_trackedVehicleCameraFovTarget - camera.fov) < 0.001f &&
+			std::abs(m_trackedVehicleCameraFovVelocity) < 0.001f)
+		{
+			camera.fov = m_trackedVehicleCameraFovTarget;
+			m_trackedVehicleCameraFovVelocity = 0.0f;
+			m_trackedVehicleCameraFovSpringActive = false;
+		}
+	}
 
 	const XMVECTOR desiredGaze = pivot;
 	const XMVECTOR currentGaze = XMLoadFloat3(&camera.gazePoint);
