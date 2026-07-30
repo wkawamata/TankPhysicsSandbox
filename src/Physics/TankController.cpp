@@ -225,7 +225,8 @@ namespace Tank::Physics
                     wheel->mPosition =
                         JPH::Vec3(
                             0.0f,
-                            endWheel ? 0.0f : -roadWheelRadius,
+                            endWheel ? m_settings.endWheelVerticalOffsetM
+                                     : -roadWheelRadius + m_settings.roadWheelVerticalOffsetM,
                             wheelZ);
                     wheel->mPosition.SetX(t == 0 ? halfTrackSpacing : -halfTrackSpacing);
                     if (upperSurface)

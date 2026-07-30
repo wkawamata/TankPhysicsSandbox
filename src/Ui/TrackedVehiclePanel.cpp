@@ -504,7 +504,7 @@ namespace Ui
                 ctx.tankSettings->yawDamping,
                 ctx.appliedTankSettings->yawDamping));
         SliderFloatWithPendingColor(
-            "Ride Height", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
+            "Suspension Stroke", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
             IsPending(ctx.tankSettings->rideHeightScale, ctx.appliedTankSettings->rideHeightScale));
         SliderFloatWithPendingColor(
             "Chassis Width", &ctx.tankSettings->chassisWidthM, 1.6f, 3.2f, 0.1f, 2.4f, "%.2f m",
@@ -553,6 +553,28 @@ namespace Ui
             IsPending(
                 ctx.tankSettings->endWheelOffsetM,
                 ctx.appliedTankSettings->endWheelOffsetM));
+        SliderFloatWithPendingColor(
+            "End Wheel Vertical Offset",
+            &ctx.tankSettings->endWheelVerticalOffsetM,
+            -0.5f,
+            0.5f,
+            0.05f,
+            0.0f,
+            "%.2f m",
+            IsPending(
+                ctx.tankSettings->endWheelVerticalOffsetM,
+                ctx.appliedTankSettings->endWheelVerticalOffsetM));
+        SliderFloatWithPendingColor(
+            "Road Wheel Vertical Offset",
+            &ctx.tankSettings->roadWheelVerticalOffsetM,
+            -0.5f,
+            0.5f,
+            0.05f,
+            0.0f,
+            "%.2f m",
+            IsPending(
+                ctx.tankSettings->roadWheelVerticalOffsetM,
+                ctx.appliedTankSettings->roadWheelVerticalOffsetM));
         if (ctx.tankSettings->roadWheelCount == 2)
         {
             SliderFloatWithPendingColor(

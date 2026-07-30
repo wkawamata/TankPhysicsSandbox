@@ -31,6 +31,8 @@ namespace Tank::Physics
         float roadWheelRadiusM = 0.3f;
         int roadWheelCount = 3;
         float endWheelOffsetM = 0.0f;
+        float endWheelVerticalOffsetM = 0.0f;
+        float roadWheelVerticalOffsetM = 0.0f;
         float twoRoadWheelOffsetM = 0.67f;
         float threeRoadWheelOffsetM = 1.0f;
         float rideHeightScale = 0.8f;
