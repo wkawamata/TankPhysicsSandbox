@@ -35,17 +35,25 @@ namespace Ui
                 label.c_str(),
                 ctx.cameraController->SelectedSlot() == slot))
             {
-                ctx.cameraController->SelectSlot(
-                    slot,
-                    ctx.cameraController->AutoLoad());
+                if (ctx.cameraController->SelectSlot(
+                        slot,
+                        ctx.cameraController->AutoLoad()) &&
+                    ctx.loadCamera)
+                {
+                    ctx.loadCamera();
+                }
             }
         }
         ImGui::SameLine();
         if (ImGui::RadioButton("Debug", ctx.cameraController->SelectedSlot() == 3))
         {
-            ctx.cameraController->SelectSlot(
-                3,
-                ctx.cameraController->AutoLoad());
+            if (ctx.cameraController->SelectSlot(
+                    3,
+                    ctx.cameraController->AutoLoad()) &&
+                ctx.loadCamera)
+            {
+                ctx.loadCamera();
+            }
         }
         ImGui::SameLine();
         {

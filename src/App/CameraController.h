@@ -32,7 +32,7 @@ namespace Tank::App
         const std::string& Status() const { return m_status; }
 
         bool EnsureSlotLoaded(int slot);
-        void SelectSlot(int slot, bool load);
+        bool SelectSlot(int slot, bool load);
         void SetSlotSettings(
             int slot,
             const Tank::Rendering::CameraSettings& settings);
@@ -79,9 +79,9 @@ namespace Tank::App
             Engine::CameraState& camera);
 
         // Button cycle.
-        void OnButton4Pressed();
-        void OnButton7Pressed();
-        void UpdateButtonStates(bool button4Pressed, bool button7Pressed);
+        bool OnButton4Pressed();
+        bool OnButton7Pressed();
+        bool UpdateButtonStates(bool button4Pressed, bool button7Pressed);
 
     // File loaded tracking (for cache).
     bool IsSlotFileLoaded(int slot) const

@@ -415,9 +415,12 @@ void TankSandboxApp::OnIdle()
         m_gamepad.Poll();
         {
             const Tank::Input::GamepadState& gp = m_gamepad.State();
-            m_cameraController.UpdateButtonStates(
-                gp.connected && gp.buttonCount > 4 && gp.rawButtons[4],
-                gp.connected && gp.buttonCount > 7 && gp.rawButtons[7]);
+            if (m_cameraController.UpdateButtonStates(
+                    gp.connected && gp.buttonCount > 4 && gp.rawButtons[4],
+                    gp.connected && gp.buttonCount > 7 && gp.rawButtons[7]))
+            {
+                LoadCameraSettings();
+            }
         }
         m_trackedVehicleMode.UpdateInput(
             m_gamepad.State(),

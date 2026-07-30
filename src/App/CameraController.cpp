@@ -123,7 +123,7 @@ namespace Tank::App
         return true;
     }
 
-    void CameraController::SelectSlot(int slot, bool load)
+    bool CameraController::SelectSlot(int slot, bool load)
     {
         const size_t currentSlot = static_cast<size_t>(m_selectedSlot);
         if (!m_cache[currentSlot].has_value())
@@ -138,8 +138,9 @@ namespace Tank::App
         m_selectedSlot = std::clamp(slot, 0, 3);
         if (load)
         {
-            EnsureSlotLoaded(m_selectedSlot);
+            return EnsureSlotLoaded(m_selectedSlot);
         }
+        return false;
     }
 
     void CameraController::SetSlotSettings(
@@ -358,30 +359,32 @@ namespace Tank::App
         camera.gazePoint = pivot;
     }
 
-    void CameraController::OnButton4Pressed()
+    bool CameraController::OnButton4Pressed()
     {
-        SelectSlot((m_selectedSlot + 1) % 3, true);
+        return SelectSlot((m_selectedSlot + 1) % 3, true);
     }
 
-    void CameraController::OnButton7Pressed()
+    bool CameraController::OnButton7Pressed()
     {
-        SelectSlot((m_selectedSlot + 2) % 3, true);
+        return SelectSlot((m_selectedSlot + 2) % 3, true);
     }
 
-    void CameraController::UpdateButtonStates(
+    bool CameraController::UpdateButtonStates(
         bool button4Pressed,
         bool button7Pressed)
     {
+        bool slotLoaded = false;
         if (button4Pressed && !m_button4WasPressed)
         {
-            OnButton4Pressed();
+            slotLoaded = OnButton4Pressed();
         }
         else if (button7Pressed && !m_button7WasPressed)
         {
-            OnButton7Pressed();
+            slotLoaded = OnButton7Pressed();
         }
         m_button4WasPressed = button4Pressed;
         m_button7WasPressed = button7Pressed;
+        return slotLoaded;
     }
 
 }
