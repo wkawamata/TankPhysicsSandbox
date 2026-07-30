@@ -94,6 +94,10 @@ namespace
 
 	std::filesystem::path CameraSettingsPath(int slot)
 	{
+		if (slot == 3)
+		{
+			return std::filesystem::path("Config") / "camera_debug.json";
+		}
 		return std::filesystem::path("Config") /
 			("camera_slot" + std::to_string(slot + 1) + ".json");
 	}
@@ -981,6 +985,11 @@ void TankSandboxApp::DrawCameraUi()
 		}
 	}
 	ImGui::SameLine();
+	if (ImGui::RadioButton("Debug", m_cameraSettingsSlot == 3))
+	{
+		SelectCameraSlot(3, m_cameraSettingsAutoLoad);
+	}
+	ImGui::SameLine();
 	ImGui::Checkbox("AutoLoad", &m_cameraSettingsAutoLoad);
 	if (ImGui::Button("Save Camera"))
 	{
@@ -1314,8 +1323,9 @@ bool TankSandboxApp::LoadCameraSettings()
 	ApplyCameraSettings(
 		*m_cameraSettingsCache[static_cast<size_t>(m_cameraSettingsSlot)],
 		true);
-	m_cameraSettingsStatus =
-		"Loaded slot " + std::to_string(m_cameraSettingsSlot + 1);
+	m_cameraSettingsStatus = m_cameraSettingsSlot == 3
+		? "Loaded debug camera"
+		: "Loaded slot " + std::to_string(m_cameraSettingsSlot + 1);
 	return true;
 }
 
@@ -1349,7 +1359,7 @@ Tank::Rendering::CameraSettings TankSandboxApp::CaptureCameraSettings()
 
 bool TankSandboxApp::EnsureCameraSlotLoaded(int slot)
 {
-	const size_t slotIndex = static_cast<size_t>(std::clamp(slot, 0, 2));
+	const size_t slotIndex = static_cast<size_t>(std::clamp(slot, 0, 3));
 	if (m_cameraSettingsFileLoaded[slotIndex] &&
 		m_cameraSettingsCache[slotIndex].has_value())
 	{
@@ -1470,7 +1480,7 @@ void TankSandboxApp::SelectCameraSlot(int slot, bool load)
 	{
 		UpdateCameraSlotCache();
 	}
-	m_cameraSettingsSlot = std::clamp(slot, 0, 2);
+	m_cameraSettingsSlot = std::clamp(slot, 0, 3);
 	if (load)
 	{
 		LoadCameraSettings();
@@ -2067,6 +2077,29 @@ void TankSandboxApp::DrawPhysicsTrackedVehicleUi()
 		IsPending(
 			m_trackedVehicleSettings.pivotTurnRightTraction,
 			m_appliedTrackedVehicleSettings.pivotTurnRightTraction));
+	ImGui::SeparatorText("Body Yaw:");
+	SliderFloatWithPendingColor(
+		"Yaw Speed Limit",
+		&m_trackedVehicleSettings.yawSpeedLimitDegrees,
+		15.0f,
+		720.0f,
+		5.0f,
+		720.0f,
+		"%.0f deg/s",
+		IsPending(
+			m_trackedVehicleSettings.yawSpeedLimitDegrees,
+			m_appliedTrackedVehicleSettings.yawSpeedLimitDegrees));
+	SliderFloatWithPendingColor(
+		"Yaw Damping",
+		&m_trackedVehicleSettings.yawDamping,
+		0.0f,
+		30.0f,
+		0.5f,
+		0.0f,
+		"%.1f /s",
+		IsPending(
+			m_trackedVehicleSettings.yawDamping,
+			m_appliedTrackedVehicleSettings.yawDamping));
 	SliderFloatWithPendingColor(
 		"Ride Height", &m_trackedVehicleSettings.rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
 		IsPending(m_trackedVehicleSettings.rideHeightScale, m_appliedTrackedVehicleSettings.rideHeightScale));

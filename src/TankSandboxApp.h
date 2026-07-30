@@ -192,10 +192,10 @@ private:
     int m_cameraSettingsSlot = 0;
     std::string m_cameraSettingsStatus;
     bool m_cameraSettingsAutoLoad = true;
-    std::array<std::optional<Tank::Rendering::CameraSettings>, 3>
+    std::array<std::optional<Tank::Rendering::CameraSettings>, 4>
         m_cameraSettingsCache = {};
-    std::array<bool, 3> m_cameraSettingsDirty = {};
-    std::array<bool, 3> m_cameraSettingsFileLoaded = {};
+    std::array<bool, 4> m_cameraSettingsDirty = {};
+    std::array<bool, 4> m_cameraSettingsFileLoaded = {};
     bool m_cameraTransitionActive = false;
     float m_cameraTransitionTime = 0.0f;
     float m_cameraTransitionDuration = 0.75f;

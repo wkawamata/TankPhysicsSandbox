@@ -437,7 +437,27 @@ namespace Tank::Physics
         const JPH::RVec3 position = bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
         const JPH::Quat rotation = bodyInterface.GetRotation(m_impl->bodyId);
         const JPH::Vec3 linearVelocity = bodyInterface.GetLinearVelocity(m_impl->bodyId);
-        const JPH::Vec3 angularVelocity = bodyInterface.GetAngularVelocity(m_impl->bodyId);
+        JPH::Vec3 angularVelocity = bodyInterface.GetAngularVelocity(m_impl->bodyId);
+        const JPH::Vec3 bodyUp = rotation * JPH::Vec3::sAxisY();
+        const float yawVelocity = angularVelocity.Dot(bodyUp);
+        const float yawSpeedLimit = std::clamp(
+            m_settings.yawSpeedLimitDegrees,
+            15.0f,
+            720.0f) * JPH::JPH_PI / 180.0f;
+        float limitedYawVelocity =
+            std::clamp(yawVelocity, -yawSpeedLimit, yawSpeedLimit);
+        constexpr float turnInputEpsilon = 0.001f;
+        if (std::abs(m_input.leftTrack - m_input.rightTrack) <
+            turnInputEpsilon)
+        {
+            const float yawDamping = std::clamp(
+                m_settings.yawDamping,
+                0.0f,
+                30.0f);
+            limitedYawVelocity *= std::exp(-yawDamping * deltaTimeSeconds);
+        }
+        angularVelocity += bodyUp * (limitedYawVelocity - yawVelocity);
+        bodyInterface.SetAngularVelocity(m_impl->bodyId, angularVelocity);
 
         m_state.body.position = {
             static_cast<float>(position.GetX()),

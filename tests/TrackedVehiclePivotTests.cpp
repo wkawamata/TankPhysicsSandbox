@@ -1,5 +1,6 @@
 #include "Physics/TrackedVehicleTest.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 
@@ -48,6 +49,43 @@ namespace
         return {YawFrom(state.bodyRotation), std::sqrt(dx * dx + dz * dz)};
     }
 
+    float RunLimitedPivot(float yawSpeedLimitDegrees)
+    {
+        constexpr float dt = 1.0f / 60.0f;
+        Tank::Physics::TankSettings settings;
+        settings.yawSpeedLimitDegrees = yawSpeedLimitDegrees;
+        Tank::Physics::TrackedVehicleTest test;
+        test.Initialize(settings);
+
+        for (int i = 0; i < 180; ++i)
+        {
+            test.Step(dt);
+        }
+
+        Tank::Physics::TankInput input;
+        input.throttle = 1.0f;
+        input.leftTrack = -1.0f;
+        input.rightTrack = 1.0f;
+        test.SetInput(input);
+
+        float maximumYawSpeed = 0.0f;
+        for (int i = 0; i < 120; ++i)
+        {
+            const Tank::Physics::TrackedVehicleTestState state = test.Step(dt);
+            const Tank::Physics::Quat& q = state.bodyRotation;
+            const Tank::Physics::Vec3 bodyUp = {
+                2.0f * (q.x * q.y - q.w * q.z),
+                1.0f - 2.0f * (q.x * q.x + q.z * q.z),
+                2.0f * (q.y * q.z + q.w * q.x) };
+            const float yawSpeed =
+                state.angularVelocity.x * bodyUp.x +
+                state.angularVelocity.y * bodyUp.y +
+                state.angularVelocity.z * bodyUp.z;
+            maximumYawSpeed = std::max(maximumYawSpeed, std::abs(yawSpeed));
+        }
+        return maximumYawSpeed;
+    }
+
     bool Check(bool condition, const char* message)
     {
         if (!condition)
@@ -62,6 +100,8 @@ int main()
 {
     const PivotResult left = RunPivot(-1.0f, 1.0f);
     const PivotResult right = RunPivot(1.0f, -1.0f);
+    constexpr float limitedYawDegrees = 30.0f;
+    const float limitedYawSpeed = RunLimitedPivot(limitedYawDegrees);
 
     bool passed = true;
     passed &= Check(std::isfinite(left.yaw) && std::isfinite(right.yaw),
@@ -72,6 +112,9 @@ int main()
         "left and right pivot inputs must rotate in opposite directions");
     passed &= Check(left.horizontalDistance < 2.0f && right.horizontalDistance < 2.0f,
         "pivot turn must keep the body near its starting point");
+    passed &= Check(
+        limitedYawSpeed <= limitedYawDegrees * 3.14159265358979323846f / 180.0f + 0.001f,
+        "body yaw speed must respect the configured limit");
 
     if (!passed)
     {

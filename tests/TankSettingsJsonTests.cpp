@@ -48,6 +48,8 @@ int main()
     source.stationaryTurnRightTraction = 0.7f;
     source.pivotTurnLeftTraction = 0.8f;
     source.pivotTurnRightTraction = 0.9f;
+    source.yawSpeedLimitDegrees = 240.0f;
+    source.yawDamping = 6.0f;
     source.startUpsideDown = true;
 
     Tank::Physics::TankSettings loaded;
@@ -123,6 +125,11 @@ int main()
     passed &= Check(
         NearlyEqual(loaded.pivotTurnRightTraction, source.pivotTurnRightTraction),
         "pivot turn right traction must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.yawSpeedLimitDegrees, source.yawSpeedLimitDegrees),
+        "yaw speed limit must round trip");
+    passed &= Check(NearlyEqual(loaded.yawDamping, source.yawDamping),
+        "yaw damping must round trip");
     passed &= Check(loaded.startUpsideDown == source.startUpsideDown,
         "start orientation must round trip");
 

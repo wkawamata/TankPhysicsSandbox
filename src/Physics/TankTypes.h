@@ -41,6 +41,8 @@ namespace Tank::Physics
         float stationaryTurnRightTraction = 1.0f;
         float pivotTurnLeftTraction = 1.0f;
         float pivotTurnRightTraction = 1.0f;
+        float yawSpeedLimitDegrees = 720.0f;
+        float yawDamping = 0.0f;
         bool startUpsideDown = false;
     };
 
