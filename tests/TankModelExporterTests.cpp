@@ -39,6 +39,7 @@ int main()
         { { 0, "Hull" }, { 1, "Wheel" } },
         state,
         path,
+        false,
         status);
 
     GltfMeshData loaded;

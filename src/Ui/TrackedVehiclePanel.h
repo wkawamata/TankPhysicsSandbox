@@ -42,6 +42,7 @@ namespace Ui
         std::string* envSettingsStatus = nullptr;
         std::string* tankModelExportPath = nullptr;
         std::string* tankModelExportStatus = nullptr;
+        bool* tankModelExportBinary = nullptr;
 
         Tank::Physics::TankSettings* tankSettings = nullptr;
         const Tank::Physics::TankSettings* appliedTankSettings = nullptr;

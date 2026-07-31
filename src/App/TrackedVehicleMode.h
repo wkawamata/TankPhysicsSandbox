@@ -76,6 +76,7 @@ public:
     bool ExportTankModel();
     std::string& TankModelExportPath() { return m_tankModelExportPath; }
     std::string& TankModelExportStatus() { return m_tankModelExportStatus; }
+    bool& TankModelExportBinary() { return m_tankModelExportBinary; }
 
     bool IsActive() const { return m_active; }
     void SetPhysicsDebugOverlayDefault(bool enabled) { m_physicsDebugOverlay = enabled; }
@@ -113,6 +114,7 @@ private:
     std::string m_environmentSettingsStatus;
     std::string m_tankModelExportPath = "Exports/Tank.gltf";
     std::string m_tankModelExportStatus;
+    bool m_tankModelExportBinary = false;
 
     float m_analogLeftTrack = 0.0f;
     float m_analogRightTrack = 0.0f;

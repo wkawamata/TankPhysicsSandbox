@@ -21,5 +21,6 @@ namespace Tank::Rendering
         const std::vector<TankExportPart>& parts,
         const Tank::Physics::TrackedVehicleTestState& state,
         const std::filesystem::path& path,
+        bool binary,
         std::string& status);
 }

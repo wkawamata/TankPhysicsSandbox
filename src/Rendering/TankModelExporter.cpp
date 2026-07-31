@@ -59,6 +59,7 @@ namespace Tank::Rendering
         const std::vector<TankExportPart>& parts,
         const Tank::Physics::TrackedVehicleTestState& state,
         const std::filesystem::path& path,
+        bool binary,
         std::string& status)
     {
         if (scene.mesh == nullptr)
@@ -84,7 +85,7 @@ namespace Tank::Rendering
         model.asset.version = "2.0";
         model.asset.generator = "Tank Physics Sandbox";
         model.buffers.emplace_back();
-        std::vector<unsigned char>& binary = model.buffers[0].data;
+        std::vector<unsigned char>& bufferData = model.buffers[0].data;
 
         for (const Engine::SceneMaterial& source : scene.mesh->materials)
         {
@@ -184,7 +185,7 @@ namespace Tank::Rendering
                 indices.insert(indices.end(), { a, c, b });
             }
 
-            auto addView = [&model, &binary](size_t offset, size_t size, int target)
+            auto addView = [&model, &bufferData](size_t offset, size_t size, int target)
             {
                 tinygltf::BufferView view;
                 view.buffer = 0;
@@ -194,19 +195,19 @@ namespace Tank::Rendering
                 model.bufferViews.push_back(view);
                 return static_cast<int>(model.bufferViews.size() - 1);
             };
-            const size_t posOffset = Append(binary, positions);
+            const size_t posOffset = Append(bufferData, positions);
             const int posView = addView(
                 posOffset, positions.size() * sizeof(float),
                 TINYGLTF_TARGET_ARRAY_BUFFER);
-            const size_t normalOffset = Append(binary, normals);
+            const size_t normalOffset = Append(bufferData, normals);
             const int normalView = addView(
                 normalOffset, normals.size() * sizeof(float),
                 TINYGLTF_TARGET_ARRAY_BUFFER);
-            const size_t uvOffset = Append(binary, texcoords);
+            const size_t uvOffset = Append(bufferData, texcoords);
             const int uvView = addView(
                 uvOffset, texcoords.size() * sizeof(float),
                 TINYGLTF_TARGET_ARRAY_BUFFER);
-            const size_t indexOffset = Append(binary, indices);
+            const size_t indexOffset = Append(bufferData, indices);
             const int indexView = addView(
                 indexOffset, indices.size() * sizeof(uint32_t),
                 TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER);
@@ -252,7 +253,7 @@ namespace Tank::Rendering
         }
         tinygltf::TinyGLTF writer;
         if (!writer.WriteGltfSceneToFile(
-                &model, path.string(), false, false, true, false))
+                &model, path.string(), false, false, true, binary))
         {
             status = "Export failed: writer error";
             return false;

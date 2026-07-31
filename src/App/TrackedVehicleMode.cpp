@@ -372,10 +372,13 @@ bool TrackedVehicleMode::ExportTankModel()
                     "_Shoe_" + std::to_string(shoe) });
         }
     }
+    std::filesystem::path exportPath(m_tankModelExportPath);
+    exportPath.replace_extension(m_tankModelExportBinary ? ".glb" : ".gltf");
     return Tank::Rendering::ExportTankGltf(
         m_presenter.GetScene(),
         parts,
         m_test.State(),
-        m_tankModelExportPath,
+        exportPath,
+        m_tankModelExportBinary,
         m_tankModelExportStatus);
 }
