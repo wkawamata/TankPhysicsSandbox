@@ -18,6 +18,52 @@ using namespace DirectX;
 
 namespace
 {
+    Engine::SceneMeshId AddTriangularPrismMesh(Engine::SceneBuilder& builder)
+    {
+        Engine::SceneMesh& mesh = builder.GetMesh();
+        Engine::SceneMesh::Range range;
+        range.firstVertex = static_cast<uint32_t>(mesh.vertices.size());
+        range.firstIndex = static_cast<uint32_t>(mesh.indices.size());
+
+        const std::array<XMFLOAT3, 6> points = {
+            XMFLOAT3 { -0.5f, -0.5f, -0.5f },
+            XMFLOAT3 { 0.5f, -0.5f, -0.5f },
+            XMFLOAT3 { -0.5f, -0.5f, 0.5f },
+            XMFLOAT3 { 0.5f, -0.5f, 0.5f },
+            XMFLOAT3 { -0.5f, 0.5f, 0.5f },
+            XMFLOAT3 { 0.5f, 0.5f, 0.5f } };
+
+        const auto addTriangle = [&mesh, &points](uint32_t a, uint32_t b, uint32_t c)
+        {
+            const XMVECTOR va = XMLoadFloat3(&points[a]);
+            const XMVECTOR vb = XMLoadFloat3(&points[b]);
+            const XMVECTOR vc = XMLoadFloat3(&points[c]);
+            XMFLOAT3 normal;
+            XMStoreFloat3(
+                &normal,
+                XMVector3Normalize(XMVector3Cross(vb - va, vc - va)));
+            const uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
+            mesh.vertices.push_back({ points[a], { 0.0f, 1.0f }, normal });
+            mesh.vertices.push_back({ points[b], { 1.0f, 1.0f }, normal });
+            mesh.vertices.push_back({ points[c], { 0.5f, 0.0f }, normal });
+            mesh.indices.insert(mesh.indices.end(), { base, base + 1, base + 2 });
+        };
+
+        addTriangle(0, 1, 3);
+        addTriangle(0, 3, 2);
+        addTriangle(2, 3, 5);
+        addTriangle(2, 5, 4);
+        addTriangle(0, 4, 5);
+        addTriangle(0, 5, 1);
+        addTriangle(0, 2, 4);
+        addTriangle(1, 5, 3);
+
+        range.vertexCount = static_cast<uint32_t>(mesh.vertices.size()) - range.firstVertex;
+        range.indexCount = static_cast<uint32_t>(mesh.indices.size()) - range.firstIndex;
+        mesh.ranges.push_back(range);
+        return static_cast<Engine::SceneMeshId>(mesh.ranges.size() - 1);
+    }
+
     std::vector<uint8_t> CreateGroundGridTexture(uint32_t size)
     {
         constexpr uint8_t groundR = 98;
@@ -400,6 +446,8 @@ void TrackedVehicleScenePresenter::BuildScene(
         1.0f,
         16,
         Engine::CylinderCapMode::Both);
+    const Engine::SceneMeshId triangularPrismMesh =
+        AddTriangularPrismMesh(m_sceneBuilder);
 
     m_sceneBuilder.AddInstance(
         XMMatrixScaling(
@@ -479,13 +527,13 @@ void TrackedVehicleScenePresenter::BuildScene(
 
     for (const Tank::Physics::MapPrimitive& primitive : mapPrimitives)
     {
-        if (primitive.type != Tank::Physics::MapPrimitiveType::Box)
-        {
-            continue;
-        }
         const size_t frictionBand = primitive.friction < 0.45f ? 0 :
             (primitive.friction < 0.8f ? 1 : 2);
+        const Engine::SceneMeshId meshId =
+            primitive.type == Tank::Physics::MapPrimitiveType::TriangularPrism ?
+                triangularPrismMesh : 0;
         m_sceneBuilder.AddInstance(
+            meshId,
             XMMatrixScaling(
                 primitive.size.x,
                 primitive.size.y,

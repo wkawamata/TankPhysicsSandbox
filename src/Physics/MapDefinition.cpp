@@ -24,11 +24,12 @@ namespace Tank::Physics
         }
     }
 
-    const std::array<MapDefinition, 2>& GetMapDefinitions()
+    const std::array<MapDefinition, 3>& GetMapDefinitions()
     {
-        static const std::array<MapDefinition, 2> definitions = {
+        static const std::array<MapDefinition, 3> definitions = {
             MapDefinition { MapId::FlatGround, "Flat Ground", MakeFlatGround() },
             MapDefinition { MapId::ObstacleField, "Obstacle Field", MakeObstacleField() },
+            MapDefinition { MapId::RampCourse, "Ramp Course", MakeFlatGround() },
         };
         return definitions;
     }
@@ -52,6 +53,28 @@ namespace Tank::Physics
         std::vector<MapPrimitive> primitives;
         if (id == MapId::FlatGround)
         {
+            return primitives;
+        }
+
+        if (id == MapId::RampCourse)
+        {
+            constexpr std::array<float, 3> frictionBands = { 0.3f, 0.6f, 1.0f };
+            for (size_t index = 0; index < frictionBands.size(); ++index)
+            {
+                MapPrimitive ramp;
+                ramp.type = MapPrimitiveType::TriangularPrism;
+                ramp.position = { (static_cast<float>(index) - 1.0f) * 6.0f, 1.0f, 15.0f };
+                ramp.size = { 4.0f, 2.0f, 8.0f };
+                ramp.friction = frictionBands[index];
+                primitives.push_back(ramp);
+
+                MapPrimitive platform;
+                platform.type = MapPrimitiveType::Box;
+                platform.position = { ramp.position.x, 1.0f, 23.0f };
+                platform.size = { 4.0f, 2.0f, 8.0f };
+                platform.friction = frictionBands[index];
+                primitives.push_back(platform);
+            }
             return primitives;
         }
 

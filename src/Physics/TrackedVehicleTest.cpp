@@ -6,6 +6,7 @@
 
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <algorithm>
@@ -91,15 +92,36 @@ namespace Tank::Physics
         m_impl->obstacleBodyIds.reserve(mapPrimitives.size());
         for (const MapPrimitive& primitive : mapPrimitives)
         {
-            if (primitive.type != MapPrimitiveType::Box)
+            JPH::RefConst<JPH::Shape> shape;
+            if (primitive.type == MapPrimitiveType::Box)
             {
-                continue;
-            }
-            JPH::BodyCreationSettings obstacleSettings(
-                new JPH::BoxShape(JPH::Vec3(
+                shape = new JPH::BoxShape(JPH::Vec3(
                     0.5f * primitive.size.x,
                     0.5f * primitive.size.y,
-                    0.5f * primitive.size.z)),
+                    0.5f * primitive.size.z));
+            }
+            else
+            {
+                const float halfX = 0.5f * primitive.size.x;
+                const float halfY = 0.5f * primitive.size.y;
+                const float halfZ = 0.5f * primitive.size.z;
+                JPH::Array<JPH::Vec3> points = {
+                    { -halfX, -halfY, -halfZ },
+                    { halfX, -halfY, -halfZ },
+                    { -halfX, -halfY, halfZ },
+                    { halfX, -halfY, halfZ },
+                    { -halfX, halfY, halfZ },
+                    { halfX, halfY, halfZ } };
+                JPH::ShapeSettings::ShapeResult shapeResult =
+                    JPH::ConvexHullShapeSettings(points).Create();
+                if (shapeResult.HasError())
+                {
+                    continue;
+                }
+                shape = shapeResult.Get();
+            }
+            JPH::BodyCreationSettings obstacleSettings(
+                shape,
                 JPH::RVec3(
                     primitive.position.x,
                     primitive.position.y,

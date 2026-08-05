@@ -12,6 +12,7 @@ namespace Tank::Physics
     {
         FlatGround,
         ObstacleField,
+        RampCourse,
     };
 
     enum class MapPrimitiveType
@@ -36,7 +37,7 @@ namespace Tank::Physics
         PhysicsEnvironmentSettings environment = {};
     };
 
-    const std::array<MapDefinition, 2>& GetMapDefinitions();
+    const std::array<MapDefinition, 3>& GetMapDefinitions();
     const MapDefinition& GetMapDefinition(MapId id);
     std::vector<MapPrimitive> BuildMapPrimitives(
         MapId id,
