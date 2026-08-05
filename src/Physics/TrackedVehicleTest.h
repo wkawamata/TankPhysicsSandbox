@@ -2,6 +2,7 @@
 
 #include "PhysicsTypes.h"
 #include "PhysicsEnvironmentSettings.h"
+#include "MapDefinition.h"
 #include "TankTypes.h"
 
 #include <array>
@@ -37,7 +38,8 @@ namespace Tank::Physics
         void Initialize(const TankSettings& settings);
         void Initialize(
             const TankSettings& settings,
-            const PhysicsEnvironmentSettings& environmentSettings);
+            const PhysicsEnvironmentSettings& environmentSettings,
+            const std::vector<MapPrimitive>& mapPrimitives = {});
         void SetInput(const TankInput& input);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
         const TrackedVehicleTestState& State() const { return m_state; }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Physics/PhysicsEnvironmentSettings.h"
+#include "Physics/MapDefinition.h"
 #include "Physics/TankTypes.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/PhysicsDebugOverlay.h"
@@ -41,6 +42,7 @@ public:
 
     void BuildScene(
         const Tank::Physics::PhysicsEnvironmentSettings& envSettings,
+        const std::vector<Tank::Physics::MapPrimitive>& mapPrimitives,
         const Tank::Rendering::TankVisualSettings& visualSettings,
         const Tank::Physics::TankSettings& tankSettings);
 

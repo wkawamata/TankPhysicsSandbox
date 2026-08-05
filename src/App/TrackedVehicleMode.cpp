@@ -46,13 +46,16 @@ float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)
 
 void TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
 {
+    const std::vector<Tank::Physics::MapPrimitive> mapPrimitives =
+        Tank::Physics::BuildMapPrimitives(m_selectedMap, m_environmentSettings);
     m_presenter.BuildScene(
         m_environmentSettings,
+        mapPrimitives,
         m_visualSettings,
         m_settings);
     Engine::Scene& scene = m_presenter.GetScene();
 
-    m_test.Initialize(m_settings, m_environmentSettings);
+    m_test.Initialize(m_settings, m_environmentSettings, mapPrimitives);
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_paused = false;

@@ -1,8 +1,10 @@
 #pragma once
 
 #include "PhysicsEnvironmentSettings.h"
+#include "PhysicsTypes.h"
 
 #include <array>
+#include <vector>
 
 namespace Tank::Physics
 {
@@ -10,6 +12,21 @@ namespace Tank::Physics
     {
         FlatGround,
         ObstacleField,
+    };
+
+    enum class MapPrimitiveType
+    {
+        Box,
+        TriangularPrism,
+    };
+
+    struct MapPrimitive
+    {
+        MapPrimitiveType type = MapPrimitiveType::Box;
+        Vec3 position = {};
+        Vec3 size = { 1.0f, 1.0f, 1.0f };
+        float yawRadians = 0.0f;
+        float friction = 0.6f;
     };
 
     struct MapDefinition
@@ -21,4 +38,7 @@ namespace Tank::Physics
 
     const std::array<MapDefinition, 2>& GetMapDefinitions();
     const MapDefinition& GetMapDefinition(MapId id);
+    std::vector<MapPrimitive> BuildMapPrimitives(
+        MapId id,
+        const PhysicsEnvironmentSettings& environment);
 }

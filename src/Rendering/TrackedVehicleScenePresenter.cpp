@@ -330,6 +330,7 @@ namespace
 
 void TrackedVehicleScenePresenter::BuildScene(
     const Tank::Physics::PhysicsEnvironmentSettings& envSettings,
+    const std::vector<Tank::Physics::MapPrimitive>& mapPrimitives,
     const Tank::Rendering::TankVisualSettings& visualSettings,
     const Tank::Physics::TankSettings&)
 {
@@ -389,8 +390,10 @@ void TrackedVehicleScenePresenter::BuildScene(
     m_model.trackShoeMaterial =
         addBodyMaterial(visualSettings.trackShoes);
 
-    const uint32_t obstacleMaterial =
-        m_sceneBuilder.AddSolidColorMaterial(70, 95, 135, 255);
+    const std::array<uint32_t, 3> frictionMaterials = {
+        m_sceneBuilder.AddSolidColorMaterial(50, 120, 210, 255),
+        m_sceneBuilder.AddSolidColorMaterial(70, 145, 85, 255),
+        m_sceneBuilder.AddSolidColorMaterial(205, 85, 55, 255) };
     m_sceneBuilder.AppendCube(1.0f, kGltfVertexMaterialFromInstance);
     const Engine::SceneMeshId wheelMesh = m_sceneBuilder.AddCylinder(
         1.0f,
@@ -474,20 +477,25 @@ void TrackedVehicleScenePresenter::BuildScene(
 
     m_physicsDebugOverlay.BuildScene(m_model.trackProxyMaterial);
 
-    for (const Tank::Physics::TestObstaclePlacement& obstacle :
-        Tank::Physics::GenerateTestObstacleLayout(envSettings))
+    for (const Tank::Physics::MapPrimitive& primitive : mapPrimitives)
     {
+        if (primitive.type != Tank::Physics::MapPrimitiveType::Box)
+        {
+            continue;
+        }
+        const size_t frictionBand = primitive.friction < 0.45f ? 0 :
+            (primitive.friction < 0.8f ? 1 : 2);
         m_sceneBuilder.AddInstance(
             XMMatrixScaling(
-                Tank::Physics::kPassengerCarWidthM,
-                Tank::Physics::kPassengerCarHeightM,
-                Tank::Physics::kPassengerCarLengthM) *
-            XMMatrixRotationY(obstacle.yawRadians) *
+                primitive.size.x,
+                primitive.size.y,
+                primitive.size.z) *
+            XMMatrixRotationY(primitive.yawRadians) *
             XMMatrixTranslation(
-                obstacle.position.x,
-                obstacle.position.y,
-                obstacle.position.z),
-            obstacleMaterial);
+                primitive.position.x,
+                primitive.position.y,
+                primitive.position.z),
+            frictionMaterials[frictionBand]);
     }
 
     Engine::CameraState camera;

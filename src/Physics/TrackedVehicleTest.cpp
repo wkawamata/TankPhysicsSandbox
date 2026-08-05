@@ -1,7 +1,6 @@
 #include "TrackedVehicleTest.h"
 #include "PhysicsWorld.h"
 #include "TankController.h"
-#include "TestObstacleLayout.h"
 
 #include <Jolt/Jolt.h>
 
@@ -61,7 +60,8 @@ namespace Tank::Physics
 
     void TrackedVehicleTest::Initialize(
         const TankSettings& settings,
-        const PhysicsEnvironmentSettings& environmentSettings)
+        const PhysicsEnvironmentSettings& environmentSettings,
+        const std::vector<MapPrimitive>& mapPrimitives)
     {
         m_state = {};
 
@@ -88,24 +88,26 @@ namespace Tank::Physics
         m_impl->hasFloorBody = true;
         bodyInterface.AddBody(m_impl->floorBodyId, JPH::EActivation::DontActivate);
 
-        const std::vector<TestObstaclePlacement> obstacleLayout =
-            GenerateTestObstacleLayout(environmentSettings);
-        m_impl->obstacleBodyIds.reserve(obstacleLayout.size());
-        for (const TestObstaclePlacement& obstacle : obstacleLayout)
+        m_impl->obstacleBodyIds.reserve(mapPrimitives.size());
+        for (const MapPrimitive& primitive : mapPrimitives)
         {
+            if (primitive.type != MapPrimitiveType::Box)
+            {
+                continue;
+            }
             JPH::BodyCreationSettings obstacleSettings(
                 new JPH::BoxShape(JPH::Vec3(
-                    0.5f * kPassengerCarWidthM,
-                    0.5f * kPassengerCarHeightM,
-                    0.5f * kPassengerCarLengthM)),
+                    0.5f * primitive.size.x,
+                    0.5f * primitive.size.y,
+                    0.5f * primitive.size.z)),
                 JPH::RVec3(
-                    obstacle.position.x,
-                    obstacle.position.y,
-                    obstacle.position.z),
-                JPH::Quat::sRotation(JPH::Vec3::sAxisY(), obstacle.yawRadians),
+                    primitive.position.x,
+                    primitive.position.y,
+                    primitive.position.z),
+                JPH::Quat::sRotation(JPH::Vec3::sAxisY(), primitive.yawRadians),
                 JPH::EMotionType::Static,
                 Layers::NonMoving);
-            obstacleSettings.mFriction = floorFriction;
+            obstacleSettings.mFriction = std::clamp(primitive.friction, 0.0f, 2.0f);
 
             JPH::Body* obstacleBody = bodyInterface.CreateBody(obstacleSettings);
             if (obstacleBody != nullptr)
