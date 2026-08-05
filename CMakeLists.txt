@@ -40,6 +40,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/PhysicsEnvironmentSettings.h
     src/Physics/PhysicsEnvironmentSettingsJson.cpp
     src/Physics/PhysicsEnvironmentSettingsJson.h
+    src/Physics/MapDefinition.cpp
+    src/Physics/MapDefinition.h
     src/Physics/PhysicsWorld.cpp
     src/Physics/PhysicsWorld.h
     src/Physics/TankController.cpp
@@ -197,6 +199,10 @@ if(MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(MapDefinitionTests tests/MapDefinitionTests.cpp)
+    target_link_libraries(MapDefinitionTests PRIVATE TankPhysicsCore)
+    add_test(NAME TankPhysics.MapDefinition COMMAND MapDefinitionTests)
+
     add_executable(TankModelExporterTests
         src/Rendering/TankModelExporter.cpp
         tests/TankModelExporterTests.cpp

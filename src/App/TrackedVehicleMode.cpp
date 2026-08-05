@@ -24,6 +24,13 @@ TrackedVehicleMode::TrackedVehicleMode()
 {
 }
 
+void TrackedVehicleMode::SelectMap(Tank::Physics::MapId mapId)
+{
+    m_selectedMap = mapId;
+    m_environmentSettings =
+        Tank::Physics::GetMapDefinition(mapId).environment;
+}
+
 float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)
 {
     const float normalized = std::clamp((value - 0.5f) * 2.0f, -1.0f, 1.0f);

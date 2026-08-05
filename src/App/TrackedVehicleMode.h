@@ -2,6 +2,7 @@
 
 #include "Input/GamepadState.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
+#include "Physics/MapDefinition.h"
 #include "Physics/TankTypes.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
@@ -35,6 +36,8 @@ public:
     void Reset(RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
     void ApplyMaterials(RtPbrSurvey::SceneRenderer& renderer);
     void UpdateScene(RtPbrSurvey::SceneRenderer& renderer);
+    void SelectMap(Tank::Physics::MapId mapId);
+    Tank::Physics::MapId SelectedMap() const { return m_selectedMap; }
 
     Engine::CameraState* ActiveCamera();
     Engine::Scene& GetScene();
@@ -96,6 +99,7 @@ private:
     Tank::Physics::TankSettings m_appliedSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
+    Tank::Physics::MapId m_selectedMap = Tank::Physics::MapId::ObstacleField;
     Tank::Rendering::TankVisualSettings m_visualSettings;
 
     bool m_paused = false;

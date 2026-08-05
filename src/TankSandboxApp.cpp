@@ -824,8 +824,19 @@ void TankSandboxApp::DrawTopMenuUi()
     {
         EnterBoxDropMode();
     }
-    if (ImGui::Button("Tracked Vehicle"))
+    ImGui::SeparatorText("Tracked Vehicle Map");
+    for (const Tank::Physics::MapDefinition& map :
+         Tank::Physics::GetMapDefinitions())
     {
+        const bool selected = m_selectedMap == map.id;
+        if (ImGui::RadioButton(map.name, selected))
+        {
+            m_selectedMap = map.id;
+        }
+    }
+    if (ImGui::Button("Start Tracked Vehicle"))
+    {
+        m_trackedVehicleMode.SelectMap(m_selectedMap);
         EnterTrackedVehicleMode();
     }
     ImGui::End();

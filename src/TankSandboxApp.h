@@ -25,6 +25,7 @@
 #include "Ui/RendererSettingsPanel.h"
 #include "Ui/TrackedVehiclePanel.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
+#include "Physics/MapDefinition.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
@@ -95,6 +96,8 @@ private:
     RtPbrSurvey::SceneRenderer m_sceneRenderer;
     RtPbrSurvey::DebugCameraController m_debugCameraController;
     AppMode m_appMode = AppMode::TopMenu;
+    Tank::Physics::MapId m_selectedMap =
+        Tank::Physics::MapId::ObstacleField;
 
     // Mode state
     BoxDropMode m_boxDropMode;
