@@ -34,6 +34,12 @@ namespace Tank::Physics
         std::vector<float> heightFieldHeights;
     };
 
+    struct MapSpawn
+    {
+        Vec3 position = { 0.0f, 2.0f, 0.0f };
+        float yawRadians = 0.0f;
+    };
+
     struct MapDefinition
     {
         MapId id = MapId::FlatGround;

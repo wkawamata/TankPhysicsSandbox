@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 3,
   "name": "JSON Friction Ramp",
   "environment": {
     "version": 1,
@@ -10,6 +10,10 @@
     "obstacleCount": 0,
     "obstacleSeed": 1,
     "obstacleAreaSizeM": 100.0
+  },
+  "spawn": {
+    "position": [0.0, 2.0, 0.0],
+    "yawRadians": 0.0
   },
   "primitives": [
     {

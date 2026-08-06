@@ -98,6 +98,14 @@ namespace Tank::Physics
 
     void TankController::Initialize(PhysicsWorld& world, const TankSettings& settings)
     {
+        Initialize(world, settings, {});
+    }
+
+    void TankController::Initialize(
+        PhysicsWorld& world,
+        const TankSettings& settings,
+        const MapSpawn& spawn)
+    {
         m_input = {};
         m_state = {};
         m_settings = settings;
@@ -160,13 +168,18 @@ namespace Tank::Physics
 
         JPH::RefConst<JPH::Shape> tankBodyShape =
             new JPH::BoxShape(JPH::Vec3(halfVehicleWidth, halfVehicleHeight, halfVehicleLength));
-        const JPH::Quat initialRotation = m_settings.startUpsideDown
-            ? JPH::Quat::sRotation(JPH::Vec3::sAxisZ(), JPH::JPH_PI)
-            : JPH::Quat::sIdentity();
+        const JPH::Quat yawRotation =
+            JPH::Quat::sRotation(JPH::Vec3::sAxisY(), spawn.yawRadians);
+        const JPH::Quat initialRotation = m_settings.startUpsideDown ?
+            yawRotation * JPH::Quat::sRotation(JPH::Vec3::sAxisZ(), JPH::JPH_PI) :
+            yawRotation;
 
         JPH::BodyCreationSettings tankBodySettings(
             tankBodyShape,
-            JPH::RVec3(0.0, 2.0, 0.0),
+            JPH::RVec3(
+                spawn.position.x,
+                spawn.position.y,
+                spawn.position.z),
             initialRotation,
             JPH::EMotionType::Dynamic,
             Layers::Moving);

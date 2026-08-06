@@ -39,7 +39,8 @@ namespace Tank::Physics
         void Initialize(
             const TankSettings& settings,
             const PhysicsEnvironmentSettings& environmentSettings,
-            const std::vector<MapPrimitive>& mapPrimitives = {});
+            const std::vector<MapPrimitive>& mapPrimitives = {},
+            const MapSpawn& spawn = {});
         void SetInput(const TankInput& input);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
         const TrackedVehicleTestState& State() const { return m_state; }

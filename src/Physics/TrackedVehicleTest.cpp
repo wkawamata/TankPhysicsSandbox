@@ -63,7 +63,8 @@ namespace Tank::Physics
     void TrackedVehicleTest::Initialize(
         const TankSettings& settings,
         const PhysicsEnvironmentSettings& environmentSettings,
-        const std::vector<MapPrimitive>& mapPrimitives)
+        const std::vector<MapPrimitive>& mapPrimitives,
+        const MapSpawn& spawn)
     {
         m_state = {};
 
@@ -167,7 +168,7 @@ namespace Tank::Physics
             }
         }
 
-        m_impl->controller.Initialize(m_impl->world, settings);
+        m_impl->controller.Initialize(m_impl->world, settings, spawn);
     }
 
     const TankSettings& TrackedVehicleTest::Settings() const

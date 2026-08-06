@@ -81,7 +81,7 @@ namespace
         }
 
         Tank::Physics::TrackedVehicleTest test;
-        test.Initialize({}, document.environment, document.primitives);
+        test.Initialize({}, document.environment, document.primitives, document.spawn);
         Tank::Physics::TrackedVehicleTestState state = test.State();
         for (int step = 0; step < options.steps; ++step)
         {

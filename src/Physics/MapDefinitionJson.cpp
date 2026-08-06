@@ -10,7 +10,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 2;
+        constexpr int kSchemaVersion = 3;
 
         const char* ShapeName(MapPrimitiveType type)
         {
@@ -51,6 +51,13 @@ namespace Tank::Physics
         json["name"] = document.name;
         json["environment"] = nlohmann::json::parse(
             SerializePhysicsEnvironmentSettings(document.environment));
+        json["spawn"] = {
+            { "position", {
+                document.spawn.position.x,
+                document.spawn.position.y,
+                document.spawn.position.z } },
+            { "yawRadians", document.spawn.yawRadians },
+        };
         json["primitives"] = nlohmann::json::array();
         for (const MapPrimitive& primitive : document.primitives)
         {
@@ -104,6 +111,26 @@ namespace Tank::Physics
                 environment->dump(), loaded.environment, error))
         {
             return false;
+        }
+        const auto spawn = json.find("spawn");
+        if (spawn != json.end())
+        {
+            if (!spawn->is_object())
+            {
+                return Fail(error, "spawn must be an object");
+            }
+            const auto position = spawn->find("position");
+            const auto yaw = spawn->find("yawRadians");
+            if (position == spawn->end() || !ReadVec3(*position, loaded.spawn.position) ||
+                yaw == spawn->end() || !yaw->is_number())
+            {
+                return Fail(error, "spawn fields are invalid");
+            }
+            loaded.spawn.yawRadians = yaw->get<float>();
+            if (!std::isfinite(loaded.spawn.yawRadians))
+            {
+                return Fail(error, "spawn yaw is invalid");
+            }
         }
         loaded.primitives.clear();
         loaded.primitives.reserve(primitives->size());

@@ -64,7 +64,11 @@ void TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
         m_settings);
     Engine::Scene& scene = m_presenter.GetScene();
 
-    m_test.Initialize(m_settings, m_environmentSettings, mapPrimitives);
+    m_test.Initialize(
+        m_settings,
+        m_environmentSettings,
+        mapPrimitives,
+        m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_paused = false;

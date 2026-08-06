@@ -11,6 +11,7 @@ namespace Tank::Physics
     {
         std::string name;
         PhysicsEnvironmentSettings environment;
+        MapSpawn spawn;
         std::vector<MapPrimitive> primitives;
     };
 

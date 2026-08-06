@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TankTypes.h"
+#include "MapDefinition.h"
 
 #include <memory>
 
@@ -20,6 +21,10 @@ namespace Tank::Physics
         void Initialize();
         void Initialize(PhysicsWorld& world);
         void Initialize(PhysicsWorld& world, const TankSettings& settings);
+        void Initialize(
+            PhysicsWorld& world,
+            const TankSettings& settings,
+            const MapSpawn& spawn);
         void SetInput(const TankInput& input);
         void PreStep();
         void PostStep(float deltaTimeSeconds);
