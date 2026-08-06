@@ -3,12 +3,14 @@
 #include "Input/GamepadState.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/MapDefinition.h"
+#include "Physics/MapDefinitionJson.h"
 #include "Physics/TankTypes.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Rendering/TrackedVehicleScenePresenter.h"
 
 #include <string>
+#include <optional>
 #include <windows.h>
 
 namespace Engine { struct CameraState; class Scene; }
@@ -37,6 +39,7 @@ public:
     void ApplyMaterials(RtPbrSurvey::SceneRenderer& renderer);
     void UpdateScene(RtPbrSurvey::SceneRenderer& renderer);
     void SelectMap(Tank::Physics::MapId mapId);
+    void SelectCustomMap(const Tank::Physics::MapDocument& document);
     Tank::Physics::MapId SelectedMap() const { return m_selectedMap; }
 
     Engine::CameraState* ActiveCamera();
@@ -100,6 +103,7 @@ private:
     Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
     Tank::Physics::MapId m_selectedMap = Tank::Physics::MapId::ObstacleField;
+    std::optional<Tank::Physics::MapDocument> m_customMap;
     Tank::Rendering::TankVisualSettings m_visualSettings;
 
     bool m_paused = false;

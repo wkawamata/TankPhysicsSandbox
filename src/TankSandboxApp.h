@@ -26,6 +26,7 @@
 #include "Ui/TrackedVehiclePanel.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/MapDefinition.h"
+#include "Physics/MapDefinitionJson.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
@@ -34,6 +35,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <vector>
 
 class TankSandboxApp : public Platform::IApplication
 {
@@ -76,6 +78,7 @@ private:
     bool SaveCameraSettings();
     bool LoadCameraSettings();
     void DrawTopMenuUi();
+    void ReloadCustomMaps();
     void EnterTrackedVehicleMode();
     void EnterBoxDropMode();
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
@@ -98,6 +101,14 @@ private:
     AppMode m_appMode = AppMode::TopMenu;
     Tank::Physics::MapId m_selectedMap =
         Tank::Physics::MapId::ObstacleField;
+    struct CustomMapEntry
+    {
+        std::string fileName;
+        Tank::Physics::MapDocument document;
+    };
+    std::vector<CustomMapEntry> m_customMaps;
+    std::optional<size_t> m_selectedCustomMap;
+    std::string m_customMapStatus;
 
     // Mode state
     BoxDropMode m_boxDropMode;

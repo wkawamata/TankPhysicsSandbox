@@ -26,9 +26,17 @@ TrackedVehicleMode::TrackedVehicleMode()
 
 void TrackedVehicleMode::SelectMap(Tank::Physics::MapId mapId)
 {
+    m_customMap.reset();
     m_selectedMap = mapId;
     m_environmentSettings =
         Tank::Physics::GetMapDefinition(mapId).environment;
+}
+
+void TrackedVehicleMode::SelectCustomMap(
+    const Tank::Physics::MapDocument& document)
+{
+    m_customMap = document;
+    m_environmentSettings = document.environment;
 }
 
 float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)
@@ -46,7 +54,8 @@ float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)
 
 void TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
 {
-    const std::vector<Tank::Physics::MapPrimitive> mapPrimitives =
+    const std::vector<Tank::Physics::MapPrimitive> mapPrimitives = m_customMap ?
+        m_customMap->primitives :
         Tank::Physics::BuildMapPrimitives(m_selectedMap, m_environmentSettings);
     m_presenter.BuildScene(
         m_environmentSettings,

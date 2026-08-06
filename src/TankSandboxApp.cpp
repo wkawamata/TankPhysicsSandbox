@@ -58,6 +58,28 @@ using namespace DirectX;
 namespace
 {
     constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
+
+    std::filesystem::path ResolveMapsDirectory()
+    {
+        const std::filesystem::path workingDirectoryMaps = "Config/Maps";
+        std::error_code errorCode;
+        if (std::filesystem::exists(workingDirectoryMaps, errorCode))
+        {
+            return workingDirectoryMaps;
+        }
+
+        std::array<wchar_t, 32768> executablePath = {};
+        const DWORD length = GetModuleFileNameW(
+            nullptr,
+            executablePath.data(),
+            static_cast<DWORD>(executablePath.size()));
+        if (length == 0 || length >= executablePath.size())
+        {
+            return workingDirectoryMaps;
+        }
+        return std::filesystem::path(executablePath.data()).parent_path() /
+            "Config/Maps";
+    }
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -187,6 +209,7 @@ void TankSandboxApp::OnInit()
     m_sceneRenderer.SetDisplayInstanceCount(0);
 
     m_defaultRendererSettings = m_sceneRenderer.CaptureSettings();
+    ReloadCustomMaps();
     LoadRendererSettings();
     m_environmentMappingUi.lighting = m_sceneRenderer.GetLightingParams();
     m_environmentMappingUi.iblEnabled =
@@ -832,14 +855,88 @@ void TankSandboxApp::DrawTopMenuUi()
         if (ImGui::RadioButton(map.name, selected))
         {
             m_selectedMap = map.id;
+            m_selectedCustomMap.reset();
         }
+    }
+    for (size_t index = 0; index < m_customMaps.size(); ++index)
+    {
+        ImGui::PushID(static_cast<int>(index));
+        const bool selected = m_selectedCustomMap == index;
+        if (ImGui::RadioButton(m_customMaps[index].document.name.c_str(), selected))
+        {
+            m_selectedCustomMap = index;
+        }
+        ImGui::PopID();
+    }
+    if (ImGui::Button("Reload Map Files"))
+    {
+        ReloadCustomMaps();
+    }
+    if (!m_customMapStatus.empty())
+    {
+        ImGui::TextUnformatted(m_customMapStatus.c_str());
     }
     if (ImGui::Button("Start Tracked Vehicle"))
     {
-        m_trackedVehicleMode.SelectMap(m_selectedMap);
+        if (m_selectedCustomMap && *m_selectedCustomMap < m_customMaps.size())
+        {
+            m_trackedVehicleMode.SelectCustomMap(
+                m_customMaps[*m_selectedCustomMap].document);
+        }
+        else
+        {
+            m_trackedVehicleMode.SelectMap(m_selectedMap);
+        }
         EnterTrackedVehicleMode();
     }
     ImGui::End();
+}
+
+void TankSandboxApp::ReloadCustomMaps()
+{
+    m_customMaps.clear();
+    m_selectedCustomMap.reset();
+    const std::filesystem::path mapsDirectory = ResolveMapsDirectory();
+    std::error_code errorCode;
+    if (!std::filesystem::exists(mapsDirectory, errorCode))
+    {
+        m_customMapStatus = "No Config/Maps directory";
+        return;
+    }
+
+    size_t rejectedCount = 0;
+    for (const std::filesystem::directory_entry& entry :
+         std::filesystem::directory_iterator(mapsDirectory, errorCode))
+    {
+        if (errorCode || !entry.is_regular_file() || entry.path().extension() != ".json")
+        {
+            continue;
+        }
+        std::ifstream input(entry.path(), std::ios::binary);
+        const std::istreambuf_iterator<char> begin(input);
+        const std::istreambuf_iterator<char> end;
+        const std::string json(begin, end);
+        Tank::Physics::MapDocument document;
+        std::string error;
+        if (!input || !Tank::Physics::DeserializeMapDocument(json, document, &error))
+        {
+            ++rejectedCount;
+            continue;
+        }
+        m_customMaps.push_back({ entry.path().filename().string(), std::move(document) });
+    }
+    std::sort(
+        m_customMaps.begin(),
+        m_customMaps.end(),
+        [](const CustomMapEntry& left, const CustomMapEntry& right)
+        {
+            return left.fileName < right.fileName;
+        });
+    m_customMapStatus = std::to_string(m_customMaps.size()) + " map file(s) loaded";
+    if (rejectedCount > 0)
+    {
+        m_customMapStatus += ", " + std::to_string(rejectedCount) + " rejected";
+    }
 }
 
 void TankSandboxApp::EnterBoxDropMode()

@@ -187,6 +187,13 @@ endif()
 # ── D3D12 Agility SDK ─────────────────────────────────────────
 rtpbrsurvey_copy_runtime_files(TankSandbox)
 
+add_custom_command(TARGET TankSandbox POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps"
+        "$<TARGET_FILE_DIR:TankSandbox>/Config/Maps"
+    COMMENT "Copying Tank map definitions"
+)
+
 add_executable(TankPhysicsCli
     src/cli/TankPhysicsCli.cpp
 )
