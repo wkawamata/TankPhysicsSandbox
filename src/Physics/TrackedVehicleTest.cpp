@@ -7,6 +7,7 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
+#include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <algorithm>
@@ -100,7 +101,7 @@ namespace Tank::Physics
                     0.5f * primitive.size.y,
                     0.5f * primitive.size.z));
             }
-            else
+            else if (primitive.type == MapPrimitiveType::TriangularPrism)
             {
                 const float halfX = 0.5f * primitive.size.x;
                 const float halfY = 0.5f * primitive.size.y;
@@ -114,6 +115,32 @@ namespace Tank::Physics
                     { halfX, halfY, halfZ } };
                 JPH::ShapeSettings::ShapeResult shapeResult =
                     JPH::ConvexHullShapeSettings(points).Create();
+                if (shapeResult.HasError())
+                {
+                    continue;
+                }
+                shape = shapeResult.Get();
+            }
+            else
+            {
+                const uint32_t sampleCount = primitive.heightFieldSampleCount;
+                if (sampleCount < 2 ||
+                    primitive.heightFieldHeights.size() !=
+                        static_cast<size_t>(sampleCount) * sampleCount)
+                {
+                    continue;
+                }
+                const float halfSpan =
+                    0.5f * primitive.heightFieldCellSizeM * static_cast<float>(sampleCount - 1);
+                JPH::ShapeSettings::ShapeResult shapeResult =
+                    JPH::HeightFieldShapeSettings(
+                        primitive.heightFieldHeights.data(),
+                        JPH::Vec3(-halfSpan, 0.0f, -halfSpan),
+                        JPH::Vec3(
+                            primitive.heightFieldCellSizeM,
+                            1.0f,
+                            primitive.heightFieldCellSizeM),
+                        sampleCount).Create();
                 if (shapeResult.HasError())
                 {
                     continue;

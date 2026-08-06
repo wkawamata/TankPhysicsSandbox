@@ -10,12 +10,15 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 1;
+        constexpr int kSchemaVersion = 2;
 
         const char* ShapeName(MapPrimitiveType type)
         {
-            return type == MapPrimitiveType::TriangularPrism ?
-                "triangularPrism" : "box";
+            if (type == MapPrimitiveType::TriangularPrism)
+            {
+                return "triangularPrism";
+            }
+            return type == MapPrimitiveType::HeightField ? "heightField" : "box";
         }
 
         bool ReadVec3(const nlohmann::json& json, Vec3& value)
@@ -51,13 +54,20 @@ namespace Tank::Physics
         json["primitives"] = nlohmann::json::array();
         for (const MapPrimitive& primitive : document.primitives)
         {
-            json["primitives"].push_back({
+            nlohmann::json entry = {
                 { "shape", ShapeName(primitive.type) },
                 { "position", { primitive.position.x, primitive.position.y, primitive.position.z } },
                 { "size", { primitive.size.x, primitive.size.y, primitive.size.z } },
                 { "yawRadians", primitive.yawRadians },
                 { "friction", primitive.friction },
-            });
+            };
+            if (primitive.type == MapPrimitiveType::HeightField)
+            {
+                entry["sampleCount"] = primitive.heightFieldSampleCount;
+                entry["cellSizeM"] = primitive.heightFieldCellSizeM;
+                entry["heights"] = primitive.heightFieldHeights;
+            }
+            json["primitives"].push_back(std::move(entry));
         }
         return json.dump(2);
     }
@@ -74,7 +84,7 @@ namespace Tank::Physics
         }
         const auto version = json.find("version");
         if (version == json.end() || !version->is_number_integer() ||
-            version->get<int>() != kSchemaVersion)
+            version->get<int>() < 1 || version->get<int>() > kSchemaVersion)
         {
             return Fail(error, "unsupported version");
         }
@@ -126,6 +136,10 @@ namespace Tank::Physics
             {
                 primitive.type = MapPrimitiveType::TriangularPrism;
             }
+            else if (shapeName == "heightField")
+            {
+                primitive.type = MapPrimitiveType::HeightField;
+            }
             else
             {
                 return Fail(error, "unknown primitive shape");
@@ -137,12 +151,53 @@ namespace Tank::Physics
             }
             primitive.yawRadians = yaw->get<float>();
             primitive.friction = friction->get<float>();
-            if (primitive.size.x <= 0.0f || primitive.size.y <= 0.0f ||
-                primitive.size.z <= 0.0f || !std::isfinite(primitive.yawRadians) ||
+            if (!std::isfinite(primitive.yawRadians) ||
                 !std::isfinite(primitive.friction) || primitive.friction < 0.0f ||
                 primitive.friction > 2.0f)
             {
                 return Fail(error, "primitive values are out of range");
+            }
+            if (primitive.type == MapPrimitiveType::HeightField)
+            {
+                const auto sampleCount = entry.find("sampleCount");
+                const auto cellSize = entry.find("cellSizeM");
+                const auto heights = entry.find("heights");
+                if (sampleCount == entry.end() || !sampleCount->is_number_unsigned() ||
+                    cellSize == entry.end() || !cellSize->is_number() ||
+                    heights == entry.end() || !heights->is_array())
+                {
+                    return Fail(error, "height field fields are invalid");
+                }
+                primitive.heightFieldSampleCount = sampleCount->get<uint32_t>();
+                primitive.heightFieldCellSizeM = cellSize->get<float>();
+                if (primitive.heightFieldSampleCount < 2 ||
+                    primitive.heightFieldSampleCount > 256 ||
+                    !std::isfinite(primitive.heightFieldCellSizeM) ||
+                    primitive.heightFieldCellSizeM <= 0.0f ||
+                    heights->size() != static_cast<size_t>(primitive.heightFieldSampleCount) *
+                        primitive.heightFieldSampleCount)
+                {
+                    return Fail(error, "height field dimensions are invalid");
+                }
+                primitive.heightFieldHeights.reserve(heights->size());
+                for (const nlohmann::json& height : *heights)
+                {
+                    if (!height.is_number())
+                    {
+                        return Fail(error, "height field sample is invalid");
+                    }
+                    const float value = height.get<float>();
+                    if (!std::isfinite(value))
+                    {
+                        return Fail(error, "height field sample is invalid");
+                    }
+                    primitive.heightFieldHeights.push_back(value);
+                }
+            }
+            else if (primitive.size.x <= 0.0f || primitive.size.y <= 0.0f ||
+                     primitive.size.z <= 0.0f)
+            {
+                return Fail(error, "primitive size is out of range");
             }
             loaded.primitives.push_back(primitive);
         }

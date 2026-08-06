@@ -19,6 +19,7 @@ namespace Tank::Physics
     {
         Box,
         TriangularPrism,
+        HeightField,
     };
 
     struct MapPrimitive
@@ -28,6 +29,9 @@ namespace Tank::Physics
         Vec3 size = { 1.0f, 1.0f, 1.0f };
         float yawRadians = 0.0f;
         float friction = 0.6f;
+        uint32_t heightFieldSampleCount = 0;
+        float heightFieldCellSizeM = 1.0f;
+        std::vector<float> heightFieldHeights;
     };
 
     struct MapDefinition

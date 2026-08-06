@@ -64,6 +64,63 @@ namespace
         return static_cast<Engine::SceneMeshId>(mesh.ranges.size() - 1);
     }
 
+    Engine::SceneMeshId AddHeightFieldMesh(
+        Engine::SceneBuilder& builder,
+        const Tank::Physics::MapPrimitive& primitive)
+    {
+        Engine::SceneMesh& mesh = builder.GetMesh();
+        Engine::SceneMesh::Range range;
+        range.firstVertex = static_cast<uint32_t>(mesh.vertices.size());
+        range.firstIndex = static_cast<uint32_t>(mesh.indices.size());
+        const uint32_t count = primitive.heightFieldSampleCount;
+        const float halfSpan =
+            0.5f * primitive.heightFieldCellSizeM * static_cast<float>(count - 1);
+
+        const auto point = [&primitive, count, halfSpan](uint32_t x, uint32_t z)
+        {
+            return XMFLOAT3 {
+                static_cast<float>(x) * primitive.heightFieldCellSizeM - halfSpan,
+                primitive.heightFieldHeights[static_cast<size_t>(z) * count + x],
+                static_cast<float>(z) * primitive.heightFieldCellSizeM - halfSpan };
+        };
+        const auto addTriangle = [&mesh](
+            const XMFLOAT3& a,
+            const XMFLOAT3& b,
+            const XMFLOAT3& c)
+        {
+            const XMVECTOR va = XMLoadFloat3(&a);
+            const XMVECTOR vb = XMLoadFloat3(&b);
+            const XMVECTOR vc = XMLoadFloat3(&c);
+            XMFLOAT3 normal;
+            XMStoreFloat3(
+                &normal,
+                XMVector3Normalize(XMVector3Cross(vb - va, vc - va)));
+            const uint32_t base = static_cast<uint32_t>(mesh.vertices.size());
+            mesh.vertices.push_back({ a, { 0.0f, 0.0f }, normal });
+            mesh.vertices.push_back({ b, { 0.0f, 1.0f }, normal });
+            mesh.vertices.push_back({ c, { 1.0f, 0.0f }, normal });
+            mesh.indices.insert(mesh.indices.end(), { base, base + 1, base + 2 });
+        };
+
+        for (uint32_t z = 0; z + 1 < count; ++z)
+        {
+            for (uint32_t x = 0; x + 1 < count; ++x)
+            {
+                const XMFLOAT3 p00 = point(x, z);
+                const XMFLOAT3 p10 = point(x + 1, z);
+                const XMFLOAT3 p01 = point(x, z + 1);
+                const XMFLOAT3 p11 = point(x + 1, z + 1);
+                addTriangle(p00, p01, p10);
+                addTriangle(p10, p01, p11);
+            }
+        }
+
+        range.vertexCount = static_cast<uint32_t>(mesh.vertices.size()) - range.firstVertex;
+        range.indexCount = static_cast<uint32_t>(mesh.indices.size()) - range.firstIndex;
+        mesh.ranges.push_back(range);
+        return static_cast<Engine::SceneMeshId>(mesh.ranges.size() - 1);
+    }
+
     std::vector<uint8_t> CreateGroundGridTexture(uint32_t size)
     {
         constexpr uint8_t groundR = 98;
@@ -529,15 +586,23 @@ void TrackedVehicleScenePresenter::BuildScene(
     {
         const size_t frictionBand = primitive.friction < 0.45f ? 0 :
             (primitive.friction < 0.8f ? 1 : 2);
-        const Engine::SceneMeshId meshId =
-            primitive.type == Tank::Physics::MapPrimitiveType::TriangularPrism ?
-                triangularPrismMesh : 0;
+        Engine::SceneMeshId meshId = 0;
+        XMMATRIX localScale = XMMatrixScaling(
+            primitive.size.x,
+            primitive.size.y,
+            primitive.size.z);
+        if (primitive.type == Tank::Physics::MapPrimitiveType::TriangularPrism)
+        {
+            meshId = triangularPrismMesh;
+        }
+        else if (primitive.type == Tank::Physics::MapPrimitiveType::HeightField)
+        {
+            meshId = AddHeightFieldMesh(m_sceneBuilder, primitive);
+            localScale = XMMatrixIdentity();
+        }
         m_sceneBuilder.AddInstance(
             meshId,
-            XMMatrixScaling(
-                primitive.size.x,
-                primitive.size.y,
-                primitive.size.z) *
+            localScale *
             XMMatrixRotationY(primitive.yawRadians) *
             XMMatrixTranslation(
                 primitive.position.x,
