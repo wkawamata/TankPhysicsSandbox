@@ -307,8 +307,12 @@ if(BUILD_TESTING)
         COMMAND TankPhysicsCli
             --test map
             --map "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps/topology_course.json"
+            --settle-steps 180
             --steps 300
             --dt 0.0166667
+            --throttle 1
+            --min-forward-distance 5
+            --min-final-y 0
     )
     set_tests_properties(TankPhysics.TopologyMapCli PROPERTIES
         PASS_REGULAR_EXPRESSION "PASS map"

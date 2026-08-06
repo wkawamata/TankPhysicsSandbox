@@ -8,6 +8,7 @@
 #include <iostream>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
 
 namespace
@@ -16,8 +17,14 @@ namespace
     {
         std::string testName = "box-drop";
         int steps = 300;
+        int settleSteps = 180;
         float deltaTimeSeconds = 1.0f / 60.0f;
         std::string mapPath;
+        float throttle = 0.0f;
+        float leftTrack = 1.0f;
+        float rightTrack = 1.0f;
+        float minimumForwardDistance = 0.0f;
+        std::optional<float> minimumFinalY;
     };
 
     bool ParseArgs(int argc, char* argv[], CliOptions& options)
@@ -36,9 +43,33 @@ namespace
             {
                 options.deltaTimeSeconds = std::strtof(argv[++i], nullptr);
             }
+            else if (std::strcmp(argv[i], "--settle-steps") == 0 && i + 1 < argc)
+            {
+                options.settleSteps = std::atoi(argv[++i]);
+            }
             else if (std::strcmp(argv[i], "--map") == 0 && i + 1 < argc)
             {
                 options.mapPath = argv[++i];
+            }
+            else if (std::strcmp(argv[i], "--throttle") == 0 && i + 1 < argc)
+            {
+                options.throttle = std::strtof(argv[++i], nullptr);
+            }
+            else if (std::strcmp(argv[i], "--left-track") == 0 && i + 1 < argc)
+            {
+                options.leftTrack = std::strtof(argv[++i], nullptr);
+            }
+            else if (std::strcmp(argv[i], "--right-track") == 0 && i + 1 < argc)
+            {
+                options.rightTrack = std::strtof(argv[++i], nullptr);
+            }
+            else if (std::strcmp(argv[i], "--min-forward-distance") == 0 && i + 1 < argc)
+            {
+                options.minimumForwardDistance = std::strtof(argv[++i], nullptr);
+            }
+            else if (std::strcmp(argv[i], "--min-final-y") == 0 && i + 1 < argc)
+            {
+                options.minimumFinalY = std::strtof(argv[++i], nullptr);
             }
             else
             {
@@ -46,14 +77,24 @@ namespace
             }
         }
 
-        return options.steps >= 0 && options.deltaTimeSeconds > 0.0f;
+        return options.steps >= 0 && options.settleSteps >= 0 &&
+            options.deltaTimeSeconds > 0.0f &&
+            std::isfinite(options.throttle) && options.throttle >= -1.0f &&
+            options.throttle <= 1.0f &&
+            std::isfinite(options.leftTrack) && options.leftTrack >= -1.0f &&
+            options.leftTrack <= 1.0f &&
+            std::isfinite(options.rightTrack) && options.rightTrack >= -1.0f &&
+            options.rightTrack <= 1.0f &&
+            std::isfinite(options.minimumForwardDistance) &&
+            options.minimumForwardDistance >= 0.0f &&
+            (!options.minimumFinalY || std::isfinite(*options.minimumFinalY));
     }
 
     void PrintUsage()
     {
         std::cout << "Usage:\n"
                   << "  TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667\n"
-                  << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --steps 300 --dt 0.0166667\n";
+                  << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
     }
 
     int RunMapTest(const CliOptions& options)
@@ -83,6 +124,16 @@ namespace
         Tank::Physics::TrackedVehicleTest test;
         test.Initialize({}, document.environment, document.primitives, document.spawn);
         Tank::Physics::TrackedVehicleTestState state = test.State();
+        for (int step = 0; step < options.settleSteps; ++step)
+        {
+            state = test.Step(options.deltaTimeSeconds);
+        }
+        const Tank::Physics::Vec3 startPosition = state.bodyPosition;
+        Tank::Physics::TankInput inputState;
+        inputState.throttle = options.throttle;
+        inputState.leftTrack = options.leftTrack;
+        inputState.rightTrack = options.rightTrack;
+        test.SetInput(inputState);
         for (int step = 0; step < options.steps; ++step)
         {
             state = test.Step(options.deltaTimeSeconds);
@@ -91,15 +142,33 @@ namespace
             std::isfinite(state.bodyPosition.x) &&
             std::isfinite(state.bodyPosition.y) &&
             std::isfinite(state.bodyPosition.z) &&
-            state.stepIndex == options.steps;
+            state.stepIndex == options.settleSteps + options.steps;
+        const float forwardX = std::sin(document.spawn.yawRadians);
+        const float forwardZ = std::cos(document.spawn.yawRadians);
+        const float forwardDistance =
+            (state.bodyPosition.x - startPosition.x) * forwardX +
+            (state.bodyPosition.z - startPosition.z) * forwardZ;
         if (!validState)
         {
             std::cerr << "FAIL map invalid_physics_state\n";
             return 1;
         }
+        if (forwardDistance < options.minimumForwardDistance)
+        {
+            std::cerr << "FAIL map forward_distance=" << forwardDistance
+                      << " required=" << options.minimumForwardDistance << "\n";
+            return 1;
+        }
+        if (options.minimumFinalY && state.bodyPosition.y < *options.minimumFinalY)
+        {
+            std::cerr << "FAIL map final_y=" << state.bodyPosition.y
+                      << " required=" << *options.minimumFinalY << "\n";
+            return 1;
+        }
         std::cout << "PASS map name=\"" << document.name
                   << "\" primitives=" << document.primitives.size()
-                  << " steps=" << state.stepIndex
+                  << " steps=" << options.steps
+                  << " forward_distance=" << forwardDistance
                   << " final_y=" << state.bodyPosition.y << "\n";
         return 0;
     }
