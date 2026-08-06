@@ -28,8 +28,10 @@ void TrackedVehicleMode::SelectMap(Tank::Physics::MapId mapId)
 {
     m_customMap.reset();
     m_selectedMap = mapId;
-    m_environmentSettings =
-        Tank::Physics::GetMapDefinition(mapId).environment;
+    const Tank::Physics::MapDefinition& definition =
+        Tank::Physics::GetMapDefinition(mapId);
+    m_environmentSettings = definition.environment;
+    m_activeMapName = definition.name;
 }
 
 void TrackedVehicleMode::SelectCustomMap(
@@ -37,6 +39,7 @@ void TrackedVehicleMode::SelectCustomMap(
 {
     m_customMap = document;
     m_environmentSettings = document.environment;
+    m_activeMapName = document.name;
 }
 
 float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)

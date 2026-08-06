@@ -41,6 +41,7 @@ public:
     void SelectMap(Tank::Physics::MapId mapId);
     void SelectCustomMap(const Tank::Physics::MapDocument& document);
     Tank::Physics::MapId SelectedMap() const { return m_selectedMap; }
+    const std::string& ActiveMapName() const { return m_activeMapName; }
 
     Engine::CameraState* ActiveCamera();
     Engine::Scene& GetScene();
@@ -120,6 +121,7 @@ private:
     std::string m_tankSettingsStatus;
     std::string m_tankVisualSettingsStatus;
     std::string m_environmentSettingsStatus;
+    std::string m_activeMapName = "Obstacle Field";
     std::string m_tankModelExportPath = "Exports/Tank.gltf";
     std::string m_tankModelExportStatus;
     bool m_tankModelExportBinary = false;

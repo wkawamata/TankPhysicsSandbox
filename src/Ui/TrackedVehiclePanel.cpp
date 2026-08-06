@@ -85,6 +85,33 @@ namespace Ui
 			ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
 		}
 		ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
+		if (ImGui::CollapsingHeader("Map", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			ImGui::Text("Active: %s",
+				ctx.activeMapName != nullptr ? ctx.activeMapName->c_str() : "Unknown");
+			ImGui::TextUnformatted("Friction colors");
+			ImGui::ColorButton(
+				"##LowFriction",
+				ImVec4(50.0f / 255.0f, 120.0f / 255.0f, 210.0f / 255.0f, 1.0f),
+				ImGuiColorEditFlags_NoTooltip,
+				ImVec2(18.0f, 18.0f));
+			ImGui::SameLine();
+			ImGui::TextUnformatted("Low: < 0.45");
+			ImGui::ColorButton(
+				"##StandardFriction",
+				ImVec4(70.0f / 255.0f, 145.0f / 255.0f, 85.0f / 255.0f, 1.0f),
+				ImGuiColorEditFlags_NoTooltip,
+				ImVec2(18.0f, 18.0f));
+			ImGui::SameLine();
+			ImGui::TextUnformatted("Standard: 0.45 - 0.79");
+			ImGui::ColorButton(
+				"##HighFriction",
+				ImVec4(205.0f / 255.0f, 85.0f / 255.0f, 55.0f / 255.0f, 1.0f),
+				ImGuiColorEditFlags_NoTooltip,
+				ImVec2(18.0f, 18.0f));
+			ImGui::SameLine();
+			ImGui::TextUnformatted("High: >= 0.80");
+		}
 		if (ImGui::Checkbox("Physics Debug Overlay", ctx.physicsDebugOverlay))
 		{
 			if (ctx.updateScene) ctx.updateScene();

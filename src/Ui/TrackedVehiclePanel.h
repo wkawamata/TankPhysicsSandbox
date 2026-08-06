@@ -23,6 +23,7 @@ namespace Ui
         Tank::Input::GamepadState gamepadState = {};
         bool gamepadAvailable = false;
         float cpuFrameTimeMs = 0.0f;
+        const std::string* activeMapName = nullptr;
         float analogLeftTrack = 0.0f;
         float analogRightTrack = 0.0f;
         float analogRoll = 0.0f;

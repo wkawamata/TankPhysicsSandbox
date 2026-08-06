@@ -241,6 +241,7 @@ void TankSandboxApp::OnInit()
 
     m_trackedVehiclePanelCtx.state = &m_trackedVehicleMode.Test().State();
     m_trackedVehiclePanelCtx.driverInput = &m_trackedVehicleMode.Test().DriverInput();
+    m_trackedVehiclePanelCtx.activeMapName = &m_trackedVehicleMode.ActiveMapName();
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
     m_trackedVehiclePanelCtx.trackShoeDisplay = &m_trackedVehicleMode.TrackShoeDisplay();
     m_trackedVehiclePanelCtx.showTrackProxies = &m_trackedVehicleMode.ShowTrackProxies();
