@@ -42,6 +42,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/PhysicsEnvironmentSettingsJson.h
     src/Physics/MapDefinition.cpp
     src/Physics/MapDefinition.h
+    src/Physics/MapDefinitionJson.cpp
+    src/Physics/MapDefinitionJson.h
     src/Physics/PhysicsWorld.cpp
     src/Physics/PhysicsWorld.h
     src/Physics/TankController.cpp
@@ -322,6 +324,18 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.PhysicsEnvironmentSettingsJson
         COMMAND PhysicsEnvironmentSettingsJsonTests
+    )
+
+    add_executable(MapDefinitionJsonTests
+        tests/MapDefinitionJsonTests.cpp
+    )
+    target_link_libraries(MapDefinitionJsonTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(MapDefinitionJsonTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(
+        NAME TankPhysics.MapDefinitionJson
+        COMMAND MapDefinitionJsonTests
     )
 
     add_executable(TankVisualSettingsJsonTests
