@@ -33,6 +33,7 @@
 
 #include <array>
 #include <chrono>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
@@ -79,6 +80,7 @@ private:
     bool LoadCameraSettings();
     void DrawTopMenuUi();
     void ReloadCustomMaps();
+    bool LoadAutoMap();
     void EnterTrackedVehicleMode();
     void EnterBoxDropMode();
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
@@ -142,6 +144,7 @@ private:
 
     // Auto scene entry and screenshot for CLI.
     std::optional<AppMode> m_autoSceneMode;
+    std::optional<std::filesystem::path> m_autoMapPath;
     UINT64 m_autoCaptureFrameCount = 0;
     UINT64 m_autoFramesElapsed = 0;
     bool m_quitAfterCapture = false;

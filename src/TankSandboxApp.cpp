@@ -80,6 +80,28 @@ namespace
         return std::filesystem::path(executablePath.data()).parent_path() /
             "Config/Maps";
     }
+
+    bool LoadMapDocument(
+        const std::filesystem::path& path,
+        Tank::Physics::MapDocument& document,
+        std::string& error)
+    {
+        std::ifstream input(path, std::ios::binary);
+        if (!input)
+        {
+            error = "cannot open " + path.string();
+            return false;
+        }
+        const std::istreambuf_iterator<char> begin(input);
+        const std::istreambuf_iterator<char> end;
+        const std::string json(begin, end);
+        if (!Tank::Physics::DeserializeMapDocument(json, document, &error))
+        {
+            error = path.filename().string() + ": " + error;
+            return false;
+        }
+        return true;
+    }
 }
 
 TankSandboxApp::TankSandboxApp(UINT width, UINT height, std::wstring name)
@@ -117,6 +139,10 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
         {
             m_autoCaptureFrameCount = _wtoi64(argv[i + 1]);
             i++;
+        }
+        else if (arg == L"--map" && i + 1 < argc)
+        {
+            m_autoMapPath = std::filesystem::path(argv[++i]);
         }
         else if (arg == L"--quit-after-capture")
         {
@@ -312,6 +338,12 @@ void TankSandboxApp::OnInit()
 
     if (m_autoSceneMode.has_value())
     {
+        if (*m_autoSceneMode == AppMode::PhysicsTrackedVehicle &&
+            m_autoMapPath && !LoadAutoMap())
+        {
+            m_autoSceneMode.reset();
+            return;
+        }
         switch (*m_autoSceneMode)
         {
         case AppMode::PhysicsBoxDrop:
@@ -913,13 +945,9 @@ void TankSandboxApp::ReloadCustomMaps()
         {
             continue;
         }
-        std::ifstream input(entry.path(), std::ios::binary);
-        const std::istreambuf_iterator<char> begin(input);
-        const std::istreambuf_iterator<char> end;
-        const std::string json(begin, end);
         Tank::Physics::MapDocument document;
         std::string error;
-        if (!input || !Tank::Physics::DeserializeMapDocument(json, document, &error))
+        if (!LoadMapDocument(entry.path(), document, error))
         {
             ++rejectedCount;
             continue;
@@ -938,6 +966,24 @@ void TankSandboxApp::ReloadCustomMaps()
     {
         m_customMapStatus += ", " + std::to_string(rejectedCount) + " rejected";
     }
+}
+
+bool TankSandboxApp::LoadAutoMap()
+{
+    if (!m_autoMapPath)
+    {
+        return true;
+    }
+    Tank::Physics::MapDocument document;
+    std::string error;
+    if (!LoadMapDocument(*m_autoMapPath, document, error))
+    {
+        m_customMapStatus = "Map load failed: " + error;
+        return false;
+    }
+    m_trackedVehicleMode.SelectCustomMap(document);
+    m_customMapStatus = "Auto map: " + document.name;
+    return true;
 }
 
 void TankSandboxApp::EnterBoxDropMode()
