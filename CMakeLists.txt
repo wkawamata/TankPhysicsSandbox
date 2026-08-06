@@ -335,6 +335,16 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.AllMapFilesCli
+        COMMAND TankPhysicsCli
+            --test maps
+            --map-directory "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps"
+    )
+    set_tests_properties(TankPhysics.AllMapFilesCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS maps"
+    )
+
+    add_test(
         NAME TankPhysics.TankControllerBoundary
         COMMAND TankControllerTests
     )

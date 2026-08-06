@@ -4,12 +4,15 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <iterator>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -20,6 +23,7 @@ namespace
         int settleSteps = 180;
         float deltaTimeSeconds = 1.0f / 60.0f;
         std::string mapPath;
+        std::string mapDirectory;
         float throttle = 0.0f;
         float leftTrack = 1.0f;
         float rightTrack = 1.0f;
@@ -50,6 +54,10 @@ namespace
             else if (std::strcmp(argv[i], "--map") == 0 && i + 1 < argc)
             {
                 options.mapPath = argv[++i];
+            }
+            else if (std::strcmp(argv[i], "--map-directory") == 0 && i + 1 < argc)
+            {
+                options.mapDirectory = argv[++i];
             }
             else if (std::strcmp(argv[i], "--throttle") == 0 && i + 1 < argc)
             {
@@ -94,7 +102,80 @@ namespace
     {
         std::cout << "Usage:\n"
                   << "  TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test maps --map-directory Config/Maps\n"
                   << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
+    }
+
+    bool LoadMapDocument(const std::filesystem::path& path, Tank::Physics::MapDocument& document, std::string& error)
+    {
+        std::ifstream input(path, std::ios::binary);
+        if (!input)
+        {
+            error = "cannot open file";
+            return false;
+        }
+
+        const std::istreambuf_iterator<char> begin(input);
+        const std::istreambuf_iterator<char> end;
+        return Tank::Physics::DeserializeMapDocument(std::string(begin, end), document, &error);
+    }
+
+    int RunAllMapsTest(const CliOptions& options)
+    {
+        if (options.mapDirectory.empty())
+        {
+            std::cerr << "Maps test requires --map-directory <path>\n";
+            return 2;
+        }
+
+        const std::filesystem::path directory(options.mapDirectory);
+        std::error_code errorCode;
+        if (!std::filesystem::is_directory(directory, errorCode))
+        {
+            std::cerr << "FAIL maps invalid_directory=" << directory.string() << "\n";
+            return 1;
+        }
+
+        std::vector<std::filesystem::path> mapPaths;
+        for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(directory))
+        {
+            if (entry.is_regular_file() && entry.path().extension() == ".json")
+            {
+                mapPaths.push_back(entry.path());
+            }
+        }
+        std::sort(mapPaths.begin(), mapPaths.end());
+        if (mapPaths.empty())
+        {
+            std::cerr << "FAIL maps no_json_files\n";
+            return 1;
+        }
+
+        for (const std::filesystem::path& path : mapPaths)
+        {
+            Tank::Physics::MapDocument document;
+            std::string error;
+            if (!LoadMapDocument(path, document, error))
+            {
+                std::cerr << "FAIL maps file=" << path.filename().string() << " error=" << error << "\n";
+                return 1;
+            }
+
+            Tank::Physics::TrackedVehicleTest test;
+            test.Initialize({}, document.environment, document.primitives, document.spawn);
+            const Tank::Physics::TrackedVehicleTestState state = test.Step(options.deltaTimeSeconds);
+            if (!std::isfinite(state.bodyPosition.x) || !std::isfinite(state.bodyPosition.y) ||
+                !std::isfinite(state.bodyPosition.z))
+            {
+                std::cerr << "FAIL maps file=" << path.filename().string() << " error=invalid_physics_state\n";
+                return 1;
+            }
+            std::cout << "PASS map-file file=" << path.filename().string()
+                      << " name=\"" << document.name << "\" primitives=" << document.primitives.size() << "\n";
+        }
+
+        std::cout << "PASS maps count=" << mapPaths.size() << "\n";
+        return 0;
     }
 
     int RunMapTest(const CliOptions& options)
@@ -104,18 +185,9 @@ namespace
             std::cerr << "Map test requires --map <path>\n";
             return 2;
         }
-        std::ifstream input(options.mapPath, std::ios::binary);
-        if (!input)
-        {
-            std::cerr << "FAIL map cannot_open=" << options.mapPath << "\n";
-            return 1;
-        }
-        const std::istreambuf_iterator<char> begin(input);
-        const std::istreambuf_iterator<char> end;
-        const std::string json(begin, end);
         Tank::Physics::MapDocument document;
         std::string error;
-        if (!Tank::Physics::DeserializeMapDocument(json, document, &error))
+        if (!LoadMapDocument(options.mapPath, document, error))
         {
             std::cerr << "FAIL map parse_error=" << error << "\n";
             return 1;
@@ -186,6 +258,10 @@ int main(int argc, char* argv[])
     if (options.testName == "map")
     {
         return RunMapTest(options);
+    }
+    if (options.testName == "maps")
+    {
+        return RunAllMapsTest(options);
     }
     if (options.testName != "box-drop")
     {
