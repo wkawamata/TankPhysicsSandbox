@@ -1,9 +1,13 @@
 #include "Physics/BoxDropTest.h"
+#include "Physics/MapDefinitionJson.h"
+#include "Physics/TrackedVehicleTest.h"
 
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
 #include <iostream>
+#include <fstream>
+#include <iterator>
 #include <string>
 
 namespace
@@ -13,6 +17,7 @@ namespace
         std::string testName = "box-drop";
         int steps = 300;
         float deltaTimeSeconds = 1.0f / 60.0f;
+        std::string mapPath;
     };
 
     bool ParseArgs(int argc, char* argv[], CliOptions& options)
@@ -31,6 +36,10 @@ namespace
             {
                 options.deltaTimeSeconds = std::strtof(argv[++i], nullptr);
             }
+            else if (std::strcmp(argv[i], "--map") == 0 && i + 1 < argc)
+            {
+                options.mapPath = argv[++i];
+            }
             else
             {
                 return false;
@@ -42,7 +51,57 @@ namespace
 
     void PrintUsage()
     {
-        std::cout << "Usage: TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667\n";
+        std::cout << "Usage:\n"
+                  << "  TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --steps 300 --dt 0.0166667\n";
+    }
+
+    int RunMapTest(const CliOptions& options)
+    {
+        if (options.mapPath.empty())
+        {
+            std::cerr << "Map test requires --map <path>\n";
+            return 2;
+        }
+        std::ifstream input(options.mapPath, std::ios::binary);
+        if (!input)
+        {
+            std::cerr << "FAIL map cannot_open=" << options.mapPath << "\n";
+            return 1;
+        }
+        const std::istreambuf_iterator<char> begin(input);
+        const std::istreambuf_iterator<char> end;
+        const std::string json(begin, end);
+        Tank::Physics::MapDocument document;
+        std::string error;
+        if (!Tank::Physics::DeserializeMapDocument(json, document, &error))
+        {
+            std::cerr << "FAIL map parse_error=" << error << "\n";
+            return 1;
+        }
+
+        Tank::Physics::TrackedVehicleTest test;
+        test.Initialize({}, document.environment, document.primitives);
+        Tank::Physics::TrackedVehicleTestState state = test.State();
+        for (int step = 0; step < options.steps; ++step)
+        {
+            state = test.Step(options.deltaTimeSeconds);
+        }
+        const bool validState =
+            std::isfinite(state.bodyPosition.x) &&
+            std::isfinite(state.bodyPosition.y) &&
+            std::isfinite(state.bodyPosition.z) &&
+            state.stepIndex == options.steps;
+        if (!validState)
+        {
+            std::cerr << "FAIL map invalid_physics_state\n";
+            return 1;
+        }
+        std::cout << "PASS map name=\"" << document.name
+                  << "\" primitives=" << document.primitives.size()
+                  << " steps=" << state.stepIndex
+                  << " final_y=" << state.bodyPosition.y << "\n";
+        return 0;
     }
 }
 
@@ -55,6 +114,10 @@ int main(int argc, char* argv[])
         return 2;
     }
 
+    if (options.testName == "map")
+    {
+        return RunMapTest(options);
+    }
     if (options.testName != "box-drop")
     {
         std::cerr << "Unknown test: " << options.testName << "\n";

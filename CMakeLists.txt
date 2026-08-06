@@ -303,6 +303,18 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.TopologyMapCli
+        COMMAND TankPhysicsCli
+            --test map
+            --map "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps/topology_course.json"
+            --steps 300
+            --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.TopologyMapCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS map"
+    )
+
+    add_test(
         NAME TankPhysics.TankControllerBoundary
         COMMAND TankControllerTests
     )
