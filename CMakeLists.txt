@@ -319,6 +319,22 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.MobilityMapCli
+        COMMAND TankPhysicsCli
+            --test map
+            --map "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps/mobility_course.json"
+            --settle-steps 180
+            --steps 480
+            --dt 0.0166667
+            --throttle 1
+            --min-forward-distance 45
+            --min-final-y 0
+    )
+    set_tests_properties(TankPhysics.MobilityMapCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS map"
+    )
+
+    add_test(
         NAME TankPhysics.TankControllerBoundary
         COMMAND TankControllerTests
     )
