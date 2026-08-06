@@ -287,6 +287,21 @@ namespace Tank::Physics
         m_input.brake = input.brake;
     }
 
+    bool TankController::ApplyRecoilImpulse(float impulseNewtonSeconds)
+    {
+        if (m_impl == nullptr || !std::isfinite(impulseNewtonSeconds) ||
+            impulseNewtonSeconds <= 0.0f)
+        {
+            return false;
+        }
+
+        JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
+        const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
+        const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+        bodyInterface.AddImpulse(m_impl->bodyId, -impulseNewtonSeconds * bodyForward);
+        return true;
+    }
+
     void TankController::PreStep()
     {
         if (m_impl == nullptr)

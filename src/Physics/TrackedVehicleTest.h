@@ -42,6 +42,7 @@ namespace Tank::Physics
             const std::vector<MapPrimitive>& mapPrimitives = {},
             const MapSpawn& spawn = {});
         void SetInput(const TankInput& input);
+        bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
         const TrackedVehicleTestState& State() const { return m_state; }
         const TrackedDriverInput& DriverInput() const;

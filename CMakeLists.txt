@@ -535,6 +535,14 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehicleRideHeightTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehicleRecoilTests
+        tests/TrackedVehicleRecoilTests.cpp
+    )
+    target_link_libraries(TrackedVehicleRecoilTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(TrackedVehicleRecoilTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_test(
         NAME TankPhysics.TrackedVehicleNeutral
         COMMAND TrackedVehicleTests
@@ -573,6 +581,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TrackedVehicleRideHeight
         COMMAND TrackedVehicleRideHeightTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleRecoil
+        COMMAND TrackedVehicleRecoilTests
     )
 
     add_executable(TrackedVehicleFrictionTests

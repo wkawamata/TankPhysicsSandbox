@@ -193,6 +193,16 @@ namespace Tank::Physics
         m_impl->controller.SetInput(input);
     }
 
+    bool TrackedVehicleTest::ApplyRecoilImpulse(float impulseNewtonSeconds)
+    {
+        if (m_impl == nullptr)
+        {
+            Initialize();
+        }
+
+        return m_impl->controller.ApplyRecoilImpulse(impulseNewtonSeconds);
+    }
+
     TrackedVehicleTestState TrackedVehicleTest::Step(float deltaTimeSeconds)
     {
         if (m_impl == nullptr)
