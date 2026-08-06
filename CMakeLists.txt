@@ -560,4 +560,16 @@ if(BUILD_TESTING)
         NAME TankPhysics.TrackedVehicleFriction
         COMMAND TrackedVehicleFrictionTests
     )
+
+    add_executable(TrackedVehicleRampTests
+        tests/TrackedVehicleRampTests.cpp
+    )
+    target_link_libraries(TrackedVehicleRampTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(TrackedVehicleRampTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(
+        NAME TankPhysics.TrackedVehicleRamp
+        COMMAND TrackedVehicleRampTests
+    )
 endif()
