@@ -26,6 +26,7 @@ namespace Tank::Physics
             const TankSettings& settings,
             const MapSpawn& spawn);
         void SetInput(const TankInput& input);
+        bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         void PreStep();
         void PostStep(float deltaTimeSeconds);

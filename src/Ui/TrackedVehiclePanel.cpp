@@ -288,6 +288,17 @@ namespace Ui
 			IsPending(
 				ctx.tankSettings->chassisMassKg,
 				ctx.appliedTankSettings->chassisMassKg));
+		SliderFloatWithPendingColor(
+			"Recoil Impulse",
+			&ctx.tankSettings->recoilImpulseNewtonSeconds,
+			1000.0f,
+			100000.0f,
+			1000.0f,
+			20000.0f,
+			"%.0f N s",
+			IsPending(
+				ctx.tankSettings->recoilImpulseNewtonSeconds,
+				ctx.appliedTankSettings->recoilImpulseNewtonSeconds));
 		ImGui::Checkbox("Neutral Brake", &ctx.tankSettings->neutralBrakeEnabled);
 		SliderFloatWithPendingColor(
 			"Neutral Brake Strength",

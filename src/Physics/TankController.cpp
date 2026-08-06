@@ -287,6 +287,11 @@ namespace Tank::Physics
         m_input.brake = input.brake;
     }
 
+    bool TankController::ApplyConfiguredRecoil()
+    {
+        return ApplyRecoilImpulse(m_settings.recoilImpulseNewtonSeconds);
+    }
+
     bool TankController::ApplyRecoilImpulse(float impulseNewtonSeconds)
     {
         if (m_impl == nullptr || !std::isfinite(impulseNewtonSeconds) ||

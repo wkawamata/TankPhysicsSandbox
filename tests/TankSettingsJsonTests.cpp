@@ -24,6 +24,7 @@ int main()
 {
     Tank::Physics::TankSettings source;
     source.chassisMassKg = 5200.0f;
+    source.recoilImpulseNewtonSeconds = 27500.0f;
     source.rollingInputEnabled = false;
     source.rollTorqueNm = 175000.0f;
     source.rollDistanceM = 3.0f;
@@ -64,6 +65,11 @@ int main()
         "serialized settings must deserialize");
     passed &= Check(NearlyEqual(loaded.chassisMassKg, source.chassisMassKg),
         "chassis mass must round trip");
+    passed &= Check(
+        NearlyEqual(
+            loaded.recoilImpulseNewtonSeconds,
+            source.recoilImpulseNewtonSeconds),
+        "recoil impulse must round trip");
     passed &= Check(loaded.rollingInputEnabled == source.rollingInputEnabled,
         "rolling input enabled must round trip");
     passed &= Check(NearlyEqual(loaded.rollTorqueNm, source.rollTorqueNm),

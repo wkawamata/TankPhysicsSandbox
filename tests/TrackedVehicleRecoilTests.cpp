@@ -18,10 +18,10 @@ namespace
 int main()
 {
     constexpr float dt = 1.0f / 60.0f;
-    constexpr float recoilImpulseNewtonSeconds = 20000.0f;
-
+    Tank::Physics::TankSettings settings;
+    settings.recoilImpulseNewtonSeconds = 20000.0f;
     Tank::Physics::TrackedVehicleTest test;
-    test.Initialize();
+    test.Initialize(settings);
     for (int i = 0; i < 180; ++i)
     {
         test.Step(dt);
@@ -31,8 +31,7 @@ int main()
     bool passed = true;
     passed &= Check(!test.ApplyRecoilImpulse(0.0f), "zero impulse must be rejected");
     passed &= Check(!test.ApplyRecoilImpulse(-1.0f), "negative impulse must be rejected");
-    passed &= Check(test.ApplyRecoilImpulse(recoilImpulseNewtonSeconds),
-        "positive impulse must be accepted");
+    passed &= Check(test.ApplyConfiguredRecoil(), "configured impulse must be accepted");
 
     const Tank::Physics::TrackedVehicleTestState state = test.Step(dt);
     passed &= Check(std::isfinite(state.linearVelocity.z), "velocity must be finite");

@@ -17,6 +17,7 @@ namespace Tank::Physics
     struct TankSettings
     {
         float chassisMassKg = 4000.0f;
+        float recoilImpulseNewtonSeconds = 20000.0f;
         bool rollingInputEnabled = false;
         float rollTorqueNm = 120000.0f;
         float rollDistanceM = 2.4f;
