@@ -25,6 +25,8 @@ int main()
     Tank::Physics::TankSettings source;
     source.chassisMassKg = 5200.0f;
     source.recoilImpulseNewtonSeconds = 27500.0f;
+    source.recoilPointForwardM = 1.5f;
+    source.recoilPointHeightM = 0.9f;
     source.rollingInputEnabled = false;
     source.rollTorqueNm = 175000.0f;
     source.rollDistanceM = 3.0f;
@@ -70,6 +72,12 @@ int main()
             loaded.recoilImpulseNewtonSeconds,
             source.recoilImpulseNewtonSeconds),
         "recoil impulse must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.recoilPointForwardM, source.recoilPointForwardM),
+        "recoil point forward position must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.recoilPointHeightM, source.recoilPointHeightM),
+        "recoil point height must round trip");
     passed &= Check(loaded.rollingInputEnabled == source.rollingInputEnabled,
         "rolling input enabled must round trip");
     passed &= Check(NearlyEqual(loaded.rollTorqueNm, source.rollTorqueNm),

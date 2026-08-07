@@ -299,6 +299,28 @@ namespace Ui
 			IsPending(
 				ctx.tankSettings->recoilImpulseNewtonSeconds,
 				ctx.appliedTankSettings->recoilImpulseNewtonSeconds));
+		SliderFloatWithPendingColor(
+			"Recoil Point Forward",
+			&ctx.tankSettings->recoilPointForwardM,
+			0.0f,
+			3.0f,
+			0.1f,
+			1.2f,
+			"%.2f m",
+			IsPending(
+				ctx.tankSettings->recoilPointForwardM,
+				ctx.appliedTankSettings->recoilPointForwardM));
+		SliderFloatWithPendingColor(
+			"Recoil Point Height",
+			&ctx.tankSettings->recoilPointHeightM,
+			0.0f,
+			2.0f,
+			0.1f,
+			0.8f,
+			"%.2f m",
+			IsPending(
+				ctx.tankSettings->recoilPointHeightM,
+				ctx.appliedTankSettings->recoilPointHeightM));
 		ImGui::Checkbox("Neutral Brake", &ctx.tankSettings->neutralBrakeEnabled);
 		SliderFloatWithPendingColor(
 			"Neutral Brake Strength",

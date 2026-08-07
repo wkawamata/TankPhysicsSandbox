@@ -20,6 +20,8 @@ int main()
     constexpr float dt = 1.0f / 60.0f;
     Tank::Physics::TankSettings settings;
     settings.recoilImpulseNewtonSeconds = 20000.0f;
+    settings.recoilPointForwardM = 1.2f;
+    settings.recoilPointHeightM = 0.8f;
     Tank::Physics::TrackedVehicleTest test;
     test.Initialize(settings);
     for (int i = 0; i < 180; ++i)
@@ -39,15 +41,21 @@ int main()
         "forward-facing tank must recoil toward negative Z");
     passed &= Check(state.bodyPosition.z < startZ,
         "recoil must move the tank backward after one step");
+    passed &= Check(std::isfinite(state.angularVelocity.x),
+        "pitch velocity must be finite");
+    passed &= Check(std::abs(state.angularVelocity.x) > 0.05f,
+        "recoil above the center of mass must produce pitch velocity");
 
     if (!passed)
     {
         std::cerr << "  startZ=" << startZ
                   << " finalZ=" << state.bodyPosition.z
-                  << " velocityZ=" << state.linearVelocity.z << "\n";
+                  << " velocityZ=" << state.linearVelocity.z
+                  << " pitchVelocity=" << state.angularVelocity.x << "\n";
         return 1;
     }
 
-    std::cout << "PASS TrackedVehicle recoil velocity_z=" << state.linearVelocity.z << "\n";
+    std::cout << "PASS TrackedVehicle recoil velocity_z=" << state.linearVelocity.z
+              << " pitch_velocity=" << state.angularVelocity.x << "\n";
     return 0;
 }

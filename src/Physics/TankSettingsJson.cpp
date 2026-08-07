@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 9;
+        constexpr int kSchemaVersion = 10;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -51,6 +51,8 @@ namespace Tank::Physics
         json["version"] = kSchemaVersion;
         json["chassisMassKg"] = settings.chassisMassKg;
         json["recoilImpulseNewtonSeconds"] = settings.recoilImpulseNewtonSeconds;
+        json["recoilPointForwardM"] = settings.recoilPointForwardM;
+        json["recoilPointHeightM"] = settings.recoilPointHeightM;
         json["rollingInputEnabled"] = settings.rollingInputEnabled;
         json["rollTorqueNm"] = settings.rollTorqueNm;
         json["rollDistanceM"] = settings.rollDistanceM;
@@ -126,6 +128,8 @@ namespace Tank::Physics
         TankSettings loaded = settings;
         ReadFloat(json, "chassisMassKg", loaded.chassisMassKg);
         ReadFloat(json, "recoilImpulseNewtonSeconds", loaded.recoilImpulseNewtonSeconds);
+        ReadFloat(json, "recoilPointForwardM", loaded.recoilPointForwardM);
+        ReadFloat(json, "recoilPointHeightM", loaded.recoilPointHeightM);
         ReadBool(json, "rollingInputEnabled", loaded.rollingInputEnabled);
         ReadFloat(json, "rollTorqueNm", loaded.rollTorqueNm);
         ReadFloat(json, "rollDistanceM", loaded.rollDistanceM);

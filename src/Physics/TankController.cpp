@@ -289,7 +289,30 @@ namespace Tank::Physics
 
     bool TankController::ApplyConfiguredRecoil()
     {
-        return ApplyRecoilImpulse(m_settings.recoilImpulseNewtonSeconds);
+        if (m_impl == nullptr ||
+            !std::isfinite(m_settings.recoilImpulseNewtonSeconds) ||
+            m_settings.recoilImpulseNewtonSeconds <= 0.0f ||
+            !std::isfinite(m_settings.recoilPointForwardM) ||
+            !std::isfinite(m_settings.recoilPointHeightM))
+        {
+            return false;
+        }
+
+        JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
+        const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
+        const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+        const JPH::Vec3 localPoint(
+            0.0f,
+            m_settings.recoilPointHeightM,
+            m_settings.recoilPointForwardM);
+        const JPH::RVec3 worldPoint =
+            bodyInterface.GetCenterOfMassPosition(m_impl->bodyId) +
+            bodyRotation * localPoint;
+        bodyInterface.AddImpulse(
+            m_impl->bodyId,
+            -m_settings.recoilImpulseNewtonSeconds * bodyForward,
+            worldPoint);
+        return true;
     }
 
     bool TankController::ApplyRecoilImpulse(float impulseNewtonSeconds)

@@ -18,6 +18,8 @@ namespace Tank::Physics
     {
         float chassisMassKg = 4000.0f;
         float recoilImpulseNewtonSeconds = 20000.0f;
+        float recoilPointForwardM = 1.2f;
+        float recoilPointHeightM = 0.8f;
         bool rollingInputEnabled = false;
         float rollTorqueNm = 120000.0f;
         float rollDistanceM = 2.4f;
