@@ -744,6 +744,11 @@ namespace Ui
 			*ctx.trackedVehicleSingleStep = true;
 		}
 		ImGui::EndDisabled();
+		ImGui::SameLine();
+		if (ImGui::Button("Fire / Recoil"))
+		{
+			if (ctx.fireRecoil) ctx.fireRecoil();
+		}
 		if (ImGui::Button("Reset"))
 		{
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();

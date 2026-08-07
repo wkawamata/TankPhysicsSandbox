@@ -248,6 +248,16 @@ void TrackedVehicleMode::Reset(
     renderer.SetScene(m_presenter.GetScene());
 }
 
+bool TrackedVehicleMode::FireRecoil()
+{
+    const bool applied = m_test.ApplyConfiguredRecoil();
+    if (applied && m_paused)
+    {
+        m_singleStep = true;
+    }
+    return applied;
+}
+
 void TrackedVehicleMode::ApplyMaterials(RtPbrSurvey::SceneRenderer& renderer)
 {
     m_presenter.ApplyMaterials(m_visualSettings);

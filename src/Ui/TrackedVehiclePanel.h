@@ -54,6 +54,7 @@ namespace Ui
         std::function<void()> updateScene;
         std::function<void()> enterTrackedVehicleMode;
         std::function<void()> resetTrackedVehicle;
+        std::function<void()> fireRecoil;
         std::function<void()> applyMaterials;
         std::function<void()> saveTankSettings;
         std::function<void()> loadTankSettings;

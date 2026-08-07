@@ -300,6 +300,10 @@ void TankSandboxApp::OnInit()
     {
         m_trackedVehicleMode.Reset(m_sceneRenderer, m_cameraController);
     };
+    m_trackedVehiclePanelCtx.fireRecoil = [this]()
+    {
+        m_trackedVehicleMode.FireRecoil();
+    };
     m_trackedVehiclePanelCtx.applyMaterials = [this]()
     {
         m_trackedVehicleMode.ApplyMaterials(m_sceneRenderer);

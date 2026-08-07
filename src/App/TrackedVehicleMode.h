@@ -36,6 +36,7 @@ public:
         Tank::App::CameraController& cameraController);
 
     void Reset(RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
+    bool FireRecoil();
     void ApplyMaterials(RtPbrSurvey::SceneRenderer& renderer);
     void UpdateScene(RtPbrSurvey::SceneRenderer& renderer);
     void SelectMap(Tank::Physics::MapId mapId);
