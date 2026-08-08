@@ -251,11 +251,20 @@ void TrackedVehicleMode::Reset(
     RtPbrSurvey::SceneRenderer& renderer,
     Tank::App::CameraController& cameraController)
 {
+    const std::vector<Tank::Physics::MapPrimitive> mapPrimitives = m_customMap ?
+        m_customMap->primitives :
+        Tank::Physics::BuildMapPrimitives(
+            m_selectedMap,
+            m_environmentSettings);
     m_test.Initialize(
         m_settings,
-        m_appliedEnvironmentSettings);
+        m_environmentSettings,
+        mapPrimitives,
+        m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
     m_appliedSettings = m_settings;
+    m_appliedEnvironmentSettings = m_environmentSettings;
     m_singleStep = false;
+    m_analogTracksArmed = false;
     cameraController.ResetFollowState();
     UpdateSceneInternal(renderer);
     renderer.SetScene(m_presenter.GetScene());
