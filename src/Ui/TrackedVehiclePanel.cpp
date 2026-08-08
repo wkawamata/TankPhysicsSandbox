@@ -756,7 +756,8 @@ namespace Ui
 		ImGui::SeparatorText("Track Input");
 		ImGui::Text(
 			"Analog track axes 1 / 3: %s",
-			ctx.analogTracksConnected ? "connected" : "not connected");
+			!ctx.analogTracksConnected ? "not connected" :
+				(ctx.analogTracksArmed ? "ready" : "waiting for neutral"));
 		ImGui::Text(
 			"Left %.2f  Right %.2f  Roll %.2f",
 			ctx.analogLeftTrack,

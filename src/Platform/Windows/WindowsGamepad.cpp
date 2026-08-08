@@ -88,19 +88,28 @@ namespace Tank::Platform::Windows
 
         Input::GamepadState& state = m_impl->state;
         state.connected = true;
-        state.buttonCount = reading->GetControllerButtonCount();
-        state.axisCount = reading->GetControllerAxisCount();
-        state.switchCount = reading->GetControllerSwitchCount();
-        const std::uint32_t rawAxisCount =
-            (std::min)(state.axisCount, static_cast<std::uint32_t>(state.rawAxes.size()));
-        const std::uint32_t rawButtonCount =
-            (std::min)(state.buttonCount, static_cast<std::uint32_t>(state.rawButtons.size()));
-        const std::uint32_t rawSwitchCount =
-            (std::min)(state.switchCount, static_cast<std::uint32_t>(state.rawSwitches.size()));
-        reading->GetControllerAxisState(rawAxisCount, state.rawAxes.data());
-        reading->GetControllerButtonState(rawButtonCount, state.rawButtons.data());
+        const std::uint32_t requestedAxisCount =
+            (std::min)(reading->GetControllerAxisCount(),
+                static_cast<std::uint32_t>(state.rawAxes.size()));
+        const std::uint32_t requestedButtonCount =
+            (std::min)(reading->GetControllerButtonCount(),
+                static_cast<std::uint32_t>(state.rawButtons.size()));
+        const std::uint32_t requestedSwitchCount =
+            (std::min)(reading->GetControllerSwitchCount(),
+                static_cast<std::uint32_t>(state.rawSwitches.size()));
+        const std::uint32_t rawAxisCount = reading->GetControllerAxisState(
+            requestedAxisCount,
+            state.rawAxes.data());
+        const std::uint32_t rawButtonCount = reading->GetControllerButtonState(
+            requestedButtonCount,
+            state.rawButtons.data());
         std::array<GameInputSwitchPosition, Input::GamepadState::MaxRawSwitches> rawSwitches = {};
-        reading->GetControllerSwitchState(rawSwitchCount, rawSwitches.data());
+        const std::uint32_t rawSwitchCount = reading->GetControllerSwitchState(
+            requestedSwitchCount,
+            rawSwitches.data());
+        state.axisCount = rawAxisCount;
+        state.buttonCount = rawButtonCount;
+        state.switchCount = rawSwitchCount;
         for (std::uint32_t index = 0; index < rawSwitchCount; ++index)
         {
             state.rawSwitches[index] = static_cast<std::uint32_t>(rawSwitches[index]);

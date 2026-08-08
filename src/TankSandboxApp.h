@@ -87,6 +87,8 @@ private:
     void ApplyActiveCameraScene();
     Engine::CameraState* ActiveCamera();
     bool IsMouseCameraBlocked() const;
+    bool HasInputFocus() const;
+    void ClearVehicleInputState();
     void FlushD3d12DebugLog();
     void LogFps(float cpuFrameTimeMs);
 

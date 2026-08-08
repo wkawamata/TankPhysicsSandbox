@@ -433,6 +433,31 @@ bool TankSandboxApp::IsMouseCameraBlocked() const
         && !m_cameraController.IsDebugSlot();
 }
 
+bool TankSandboxApp::HasInputFocus() const
+{
+    const HWND foregroundWindow = GetForegroundWindow();
+    if (foregroundWindow == nullptr)
+    {
+        return false;
+    }
+
+    DWORD foregroundProcessId = 0;
+    GetWindowThreadProcessId(foregroundWindow, &foregroundProcessId);
+    return foregroundProcessId == GetCurrentProcessId();
+}
+
+void TankSandboxApp::ClearVehicleInputState()
+{
+    m_moveForward = false;
+    m_moveBackward = false;
+    m_turnLeft = false;
+    m_turnRight = false;
+    m_pivotTurnModifier = false;
+    m_rollLeft = false;
+    m_rollRight = false;
+    m_brake = false;
+}
+
 void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 {
     if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
@@ -491,6 +516,12 @@ void TankSandboxApp::OnWindowSizeChanged(UINT width, UINT height)
 
 void TankSandboxApp::OnIdle()
 {
+    const bool hasInputFocus = HasInputFocus();
+    if (!hasInputFocus)
+    {
+        ClearVehicleInputState();
+    }
+
     if (m_appMode == AppMode::PhysicsBoxDrop)
     {
         m_boxDropMode.Update(m_sceneRenderer);
@@ -498,8 +529,11 @@ void TankSandboxApp::OnIdle()
     else if (m_appMode == AppMode::PhysicsTrackedVehicle)
     {
         m_gamepad.Poll();
+        const Tank::Input::GamepadState neutralGamepadState;
+        const Tank::Input::GamepadState& vehicleGamepadState =
+            hasInputFocus ? m_gamepad.State() : neutralGamepadState;
         {
-            const Tank::Input::GamepadState& gp = m_gamepad.State();
+            const Tank::Input::GamepadState& gp = vehicleGamepadState;
             if (m_cameraController.UpdateButtonStates(
                     gp.connected && gp.buttonCount > 4 && gp.rawButtons[4],
                     gp.connected && gp.buttonCount > 7 && gp.rawButtons[7]))
@@ -508,7 +542,7 @@ void TankSandboxApp::OnIdle()
             }
         }
         m_trackedVehicleMode.UpdateInput(
-            m_gamepad.State(),
+            vehicleGamepadState,
             m_moveForward, m_moveBackward,
             m_turnLeft, m_turnRight, m_pivotTurnModifier,
             m_rollLeft, m_rollRight, m_brake);
@@ -869,6 +903,7 @@ void TankSandboxApp::DrawToolUi()
             m_trackedVehiclePanelCtx.analogRightTrack = m_trackedVehicleMode.AnalogRightTrack();
             m_trackedVehiclePanelCtx.analogRoll = m_trackedVehicleMode.AnalogRoll();
             m_trackedVehiclePanelCtx.analogTracksConnected = m_trackedVehicleMode.AnalogTracksConnected();
+            m_trackedVehiclePanelCtx.analogTracksArmed = m_trackedVehicleMode.AnalogTracksArmed();
             Ui::DrawTrackedVehiclePanel(m_trackedVehiclePanelCtx);
         }
         break;
@@ -888,7 +923,7 @@ void TankSandboxApp::DrawTopMenuUi()
     for (const Tank::Physics::MapDefinition& map :
          Tank::Physics::GetMapDefinitions())
     {
-        const bool selected = m_selectedMap == map.id;
+        const bool selected = !m_selectedCustomMap && m_selectedMap == map.id;
         if (ImGui::RadioButton(map.name, selected))
         {
             m_selectedMap = map.id;
@@ -999,6 +1034,7 @@ void TankSandboxApp::EnterBoxDropMode()
 
 void TankSandboxApp::EnterTrackedVehicleMode()
 {
+    ClearVehicleInputState();
     m_trackedVehicleMode.Enter(m_sceneRenderer);
     ActivateOrbitCamera(m_trackedVehicleMode.GetScene(), { 0.0f, 0.8f, 0.0f });
     m_appMode = AppMode::PhysicsTrackedVehicle;

@@ -28,6 +28,7 @@ namespace Ui
         float analogRightTrack = 0.0f;
         float analogRoll = 0.0f;
         bool analogTracksConnected = false;
+        bool analogTracksArmed = false;
 
         bool* physicsDebugOverlay = nullptr;
         bool* trackShoeDisplay = nullptr;

@@ -74,6 +74,7 @@ public:
     float AnalogRightTrack() const { return m_analogRightTrack; }
     float AnalogRoll() const { return m_analogRoll; }
     bool AnalogTracksConnected() const { return m_analogTracksConnected; }
+    bool AnalogTracksArmed() const { return m_analogTracksArmed; }
 
     bool SaveTankSettings();
     bool LoadTankSettings(bool apply, RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
@@ -131,4 +132,5 @@ private:
     float m_analogRightTrack = 0.0f;
     float m_analogRoll = 0.0f;
     bool m_analogTracksConnected = false;
+    bool m_analogTracksArmed = false;
 };

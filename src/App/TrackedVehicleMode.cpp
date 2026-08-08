@@ -76,6 +76,7 @@ void TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_paused = false;
     m_singleStep = false;
+    m_analogTracksArmed = false;
 
     UpdateSceneInternal(renderer);
     renderer.SetScene(scene);
@@ -116,16 +117,28 @@ void TrackedVehicleMode::UpdateInput(
 {
     Tank::Physics::TankInput input;
     m_analogTracksConnected = gamepadState.connected && gamepadState.axisCount >= 4;
+    if (!m_analogTracksConnected)
+    {
+        m_analogTracksArmed = false;
+    }
+    else if (!m_analogTracksArmed)
+    {
+        const bool tracksNeutral =
+            std::abs(gamepadState.rawAxes[1] - 0.5f) <= 0.05f &&
+            std::abs(gamepadState.rawAxes[3] - 0.5f) <= 0.05f;
+        m_analogTracksArmed = tracksNeutral;
+    }
+    const bool useAnalogTracks = m_analogTracksConnected && m_analogTracksArmed;
     const bool brakePressed = brake || gamepadState.brakePressed;
 
     m_analogLeftTrack =
-        m_analogTracksConnected ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[3]) : 0.0f;
+        useAnalogTracks ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[3]) : 0.0f;
     m_analogRightTrack =
-        m_analogTracksConnected ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[1]) : 0.0f;
+        useAnalogTracks ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[1]) : 0.0f;
     const float analogRollAxis0 =
-        m_analogTracksConnected ? NormalizeRawGamepadAxis(gamepadState.rawAxes[0]) : 0.0f;
+        useAnalogTracks ? NormalizeRawGamepadAxis(gamepadState.rawAxes[0]) : 0.0f;
     const float analogRollAxis2 =
-        m_analogTracksConnected ? NormalizeRawGamepadAxis(gamepadState.rawAxes[2]) : 0.0f;
+        useAnalogTracks ? NormalizeRawGamepadAxis(gamepadState.rawAxes[2]) : 0.0f;
 
     m_analogRoll = std::clamp((analogRollAxis0 + analogRollAxis2) * 0.5f, -1.0f, 1.0f);
 
