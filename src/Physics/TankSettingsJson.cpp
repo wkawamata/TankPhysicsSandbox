@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 10;
+        constexpr int kSchemaVersion = 11;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -79,6 +79,8 @@ namespace Tank::Physics
         json["stationaryTurnRightTraction"] = settings.stationaryTurnRightTraction;
         json["pivotTurnLeftTraction"] = settings.pivotTurnLeftTraction;
         json["pivotTurnRightTraction"] = settings.pivotTurnRightTraction;
+        json["engineMaxTorqueNm"] = settings.engineMaxTorqueNm;
+        json["engineMaxRpm"] = settings.engineMaxRpm;
         json["clutchReleaseTimeSeconds"] = settings.clutchReleaseTimeSeconds;
         json["yawSpeedLimitDegrees"] = settings.yawSpeedLimitDegrees;
         json["yawDamping"] = settings.yawDamping;
@@ -168,6 +170,8 @@ namespace Tank::Physics
         ReadFloat(json, "stationaryTurnRightTraction", loaded.stationaryTurnRightTraction);
         ReadFloat(json, "pivotTurnLeftTraction", loaded.pivotTurnLeftTraction);
         ReadFloat(json, "pivotTurnRightTraction", loaded.pivotTurnRightTraction);
+        ReadFloat(json, "engineMaxTorqueNm", loaded.engineMaxTorqueNm);
+        ReadFloat(json, "engineMaxRpm", loaded.engineMaxRpm);
         ReadFloat(
             json,
             "clutchReleaseTimeSeconds",

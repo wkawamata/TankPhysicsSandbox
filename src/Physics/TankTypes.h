@@ -46,7 +46,9 @@ namespace Tank::Physics
         float stationaryTurnRightTraction = 1.0f;
         float pivotTurnLeftTraction = 1.0f;
         float pivotTurnRightTraction = 1.0f;
-        float clutchReleaseTimeSeconds = 0.08f;
+        float engineMaxTorqueNm = 500.0f;
+        float engineMaxRpm = 5000.0f;
+        float clutchReleaseTimeSeconds = 0.03f;
         float yawSpeedLimitDegrees = 720.0f;
         float yawDamping = 0.0f;
         bool startUpsideDown = false;

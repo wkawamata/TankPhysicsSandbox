@@ -128,6 +128,10 @@ namespace Tank::Physics
             std::clamp(m_settings.roadWheelRadiusM, 0.2f, 0.5f);
         m_settings.clutchReleaseTimeSeconds =
             std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
+        m_settings.engineMaxTorqueNm =
+            std::clamp(m_settings.engineMaxTorqueNm, 100.0f, 5000.0f);
+        m_settings.engineMaxRpm =
+            std::clamp(m_settings.engineMaxRpm, 2000.0f, 10000.0f);
         m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
         const float maximumEndWheelOffset =
             (std::max)(
@@ -196,6 +200,10 @@ namespace Tank::Physics
 
         JPH::TrackedVehicleControllerSettings* controllerSettings =
             new JPH::TrackedVehicleControllerSettings;
+        controllerSettings->mEngine.mMaxTorque = m_settings.engineMaxTorqueNm;
+        controllerSettings->mEngine.mMaxRPM = m_settings.engineMaxRpm;
+        controllerSettings->mTransmission.mShiftUpRPM =
+            0.875f * m_settings.engineMaxRpm;
         controllerSettings->mTransmission.mClutchReleaseTime =
             std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
         vehicle.mController = controllerSettings;

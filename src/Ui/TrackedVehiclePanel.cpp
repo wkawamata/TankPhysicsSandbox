@@ -523,12 +523,34 @@ namespace Ui
 				ctx.appliedTankSettings->pivotTurnRightTraction));
 		ImGui::SeparatorText("Drive Response:");
 		SliderFloatWithPendingColor(
+			"Engine Torque",
+			&ctx.tankSettings->engineMaxTorqueNm,
+			100.0f,
+			5000.0f,
+			50.0f,
+			500.0f,
+			"%.0f Nm",
+			IsPending(
+				ctx.tankSettings->engineMaxTorqueNm,
+				ctx.appliedTankSettings->engineMaxTorqueNm));
+		SliderFloatWithPendingColor(
+			"Engine Max RPM",
+			&ctx.tankSettings->engineMaxRpm,
+			2000.0f,
+			10000.0f,
+			100.0f,
+			5000.0f,
+			"%.0f rpm",
+			IsPending(
+				ctx.tankSettings->engineMaxRpm,
+				ctx.appliedTankSettings->engineMaxRpm));
+		SliderFloatWithPendingColor(
 			"Clutch Release",
 			&ctx.tankSettings->clutchReleaseTimeSeconds,
 			0.01f,
 			0.5f,
 			0.01f,
-			0.08f,
+			0.03f,
 			"%.2f s",
 			IsPending(
 				ctx.tankSettings->clutchReleaseTimeSeconds,

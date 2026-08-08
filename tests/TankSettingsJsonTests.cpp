@@ -51,6 +51,8 @@ int main()
     source.stationaryTurnRightTraction = 0.7f;
     source.pivotTurnLeftTraction = 0.8f;
     source.pivotTurnRightTraction = 0.9f;
+    source.engineMaxTorqueNm = 1250.0f;
+    source.engineMaxRpm = 6200.0f;
     source.clutchReleaseTimeSeconds = 0.12f;
     source.yawSpeedLimitDegrees = 240.0f;
     source.yawDamping = 6.0f;
@@ -140,6 +142,12 @@ int main()
     passed &= Check(
         NearlyEqual(loaded.pivotTurnRightTraction, source.pivotTurnRightTraction),
         "pivot turn right traction must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.engineMaxTorqueNm, source.engineMaxTorqueNm),
+        "engine max torque must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.engineMaxRpm, source.engineMaxRpm),
+        "engine max RPM must round trip");
     passed &= Check(
         NearlyEqual(
             loaded.clutchReleaseTimeSeconds,
