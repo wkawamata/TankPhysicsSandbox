@@ -50,6 +50,16 @@ int main()
     passed &= Check(std::abs(state.bodyPosition.x - startPosition.x) < 0.5f,
         "straight input must not produce excessive sideways drift");
     passed &= Check(std::isfinite(state.linearVelocity.z), "forward velocity must be finite");
+    passed &= Check(state.speedMetersPerSecond > 10.0f,
+        "tank must reach 10 m/s under full forward input");
+    passed &= Check(state.maximumSpeedMetersPerSecond >= state.speedMetersPerSecond,
+        "maximum speed must include current speed");
+    passed &= Check(state.zeroToTenTimeSeconds > 0.0f,
+        "0-10 m/s time must be measured");
+    passed &= Check(state.engineRpm > 0.0f, "engine RPM must be reported");
+    passed &= Check(state.transmissionGear > 0, "forward gear must be reported");
+    passed &= Check(state.clutchFriction >= 0.0f && state.clutchFriction <= 1.0f,
+        "clutch friction must be normalized");
     const Tank::Physics::Quat& finalWheelRotation =
         state.wheels[0].transform.rotation;
     const float wheelRotationDelta =

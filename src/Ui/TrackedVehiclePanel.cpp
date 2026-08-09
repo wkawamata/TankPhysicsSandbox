@@ -85,6 +85,26 @@ namespace Ui
 			ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
 		}
 		ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
+		if (ImGui::CollapsingHeader("Drive Telemetry", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			ImGui::Text("Speed: %.2f m/s  (%.1f km/h)",
+				state.speedMetersPerSecond,
+				state.speedMetersPerSecond * 3.6f);
+			ImGui::Text("Maximum: %.2f m/s  (%.1f km/h)",
+				state.maximumSpeedMetersPerSecond,
+				state.maximumSpeedMetersPerSecond * 3.6f);
+			if (state.zeroToTenTimeSeconds >= 0.0f)
+			{
+				ImGui::Text("0-10 m/s: %.2f s", state.zeroToTenTimeSeconds);
+			}
+			else
+			{
+				ImGui::TextUnformatted("0-10 m/s: measuring");
+			}
+			ImGui::Text("Engine: %.0f rpm", state.engineRpm);
+			ImGui::Text("Gear: %d", state.transmissionGear);
+			ImGui::Text("Clutch: %.0f%%", state.clutchFriction * 100.0f);
+		}
 		if (ImGui::CollapsingHeader("Map", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			ImGui::Text("Active: %s",

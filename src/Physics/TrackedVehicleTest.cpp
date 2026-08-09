@@ -235,6 +235,15 @@ namespace Tank::Physics
         m_state.bodyRotation = m_impl->controller.State().body.rotation;
         m_state.linearVelocity = m_impl->controller.State().linearVelocity;
         m_state.angularVelocity = m_impl->controller.State().angularVelocity;
+        m_state.speedMetersPerSecond =
+            m_impl->controller.State().speedMetersPerSecond;
+        m_state.maximumSpeedMetersPerSecond =
+            m_impl->controller.State().maximumSpeedMetersPerSecond;
+        m_state.zeroToTenTimeSeconds =
+            m_impl->controller.State().zeroToTenTimeSeconds;
+        m_state.engineRpm = m_impl->controller.State().engineRpm;
+        m_state.transmissionGear = m_impl->controller.State().transmissionGear;
+        m_state.clutchFriction = m_impl->controller.State().clutchFriction;
         m_state.yawSpeedDegrees = m_impl->controller.State().yawSpeedDegrees;
         m_state.yawSpeedLimited = m_impl->controller.State().yawSpeedLimited;
         m_state.wheels = m_impl->controller.State().wheels;

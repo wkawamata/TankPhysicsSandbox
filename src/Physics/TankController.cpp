@@ -56,6 +56,8 @@ namespace Tank::Physics
         JPH::RVec3 rollStartPosition;
         JPH::Vec3 rollStartUp;
         JPH::Vec3 rollDirection;
+        bool accelerationTiming = false;
+        float accelerationStartTime = 0.0f;
 
         explicit Impl(PhysicsWorld& w) : world(w) {}
 
@@ -544,6 +546,38 @@ namespace Tank::Physics
             static_cast<float>(linearVelocity.GetX()),
             static_cast<float>(linearVelocity.GetY()),
             static_cast<float>(linearVelocity.GetZ())};
+        m_state.speedMetersPerSecond = std::sqrt(
+            m_state.linearVelocity.x * m_state.linearVelocity.x +
+            m_state.linearVelocity.z * m_state.linearVelocity.z);
+        m_state.maximumSpeedMetersPerSecond = (std::max)(
+            m_state.maximumSpeedMetersPerSecond,
+            m_state.speedMetersPerSecond);
+
+        const bool driveRequested = std::abs(m_input.throttle) > 0.001f;
+        if (!driveRequested && m_state.speedMetersPerSecond < 0.1f)
+        {
+            m_impl->accelerationTiming = false;
+            m_state.zeroToTenTimeSeconds = -1.0f;
+        }
+        else if (driveRequested && !m_impl->accelerationTiming &&
+            m_state.zeroToTenTimeSeconds < 0.0f)
+        {
+            m_impl->accelerationTiming = true;
+            m_impl->accelerationStartTime = m_state.timeSeconds;
+        }
+        if (m_impl->accelerationTiming && m_state.speedMetersPerSecond >= 10.0f)
+        {
+            m_state.zeroToTenTimeSeconds =
+                m_state.timeSeconds - m_impl->accelerationStartTime;
+            m_impl->accelerationTiming = false;
+        }
+
+        const JPH::TrackedVehicleController* controller =
+            static_cast<const JPH::TrackedVehicleController*>(
+                m_impl->vehicleConstraint->GetController());
+        m_state.engineRpm = controller->GetEngine().GetCurrentRPM();
+        m_state.transmissionGear = controller->GetTransmission().GetCurrentGear();
+        m_state.clutchFriction = controller->GetTransmission().GetClutchFriction();
         m_state.angularVelocity = {
             static_cast<float>(angularVelocity.GetX()),
             static_cast<float>(angularVelocity.GetY()),

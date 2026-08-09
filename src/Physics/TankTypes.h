@@ -102,6 +102,12 @@ namespace Tank::Physics
         TransformState body = {};
         Vec3 linearVelocity = {};
         Vec3 angularVelocity = {};
+        float speedMetersPerSecond = 0.0f;
+        float maximumSpeedMetersPerSecond = 0.0f;
+        float zeroToTenTimeSeconds = -1.0f;
+        float engineRpm = 0.0f;
+        int transmissionGear = 0;
+        float clutchFriction = 0.0f;
         float yawSpeedDegrees = 0.0f;
         bool yawSpeedLimited = false;
         std::array<TrackedWheelState, kTankWheelCount> wheels = {};
