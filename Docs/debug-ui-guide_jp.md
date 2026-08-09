@@ -50,6 +50,8 @@ Tracked VehicleまたはBox Dropから`ESC`を押すとトップメニューへ�
 
 各機能GroupはExpandableな見出しになっており、起動時はCloseです。確認または調整するGroupだけを開くことで、縦に長いウィンドウを整理できます。
 
+`Reset GUI`はTracked Vehicleウィンドウの位置をClient座標`(10, 10)`、サイズを`560 x 720`へ戻します。Tank設定、Camera設定、シミュレーション状態は変更しません。
+
 ### 基本状態
 
 ウィンドウ上部には次の状態が表示されます。

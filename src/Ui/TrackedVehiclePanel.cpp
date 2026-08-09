@@ -73,6 +73,11 @@ namespace Ui
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
+		if (ImGui::Button("Reset GUI"))
+		{
+			ImGui::SetWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
+			ImGui::SetWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_Always);
+		}
 		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
 		ImGui::Text("Step: %d", state.stepIndex);
 		ImGui::Text("Time: %.2f s", state.timeSeconds);
