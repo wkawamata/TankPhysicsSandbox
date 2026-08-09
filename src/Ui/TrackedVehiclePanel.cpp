@@ -520,6 +520,28 @@ namespace Ui
 		}
 		ImGui::SeparatorText("Turn Traction:");
 		SliderFloatWithPendingColor(
+			"Longitudinal Friction",
+			&ctx.tankSettings->trackLongitudinalFriction,
+			0.0f,
+			10.0f,
+			0.1f,
+			4.0f,
+			"%.2f",
+			IsPending(
+				ctx.tankSettings->trackLongitudinalFriction,
+				ctx.appliedTankSettings->trackLongitudinalFriction));
+		SliderFloatWithPendingColor(
+			"Lateral Friction",
+			&ctx.tankSettings->trackLateralFriction,
+			0.0f,
+			10.0f,
+			0.1f,
+			2.0f,
+			"%.2f",
+			IsPending(
+				ctx.tankSettings->trackLateralFriction,
+				ctx.appliedTankSettings->trackLateralFriction));
+		SliderFloatWithPendingColor(
 			"Stationary Inner Track Ratio",
 			&ctx.tankSettings->stationaryTurnInnerTrackRatio,
 			0.0f,

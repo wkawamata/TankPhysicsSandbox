@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 12;
+        constexpr int kSchemaVersion = 13;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -61,6 +61,8 @@ namespace Tank::Physics
         json["rollStabilizationDampingNms"] = settings.rollStabilizationDampingNms;
         json["trackWidthM"] = settings.trackWidthM;
         json["trackSpacingM"] = settings.trackSpacingM;
+        json["trackLongitudinalFriction"] = settings.trackLongitudinalFriction;
+        json["trackLateralFriction"] = settings.trackLateralFriction;
         json["chassisWidthM"] = settings.chassisWidthM;
         json["chassisLengthM"] = settings.chassisLengthM;
         json["endWheelRadiusM"] = settings.endWheelRadiusM;
@@ -144,6 +146,11 @@ namespace Tank::Physics
         ReadFloat(json, "rollStabilizationDampingNms", loaded.rollStabilizationDampingNms);
         ReadFloat(json, "trackWidthM", loaded.trackWidthM);
         ReadFloat(json, "trackSpacingM", loaded.trackSpacingM);
+        ReadFloat(
+            json,
+            "trackLongitudinalFriction",
+            loaded.trackLongitudinalFriction);
+        ReadFloat(json, "trackLateralFriction", loaded.trackLateralFriction);
         ReadFloat(json, "chassisWidthM", loaded.chassisWidthM);
         ReadFloat(json, "chassisLengthM", loaded.chassisLengthM);
         const auto legacyWheelRadius = json.find("wheelRadiusM");

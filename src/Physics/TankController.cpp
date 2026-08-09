@@ -122,6 +122,10 @@ namespace Tank::Physics
             (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
         m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 0.6f);
         m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 3.2f);
+        m_settings.trackLongitudinalFriction =
+            std::clamp(m_settings.trackLongitudinalFriction, 0.0f, 10.0f);
+        m_settings.trackLateralFriction =
+            std::clamp(m_settings.trackLateralFriction, 0.0f, 10.0f);
         m_settings.chassisWidthM = std::clamp(m_settings.chassisWidthM, 1.6f, 3.2f);
         m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
         m_settings.endWheelRadiusM =
@@ -250,6 +254,9 @@ namespace Tank::Physics
                 for (int w = 0; w < numWheelsPerSurface; ++w)
                 {
                     JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
+                    wheel->mLongitudinalFriction =
+                        m_settings.trackLongitudinalFriction;
+                    wheel->mLateralFriction = m_settings.trackLateralFriction;
                     const float wheelFraction =
                         static_cast<float>(w) / static_cast<float>(numWheelsPerSurface - 1);
                     const bool endWheel = w == 0 || w == numWheelsPerSurface - 1;

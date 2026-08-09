@@ -35,6 +35,8 @@ int main()
     source.rollStabilizationDampingNms = 14000.0f;
     source.trackWidthM = 0.42f;
     source.trackSpacingM = 2.75f;
+    source.trackLongitudinalFriction = 5.5f;
+    source.trackLateralFriction = 2.8f;
     source.chassisWidthM = 2.65f;
     source.chassisLengthM = 4.75f;
     source.endWheelRadiusM = 0.44f;
@@ -103,6 +105,14 @@ int main()
         "track width must round trip");
     passed &= Check(NearlyEqual(loaded.trackSpacingM, source.trackSpacingM),
         "track spacing must round trip");
+    passed &= Check(
+        NearlyEqual(
+            loaded.trackLongitudinalFriction,
+            source.trackLongitudinalFriction),
+        "track longitudinal friction must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.trackLateralFriction, source.trackLateralFriction),
+        "track lateral friction must round trip");
     passed &= Check(NearlyEqual(loaded.chassisWidthM, source.chassisWidthM),
         "chassis width must round trip");
     passed &= Check(NearlyEqual(loaded.chassisLengthM, source.chassisLengthM),

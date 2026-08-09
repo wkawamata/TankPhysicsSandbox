@@ -172,6 +172,8 @@ Track Proxyの表示をOFFにしても物理計算には影響しません。
 
 ### Turn Traction
 
+- `Longitudinal Friction`: 履帯の前後方向摩擦。加速、制動、登坂、空転へ影響
+- `Lateral Friction`: 履帯の横方向摩擦。直進安定性、横滑り、旋回抵抗へ影響
 - `Stationary Inner Track Ratio`: 片側入力が0のとき、内側履帯へ与える速度比
 - `Stationary Left/Right Track`: 信地旋回時の左右トラクション倍率
 - `Pivot Left/Right Track`: 超信地旋回時の左右トラクション倍率

@@ -28,6 +28,8 @@ namespace Tank::Physics
         float rollStabilizationDampingNms = 10000.0f;
         float trackWidthM = 0.3f;
         float trackSpacingM = 2.4f;
+        float trackLongitudinalFriction = 4.0f;
+        float trackLateralFriction = 2.0f;
         float chassisWidthM = 2.4f;
         float chassisLengthM = 4.0f;
         float endWheelRadiusM = 0.4f;
