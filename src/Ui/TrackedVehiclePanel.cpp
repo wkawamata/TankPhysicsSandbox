@@ -104,6 +104,39 @@ namespace Ui
 			ImGui::Text("Engine: %.0f rpm", state.engineRpm);
 			ImGui::Text("Gear: %d", state.transmissionGear);
 			ImGui::Text("Clutch: %.0f%%", state.clutchFriction * 100.0f);
+			int contacts[2] = {};
+			float longitudinalImpulse[2] = {};
+			float lateralImpulse[2] = {};
+			float slipSpeed[2] = {};
+			for (int i = 0; i < state.wheelCount; ++i)
+			{
+				const Tank::Physics::TrackedWheelState& wheel =
+					state.wheels[static_cast<size_t>(i)];
+				if (!wheel.hasContact || wheel.trackIndex < 0 || wheel.trackIndex > 1)
+				{
+					continue;
+				}
+				const int track = wheel.trackIndex;
+				++contacts[track];
+				longitudinalImpulse[track] +=
+					std::abs(wheel.longitudinalImpulseNewtonSeconds);
+				lateralImpulse[track] +=
+					std::abs(wheel.lateralImpulseNewtonSeconds);
+				slipSpeed[track] +=
+					std::abs(wheel.longitudinalSlipMetersPerSecond);
+			}
+			for (int track = 0; track < 2; ++track)
+			{
+				if (contacts[track] > 0)
+				{
+					slipSpeed[track] /= static_cast<float>(contacts[track]);
+				}
+			}
+			ImGui::SeparatorText("Track Traction");
+			ImGui::Text("Left : contact %d  drive %.1f Ns  lateral %.1f Ns  slip %.2f m/s",
+				contacts[0], longitudinalImpulse[0], lateralImpulse[0], slipSpeed[0]);
+			ImGui::Text("Right: contact %d  drive %.1f Ns  lateral %.1f Ns  slip %.2f m/s",
+				contacts[1], longitudinalImpulse[1], lateralImpulse[1], slipSpeed[1]);
 		}
 		if (ImGui::CollapsingHeader("Map", ImGuiTreeNodeFlags_DefaultOpen))
 		{

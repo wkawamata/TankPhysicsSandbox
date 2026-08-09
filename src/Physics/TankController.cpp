@@ -654,6 +654,12 @@ namespace Tank::Physics
                 static_cast<float>(suspensionDirection.GetY()),
                 static_cast<float>(suspensionDirection.GetZ())};
             wheelState.suspensionLength = wheel->GetSuspensionLength();
+            wheelState.angularVelocityRadians = wheel->GetAngularVelocity();
+            wheelState.suspensionImpulseNewtonSeconds = wheel->GetSuspensionLambda();
+            wheelState.longitudinalImpulseNewtonSeconds =
+                wheel->GetLongitudinalLambda();
+            wheelState.lateralImpulseNewtonSeconds = wheel->GetLateralLambda();
+            wheelState.longitudinalSlipMetersPerSecond = 0.0f;
             wheelState.hasContact = wheel->HasContact();
             wheelState.contactPosition = {};
             wheelState.contactNormal = {};
@@ -665,6 +671,11 @@ namespace Tank::Physics
                 const JPH::Vec3 contactNormal = wheel->GetContactNormal();
                 const JPH::Vec3 contactLongitudinal = wheel->GetContactLongitudinal();
                 const JPH::Vec3 contactLateral = wheel->GetContactLateral();
+                const float contactLongitudinalSpeed =
+                    wheel->GetContactPointVelocity().Dot(contactLongitudinal);
+                wheelState.longitudinalSlipMetersPerSecond =
+                    wheel->GetAngularVelocity() * wheelSettings->mRadius -
+                    contactLongitudinalSpeed;
                 wheelState.contactPosition = {
                     static_cast<float>(contactPosition.GetX()),
                     static_cast<float>(contactPosition.GetY()),

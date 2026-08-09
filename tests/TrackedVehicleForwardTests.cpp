@@ -60,6 +60,22 @@ int main()
     passed &= Check(state.transmissionGear > 0, "forward gear must be reported");
     passed &= Check(state.clutchFriction >= 0.0f && state.clutchFriction <= 1.0f,
         "clutch friction must be normalized");
+    bool reportedContactImpulse = false;
+    for (int i = 0; i < state.wheelCount; ++i)
+    {
+        const Tank::Physics::TrackedWheelState& wheel =
+            state.wheels[static_cast<size_t>(i)];
+        passed &= Check(std::isfinite(wheel.longitudinalImpulseNewtonSeconds),
+            "wheel longitudinal impulse must be finite");
+        passed &= Check(std::isfinite(wheel.lateralImpulseNewtonSeconds),
+            "wheel lateral impulse must be finite");
+        passed &= Check(std::isfinite(wheel.longitudinalSlipMetersPerSecond),
+            "wheel longitudinal slip must be finite");
+        reportedContactImpulse |= wheel.hasContact &&
+            std::abs(wheel.longitudinalImpulseNewtonSeconds) > 0.001f;
+    }
+    passed &= Check(reportedContactImpulse,
+        "contacting wheels must report drive impulse");
     const Tank::Physics::Quat& finalWheelRotation =
         state.wheels[0].transform.rotation;
     const float wheelRotationDelta =

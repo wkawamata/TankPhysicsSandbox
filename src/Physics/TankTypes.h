@@ -92,6 +92,11 @@ namespace Tank::Physics
         Vec3 suspensionOrigin = {};
         Vec3 suspensionDirection = {};
         float suspensionLength = 0.0f;
+        float angularVelocityRadians = 0.0f;
+        float suspensionImpulseNewtonSeconds = 0.0f;
+        float longitudinalImpulseNewtonSeconds = 0.0f;
+        float lateralImpulseNewtonSeconds = 0.0f;
+        float longitudinalSlipMetersPerSecond = 0.0f;
         bool hasContact = false;
         Vec3 contactPosition = {};
         Vec3 contactNormal = {};
