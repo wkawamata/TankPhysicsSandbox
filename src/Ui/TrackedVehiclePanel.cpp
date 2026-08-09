@@ -548,7 +548,7 @@ namespace Ui
 			100.0f,
 			5000.0f,
 			50.0f,
-			500.0f,
+			900.0f,
 			"%.0f Nm",
 			IsPending(
 				ctx.tankSettings->engineMaxTorqueNm,

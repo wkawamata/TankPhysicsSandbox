@@ -1,6 +1,6 @@
 {
   "version": 12,
-  "engineMaxTorqueNm": 500.0,
+  "engineMaxTorqueNm": 900.0,
   "engineMaxRpm": 5000.0,
   "transmissionShiftDownRpm": 1000.0,
   "transmissionShiftUpRpm": 4375.0,

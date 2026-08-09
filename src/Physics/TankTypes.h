@@ -46,7 +46,7 @@ namespace Tank::Physics
         float stationaryTurnRightTraction = 1.0f;
         float pivotTurnLeftTraction = 1.0f;
         float pivotTurnRightTraction = 1.0f;
-        float engineMaxTorqueNm = 500.0f;
+        float engineMaxTorqueNm = 900.0f;
         float engineMaxRpm = 5000.0f;
         float transmissionShiftDownRpm = 1000.0f;
         float transmissionShiftUpRpm = 4375.0f;
