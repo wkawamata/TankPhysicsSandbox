@@ -86,6 +86,7 @@ namespace Ui
 			ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
 		}
 		ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
+		ImGui::TextUnformatted("Press ESC to return to the top menu.");
 		if (ImGui::CollapsingHeader("Drive Telemetry"))
 		{
 			ImGui::Text("Speed: %.2f m/s  (%.1f km/h)",
@@ -946,8 +947,6 @@ namespace Ui
 			driverInput.rightRatio,
 			driverInput.brake);
 		}
-		ImGui::Separator();
-		ImGui::Text("Press ESC to return to the top menu.");
 		ImGui::End();
 	}
 }
