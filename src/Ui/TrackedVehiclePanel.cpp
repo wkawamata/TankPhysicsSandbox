@@ -70,6 +70,7 @@ namespace Ui
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
 	{
 		const Tank::Physics::TrackedVehicleTestState& state = *ctx.state;
+		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
 		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
