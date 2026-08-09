@@ -134,6 +134,20 @@ namespace Tank::Physics
             std::clamp(m_settings.engineMaxTorqueNm, 100.0f, 5000.0f);
         m_settings.engineMaxRpm =
             std::clamp(m_settings.engineMaxRpm, 2000.0f, 10000.0f);
+        m_settings.transmissionShiftDownRpm = std::clamp(
+            m_settings.transmissionShiftDownRpm,
+            500.0f,
+            m_settings.engineMaxRpm - 200.0f);
+        m_settings.transmissionShiftUpRpm = std::clamp(
+            m_settings.transmissionShiftUpRpm,
+            m_settings.transmissionShiftDownRpm + 100.0f,
+            m_settings.engineMaxRpm - 100.0f);
+        m_settings.transmissionClutchStrength = std::clamp(
+            m_settings.transmissionClutchStrength,
+            1.0f,
+            100.0f);
+        m_settings.finalDriveRatio =
+            std::clamp(m_settings.finalDriveRatio, 0.25f, 4.0f);
         m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
         const float maximumEndWheelOffset =
             (std::max)(
@@ -204,8 +218,20 @@ namespace Tank::Physics
             new JPH::TrackedVehicleControllerSettings;
         controllerSettings->mEngine.mMaxTorque = m_settings.engineMaxTorqueNm;
         controllerSettings->mEngine.mMaxRPM = m_settings.engineMaxRpm;
+        controllerSettings->mTransmission.mShiftDownRPM =
+            m_settings.transmissionShiftDownRpm;
         controllerSettings->mTransmission.mShiftUpRPM =
-            0.875f * m_settings.engineMaxRpm;
+            m_settings.transmissionShiftUpRpm;
+        controllerSettings->mTransmission.mClutchStrength =
+            m_settings.transmissionClutchStrength;
+        for (float& ratio : controllerSettings->mTransmission.mGearRatios)
+        {
+            ratio *= m_settings.finalDriveRatio;
+        }
+        for (float& ratio : controllerSettings->mTransmission.mReverseGearRatios)
+        {
+            ratio *= m_settings.finalDriveRatio;
+        }
         controllerSettings->mTransmission.mClutchReleaseTime =
             std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
         vehicle.mController = controllerSettings;

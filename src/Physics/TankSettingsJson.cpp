@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 11;
+        constexpr int kSchemaVersion = 12;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -81,6 +81,10 @@ namespace Tank::Physics
         json["pivotTurnRightTraction"] = settings.pivotTurnRightTraction;
         json["engineMaxTorqueNm"] = settings.engineMaxTorqueNm;
         json["engineMaxRpm"] = settings.engineMaxRpm;
+        json["transmissionShiftDownRpm"] = settings.transmissionShiftDownRpm;
+        json["transmissionShiftUpRpm"] = settings.transmissionShiftUpRpm;
+        json["transmissionClutchStrength"] = settings.transmissionClutchStrength;
+        json["finalDriveRatio"] = settings.finalDriveRatio;
         json["clutchReleaseTimeSeconds"] = settings.clutchReleaseTimeSeconds;
         json["yawSpeedLimitDegrees"] = settings.yawSpeedLimitDegrees;
         json["yawDamping"] = settings.yawDamping;
@@ -172,6 +176,16 @@ namespace Tank::Physics
         ReadFloat(json, "pivotTurnRightTraction", loaded.pivotTurnRightTraction);
         ReadFloat(json, "engineMaxTorqueNm", loaded.engineMaxTorqueNm);
         ReadFloat(json, "engineMaxRpm", loaded.engineMaxRpm);
+        ReadFloat(
+            json,
+            "transmissionShiftDownRpm",
+            loaded.transmissionShiftDownRpm);
+        ReadFloat(json, "transmissionShiftUpRpm", loaded.transmissionShiftUpRpm);
+        ReadFloat(
+            json,
+            "transmissionClutchStrength",
+            loaded.transmissionClutchStrength);
+        ReadFloat(json, "finalDriveRatio", loaded.finalDriveRatio);
         ReadFloat(
             json,
             "clutchReleaseTimeSeconds",

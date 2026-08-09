@@ -565,6 +565,50 @@ namespace Ui
 				ctx.tankSettings->engineMaxRpm,
 				ctx.appliedTankSettings->engineMaxRpm));
 		SliderFloatWithPendingColor(
+			"Shift Down RPM",
+			&ctx.tankSettings->transmissionShiftDownRpm,
+			500.0f,
+			9000.0f,
+			100.0f,
+			1000.0f,
+			"%.0f rpm",
+			IsPending(
+				ctx.tankSettings->transmissionShiftDownRpm,
+				ctx.appliedTankSettings->transmissionShiftDownRpm));
+		SliderFloatWithPendingColor(
+			"Shift Up RPM",
+			&ctx.tankSettings->transmissionShiftUpRpm,
+			1000.0f,
+			9900.0f,
+			100.0f,
+			4375.0f,
+			"%.0f rpm",
+			IsPending(
+				ctx.tankSettings->transmissionShiftUpRpm,
+				ctx.appliedTankSettings->transmissionShiftUpRpm));
+		SliderFloatWithPendingColor(
+			"Clutch Strength",
+			&ctx.tankSettings->transmissionClutchStrength,
+			1.0f,
+			100.0f,
+			1.0f,
+			10.0f,
+			"%.1f",
+			IsPending(
+				ctx.tankSettings->transmissionClutchStrength,
+				ctx.appliedTankSettings->transmissionClutchStrength));
+		SliderFloatWithPendingColor(
+			"Final Drive Ratio",
+			&ctx.tankSettings->finalDriveRatio,
+			0.25f,
+			4.0f,
+			0.05f,
+			1.0f,
+			"%.2f x",
+			IsPending(
+				ctx.tankSettings->finalDriveRatio,
+				ctx.appliedTankSettings->finalDriveRatio));
+		SliderFloatWithPendingColor(
 			"Clutch Release",
 			&ctx.tankSettings->clutchReleaseTimeSeconds,
 			0.01f,
