@@ -165,7 +165,7 @@ Assault車体の横転操作と安定化を調整します。
 
 各マテリアルでAlbedo、Roughness、Metallic、Ambient Occlusion、Emissiveを調整できます。編集終了後に描画へ反映され、物理形状は変更しません。
 
-`Color Wheels by Contact`をONにすると、接地車輪へ`Contacted Wheels`のマテリアルを使用します。`Save Visual`、`Load Visual`、`AutoLoad`は物理設定とは別のVisual設定を扱います。
+`Body Material`の外にある`Color Wheels by Contact`をONにすると、接地車輪へ`Contacted Wheels`のマテリアルを使用します。`Save Visual`、`Load Visual`、`AutoLoad`は物理設定とは別のVisual設定を扱います。
 
 ### 履帯表示
 

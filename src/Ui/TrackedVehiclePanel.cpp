@@ -454,8 +454,7 @@ namespace Ui
 		if (ImGui::CollapsingHeader("Tank Design"))
 		{
 
-		if (ImGui::CollapsingHeader("Body Material"))
-		{
+		ImGui::SeparatorText("Body Material");
 			auto drawMaterial = [](const char* label, Tank::Rendering::BodyMaterialSettings& material)
 				{
 					bool changed = false;
@@ -487,9 +486,6 @@ namespace Ui
 			materialChanged |= drawMaterial(
 				"Structure Lower", ctx.visualSettings->structureLower);
 			materialChanged |= drawMaterial("Wheels", ctx.visualSettings->wheels);
-			materialChanged |= ImGui::Checkbox(
-				"Color Wheels by Contact",
-				&ctx.visualSettings->colorWheelsByContact);
 			ImGui::BeginDisabled(!ctx.visualSettings->colorWheelsByContact);
 			materialChanged |= drawMaterial(
 				"Contacted Wheels",
@@ -521,10 +517,15 @@ namespace Ui
 			{
 				ImGui::TextWrapped("%s", ctx.tankVisualSettingsStatus->c_str());
 			}
-		}
 		if (ImGui::Checkbox("Track Shoe Display", ctx.trackShoeDisplay))
 		{
 			if (ctx.updateScene) ctx.updateScene();
+		}
+		if (ImGui::Checkbox(
+			"Color Wheels by Contact",
+			&ctx.visualSettings->colorWheelsByContact))
+		{
+			if (ctx.applyMaterials) ctx.applyMaterials();
 		}
 		if (ImGui::Checkbox("Show Track Proxies", ctx.showTrackProxies))
 		{
