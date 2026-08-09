@@ -323,6 +323,7 @@ if(BUILD_TESTING)
         COMMAND TankPhysicsCli
             --test map
             --map "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps/mobility_course.json"
+            --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
             --settle-steps 180
             --steps 480
             --dt 0.0166667

@@ -1,5 +1,6 @@
 #include "Physics/BoxDropTest.h"
 #include "Physics/MapDefinitionJson.h"
+#include "Physics/TankSettingsJson.h"
 #include "Physics/TrackedVehicleTest.h"
 
 #include <cstdlib>
@@ -24,6 +25,7 @@ namespace
         float deltaTimeSeconds = 1.0f / 60.0f;
         std::string mapPath;
         std::string mapDirectory;
+        std::string tankSettingsPath;
         float throttle = 0.0f;
         float leftTrack = 1.0f;
         float rightTrack = 1.0f;
@@ -58,6 +60,10 @@ namespace
             else if (std::strcmp(argv[i], "--map-directory") == 0 && i + 1 < argc)
             {
                 options.mapDirectory = argv[++i];
+            }
+            else if (std::strcmp(argv[i], "--tank-settings") == 0 && i + 1 < argc)
+            {
+                options.tankSettingsPath = argv[++i];
             }
             else if (std::strcmp(argv[i], "--throttle") == 0 && i + 1 < argc)
             {
@@ -103,7 +109,30 @@ namespace
         std::cout << "Usage:\n"
                   << "  TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667\n"
                   << "  TankPhysicsCli --test maps --map-directory Config/Maps\n"
-                  << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
+                  << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --tank-settings Config/Tank/tank_1.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
+    }
+
+    bool LoadTankSettings(
+        const std::string& path,
+        Tank::Physics::TankSettings& settings,
+        std::string& error)
+    {
+        if (path.empty())
+        {
+            return true;
+        }
+        std::ifstream input(path, std::ios::binary);
+        if (!input)
+        {
+            error = "cannot open tank settings";
+            return false;
+        }
+        const std::istreambuf_iterator<char> begin(input);
+        const std::istreambuf_iterator<char> end;
+        return Tank::Physics::DeserializeTankSettings(
+            std::string(begin, end),
+            settings,
+            &error);
     }
 
     bool LoadMapDocument(const std::filesystem::path& path, Tank::Physics::MapDocument& document, std::string& error)
@@ -193,8 +222,19 @@ namespace
             return 1;
         }
 
+        Tank::Physics::TankSettings tankSettings;
+        if (!LoadTankSettings(options.tankSettingsPath, tankSettings, error))
+        {
+            std::cerr << "FAIL map tank_settings_error=" << error << "\n";
+            return 1;
+        }
+
         Tank::Physics::TrackedVehicleTest test;
-        test.Initialize({}, document.environment, document.primitives, document.spawn);
+        test.Initialize(
+            tankSettings,
+            document.environment,
+            document.primitives,
+            document.spawn);
         Tank::Physics::TrackedVehicleTestState state = test.State();
         for (int step = 0; step < options.settleSteps; ++step)
         {
@@ -241,7 +281,11 @@ namespace
                   << "\" primitives=" << document.primitives.size()
                   << " steps=" << options.steps
                   << " forward_distance=" << forwardDistance
-                  << " final_y=" << state.bodyPosition.y << "\n";
+                  << " final_y=" << state.bodyPosition.y
+                  << " max_speed_mps=" << state.maximumSpeedMetersPerSecond
+                  << " zero_to_ten_s=" << state.zeroToTenTimeSeconds
+                  << " engine_rpm=" << state.engineRpm
+                  << " gear=" << state.transmissionGear << "\n";
         return 0;
     }
 }
