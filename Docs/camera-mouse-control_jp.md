@@ -54,7 +54,7 @@ Debug操作開始時に次を実行する。
 4. Always Debugでは任意のマウス操作でDebug Cameraへ移行
 5. それ以外はGameplay用としてDebug Cameraへ渡さない
 
-ウィンドウが入力Focusを失った場合、Alt状態を含む入力Latchを解除する。
+AltキーはWindowsでは`WM_SYSKEYDOWN/WM_SYSKEYUP`として通知されるため、Alt Gestureの判定は通常キーの押下状態を保持せず、マウスイベント発生時の`GetAsyncKeyState(VK_MENU)`を使用する。
 
 ## 操作
 

@@ -411,7 +411,6 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     else if (key == 'Q') m_rollLeft = true;
     else if (key == 'E') m_rollRight = true;
     else if (key == VK_SHIFT) m_pivotTurnModifier = true;
-    else if (key == VK_MENU) m_altCameraModifier = true;
     else if (key == VK_SPACE) m_brake = true;
 }
 
@@ -424,7 +423,6 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
     else if (key == 'Q') m_rollLeft = false;
     else if (key == 'E') m_rollRight = false;
     else if (key == VK_SHIFT) m_pivotTurnModifier = false;
-    else if (key == VK_MENU) m_altCameraModifier = false;
     else if (key == VK_SPACE) m_brake = false;
 }
 
@@ -443,7 +441,7 @@ bool TankSandboxApp::EnsureDebugCameraForMouse()
         m_cameraController.GetMouseControlMode();
     if (mouseMode == Tank::App::CameraController::MouseControlMode::Gameplay ||
         (mouseMode == Tank::App::CameraController::MouseControlMode::AltGesture &&
-            !m_altCameraModifier))
+            (GetAsyncKeyState(VK_MENU) & 0x8000) == 0))
     {
         return false;
     }
@@ -492,7 +490,6 @@ void TankSandboxApp::ClearVehicleInputState()
     m_rollLeft = false;
     m_rollRight = false;
     m_brake = false;
-    m_altCameraModifier = false;
 }
 
 void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
