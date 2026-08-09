@@ -50,6 +50,8 @@ Tracked VehicleまたはBox Dropから`ESC`を押すとトップメニューへ�
 
 各機能GroupはExpandableな見出しになっており、起動時はCloseです。確認または調整するGroupだけを開くことで、縦に長いウィンドウを整理できます。
 
+Tank Slot、AutoLoad、Apply/Save/Load、Pause/Step/Resetは常に操作できるようにウィンドウ上部へ配置されています。
+
 `Reset GUI`はTracked Vehicleウィンドウの位置をClient座標`(10, 10)`、サイズを`560 x 720`へ戻します。Tank設定、Camera設定、シミュレーション状態は変更しません。
 
 ### 基本状態
@@ -220,7 +222,7 @@ Final Drive Ratioを大きくすると駆動力寄り、小さくすると最高
 
 ### Tank設定のSave/Load
 
-Slot 1、2、3を選択できます。
+ウィンドウ上部でSlot 1、2、3を選択できます。
 
 - `AutoLoad`: Slot切り替え時に自動Load
 - `Apply & Reset`: 編集値で物理車両とマップ衝突形状を再構築
@@ -239,6 +241,8 @@ Loadしただけでは、黄色表示される物理設定は現在の車両へ�
 - `Export Tank glTF`: 出力実行
 
 ### Simulation
+
+シミュレーション操作はウィンドウ上部に常時表示されます。
 
 - `Pause / Resume`: シミュレーション停止・再開
 - `Step Fwd`: Pause中に1 Stepだけ進める

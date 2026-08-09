@@ -78,6 +78,67 @@ namespace Ui
 			ImGui::SetWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
 			ImGui::SetWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_Always);
 		}
+		ImGui::SeparatorText("Tank Settings");
+		ImGui::TextUnformatted("Slot");
+		ImGui::SameLine();
+		for (int slot = 0; slot < 3; ++slot)
+		{
+			if (slot > 0)
+			{
+				ImGui::SameLine();
+			}
+			const std::string label = std::to_string(slot + 1);
+			if (ImGui::RadioButton(label.c_str(), *ctx.tankSettingsSlot == slot))
+			{
+				*ctx.tankSettingsSlot = slot;
+				if (*ctx.tankSettingsAutoLoad && ctx.loadTankSettings)
+				{
+					ctx.loadTankSettings();
+				}
+			}
+		}
+		ImGui::SameLine();
+		ImGui::Checkbox("AutoLoad##TankSettings", ctx.tankSettingsAutoLoad);
+		if (ImGui::Button("Apply & Reset"))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Save"))
+		{
+			if (ctx.saveTankSettings) ctx.saveTankSettings();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Load"))
+		{
+			if (ctx.loadTankSettings) ctx.loadTankSettings();
+		}
+		if (ctx.tankSettingsStatus && !ctx.tankSettingsStatus->empty())
+		{
+			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
+		}
+		ImGui::SeparatorText("Simulation");
+		if (ImGui::Button(*ctx.trackedVehiclePaused ? "Resume" : "Pause"))
+		{
+			*ctx.trackedVehiclePaused = !*ctx.trackedVehiclePaused;
+		}
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!*ctx.trackedVehiclePaused);
+		if (ImGui::Button("Step Fwd"))
+		{
+			*ctx.trackedVehicleSingleStep = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		if (ImGui::Button("Fire / Recoil"))
+		{
+			if (ctx.fireRecoil) ctx.fireRecoil();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Reset Tank"))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
 		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
 		ImGui::Text("Step: %d", state.stepIndex);
 		ImGui::Text("Time: %.2f s", state.timeSeconds);
@@ -827,48 +888,6 @@ namespace Ui
 		}
 		ImGui::Checkbox("Start Upside Down", &ctx.tankSettings->startUpsideDown);
 		}
-		if (ImGui::CollapsingHeader("Tank Settings"))
-		{
-		ImGui::TextUnformatted("Save Slot");
-		ImGui::SameLine();
-		for (int slot = 0; slot < 3; ++slot)
-		{
-			if (slot > 0)
-			{
-				ImGui::SameLine();
-			}
-			const std::string label = std::to_string(slot + 1);
-			if (ImGui::RadioButton(label.c_str(), *ctx.tankSettingsSlot == slot))
-			{
-				*ctx.tankSettingsSlot = slot;
-				if (*ctx.tankSettingsAutoLoad)
-				{
-					if (ctx.loadTankSettings) ctx.loadTankSettings();
-				}
-			}
-		}
-		ImGui::SameLine();
-		ImGui::Checkbox("AutoLoad##TankSettings", ctx.tankSettingsAutoLoad);
-		if (ImGui::Button("Apply & Reset"))
-		{
-			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Save"))
-		{
-			if (ctx.saveTankSettings) ctx.saveTankSettings();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Load"))
-		{
-			if (ctx.loadTankSettings) ctx.loadTankSettings();
-		}
-		if (ctx.tankSettingsStatus && !ctx.tankSettingsStatus->empty())
-		{
-			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
-		}
-
-		}
 		if (ImGui::CollapsingHeader("Export glTF"))
 		{
         if (ctx.tankModelExportBinary)
@@ -896,29 +915,6 @@ namespace Ui
 		if (ctx.tankModelExportStatus && !ctx.tankModelExportStatus->empty())
 		{
 			ImGui::TextWrapped("%s", ctx.tankModelExportStatus->c_str());
-		}
-		}
-		if (ImGui::CollapsingHeader("Simulation"))
-		{
-		if (ImGui::Button(*ctx.trackedVehiclePaused ? "Resume" : "Pause"))
-		{
-			*ctx.trackedVehiclePaused = !*ctx.trackedVehiclePaused;
-		}
-		ImGui::SameLine();
-		ImGui::BeginDisabled(!*ctx.trackedVehiclePaused);
-		if (ImGui::Button("Step Fwd"))
-		{
-			*ctx.trackedVehicleSingleStep = true;
-		}
-		ImGui::EndDisabled();
-		ImGui::SameLine();
-		if (ImGui::Button("Fire / Recoil"))
-		{
-			if (ctx.fireRecoil) ctx.fireRecoil();
-		}
-		if (ImGui::Button("Reset"))
-		{
-			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
 		}
 		if (ImGui::CollapsingHeader("Track Input"))
