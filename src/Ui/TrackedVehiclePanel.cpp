@@ -85,7 +85,7 @@ namespace Ui
 			ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
 		}
 		ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
-		if (ImGui::CollapsingHeader("Drive Telemetry", ImGuiTreeNodeFlags_DefaultOpen))
+		if (ImGui::CollapsingHeader("Drive Telemetry"))
 		{
 			ImGui::Text("Speed: %.2f m/s  (%.1f km/h)",
 				state.speedMetersPerSecond,
@@ -138,7 +138,7 @@ namespace Ui
 			ImGui::Text("Right: contact %d  drive %.1f Ns  lateral %.1f Ns  slip %.2f m/s",
 				contacts[1], longitudinalImpulse[1], lateralImpulse[1], slipSpeed[1]);
 		}
-		if (ImGui::CollapsingHeader("Map", ImGuiTreeNodeFlags_DefaultOpen))
+		if (ImGui::CollapsingHeader("Map"))
 		{
 			ImGui::Text("Active: %s",
 				ctx.activeMapName != nullptr ? ctx.activeMapName->c_str() : "Unknown");
@@ -329,7 +329,8 @@ namespace Ui
 				ImGui::TextWrapped("%s", ctx.envSettingsStatus->c_str());
 			}
 		}
-		ImGui::SeparatorText("Physics Settings");
+		if (ImGui::CollapsingHeader("Physics Settings"))
+		{
 		SliderFloatWithPendingColor(
 			"Chassis Mass",
 			&ctx.tankSettings->chassisMassKg,
@@ -385,7 +386,9 @@ namespace Ui
 			"%.2f",
 			false);
 
-		ImGui::SeparatorText("Rolling Parameter:");
+		}
+		if (ImGui::CollapsingHeader("Rolling Parameters"))
+		{
 
 		ImGui::Checkbox("Rolling Input", &ctx.tankSettings->rollingInputEnabled);
 		SliderFloatWithPendingColor(
@@ -440,7 +443,9 @@ namespace Ui
 				ctx.tankSettings->rollStabilizationDampingNms,
 				ctx.appliedTankSettings->rollStabilizationDampingNms));
 
-		ImGui::SeparatorText("Tank Design:");
+		}
+		if (ImGui::CollapsingHeader("Tank Design"))
+		{
 
 		if (ImGui::CollapsingHeader("Body Material"))
 		{
@@ -518,7 +523,9 @@ namespace Ui
 		{
 			if (ctx.updateScene) ctx.updateScene();
 		}
-		ImGui::SeparatorText("Turn Traction:");
+		}
+		if (ImGui::CollapsingHeader("Turn Traction"))
+		{
 		SliderFloatWithPendingColor(
 			"Longitudinal Friction",
 			&ctx.tankSettings->trackLongitudinalFriction,
@@ -596,7 +603,9 @@ namespace Ui
 			IsPending(
 				ctx.tankSettings->pivotTurnRightTraction,
 				ctx.appliedTankSettings->pivotTurnRightTraction));
-		ImGui::SeparatorText("Drive Response:");
+		}
+		if (ImGui::CollapsingHeader("Drive Response"))
+		{
 		SliderFloatWithPendingColor(
 			"Engine Torque",
 			&ctx.tankSettings->engineMaxTorqueNm,
@@ -674,7 +683,9 @@ namespace Ui
 			IsPending(
 				ctx.tankSettings->clutchReleaseTimeSeconds,
 				ctx.appliedTankSettings->clutchReleaseTimeSeconds));
-		ImGui::SeparatorText("Body Yaw:");
+		}
+		if (ImGui::CollapsingHeader("Body Yaw"))
+		{
 		SliderFloatWithPendingColor(
 			"Yaw Speed Limit",
 			&ctx.tankSettings->yawSpeedLimitDegrees,
@@ -697,7 +708,9 @@ namespace Ui
 			IsPending(
 				ctx.tankSettings->yawDamping,
 				ctx.appliedTankSettings->yawDamping));
-		ImGui::SeparatorText("Track Layout Adjustment:");
+		}
+		if (ImGui::CollapsingHeader("Track Layout Adjustment"))
+		{
 		SliderFloatWithPendingColor(
 			"Track Width", &ctx.tankSettings->trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m",
 			IsPending(ctx.tankSettings->trackWidthM, ctx.appliedTankSettings->trackWidthM));
@@ -805,6 +818,9 @@ namespace Ui
 					ctx.appliedTankSettings->threeRoadWheelOffsetM));
 		}
 		ImGui::Checkbox("Start Upside Down", &ctx.tankSettings->startUpsideDown);
+		}
+		if (ImGui::CollapsingHeader("Tank Settings"))
+		{
 		ImGui::TextUnformatted("Save Slot");
 		ImGui::SameLine();
 		for (int slot = 0; slot < 3; ++slot)
@@ -844,9 +860,9 @@ namespace Ui
 			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
 		}
 
-		ImGui::SeparatorText("Exprot");
-
-        ImGui::SeparatorText("Export glTF");
+		}
+		if (ImGui::CollapsingHeader("Export glTF"))
+		{
         if (ctx.tankModelExportBinary)
         {
             bool binary = *ctx.tankModelExportBinary;
@@ -873,7 +889,9 @@ namespace Ui
 		{
 			ImGui::TextWrapped("%s", ctx.tankModelExportStatus->c_str());
 		}
-		ImGui::SeparatorText("Simulation");
+		}
+		if (ImGui::CollapsingHeader("Simulation"))
+		{
 		if (ImGui::Button(*ctx.trackedVehiclePaused ? "Resume" : "Pause"))
 		{
 			*ctx.trackedVehiclePaused = !*ctx.trackedVehiclePaused;
@@ -894,7 +912,9 @@ namespace Ui
 		{
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
-		ImGui::SeparatorText("Track Input");
+		}
+		if (ImGui::CollapsingHeader("Track Input"))
+		{
 		ImGui::Text(
 			"Analog track axes 1 / 3: %s",
 			!ctx.analogTracksConnected ? "not connected" :
@@ -925,6 +945,7 @@ namespace Ui
 			driverInput.leftRatio,
 			driverInput.rightRatio,
 			driverInput.brake);
+		}
 		ImGui::Separator();
 		ImGui::Text("Press ESC to return to the top menu.");
 		ImGui::End();

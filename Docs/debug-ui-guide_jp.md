@@ -48,6 +48,8 @@ Tracked VehicleまたはBox Dropから`ESC`を押すとトップメニューへ�
 
 ## 4. Tracked Vehicleウィンドウ
 
+各機能GroupはExpandableな見出しになっており、起動時はCloseです。確認または調整するGroupだけを開くことで、縦に長いウィンドウを整理できます。
+
 ### 基本状態
 
 ウィンドウ上部には次の状態が表示されます。
