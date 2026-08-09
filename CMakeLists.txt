@@ -469,6 +469,14 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehicleForwardTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehiclePowerTests
+        tests/TrackedVehiclePowerTests.cpp
+    )
+    target_link_libraries(TrackedVehiclePowerTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(TrackedVehiclePowerTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(TrackedVehicleSteeringTests
         tests/TrackedVehicleSteeringTests.cpp
     )
@@ -551,6 +559,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TrackedVehicleForward
         COMMAND TrackedVehicleForwardTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehiclePower
+        COMMAND TrackedVehiclePowerTests
     )
 
     add_test(

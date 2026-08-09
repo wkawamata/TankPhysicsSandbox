@@ -263,6 +263,8 @@ namespace Tank::Physics
                         ? m_settings.endWheelRadiusM
                         : m_settings.roadWheelRadiusM;
                     wheel->mWidth = wheelWidth;
+                    wheel->mSuspensionForcePoint = wheel->mPosition;
+                    wheel->mEnableSuspensionForcePoint = true;
                     wheel->mSuspensionMinLength = suspensionMinLength;
                     wheel->mSuspensionMaxLength =
                         endWheel
