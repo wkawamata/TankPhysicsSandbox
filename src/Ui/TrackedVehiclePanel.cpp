@@ -72,6 +72,7 @@ namespace Ui
 		const Tank::Physics::TrackedVehicleTestState& state = *ctx.state;
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
+		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
 		ImGui::Text("Step: %d", state.stepIndex);
 		ImGui::Text("Time: %.2f s", state.timeSeconds);
 		ImGui::Text("Position: %.2f, %.2f, %.2f",
@@ -248,7 +249,6 @@ namespace Ui
 					Tank::Input::GamepadState::BrakeButtonIndex);
 			}
 		}
-		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
 		if (ImGui::CollapsingHeader("Ground"))
 		{
 			SliderFloatWithPendingColor(
