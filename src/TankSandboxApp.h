@@ -86,7 +86,8 @@ private:
     void ActivateOrbitCamera(Engine::Scene& scene, const DirectX::XMFLOAT3& pivot);
     void ApplyActiveCameraScene();
     Engine::CameraState* ActiveCamera();
-    bool IsMouseCameraBlocked() const;
+    Engine::Scene* ActiveScene();
+    bool EnsureDebugCameraForMouse();
     bool HasInputFocus() const;
     void ClearVehicleInputState();
     void FlushD3d12DebugLog();
@@ -128,6 +129,7 @@ private:
     bool m_rollLeft = false;
     bool m_rollRight = false;
     bool m_brake = false;
+    bool m_altCameraModifier = false;
 
     // Camera
     Tank::App::CameraController m_cameraController;

@@ -23,6 +23,13 @@ namespace Ui
 
         ImGui::SetNextWindowSizeConstraints(ImVec2(260.0f, 190.0f), ImVec2(1000.0f, 1000.0f));
         ImGui::Begin("Camera");
+        int mouseMode = static_cast<int>(ctx.cameraController->GetMouseControlMode());
+        const char* mouseModes[] = { "Gameplay", "Alt Gesture", "Always Debug" };
+        if (ImGui::Combo("Mouse Control", &mouseMode, mouseModes, 3))
+        {
+            ctx.cameraController->SetMouseControlMode(
+                static_cast<Tank::App::CameraController::MouseControlMode>(mouseMode));
+        }
         ImGui::SeparatorText("Save Slot");
         for (int slot = 0; slot < 3; ++slot)
         {

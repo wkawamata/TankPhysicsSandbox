@@ -21,6 +21,13 @@ namespace Tank::App
     class CameraController
     {
     public:
+        enum class MouseControlMode
+        {
+            Gameplay,
+            AltGesture,
+            AlwaysDebug,
+        };
+
         static constexpr int kSlotCount = 4;
         static constexpr int kDebugSlot = 3;
 
@@ -31,6 +38,8 @@ namespace Tank::App
     bool IsDebugSlot() const { return m_selectedSlot == kDebugSlot; }
     void SetAutoLoad(bool enabled) { m_autoLoad = enabled; }
     bool AutoLoad() const { return m_autoLoad; }
+    MouseControlMode GetMouseControlMode() const { return m_mouseControlMode; }
+    void SetMouseControlMode(MouseControlMode mode) { m_mouseControlMode = mode; }
     const std::string& Status() const { return m_status; }
 
         bool EnsureSlotLoaded(int slot);
@@ -109,6 +118,7 @@ namespace Tank::App
     private:
         int m_selectedSlot = 0;
         bool m_autoLoad = true;
+        MouseControlMode m_mouseControlMode = MouseControlMode::AltGesture;
         std::string m_status;
 
         std::array<std::optional<Tank::Rendering::CameraSettings>, kSlotCount> m_cache;

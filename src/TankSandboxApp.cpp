@@ -411,6 +411,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     else if (key == 'Q') m_rollLeft = true;
     else if (key == 'E') m_rollRight = true;
     else if (key == VK_SHIFT) m_pivotTurnModifier = true;
+    else if (key == VK_MENU) m_altCameraModifier = true;
     else if (key == VK_SPACE) m_brake = true;
 }
 
@@ -423,14 +424,49 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
     else if (key == 'Q') m_rollLeft = false;
     else if (key == 'E') m_rollRight = false;
     else if (key == VK_SHIFT) m_pivotTurnModifier = false;
+    else if (key == VK_MENU) m_altCameraModifier = false;
     else if (key == VK_SPACE) m_brake = false;
 }
 
-bool TankSandboxApp::IsMouseCameraBlocked() const
+bool TankSandboxApp::EnsureDebugCameraForMouse()
 {
-    return m_appMode == AppMode::PhysicsTrackedVehicle
-        && m_cameraController.FollowEnabled()
-        && !m_cameraController.IsDebugSlot();
+    if (m_appMode == AppMode::TopMenu || ImGui::GetIO().WantCaptureMouse)
+    {
+        return false;
+    }
+    if (m_cameraController.IsDebugSlot())
+    {
+        return true;
+    }
+
+    const Tank::App::CameraController::MouseControlMode mouseMode =
+        m_cameraController.GetMouseControlMode();
+    if (mouseMode == Tank::App::CameraController::MouseControlMode::Gameplay ||
+        (mouseMode == Tank::App::CameraController::MouseControlMode::AltGesture &&
+            !m_altCameraModifier))
+    {
+        return false;
+    }
+
+    Engine::CameraState* camera = ActiveCamera();
+    Engine::Scene* scene = ActiveScene();
+    if (camera == nullptr || scene == nullptr)
+    {
+        return false;
+    }
+
+    m_cameraController.UpdateSlotCache(*camera);
+    const Tank::Rendering::CameraSettings debugSettings =
+        m_cameraController.CaptureSettings(*camera, false);
+    m_cameraController.SetSlotSettings(
+        Tank::App::CameraController::kDebugSlot,
+        debugSettings);
+    m_cameraController.SelectSlot(
+        Tank::App::CameraController::kDebugSlot,
+        false);
+    m_cameraController.SetFollowEnabled(false);
+    ActivateOrbitCamera(*scene, camera->gazePoint);
+    return true;
 }
 
 bool TankSandboxApp::HasInputFocus() const
@@ -456,11 +492,12 @@ void TankSandboxApp::ClearVehicleInputState()
     m_rollLeft = false;
     m_rollRight = false;
     m_brake = false;
+    m_altCameraModifier = false;
 }
 
 void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 {
-    if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
+    if (EnsureDebugCameraForMouse())
     {
         m_debugCameraController.OnMouseDown(button, x, y);
     }
@@ -468,7 +505,7 @@ void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 {
-    if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
+    if (EnsureDebugCameraForMouse())
     {
         m_debugCameraController.OnMouseUp(button, x, y);
         ApplyActiveCameraScene();
@@ -477,7 +514,7 @@ void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseMove(int x, int y)
 {
-    if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
+    if (EnsureDebugCameraForMouse())
     {
         m_debugCameraController.OnMouseMove(x, y);
         ApplyActiveCameraScene();
@@ -486,7 +523,7 @@ void TankSandboxApp::OnMouseMove(int x, int y)
 
 void TankSandboxApp::OnMouseWheel(int wheelDelta)
 {
-    if (m_appMode != AppMode::TopMenu && !IsMouseCameraBlocked())
+    if (EnsureDebugCameraForMouse())
     {
         Engine::CameraState* camera = ActiveCamera();
         if (camera != nullptr &&
@@ -1077,6 +1114,21 @@ Engine::CameraState* TankSandboxApp::ActiveCamera()
         return m_boxDropMode.ActiveCamera();
     case AppMode::PhysicsTrackedVehicle:
         return m_trackedVehicleMode.ActiveCamera();
+    case AppMode::TopMenu:
+        return nullptr;
+    }
+
+    return nullptr;
+}
+
+Engine::Scene* TankSandboxApp::ActiveScene()
+{
+    switch (m_appMode)
+    {
+    case AppMode::PhysicsBoxDrop:
+        return &m_boxDropMode.GetScene();
+    case AppMode::PhysicsTrackedVehicle:
+        return &m_trackedVehicleMode.GetScene();
     case AppMode::TopMenu:
         return nullptr;
     }

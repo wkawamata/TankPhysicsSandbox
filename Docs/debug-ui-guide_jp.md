@@ -261,6 +261,14 @@ Loadしただけでは、黄色表示される物理設定は現在の車両へ�
 
 ## 5. Cameraウィンドウ
 
+`Mouse Control`はマウス入力の用途を選択します。
+
+- `Gameplay`: 通常マウスを将来のゲーム操作用に予約
+- `Alt Gesture`: Alt＋マウスで現在構図からDebug Cameraへ移行。既定値
+- `Always Debug`: 任意のマウス操作でDebug Cameraへ移行
+
+ImGui操作中はDebug Cameraへ切り替わりません。
+
 ### Camera Slot
 
 Camera 1、2、3とDebug Cameraをメモリおよびファイルへ保存できます。
