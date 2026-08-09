@@ -46,6 +46,17 @@ RtPbrSurvey の NuGet packages が既定の
 Visual Studio で solution を開いた後、ソリューション エクスプローラーの
 `TankSandbox` を右クリックし、**スタートアップ プロジェクトに設定**を選択してください。
 
+## 起動
+
+```powershell
+.\scripts\run.bat
+```
+
+このスクリプトは作業ディレクトリをリポジトリルートへ固定し、
+`Config/renderer_debug.json` などのホスト設定を確実に読み込みます。追加のコマンドライン引数も
+そのまま渡します。実行ファイルの直接起動もサポートしますが、その場合は呼び出し側が
+目的に合う作業ディレクトリを指定してください。
+
 ## Gamepad 入力
 
 Windows のGamepad入力にはMicrosoft GameInputを使用します。左stickで前後移動、

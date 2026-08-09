@@ -59,6 +59,9 @@ The initial sandbox should support:
   - required runtime DLLs such as `dxcompiler.dll`, `dxil.dll`, and `WinPixEventRuntime.dll` when used.
 - If `D3D12CreateDevice` returns `D3D12_ERROR_INVALID_REDIST`, compare the Tank executable output folder with the working RtPbrSurvey output folder before changing adapter-selection code.
 - If `ReadDataFromFile` fails for a shader `.cso`, check shader generation/copy rules before changing renderer resource-loading code.
+- Prefer `scripts/run.bat` for local GUI verification because it selects the repository root as the working directory while forwarding command-line arguments.
+- Direct executable launches remain supported. When repository `Config` files are expected, explicitly use the repository root as the working directory. Otherwise renderer settings can fall back to defaults, disabling IBL and showing the green clear color.
+- For Visual Studio launches, preserve `VS_DEBUGGER_WORKING_DIRECTORY` as `${CMAKE_SOURCE_DIR}` in CMake.
 
 ## OpenCode Rules
 

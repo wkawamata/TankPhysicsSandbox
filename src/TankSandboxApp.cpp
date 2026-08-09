@@ -832,7 +832,9 @@ bool TankSandboxApp::LoadRendererSettings()
     std::ifstream input(kRendererSettingsPath, std::ios::binary);
     if (!input)
     {
-        m_rendererSettingsStatus = "No saved settings";
+        m_rendererSettingsStatus =
+            "No saved settings: " +
+            std::filesystem::absolute(kRendererSettingsPath).string();
         return false;
     }
 

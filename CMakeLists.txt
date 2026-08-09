@@ -158,7 +158,10 @@ target_precompile_headers(TankSandbox
         "${CMAKE_CURRENT_SOURCE_DIR}/src/stdafx.h"
 )
 
-set_target_properties(TankSandbox PROPERTIES WIN32_EXECUTABLE TRUE)
+set_target_properties(TankSandbox PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
 
 target_include_directories(TankSandbox
     PRIVATE

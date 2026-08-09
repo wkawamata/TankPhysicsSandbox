@@ -55,8 +55,14 @@ select **Set as Startup Project**.
 ## Run
 
 ```powershell
-.\build\Debug\TankSandbox.exe
+.\scripts\run.bat
 ```
+
+The recommended launcher selects the repository root as the working directory
+so that host-owned files such as `Config/renderer_debug.json` are loaded. It
+forwards additional command-line arguments. Direct executable launches remain
+supported; their caller is responsible for selecting the intended working
+directory.
 
 The D3D12 renderer version (default) launches a window with a green background and a red cube.
 The headless Jolt physics demo can be selected by adding `-Warp` and adjusting the main entry point.
