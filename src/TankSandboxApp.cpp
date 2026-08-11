@@ -164,6 +164,10 @@ void TankSandboxApp::OnInit()
     deviceDesc.bufferCount = 2;
     deviceDesc.swapChainFormat = kSwapChainFormat;
     deviceDesc.useWarpDevice = m_commandLineOptions.useWarpDevice;
+    RtPbrSurvey::SceneRendererHostDesc rendererHostDesc = {};
+    rendererHostDesc.applicationName = L"TankPhysicsSandbox";
+    rendererHostDesc.engineVersion = "1.0.0";
+    RtPbrSurvey::SceneRenderer::ConfigureGraphicsDevice(deviceDesc, rendererHostDesc);
     m_graphicsDevice.Initialize(deviceDesc);
 
     // Open debug log file and query ID3D12InfoQueue for D3D12 message capture.
