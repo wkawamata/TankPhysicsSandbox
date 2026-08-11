@@ -26,6 +26,7 @@ set(USE_FMADD ON)
 set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF)
 set(ENABLE_ALL_WARNINGS OFF)
 set(OVERRIDE_CXX_FLAGS OFF)
+set(JPH_USE_DX12 OFF CACHE BOOL "Disable Jolt's optional DX12 debug renderer." FORCE)
 add_subdirectory(External/JoltPhysics/Build External/JoltPhysics)
 
 # ── RtPbrSurvey (D3D12 renderer) ──────────────────────────────

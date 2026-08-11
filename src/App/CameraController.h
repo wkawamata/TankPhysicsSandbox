@@ -4,6 +4,7 @@
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/CameraSettings.h"
 
+#include <Camera/DebugCameraController.h>
 #include <DirectXMath.h>
 #include <array>
 #include <algorithm>
@@ -22,8 +23,9 @@ namespace Tank::App
     class CameraController
     {
     public:
-        // Match RtPbrSurvey DebugCameraController's current 1.4 rad limit.
-        static constexpr float kMaximumLookDownDegrees = 80.21409f;
+        static constexpr float kMaximumLookDownDegrees =
+            RtPbrSurvey::DebugCameraController::kObjectViewerPitchLimit *
+            180.0f / DirectX::XM_PI;
         enum class MouseControlMode
         {
             Gameplay,
