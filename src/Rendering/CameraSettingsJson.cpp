@@ -40,12 +40,14 @@ namespace Tank::Rendering
             { "version", kSchemaVersion },
             { "position", settings.position },
             { "gazePoint", settings.gazePoint },
+            { "up", settings.up },
             { "projection", settings.projection },
             { "fovDegrees", settings.fovDegrees },
             { "orthographicHeight", settings.orthographicHeight },
             { "followTank", settings.followTank },
             { "followDistance", settings.followDistance },
             { "lookDownDegrees", settings.lookDownDegrees },
+            { "followYawOffsetDegrees", settings.followYawOffsetDegrees },
             { "positionSpeed", settings.positionSpeed },
             { "rotationSpeed", settings.rotationSpeed },
             { "damping", settings.damping },
@@ -83,6 +85,7 @@ namespace Tank::Rendering
         CameraSettings loaded = settings;
         ReadVector(json, "position", loaded.position);
         ReadVector(json, "gazePoint", loaded.gazePoint);
+        ReadVector(json, "up", loaded.up);
         const auto projection = json.find("projection");
         if (projection != json.end() && projection->is_number_integer())
         {
@@ -97,6 +100,7 @@ namespace Tank::Rendering
         }
         ReadFloat(json, "followDistance", loaded.followDistance);
         ReadFloat(json, "lookDownDegrees", loaded.lookDownDegrees);
+        ReadFloat(json, "followYawOffsetDegrees", loaded.followYawOffsetDegrees);
         ReadFloat(json, "positionSpeed", loaded.positionSpeed);
         ReadFloat(json, "rotationSpeed", loaded.rotationSpeed);
         ReadFloat(json, "damping", loaded.damping);

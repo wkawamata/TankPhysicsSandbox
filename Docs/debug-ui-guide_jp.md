@@ -267,6 +267,12 @@ Loadしただけでは、黄色表示される物理設定は現在の車両へ�
 - `Alt Gesture`: Alt＋マウスで現在構図からDebug Cameraへ移行。既定値
 - `Always Debug`: 任意のマウス操作でDebug Cameraへ移行
 
+`Alt + Mouse`は現在構図からDebug Slotへ移行します。Follow TankがONなら位置追従は維持しますが、回転Chaseは解除します。Camera 1、2、3は変更しません。Debug CameraのYaw/PitchはTank Chase目標から独立します。`Alt + Ctrl`専用操作はありません。
+
+Follow Cameraの位置YawはワールドY軸で計算します。Camera UpはワールドYを視線平面へ射影して毎フレーム再生成し、Z Rollを蓄積しません。車体のPitchとRollは反映しません。PerspectiveとOrthographicの切替は、注視距離での表示高さを合わせて補間します。OrthographicからPerspectiveへはTransition開始時、PerspectiveからOrthographicへはTransition完了時に投影方式を切り替えます。
+
+Debug Orbitの水平回転はワールドY軸を使い、Camera UpをワールドY基準で再生成します。Look Down上限はRtPbrSurvey Arcballと同じ約80.214度です。戦車移動時は位置と注視点だけが追従し、背後方向へ引っ張る回転補正は行いません。
+
 ImGui操作中はDebug Cameraへ切り替わりません。
 
 ### Camera Slot
@@ -282,7 +288,7 @@ Gamepad Button 4は`1 -> 2 -> 3`、Button 7は逆方向へ切り替えます。D
 ### Follow Tank
 
 - `Follow Distance`: 戦車との距離、最大250m
-- `Look Down Angle`: 水平を0度、真上方向を90度とする見下ろし角
+- `Look Down Angle`: 水平を0度とする見下ろし角。現在の上限は約80.214度
 - `Position Speed`: 位置追従速度
 - `Rotation Speed`: 向き追従速度
 - `Yaw Speed Limit`: カメラの最大Yaw回転速度

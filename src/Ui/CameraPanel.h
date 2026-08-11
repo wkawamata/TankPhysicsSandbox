@@ -21,6 +21,11 @@ namespace Ui
         std::function<void(Engine::Scene&, const DirectX::XMFLOAT3&)> activateOrbitCamera;
         std::function<void()> saveCamera;
         std::function<void()> loadCamera;
+
+        bool telemetryWasTransitioning = false;
+        bool telemetryHasSample = false;
+        float telemetryMinimumPositionY = 0.0f;
+        float telemetryMinimumFocusDistance = 0.0f;
     };
 
     void DrawCameraPanel(CameraPanelContext& ctx);

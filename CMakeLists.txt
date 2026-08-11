@@ -160,7 +160,7 @@ target_precompile_headers(TankSandbox
 
 set_target_properties(TankSandbox PROPERTIES
     WIN32_EXECUTABLE TRUE
-    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
 target_include_directories(TankSandbox
@@ -417,6 +417,28 @@ if(BUILD_TESTING)
     add_test(
         NAME TankRendering.CameraSettingsJson
         COMMAND CameraSettingsJsonTests
+    )
+
+    add_executable(CameraControlTests
+        src/App/CameraController.cpp
+        src/App/CameraSettingsStore.cpp
+        src/Rendering/CameraSettingsJson.cpp
+        tests/CameraControlTests.cpp
+    )
+    target_include_directories(CameraControlTests PRIVATE src)
+    target_precompile_headers(CameraControlTests PRIVATE src/stdafx.h)
+    target_link_libraries(CameraControlTests
+        PRIVATE
+            TankPhysicsCore
+            RtPbrSurvey::SceneRenderer
+            nlohmann_json::nlohmann_json
+    )
+    if(MSVC)
+        target_compile_options(CameraControlTests PRIVATE /W4 /permissive)
+    endif()
+    add_test(
+        NAME TankApp.CameraControl
+        COMMAND CameraControlTests
     )
 
     add_executable(TestObstacleLayoutTests

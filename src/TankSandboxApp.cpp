@@ -432,6 +432,12 @@ bool TankSandboxApp::EnsureDebugCameraForMouse()
     {
         return false;
     }
+    const bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    Engine::CameraState* camera = ActiveCamera();
+    if (camera == nullptr)
+    {
+        return false;
+    }
     if (m_cameraController.IsDebugSlot())
     {
         return true;
@@ -441,28 +447,35 @@ bool TankSandboxApp::EnsureDebugCameraForMouse()
         m_cameraController.GetMouseControlMode();
     if (mouseMode == Tank::App::CameraController::MouseControlMode::Gameplay ||
         (mouseMode == Tank::App::CameraController::MouseControlMode::AltGesture &&
-            (GetAsyncKeyState(VK_MENU) & 0x8000) == 0))
+            !altDown))
     {
         return false;
     }
 
-    Engine::CameraState* camera = ActiveCamera();
     Engine::Scene* scene = ActiveScene();
-    if (camera == nullptr || scene == nullptr)
+    if (scene == nullptr)
     {
         return false;
     }
 
-    m_cameraController.UpdateSlotCache(*camera);
+    const bool preservePositionFollow = m_cameraController.FollowEnabled() &&
+        m_appMode == AppMode::PhysicsTrackedVehicle;
+    m_cameraController.CancelTransition();
+    if (preservePositionFollow)
+    {
+        m_cameraController.AdoptCurrentFollowPose(
+            m_trackedVehicleMode.TestState(), *camera);
+    }
     const Tank::Rendering::CameraSettings debugSettings =
-        m_cameraController.CaptureSettings(*camera, false);
+        m_cameraController.CaptureSettings(*camera, preservePositionFollow);
     m_cameraController.SetSlotSettings(
         Tank::App::CameraController::kDebugSlot,
         debugSettings);
     m_cameraController.SelectSlot(
         Tank::App::CameraController::kDebugSlot,
         false);
-    m_cameraController.SetFollowEnabled(false);
+    m_cameraController.SetTankYawChaseEnabled(!preservePositionFollow);
+    m_cameraController.SetFollowEnabled(preservePositionFollow);
     ActivateOrbitCamera(*scene, camera->gazePoint);
     return true;
 }
@@ -581,20 +594,21 @@ void TankSandboxApp::OnIdle()
             m_turnLeft, m_turnRight, m_pivotTurnModifier,
             m_rollLeft, m_rollRight, m_brake);
         m_trackedVehicleMode.Step(m_sceneRenderer, m_cameraController);
-
-        if (m_cameraController.IsDebugSlot() && m_cameraController.FollowEnabled())
+        if (m_cameraController.IsDebugSlot() &&
+            m_cameraController.FollowEnabled() &&
+            !m_cameraController.TankYawChaseEnabled())
         {
-            const Tank::Physics::TrackedVehicleTestState& state = m_trackedVehicleMode.TestState();
-            const DirectX::XMFLOAT3 pivot = {
-                state.bodyPosition.x,
-                state.bodyPosition.y + 0.5f,
-                state.bodyPosition.z };
-            m_debugCameraController.SetObjectViewerState(
-                m_debugCameraController.ObjectViewerYaw(),
-                m_debugCameraController.ObjectViewerPitch(),
-                m_debugCameraController.ObjectViewerDistance(),
-                pivot);
+            if (Engine::CameraState* camera = ActiveCamera())
+            {
+                m_debugCameraController.SetObjectViewerState(
+                    m_debugCameraController.ObjectViewerYaw(),
+                    m_debugCameraController.ObjectViewerPitch(),
+                    m_debugCameraController.ObjectViewerDistance(),
+                    camera->gazePoint);
+                ApplyActiveCameraScene();
+            }
         }
+
     }
     if (Engine::CameraState* camera = ActiveCamera())
     {
@@ -915,6 +929,8 @@ bool TankSandboxApp::LoadCameraSettings()
     {
         return false;
     }
+    m_cameraController.SetTankYawChaseEnabled(
+        !m_cameraController.IsDebugSlot());
     m_cameraController.ApplySettings(*cached, true, *camera);
     return true;
 }
@@ -1101,6 +1117,10 @@ void TankSandboxApp::ApplyActiveCameraScene()
 {
     if (Engine::CameraState* camera = ActiveCamera())
     {
+        if (m_cameraController.IsDebugSlot())
+        {
+            Tank::App::CameraController::StabilizeWorldUp(*camera);
+        }
         m_sceneRenderer.SetCamera(*camera);
     }
 }

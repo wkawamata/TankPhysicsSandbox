@@ -1,6 +1,7 @@
 #include "CameraController.h"
 
 #include <Engine/RtPbrSurveyEngine.h>
+#include <Scene/CameraProjection.h>
 #include <Scene/Scene.h>
 
 #include <DirectXMath.h>
@@ -21,6 +22,23 @@ namespace Tank::App
         m_cache.fill(std::nullopt);
     }
 
+    void CameraController::StabilizeWorldUp(Engine::CameraState& camera)
+    {
+        using namespace DirectX;
+
+        const XMVECTOR position = XMLoadFloat3(&camera.pos);
+        const XMVECTOR gaze = XMLoadFloat3(&camera.gazePoint);
+        const XMVECTOR forward = XMVector3Normalize(gaze - position);
+        const XMVECTOR worldY = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+        XMVECTOR up = worldY -
+            forward * XMVectorGetX(XMVector3Dot(worldY, forward));
+        if (XMVectorGetX(XMVector3LengthSq(up)) < 1.0e-6f)
+        {
+            up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+        }
+        XMStoreFloat3(&camera.up, XMVector3Normalize(up));
+    }
+
     Tank::Rendering::CameraSettings CameraController::CaptureSettings(
         const Engine::CameraState& camera, bool followTank) const
     {
@@ -31,12 +49,16 @@ namespace Tank::App
         settings.gazePoint[0] = camera.gazePoint.x;
         settings.gazePoint[1] = camera.gazePoint.y;
         settings.gazePoint[2] = camera.gazePoint.z;
+        settings.up[0] = camera.up.x;
+        settings.up[1] = camera.up.y;
+        settings.up[2] = camera.up.z;
         settings.projection = static_cast<int>(camera.projection);
         settings.fovDegrees = camera.fov;
         settings.orthographicHeight = camera.orthographicHeight;
         settings.followTank = followTank;
         settings.followDistance = m_followDistance;
         settings.lookDownDegrees = m_lookDownDegrees;
+        settings.followYawOffsetDegrees = m_followYawOffsetDegrees;
         settings.positionSpeed = m_positionSpeed;
         settings.rotationSpeed = m_rotationSpeed;
         settings.damping = m_damping;
@@ -53,15 +75,30 @@ namespace Tank::App
         {
             const DirectX::XMFLOAT3 currentPosition = camera.pos;
             const DirectX::XMFLOAT3 currentGazePoint = camera.gazePoint;
-            const float currentFov = camera.fov;
+            const DirectX::XMFLOAT3 currentUp = camera.up;
+            m_projectionTransitionStart = CaptureSettings(camera, m_followTank);
+            m_projectionTransitionTarget = settings;
             ApplySettings(settings, false, camera);
             camera.pos = currentPosition;
             camera.gazePoint = currentGazePoint;
-            camera.fov = currentFov;
-            m_fovTarget = std::clamp(settings.fovDegrees, 20.0f, 120.0f);
+            camera.up = currentUp;
+            camera.projection = static_cast<Engine::CameraProjection>(
+                m_projectionTransitionStart.projection);
+            camera.fov = m_projectionTransitionStart.fovDegrees;
+            camera.orthographicHeight =
+                m_projectionTransitionStart.orthographicHeight;
+            if (m_projectionTransitionStart.projection ==
+                    static_cast<int>(Engine::CameraProjection::Orthographic) &&
+                m_projectionTransitionTarget.projection ==
+                    static_cast<int>(Engine::CameraProjection::Perspective))
+            {
+                camera.projection = Engine::CameraProjection::Perspective;
+            }
+            m_projectionTransitionTime = 0.0f;
+            m_projectionTransitionActive = true;
+            m_fovTarget = std::clamp(settings.fovDegrees, 0.1f, 179.0f);
             m_fovVelocity = 0.0f;
-            m_fovSpringActive =
-                std::abs(camera.fov - m_fovTarget) > 0.001f;
+            m_fovSpringActive = false;
             m_transitionActive = false;
             return;
         }
@@ -72,6 +109,13 @@ namespace Tank::App
             m_transitionTime = 0.0f;
             m_transitionActive = true;
             m_followTank = false;
+            if (m_transitionStart.projection ==
+                    static_cast<int>(Engine::CameraProjection::Orthographic) &&
+                m_transitionTarget.projection ==
+                    static_cast<int>(Engine::CameraProjection::Perspective))
+            {
+                camera.projection = Engine::CameraProjection::Perspective;
+            }
             return;
         }
 
@@ -83,11 +127,15 @@ namespace Tank::App
             settings.gazePoint[0],
             settings.gazePoint[1],
             settings.gazePoint[2] };
+        camera.up = {
+            settings.up[0],
+            settings.up[1],
+            settings.up[2] };
         camera.projection =
             settings.projection == static_cast<int>(Engine::CameraProjection::Orthographic)
             ? Engine::CameraProjection::Orthographic
             : Engine::CameraProjection::Perspective;
-        camera.fov = std::clamp(settings.fovDegrees, 20.0f, 120.0f);
+        camera.fov = std::clamp(settings.fovDegrees, 0.1f, 179.0f);
         m_fovTarget = camera.fov;
         m_fovVelocity = 0.0f;
         m_fovSpringActive = false;
@@ -95,7 +143,10 @@ namespace Tank::App
             std::clamp(settings.orthographicHeight, 1.0f, 50.0f);
         m_followTank = settings.followTank;
         m_followDistance = std::clamp(settings.followDistance, 4.0f, 250.0f);
-        m_lookDownDegrees = std::clamp(settings.lookDownDegrees, 0.0f, 89.0f);
+        m_lookDownDegrees = std::clamp(
+            settings.lookDownDegrees, 0.0f, kMaximumLookDownDegrees);
+        m_followYawOffsetDegrees = std::clamp(
+            settings.followYawOffsetDegrees, -180.0f, 180.0f);
         m_positionSpeed = std::clamp(settings.positionSpeed, 0.5f, 20.0f);
         m_rotationSpeed = std::clamp(settings.rotationSpeed, 0.5f, 20.0f);
         m_damping = std::clamp(settings.damping, 0.1f, 2.0f);
@@ -136,6 +187,8 @@ namespace Tank::App
             // Re-cache handled by UpdateSlotCache in App
         }
         m_selectedSlot = std::clamp(slot, 0, 3);
+        m_tankYawChaseEnabled = m_selectedSlot != kDebugSlot;
+        m_followPivotInitialized = false;
         if (load)
         {
             return EnsureSlotLoaded(m_selectedSlot);
@@ -155,7 +208,7 @@ namespace Tank::App
 
     void CameraController::UpdateSlotCache(const Engine::CameraState& camera)
     {
-        if (m_transitionActive)
+        if (IsTransitioning())
         {
             return;
         }
@@ -187,6 +240,63 @@ namespace Tank::App
 
     void CameraController::UpdateTransition(float dt, Engine::CameraState& camera)
     {
+        if (m_projectionTransitionActive)
+        {
+            m_projectionTransitionTime += std::max(dt, 0.0f);
+            const float normalizedTime = std::clamp(
+                m_projectionTransitionTime / m_transitionDuration, 0.0f, 1.0f);
+            const float t = normalizedTime * normalizedTime *
+                (3.0f - 2.0f * normalizedTime);
+            const auto focusDistance = [](const Tank::Rendering::CameraSettings& settings)
+            {
+                const float dx = settings.position[0] - settings.gazePoint[0];
+                const float dy = settings.position[1] - settings.gazePoint[1];
+                const float dz = settings.position[2] - settings.gazePoint[2];
+                return std::max(std::sqrt(dx * dx + dy * dy + dz * dz), 0.001f);
+            };
+            const auto viewHeight = [&focusDistance](
+                const Tank::Rendering::CameraSettings& settings)
+            {
+                if (settings.projection ==
+                    static_cast<int>(Engine::CameraProjection::Orthographic))
+                {
+                    return std::max(settings.orthographicHeight, 0.001f);
+                }
+                return 2.0f * focusDistance(settings) * std::tan(
+                    DirectX::XMConvertToRadians(
+                        std::clamp(settings.fovDegrees, 0.1f, 179.0f)) * 0.5f);
+            };
+            const float dx = camera.pos.x - camera.gazePoint.x;
+            const float dy = camera.pos.y - camera.gazePoint.y;
+            const float dz = camera.pos.z - camera.gazePoint.z;
+            const float currentDistance = std::max(
+                std::sqrt(dx * dx + dy * dy + dz * dz), 0.001f);
+            const float interpolatedHeight = std::lerp(
+                viewHeight(m_projectionTransitionStart),
+                viewHeight(m_projectionTransitionTarget), t);
+            camera.orthographicHeight = interpolatedHeight;
+            camera.fov = Engine::MatchPerspectiveToOrthographic(
+                interpolatedHeight, currentDistance);
+            const bool transitionsToOrthographic =
+                m_projectionTransitionStart.projection ==
+                    static_cast<int>(Engine::CameraProjection::Perspective) &&
+                m_projectionTransitionTarget.projection ==
+                    static_cast<int>(Engine::CameraProjection::Orthographic);
+            camera.projection = transitionsToOrthographic
+                ? Engine::CameraProjection::Perspective
+                : static_cast<Engine::CameraProjection>(
+                    m_projectionTransitionTarget.projection);
+            if (normalizedTime >= 1.0f)
+            {
+                camera.projection = static_cast<Engine::CameraProjection>(
+                    m_projectionTransitionTarget.projection);
+                camera.fov = m_projectionTransitionTarget.fovDegrees;
+                camera.orthographicHeight =
+                    m_projectionTransitionTarget.orthographicHeight;
+                m_projectionTransitionActive = false;
+            }
+        }
+
         if (!m_transitionActive)
         {
             return;
@@ -204,21 +314,61 @@ namespace Tank::App
             blended.gazePoint[axis] = std::lerp(
                 m_transitionStart.gazePoint[axis],
                 m_transitionTarget.gazePoint[axis], t);
+            blended.up[axis] = std::lerp(
+                m_transitionStart.up[axis],
+                m_transitionTarget.up[axis], t);
         }
-        blended.fovDegrees = std::lerp(
-            m_transitionStart.fovDegrees, m_transitionTarget.fovDegrees, t);
-        blended.orthographicHeight = std::lerp(
-            m_transitionStart.orthographicHeight,
-            m_transitionTarget.orthographicHeight, t);
+        const float upLength = std::sqrt(
+            blended.up[0] * blended.up[0] +
+            blended.up[1] * blended.up[1] +
+            blended.up[2] * blended.up[2]);
+        if (upLength > 0.0001f)
+        {
+            for (float& component : blended.up)
+            {
+                component /= upLength;
+            }
+        }
+        const auto focusDistance = [](const Tank::Rendering::CameraSettings& settings)
+        {
+            const float dx = settings.position[0] - settings.gazePoint[0];
+            const float dy = settings.position[1] - settings.gazePoint[1];
+            const float dz = settings.position[2] - settings.gazePoint[2];
+            return std::max(std::sqrt(dx * dx + dy * dy + dz * dz), 0.001f);
+        };
+        const auto viewHeight = [&focusDistance](const Tank::Rendering::CameraSettings& settings)
+        {
+            if (settings.projection == static_cast<int>(Engine::CameraProjection::Orthographic))
+            {
+                return std::max(settings.orthographicHeight, 0.001f);
+            }
+            return 2.0f * focusDistance(settings) * std::tan(
+                DirectX::XMConvertToRadians(
+                    std::clamp(settings.fovDegrees, 0.1f, 179.0f)) * 0.5f);
+        };
+        const float interpolatedHeight = std::lerp(
+            viewHeight(m_transitionStart), viewHeight(m_transitionTarget), t);
+        const float currentDistance = focusDistance(blended);
+        blended.orthographicHeight = interpolatedHeight;
+        blended.fovDegrees = Engine::MatchPerspectiveToOrthographic(
+            interpolatedHeight, currentDistance);
         blended.followDistance = std::lerp(
             m_transitionStart.followDistance,
             m_transitionTarget.followDistance, t);
         blended.lookDownDegrees = std::lerp(
             m_transitionStart.lookDownDegrees,
             m_transitionTarget.lookDownDegrees, t);
+        blended.followYawOffsetDegrees = std::lerp(
+            m_transitionStart.followYawOffsetDegrees,
+            m_transitionTarget.followYawOffsetDegrees, t);
         blended.followTank = false;
-        blended.projection = normalizedTime < 0.5f
-            ? m_transitionStart.projection
+        const bool transitionsToOrthographic =
+            m_transitionStart.projection ==
+                static_cast<int>(Engine::CameraProjection::Perspective) &&
+            m_transitionTarget.projection ==
+                static_cast<int>(Engine::CameraProjection::Orthographic);
+        blended.projection = transitionsToOrthographic
+            ? static_cast<int>(Engine::CameraProjection::Perspective)
             : m_transitionTarget.projection;
         ApplySettings(blended, false, camera);
         if (normalizedTime >= 1.0f)
@@ -235,6 +385,81 @@ namespace Tank::App
         m_fovSpringActive = false;
         m_yawVelocity = 0.0f;
         m_orbitInitialized = false;
+        m_followPivotInitialized = false;
+    }
+
+    void CameraController::OnTankTeleported(
+        const Tank::Physics::TrackedVehicleTestState& previousState,
+        const Tank::Physics::TrackedVehicleTestState& currentState,
+        Engine::CameraState& camera)
+    {
+        ResetFollowState();
+        if (!m_followTank || m_tankYawChaseEnabled)
+        {
+            return;
+        }
+
+        const DirectX::XMFLOAT3 delta = {
+            currentState.bodyPosition.x - previousState.bodyPosition.x,
+            currentState.bodyPosition.y - previousState.bodyPosition.y,
+            currentState.bodyPosition.z - previousState.bodyPosition.z,
+        };
+        camera.pos.x += delta.x;
+        camera.pos.y += delta.y;
+        camera.pos.z += delta.z;
+        camera.gazePoint.x += delta.x;
+        camera.gazePoint.y += delta.y;
+        camera.gazePoint.z += delta.z;
+        m_lastFollowPivot = {
+            currentState.bodyPosition.x,
+            currentState.bodyPosition.y + 0.5f,
+            currentState.bodyPosition.z,
+        };
+        m_followPivotInitialized = true;
+    }
+
+    void CameraController::AdoptCurrentFollowPose(
+        const Tank::Physics::TrackedVehicleTestState& state,
+        Engine::CameraState& camera)
+    {
+        using namespace DirectX;
+
+        const XMVECTOR bodyRotation = XMQuaternionNormalize(XMVectorSet(
+            state.bodyRotation.x,
+            state.bodyRotation.y,
+            state.bodyRotation.z,
+            state.bodyRotation.w));
+        const XMVECTOR forward = XMVector3Normalize(
+            XMVector3Rotate(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), bodyRotation));
+        const XMVECTOR pivot = XMVectorSet(
+            state.bodyPosition.x,
+            state.bodyPosition.y + 0.5f,
+            state.bodyPosition.z,
+            1.0f);
+        const XMVECTOR offset = XMLoadFloat3(&camera.pos) - pivot;
+
+        XMFLOAT3 offsetVector = {};
+        XMFLOAT3 forwardVector = {};
+        XMStoreFloat3(&offsetVector, offset);
+        XMStoreFloat3(&forwardVector, forward);
+
+        const float distance = std::max(XMVectorGetX(XMVector3Length(offset)), 0.001f);
+        const float cameraYaw = std::atan2(offsetVector.x, offsetVector.z);
+        const float rearYaw = std::atan2(-forwardVector.x, -forwardVector.z);
+        const float yawOffset = std::remainder(cameraYaw - rearYaw, XM_2PI);
+
+        m_followDistance = std::clamp(distance, 4.0f, 250.0f);
+        m_lookDownDegrees = std::clamp(
+            XMConvertToDegrees(std::asin(std::clamp(offsetVector.y / distance, -1.0f, 1.0f))),
+            0.0f,
+            kMaximumLookDownDegrees);
+        m_followYawOffsetDegrees = std::clamp(
+            XMConvertToDegrees(yawOffset), -180.0f, 180.0f);
+        m_orbitYaw = cameraYaw;
+        m_yawVelocity = 0.0f;
+        m_followVelocity = {};
+        m_orbitInitialized = true;
+        XMStoreFloat3(&camera.gazePoint, pivot);
     }
 
     void CameraController::UpdateFollowCamera(
@@ -260,6 +485,29 @@ namespace Tank::App
             state.bodyPosition.y + 0.5f,
             state.bodyPosition.z,
             1.0f);
+        XMFLOAT3 pivotPosition = {};
+        XMStoreFloat3(&pivotPosition, pivot);
+        if (!m_tankYawChaseEnabled)
+        {
+            if (m_followPivotInitialized)
+            {
+                const XMVECTOR pivotDelta =
+                    pivot - XMLoadFloat3(&m_lastFollowPivot);
+                XMStoreFloat3(
+                    &camera.pos,
+                    XMLoadFloat3(&camera.pos) + pivotDelta);
+                XMStoreFloat3(
+                    &camera.gazePoint,
+                    XMLoadFloat3(&camera.gazePoint) + pivotDelta);
+            }
+            m_lastFollowPivot = pivotPosition;
+            m_followPivotInitialized = true;
+            m_followVelocity = {};
+            m_yawVelocity = 0.0f;
+            return;
+        }
+        m_lastFollowPivot = pivotPosition;
+        m_followPivotInitialized = true;
         XMVECTOR position = XMLoadFloat3(&camera.pos);
         XMVECTOR velocity = XMLoadFloat3(&m_followVelocity);
         const float positionSpeed = std::clamp(m_positionSpeed, 0.5f, 20.0f);
@@ -271,11 +519,11 @@ namespace Tank::App
         DirectX::XMFLOAT3 forwardVector = {};
         XMStoreFloat3(&forwardVector, forward);
         const float desiredRearYaw =
-            std::atan2(-forwardVector.x, -forwardVector.z);
+            std::atan2(-forwardVector.x, -forwardVector.z) +
+            XMConvertToRadians(std::clamp(
+                m_followYawOffsetDegrees, -180.0f, 180.0f));
         if (!m_orbitInitialized)
         {
-            XMFLOAT3 pivotPosition = {};
-            XMStoreFloat3(&pivotPosition, pivot);
             m_orbitYaw = std::atan2(
                 camera.pos.x - pivotPosition.x,
                 camera.pos.z - pivotPosition.z);
@@ -303,7 +551,8 @@ namespace Tank::App
             m_orbitYaw += yawStep;
         }
         const float lookDownRadians =
-            XMConvertToRadians(std::clamp(m_lookDownDegrees, 0.0f, 89.0f));
+            XMConvertToRadians(std::clamp(
+                m_lookDownDegrees, 0.0f, kMaximumLookDownDegrees));
         const float horizontalDistance =
             std::cos(lookDownRadians) * m_followDistance;
         const float verticalDistance =
@@ -339,6 +588,7 @@ namespace Tank::App
         const XMVECTOR currentGaze = XMLoadFloat3(&camera.gazePoint);
         XMStoreFloat3(&camera.gazePoint,
             XMVectorLerp(currentGaze, desiredGaze, rotationAlpha));
+        StabilizeWorldUp(camera);
     }
 
     void CameraController::ApplyCameraPreset(

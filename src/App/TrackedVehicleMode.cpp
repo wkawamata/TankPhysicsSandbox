@@ -237,13 +237,10 @@ void TrackedVehicleMode::Step(
 
     if (Engine::CameraState* camera = ActiveCamera())
     {
-        if (!cameraController.IsDebugSlot())
-        {
-            cameraController.UpdateFollowCamera(
-                m_test.State(),
-                kPhysicsFixedDt,
-                *camera);
-        }
+        cameraController.UpdateFollowCamera(
+            m_test.State(),
+            kPhysicsFixedDt,
+            *camera);
     }
 }
 
@@ -251,6 +248,8 @@ void TrackedVehicleMode::Reset(
     RtPbrSurvey::SceneRenderer& renderer,
     Tank::App::CameraController& cameraController)
 {
+    const Tank::Physics::TrackedVehicleTestState previousState = m_test.State();
+    Engine::CameraState* camera = ActiveCamera();
     const std::vector<Tank::Physics::MapPrimitive> mapPrimitives = m_customMap ?
         m_customMap->primitives :
         Tank::Physics::BuildMapPrimitives(
@@ -265,7 +264,14 @@ void TrackedVehicleMode::Reset(
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_singleStep = false;
     m_analogTracksArmed = false;
-    cameraController.ResetFollowState();
+    if (camera != nullptr)
+    {
+        cameraController.OnTankTeleported(previousState, m_test.State(), *camera);
+    }
+    else
+    {
+        cameraController.ResetFollowState();
+    }
     UpdateSceneInternal(renderer);
     renderer.SetScene(m_presenter.GetScene());
 }

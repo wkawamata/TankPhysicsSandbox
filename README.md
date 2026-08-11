@@ -58,8 +58,8 @@ select **Set as Startup Project**.
 .\scripts\run.bat
 ```
 
-The recommended launcher selects the repository root as the working directory
-so that host-owned files such as `Config/renderer_debug.json` are loaded. It
+The recommended launcher selects the CMake build directory as the working directory
+so that host-owned files such as `build/Config/renderer_debug.json` are loaded. It
 forwards additional command-line arguments. Direct executable launches remain
 supported; their caller is responsible for selecting the intended working
 directory.

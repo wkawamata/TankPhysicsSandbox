@@ -6,6 +6,7 @@
 
 #include <DirectXMath.h>
 #include <array>
+#include <algorithm>
 #include <optional>
 #include <string>
 
@@ -21,6 +22,8 @@ namespace Tank::App
     class CameraController
     {
     public:
+        // Match RtPbrSurvey DebugCameraController's current 1.4 rad limit.
+        static constexpr float kMaximumLookDownDegrees = 80.21409f;
         enum class MouseControlMode
         {
             Gameplay,
@@ -32,6 +35,8 @@ namespace Tank::App
         static constexpr int kDebugSlot = 3;
 
         CameraController();
+
+        static void StabilizeWorldUp(Engine::CameraState& camera);
 
     // Slot management.
     int SelectedSlot() const { return m_selectedSlot; }
@@ -58,15 +63,34 @@ namespace Tank::App
 
         // Transition.
         void UpdateTransition(float dt, Engine::CameraState& camera);
-        bool IsTransitioning() const { return m_transitionActive; }
+        void CancelTransition()
+        {
+            m_transitionActive = false;
+            m_projectionTransitionActive = false;
+        }
+        bool IsTransitioning() const
+        {
+            return m_transitionActive || m_projectionTransitionActive;
+        }
 
         // Follow camera.
         bool FollowEnabled() const { return m_followTank; }
         void SetFollowEnabled(bool enabled) { m_followTank = enabled; }
+        bool TankYawChaseEnabled() const { return m_tankYawChaseEnabled; }
+        void SetTankYawChaseEnabled(bool enabled)
+        {
+            m_tankYawChaseEnabled = enabled;
+            m_followPivotInitialized = false;
+        }
         float FollowDistance() const { return m_followDistance; }
         void SetFollowDistance(float d) { m_followDistance = d; }
         float LookDownDegrees() const { return m_lookDownDegrees; }
-        void SetLookDownDegrees(float d) { m_lookDownDegrees = d; }
+        void SetLookDownDegrees(float d)
+        {
+            m_lookDownDegrees = std::clamp(d, 0.0f, kMaximumLookDownDegrees);
+        }
+        float FollowYawOffsetDegrees() const { return m_followYawOffsetDegrees; }
+        void SetFollowYawOffsetDegrees(float d) { m_followYawOffsetDegrees = d; }
         float PositionSpeed() const { return m_positionSpeed; }
         void SetPositionSpeed(float s) { m_positionSpeed = s; }
         float RotationSpeed() const { return m_rotationSpeed; }
@@ -79,6 +103,13 @@ namespace Tank::App
         void SetYawDamping(float d) { m_yawDamping = d; }
 
         void ResetFollowState();
+        void OnTankTeleported(
+            const Tank::Physics::TrackedVehicleTestState& previousState,
+            const Tank::Physics::TrackedVehicleTestState& currentState,
+            Engine::CameraState& camera);
+        void AdoptCurrentFollowPose(
+            const Tank::Physics::TrackedVehicleTestState& state,
+            Engine::CameraState& camera);
         void UpdateFollowCamera(
             const Tank::Physics::TrackedVehicleTestState& state,
             float dt, Engine::CameraState& camera);
@@ -126,8 +157,10 @@ namespace Tank::App
         std::array<bool, kSlotCount> m_fileLoaded;
 
         bool m_followTank = false;
+        bool m_tankYawChaseEnabled = true;
         float m_followDistance = 16.0f;
         float m_lookDownDegrees = 25.0f;
+        float m_followYawOffsetDegrees = 0.0f;
         float m_positionSpeed = 5.0f;
         float m_rotationSpeed = 8.0f;
         float m_damping = 1.0f;
@@ -141,12 +174,18 @@ namespace Tank::App
         float m_orbitYaw = 0.0f;
         float m_yawVelocity = 0.0f;
         bool m_orbitInitialized = false;
+        DirectX::XMFLOAT3 m_lastFollowPivot = {};
+        bool m_followPivotInitialized = false;
 
         bool m_transitionActive = false;
         float m_transitionTime = 0.0f;
         float m_transitionDuration = 0.75f;
         Tank::Rendering::CameraSettings m_transitionStart = {};
         Tank::Rendering::CameraSettings m_transitionTarget = {};
+        bool m_projectionTransitionActive = false;
+        float m_projectionTransitionTime = 0.0f;
+        Tank::Rendering::CameraSettings m_projectionTransitionStart = {};
+        Tank::Rendering::CameraSettings m_projectionTransitionTarget = {};
 
         bool m_button4WasPressed = false;
         bool m_button7WasPressed = false;

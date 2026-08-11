@@ -83,6 +83,72 @@ namespace Ui
         {
             ImGui::TextWrapped("%s", ctx.cameraController->Status().c_str());
         }
+
+        const float focusDx = ctx.camera->pos.x - ctx.camera->gazePoint.x;
+        const float focusDy = ctx.camera->pos.y - ctx.camera->gazePoint.y;
+        const float focusDz = ctx.camera->pos.z - ctx.camera->gazePoint.z;
+        const float focusDistance = std::sqrt(
+            focusDx * focusDx + focusDy * focusDy + focusDz * focusDz);
+        const bool transitioning = ctx.cameraController->IsTransitioning();
+        if (transitioning && !ctx.telemetryWasTransitioning)
+        {
+            ctx.telemetryMinimumPositionY = ctx.camera->pos.y;
+            ctx.telemetryMinimumFocusDistance = focusDistance;
+            ctx.telemetryHasSample = true;
+        }
+        else if (transitioning && ctx.telemetryHasSample)
+        {
+            ctx.telemetryMinimumPositionY =
+                std::min(ctx.telemetryMinimumPositionY, ctx.camera->pos.y);
+            ctx.telemetryMinimumFocusDistance =
+                std::min(ctx.telemetryMinimumFocusDistance, focusDistance);
+        }
+        ctx.telemetryWasTransitioning = transitioning;
+
+        if (ImGui::CollapsingHeader(
+                "Transition Telemetry", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::Text("Transition: %s", transitioning ? "Active" : "Idle");
+            ImGui::Text(
+                "Position: %.3f, %.3f, %.3f",
+                ctx.camera->pos.x, ctx.camera->pos.y, ctx.camera->pos.z);
+            ImGui::Text(
+                "Gaze: %.3f, %.3f, %.3f",
+                ctx.camera->gazePoint.x,
+                ctx.camera->gazePoint.y,
+                ctx.camera->gazePoint.z);
+            ImGui::Text("Focus Distance: %.3f m", focusDistance);
+            if (ctx.telemetryHasSample)
+            {
+                ImGui::Text(
+                    "Transition Min Position Y: %.3f m",
+                    ctx.telemetryMinimumPositionY);
+                ImGui::Text(
+                    "Transition Min Focus Distance: %.3f m",
+                    ctx.telemetryMinimumFocusDistance);
+            }
+            else
+            {
+                ImGui::TextDisabled("Transition minimums: no sample");
+            }
+            ImGui::Text("Near / Far: %.4f / %.1f m", ctx.camera->nearZ, ctx.camera->farZ);
+            if (ctx.camera->projection == Engine::CameraProjection::Orthographic)
+            {
+                ImGui::Text("Projection: Orthographic");
+                ImGui::Text("Ortho Height: %.3f m", ctx.camera->orthographicHeight);
+            }
+            else
+            {
+                ImGui::Text("Projection: Perspective");
+                ImGui::Text("FOV Y: %.3f deg", ctx.camera->fov);
+            }
+            if (ImGui::Button("Reset Telemetry"))
+            {
+                ctx.telemetryHasSample = false;
+                ctx.telemetryMinimumPositionY = 0.0f;
+                ctx.telemetryMinimumFocusDistance = 0.0f;
+            }
+        }
         if (ctx.trackedVehicleActive)
         {
             bool follow = ctx.cameraController->FollowEnabled();
@@ -116,9 +182,19 @@ namespace Ui
             {
                 float val = ctx.cameraController->LookDownDegrees();
                 if (ImGuiWidgets::SliderFloatWithControls(
-                    "Look Down Angle", &val, 0.0f, 89.0f, 1.0f, 25.0f, "%.1f deg"))
+                    "Look Down Angle", &val, 0.0f,
+                    Tank::App::CameraController::kMaximumLookDownDegrees,
+                    1.0f, 25.0f, "%.1f deg"))
                 {
                     ctx.cameraController->SetLookDownDegrees(val);
+                }
+            }
+            {
+                float val = ctx.cameraController->FollowYawOffsetDegrees();
+                if (ImGuiWidgets::SliderFloatWithControls(
+                    "Follow Yaw Offset", &val, -180.0f, 180.0f, 1.0f, 0.0f, "%.1f deg"))
+                {
+                    ctx.cameraController->SetFollowYawOffsetDegrees(val);
                 }
             }
             {
@@ -232,8 +308,8 @@ namespace Ui
 
         if (ctx.camera->projection == Engine::CameraProjection::Perspective)
         {
-            const bool fovChanged =
-                ImGui::SliderFloat("FOV Y", &ctx.camera->fov, 20.0f, 120.0f, "%.1f deg");
+            const bool fovChanged = ImGuiWidgets::SliderFloatWithControls(
+                "FOV Y", &ctx.camera->fov, 0.1f, 120.0f, 0.1f, 45.0f, "%.1f deg");
             changed |= fovChanged;
             if (fovChanged)
             {
@@ -242,8 +318,9 @@ namespace Ui
         }
         else
         {
-            changed |= ImGui::SliderFloat(
-                "Ortho Height", &ctx.camera->orthographicHeight, 1.0f, 50.0f, "%.1f");
+            changed |= ImGuiWidgets::SliderFloatWithControls(
+                "Ortho Height", &ctx.camera->orthographicHeight,
+                1.0f, 1000.0f, 1.0f, 10.0f, "%.1f m");
         }
 
         if (changed && ctx.setCamera)
