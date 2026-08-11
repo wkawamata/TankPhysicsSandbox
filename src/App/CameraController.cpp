@@ -275,7 +275,7 @@ namespace Tank::App
                 viewHeight(m_projectionTransitionStart),
                 viewHeight(m_projectionTransitionTarget), t);
             camera.orthographicHeight = interpolatedHeight;
-            camera.fov = Engine::MatchPerspectiveToOrthographic(
+            camera.fov = Engine::PerspectiveFovYFromOrthographicHeight(
                 interpolatedHeight, currentDistance);
             const bool transitionsToOrthographic =
                 m_projectionTransitionStart.projection ==
@@ -350,7 +350,7 @@ namespace Tank::App
             viewHeight(m_transitionStart), viewHeight(m_transitionTarget), t);
         const float currentDistance = focusDistance(blended);
         blended.orthographicHeight = interpolatedHeight;
-        blended.fovDegrees = Engine::MatchPerspectiveToOrthographic(
+        blended.fovDegrees = Engine::PerspectiveFovYFromOrthographicHeight(
             interpolatedHeight, currentDistance);
         blended.followDistance = std::lerp(
             m_transitionStart.followDistance,

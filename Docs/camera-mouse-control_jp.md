@@ -54,7 +54,7 @@ Follow ON中はCameraControllerがCamera Stateを所有する。DebugCameraContr
 
 Follow Cameraの位置Yawは常に戦車位置を通るワールドY軸で計算する。Camera Upも前フレームのローカル軸を蓄積せず、ワールドYを視線平面へ射影して各フレームで再生成する。車体のPitchやRollはCamera Upへ反映しない。
 
-Debug Orbitでは戦車Pivotの並進差分だけをCamera Positionと注視点へ反映し、Tank ChaseのYaw更新は行わない。Camera UpはArcball操作後にワールドY基準で再生成する。Look Down上限はRtPbrSurvey Arcballと同じ`1.4 rad`、約80.214度とする。
+Debug Orbitでは戦車Pivotの並進差分だけをCamera Positionと注視点へ反映し、Tank ChaseのYaw更新は行わない。Camera UpはArcball操作後にワールドY基準で再生成する。Look Down上限はRtPbrSurvey Arcballの公開定数と同じ88度とする。
 
 PerspectiveとOrthographicの切替では、FOVとOrtho Heightを独立に補間しない。注視距離における表示高さへ変換して補間し、各フレームでPerspective FOVとOrtho Heightの両方へ戻す。
 
