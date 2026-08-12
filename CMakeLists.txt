@@ -340,6 +340,21 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.MobilityEvaluationSuite
+        COMMAND TankPhysicsCli
+            --test mobility-suite
+            --map "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps/mobility_course.json"
+            --tank-settings-directory "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/mobility"
+            --settle-steps 180
+            --steps 480
+            --dt 0.0166667
+            --throttle 1
+    )
+    set_tests_properties(TankPhysics.MobilityEvaluationSuite PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS mobility-suite count=2"
+    )
+
+    add_test(
         NAME TankPhysics.AllMapFilesCli
         COMMAND TankPhysicsCli
             --test maps
