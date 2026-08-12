@@ -9,6 +9,7 @@
 #include "imgui_stdlib.h"
 #include <ImGuiWidgets.h>
 
+#include <filesystem>
 #include <string>
 
 namespace Ui
@@ -907,6 +908,13 @@ namespace Ui
         if (ctx.tankModelExportPath)
         {
             ImGui::InputText("Export Path", ctx.tankModelExportPath);
+            std::filesystem::path resolvedPath(*ctx.tankModelExportPath);
+            resolvedPath.replace_extension(
+                ctx.tankModelExportBinary && *ctx.tankModelExportBinary
+                    ? ".glb"
+                    : ".gltf");
+            resolvedPath = std::filesystem::absolute(resolvedPath).lexically_normal();
+            ImGui::TextWrapped("Resolved: %s", resolvedPath.string().c_str());
         }
 		if (ImGui::Button("Export Tank glTF"))
 		{

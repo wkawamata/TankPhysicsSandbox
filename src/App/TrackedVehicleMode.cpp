@@ -438,6 +438,7 @@ bool TrackedVehicleMode::ExportTankModel()
     }
     std::filesystem::path exportPath(m_tankModelExportPath);
     exportPath.replace_extension(m_tankModelExportBinary ? ".glb" : ".gltf");
+    exportPath = std::filesystem::absolute(exportPath).lexically_normal();
     return Tank::Rendering::ExportTankGltf(
         m_presenter.GetScene(),
         parts,

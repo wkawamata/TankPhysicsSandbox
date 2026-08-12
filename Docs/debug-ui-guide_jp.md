@@ -237,8 +237,12 @@ Loadしただけでは、黄色表示される物理設定は現在の車両へ�
 
 - `glTF (.gltf)`: ASCII JSON形式。内容確認やデバッグ向け
 - `glB (.glb)`: Binary形式
-- `Export Path`: 出力先
+- `Export Path`: 入力する出力先。相対パスはCMake build directoryを基準に解決される
+- `Resolved`: 拡張子を反映した実際の絶対出力先
 - `Export Tank glTF`: 出力実行
+
+既定値`Exports/Tank.gltf`の実際の出力先は、通常
+`C:\work\TankPhysicsSandbox\build\Exports\Tank.gltf`となる。
 
 ### Simulation
 
