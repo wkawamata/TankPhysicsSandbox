@@ -26,6 +26,7 @@ namespace
         std::string mapPath;
         std::string mapDirectory;
         std::string tankSettingsPath;
+        std::string tankSettingsDirectory;
         float throttle = 0.0f;
         float leftTrack = 1.0f;
         float rightTrack = 1.0f;
@@ -64,6 +65,10 @@ namespace
             else if (std::strcmp(argv[i], "--tank-settings") == 0 && i + 1 < argc)
             {
                 options.tankSettingsPath = argv[++i];
+            }
+            else if (std::strcmp(argv[i], "--tank-settings-directory") == 0 && i + 1 < argc)
+            {
+                options.tankSettingsDirectory = argv[++i];
             }
             else if (std::strcmp(argv[i], "--throttle") == 0 && i + 1 < argc)
             {
@@ -109,6 +114,7 @@ namespace
         std::cout << "Usage:\n"
                   << "  TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667\n"
                   << "  TankPhysicsCli --test maps --map-directory Config/Maps\n"
+                  << "  TankPhysicsCli --test mobility-suite --map Config/Maps/mobility_course.json --tank-settings-directory tests/data/mobility --steps 480 --throttle 1\n"
                   << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --tank-settings Config/Tank/tank_1.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
     }
 
@@ -288,6 +294,99 @@ namespace
                   << " gear=" << state.transmissionGear << "\n";
         return 0;
     }
+
+    int RunMobilitySuite(const CliOptions& options)
+    {
+        if (options.mapPath.empty() || options.tankSettingsDirectory.empty())
+        {
+            std::cerr << "Mobility suite requires --map <path> and --tank-settings-directory <path>\n";
+            return 2;
+        }
+
+        Tank::Physics::MapDocument document;
+        std::string error;
+        if (!LoadMapDocument(options.mapPath, document, error))
+        {
+            std::cerr << "FAIL mobility-suite map_error=" << error << "\n";
+            return 1;
+        }
+
+        const std::filesystem::path directory(options.tankSettingsDirectory);
+        std::error_code errorCode;
+        if (!std::filesystem::is_directory(directory, errorCode))
+        {
+            std::cerr << "FAIL mobility-suite invalid_directory=" << directory.string() << "\n";
+            return 1;
+        }
+
+        std::vector<std::filesystem::path> settingsPaths;
+        for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(directory))
+        {
+            if (entry.is_regular_file() && entry.path().extension() == ".json")
+            {
+                settingsPaths.push_back(entry.path());
+            }
+        }
+        std::sort(settingsPaths.begin(), settingsPaths.end());
+        if (settingsPaths.empty())
+        {
+            std::cerr << "FAIL mobility-suite no_json_files\n";
+            return 1;
+        }
+
+        for (const std::filesystem::path& settingsPath : settingsPaths)
+        {
+            Tank::Physics::TankSettings settings;
+            if (!LoadTankSettings(settingsPath.string(), settings, error))
+            {
+                std::cerr << "FAIL mobility-suite file=" << settingsPath.filename().string()
+                          << " error=" << error << "\n";
+                return 1;
+            }
+
+            Tank::Physics::TrackedVehicleTest test;
+            test.Initialize(settings, document.environment, document.primitives, document.spawn);
+            Tank::Physics::TrackedVehicleTestState state = test.State();
+            for (int step = 0; step < options.settleSteps; ++step)
+            {
+                state = test.Step(options.deltaTimeSeconds);
+            }
+            const Tank::Physics::Vec3 startPosition = state.bodyPosition;
+            Tank::Physics::TankInput input;
+            input.throttle = options.throttle;
+            input.leftTrack = options.leftTrack;
+            input.rightTrack = options.rightTrack;
+            test.SetInput(input);
+            for (int step = 0; step < options.steps; ++step)
+            {
+                state = test.Step(options.deltaTimeSeconds);
+            }
+
+            const float forwardX = std::sin(document.spawn.yawRadians);
+            const float forwardZ = std::cos(document.spawn.yawRadians);
+            const float forwardDistance =
+                (state.bodyPosition.x - startPosition.x) * forwardX +
+                (state.bodyPosition.z - startPosition.z) * forwardZ;
+            if (!std::isfinite(forwardDistance) || !std::isfinite(state.bodyPosition.y))
+            {
+                std::cerr << "FAIL mobility-suite file=" << settingsPath.filename().string()
+                          << " error=invalid_physics_state\n";
+                return 1;
+            }
+
+            std::cout << "RESULT mobility-suite file=" << settingsPath.filename().string()
+                      << " forward_distance=" << forwardDistance
+                      << " final_y=" << state.bodyPosition.y
+                      << " max_speed_mps=" << state.maximumSpeedMetersPerSecond
+                      << " zero_to_ten_s=" << state.zeroToTenTimeSeconds
+                      << " engine_rpm=" << state.engineRpm
+                      << " gear=" << state.transmissionGear << "\n";
+        }
+
+        std::cout << "PASS mobility-suite count=" << settingsPaths.size()
+                  << " map=\"" << document.name << "\"\n";
+        return 0;
+    }
 }
 
 int main(int argc, char* argv[])
@@ -306,6 +405,10 @@ int main(int argc, char* argv[])
     if (options.testName == "maps")
     {
         return RunAllMapsTest(options);
+    }
+    if (options.testName == "mobility-suite")
+    {
+        return RunMobilitySuite(options);
     }
     if (options.testName != "box-drop")
     {
