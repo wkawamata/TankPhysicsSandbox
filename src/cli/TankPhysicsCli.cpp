@@ -155,6 +155,43 @@ namespace
         return Tank::Physics::DeserializeMapDocument(std::string(begin, end), document, &error);
     }
 
+    struct MobilityResult
+    {
+        Tank::Physics::TrackedVehicleTestState state = {};
+        float forwardDistance = 0.0f;
+    };
+
+    MobilityResult EvaluateMobility(
+        const CliOptions& options,
+        const Tank::Physics::MapDocument& document,
+        const Tank::Physics::TankSettings& settings)
+    {
+        Tank::Physics::TrackedVehicleTest test;
+        test.Initialize(settings, document.environment, document.primitives, document.spawn);
+        Tank::Physics::TrackedVehicleTestState state = test.State();
+        for (int step = 0; step < options.settleSteps; ++step)
+        {
+            state = test.Step(options.deltaTimeSeconds);
+        }
+        const Tank::Physics::Vec3 startPosition = state.bodyPosition;
+        Tank::Physics::TankInput input;
+        input.throttle = options.throttle;
+        input.leftTrack = options.leftTrack;
+        input.rightTrack = options.rightTrack;
+        test.SetInput(input);
+        for (int step = 0; step < options.steps; ++step)
+        {
+            state = test.Step(options.deltaTimeSeconds);
+        }
+
+        const float forwardX = std::sin(document.spawn.yawRadians);
+        const float forwardZ = std::cos(document.spawn.yawRadians);
+        return {
+            state,
+            (state.bodyPosition.x - startPosition.x) * forwardX +
+                (state.bodyPosition.z - startPosition.z) * forwardZ };
+    }
+
     int RunAllMapsTest(const CliOptions& options)
     {
         if (options.mapDirectory.empty())
@@ -235,45 +272,21 @@ namespace
             return 1;
         }
 
-        Tank::Physics::TrackedVehicleTest test;
-        test.Initialize(
-            tankSettings,
-            document.environment,
-            document.primitives,
-            document.spawn);
-        Tank::Physics::TrackedVehicleTestState state = test.State();
-        for (int step = 0; step < options.settleSteps; ++step)
-        {
-            state = test.Step(options.deltaTimeSeconds);
-        }
-        const Tank::Physics::Vec3 startPosition = state.bodyPosition;
-        Tank::Physics::TankInput inputState;
-        inputState.throttle = options.throttle;
-        inputState.leftTrack = options.leftTrack;
-        inputState.rightTrack = options.rightTrack;
-        test.SetInput(inputState);
-        for (int step = 0; step < options.steps; ++step)
-        {
-            state = test.Step(options.deltaTimeSeconds);
-        }
+        const MobilityResult result = EvaluateMobility(options, document, tankSettings);
+        const Tank::Physics::TrackedVehicleTestState& state = result.state;
         const bool validState =
             std::isfinite(state.bodyPosition.x) &&
             std::isfinite(state.bodyPosition.y) &&
             std::isfinite(state.bodyPosition.z) &&
             state.stepIndex == options.settleSteps + options.steps;
-        const float forwardX = std::sin(document.spawn.yawRadians);
-        const float forwardZ = std::cos(document.spawn.yawRadians);
-        const float forwardDistance =
-            (state.bodyPosition.x - startPosition.x) * forwardX +
-            (state.bodyPosition.z - startPosition.z) * forwardZ;
         if (!validState)
         {
             std::cerr << "FAIL map invalid_physics_state\n";
             return 1;
         }
-        if (forwardDistance < options.minimumForwardDistance)
+        if (result.forwardDistance < options.minimumForwardDistance)
         {
-            std::cerr << "FAIL map forward_distance=" << forwardDistance
+            std::cerr << "FAIL map forward_distance=" << result.forwardDistance
                       << " required=" << options.minimumForwardDistance << "\n";
             return 1;
         }
@@ -286,7 +299,7 @@ namespace
         std::cout << "PASS map name=\"" << document.name
                   << "\" primitives=" << document.primitives.size()
                   << " steps=" << options.steps
-                  << " forward_distance=" << forwardDistance
+                  << " forward_distance=" << result.forwardDistance
                   << " final_y=" << state.bodyPosition.y
                   << " max_speed_mps=" << state.maximumSpeedMetersPerSecond
                   << " zero_to_ten_s=" << state.zeroToTenTimeSeconds
@@ -344,30 +357,9 @@ namespace
                 return 1;
             }
 
-            Tank::Physics::TrackedVehicleTest test;
-            test.Initialize(settings, document.environment, document.primitives, document.spawn);
-            Tank::Physics::TrackedVehicleTestState state = test.State();
-            for (int step = 0; step < options.settleSteps; ++step)
-            {
-                state = test.Step(options.deltaTimeSeconds);
-            }
-            const Tank::Physics::Vec3 startPosition = state.bodyPosition;
-            Tank::Physics::TankInput input;
-            input.throttle = options.throttle;
-            input.leftTrack = options.leftTrack;
-            input.rightTrack = options.rightTrack;
-            test.SetInput(input);
-            for (int step = 0; step < options.steps; ++step)
-            {
-                state = test.Step(options.deltaTimeSeconds);
-            }
-
-            const float forwardX = std::sin(document.spawn.yawRadians);
-            const float forwardZ = std::cos(document.spawn.yawRadians);
-            const float forwardDistance =
-                (state.bodyPosition.x - startPosition.x) * forwardX +
-                (state.bodyPosition.z - startPosition.z) * forwardZ;
-            if (!std::isfinite(forwardDistance) || !std::isfinite(state.bodyPosition.y))
+            const MobilityResult result = EvaluateMobility(options, document, settings);
+            const Tank::Physics::TrackedVehicleTestState& state = result.state;
+            if (!std::isfinite(result.forwardDistance) || !std::isfinite(state.bodyPosition.y))
             {
                 std::cerr << "FAIL mobility-suite file=" << settingsPath.filename().string()
                           << " error=invalid_physics_state\n";
@@ -375,7 +367,7 @@ namespace
             }
 
             std::cout << "RESULT mobility-suite file=" << settingsPath.filename().string()
-                      << " forward_distance=" << forwardDistance
+                      << " forward_distance=" << result.forwardDistance
                       << " final_y=" << state.bodyPosition.y
                       << " max_speed_mps=" << state.maximumSpeedMetersPerSecond
                       << " zero_to_ten_s=" << state.zeroToTenTimeSeconds
