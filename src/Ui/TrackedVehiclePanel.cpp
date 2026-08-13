@@ -579,10 +579,6 @@ namespace Ui
 			{
 				ImGui::TextWrapped("%s", ctx.tankVisualSettingsStatus->c_str());
 			}
-		if (ImGui::Checkbox("Track Shoe Display", ctx.trackShoeDisplay))
-		{
-			if (ctx.updateScene) ctx.updateScene();
-		}
 		if (ImGui::Checkbox(
 			"Color Wheels by Contact",
 			&ctx.visualSettings->colorWheelsByContact))
@@ -601,8 +597,13 @@ namespace Ui
 				ImGui::TextWrapped("%s", ctx.tankModelLoadStatus->c_str());
 			}
 			bool displayChanged = false;
-			displayChanged |= ImGui::Checkbox("Dummy Model", ctx.showDummyModel);
+			ImGui::SeparatorText("Dummy Model");
+			displayChanged |= ImGui::Checkbox("Body##Dummy", ctx.showDummyModel);
+			displayChanged |= ImGui::Checkbox("Wheels##Dummy", ctx.showDummyWheels);
+			displayChanged |= ImGui::Checkbox("Track Shoes##Dummy", ctx.trackShoeDisplay);
 			ImGui::SeparatorText("glTF Overlay");
+			displayChanged |= ImGui::SliderFloat(
+				"Model Scale", &ctx.visualSettings->gltfModelScale, 0.1f, 3.0f, "%.3f");
 			displayChanged |= ImGui::Checkbox("Body", ctx.showGltfBody);
 			displayChanged |= ImGui::Checkbox("Cannon", ctx.showGltfCannon);
 			displayChanged |= ImGui::Checkbox("Side", ctx.showGltfSide);

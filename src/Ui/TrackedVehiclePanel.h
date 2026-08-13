@@ -34,6 +34,7 @@ namespace Ui
         bool* trackShoeDisplay = nullptr;
         bool* showTrackProxies = nullptr;
         bool* showDummyModel = nullptr;
+        bool* showDummyWheels = nullptr;
         bool* showGltfBody = nullptr;
         bool* showGltfCannon = nullptr;
         bool* showGltfSide = nullptr;

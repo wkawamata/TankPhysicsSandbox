@@ -32,6 +32,10 @@ int main()
     source.colorWheelsByContact = true;
     source.contactedWheels.albedo = { 0.2f, 0.8f, 0.3f };
     source.trackShoes.roughness = 0.35f;
+    source.gltfModelScale = 0.75f;
+    source.showDummyBody = false;
+    source.showDummyWheels = false;
+    source.showDummyTrackShoes = false;
 
     Tank::Rendering::TankVisualSettings loaded;
     std::string error;
@@ -59,6 +63,11 @@ int main()
         "contacted wheel material must round trip");
     passed &= Check(NearlyEqual(loaded.trackShoes.roughness, 0.35f),
         "track shoe material must round trip");
+    passed &= Check(NearlyEqual(loaded.gltfModelScale, 0.75f),
+        "glTF model scale must round trip");
+    passed &= Check(!loaded.showDummyBody && !loaded.showDummyWheels &&
+        !loaded.showDummyTrackShoes,
+        "dummy visibility must round trip");
 
     Tank::Rendering::TankVisualSettings versionOne;
     passed &= Check(
@@ -69,6 +78,9 @@ int main()
         "version 1 settings must remain readable");
     passed &= Check(NearlyEqual(versionOne.hullUpper.roughness, 0.25f),
         "version 1 material must load");
+    passed &= Check(versionOne.showDummyBody && versionOne.showDummyWheels &&
+        versionOne.showDummyTrackShoes && NearlyEqual(versionOne.gltfModelScale, 1.0f),
+        "legacy settings must retain display defaults");
 
     const Tank::Rendering::TankVisualSettings beforeInvalid = loaded;
     passed &= Check(

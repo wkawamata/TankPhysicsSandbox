@@ -60,6 +60,7 @@ public:
         bool showTrackProxies,
         bool physicsDebugOverlay,
         bool showDummyModel,
+        bool showDummyWheels,
         bool showGltfBody,
         bool showGltfCannon,
         bool showGltfSide);

@@ -36,6 +36,8 @@ int main()
         Tank::Rendering::TankVisualSettings source;
         source.hullUpper.albedo = { 0.1f, 0.2f, 0.3f };
         source.wheels.metallic = 0.9f;
+        source.gltfModelScale = 1.25f;
+        source.showDummyWheels = false;
 
         std::string status;
         passed &= Check(store.Write(source, status),
@@ -48,6 +50,9 @@ int main()
             "albedo must round trip");
         passed &= Check(NearlyEqual(loaded.wheels.metallic, 0.9f),
             "wheel metallic must round trip");
+        passed &= Check(NearlyEqual(loaded.gltfModelScale, 1.25f) &&
+            !loaded.showDummyWheels,
+            "model display settings must round trip");
 
         std::filesystem::remove(store.Path());
     }

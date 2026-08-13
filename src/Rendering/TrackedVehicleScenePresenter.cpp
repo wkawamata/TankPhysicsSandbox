@@ -653,6 +653,7 @@ void TrackedVehicleScenePresenter::UpdateScene(
     bool showTrackProxies,
     bool physicsDebugOverlay,
     bool showDummyModel,
+    bool showDummyWheels,
     bool showGltfBody,
     bool showGltfCannon,
     bool showGltfSide)
@@ -711,7 +712,12 @@ void TrackedVehicleScenePresenter::UpdateScene(
         {
             SetInstanceWorld(
                 scene.instances[part.index],
-                part.visible ? bodyTransform : XMMatrixScaling(0.0f, 0.0f, 0.0f));
+                part.visible
+                    ? XMMatrixScaling(
+                        visualSettings.gltfModelScale,
+                        visualSettings.gltfModelScale,
+                        visualSettings.gltfModelScale) * bodyTransform
+                    : XMMatrixScaling(0.0f, 0.0f, 0.0f));
         }
     }
 
@@ -820,7 +826,7 @@ void TrackedVehicleScenePresenter::UpdateScene(
             scene.instances[m_model.wheels[static_cast<size_t>(i)]];
         inst.prevWorld = inst.world;
 
-        if (showDummyModel && i < state.wheelCount)
+        if (showDummyWheels && i < state.wheelCount)
         {
             const Tank::Physics::TrackedWheelState& wheel = state.wheels[static_cast<size_t>(i)];
             SetInstanceWorld(inst, XMMatrixScaling(0.0f, 0.0f, 0.0f));

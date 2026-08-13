@@ -115,10 +115,11 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer&)
         m_test.State(),
         m_settings,
         m_visualSettings,
-        m_trackShoeDisplay,
+        m_visualSettings.showDummyTrackShoes,
         m_showTrackProxies,
         m_physicsDebugOverlay,
-        m_showDummyModel,
+        m_visualSettings.showDummyBody,
+        m_visualSettings.showDummyWheels,
         m_showGltfBody,
         m_showGltfCannon,
         m_showGltfSide);
@@ -368,6 +369,7 @@ bool TrackedVehicleMode::LoadTankVisualSettings(
     if (apply)
     {
         ApplyMaterials(renderer);
+        UpdateScene(renderer);
     }
     return true;
 }

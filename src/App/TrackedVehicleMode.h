@@ -64,9 +64,10 @@ public:
     bool& Paused() { return m_paused; }
     bool& SingleStep() { return m_singleStep; }
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
-    bool& TrackShoeDisplay() { return m_trackShoeDisplay; }
+    bool& TrackShoeDisplay() { return m_visualSettings.showDummyTrackShoes; }
     bool& ShowTrackProxies() { return m_showTrackProxies; }
-    bool& ShowDummyModel() { return m_showDummyModel; }
+    bool& ShowDummyModel() { return m_visualSettings.showDummyBody; }
+    bool& ShowDummyWheels() { return m_visualSettings.showDummyWheels; }
     bool& ShowGltfBody() { return m_showGltfBody; }
     bool& ShowGltfCannon() { return m_showGltfCannon; }
     bool& ShowGltfSide() { return m_showGltfSide; }
@@ -120,9 +121,7 @@ private:
 
     bool m_paused = false;
     bool m_singleStep = false;
-    bool m_trackShoeDisplay = true;
     bool m_showTrackProxies = false;
-    bool m_showDummyModel = true;
     bool m_showGltfBody = true;
     bool m_showGltfCannon = true;
     bool m_showGltfSide = true;

@@ -295,6 +295,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.trackShoeDisplay = &m_trackedVehicleMode.TrackShoeDisplay();
     m_trackedVehiclePanelCtx.showTrackProxies = &m_trackedVehicleMode.ShowTrackProxies();
     m_trackedVehiclePanelCtx.showDummyModel = &m_trackedVehicleMode.ShowDummyModel();
+    m_trackedVehiclePanelCtx.showDummyWheels = &m_trackedVehicleMode.ShowDummyWheels();
     m_trackedVehiclePanelCtx.showGltfBody = &m_trackedVehicleMode.ShowGltfBody();
     m_trackedVehiclePanelCtx.showGltfCannon = &m_trackedVehicleMode.ShowGltfCannon();
     m_trackedVehiclePanelCtx.showGltfSide = &m_trackedVehicleMode.ShowGltfSide();
