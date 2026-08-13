@@ -198,6 +198,13 @@ add_custom_command(TARGET TankSandbox POST_BUILD
     COMMENT "Copying Tank map definitions"
 )
 
+add_custom_command(TARGET TankSandbox POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/Assets/TankModels"
+        "$<TARGET_FILE_DIR:TankSandbox>/Assets/TankModels"
+    COMMENT "Copying Tank model assets"
+)
+
 add_executable(TankPhysicsCli
     src/cli/TankPhysicsCli.cpp
 )
