@@ -594,6 +594,23 @@ namespace Ui
 			if (ctx.updateScene) ctx.updateScene();
 		}
 		}
+		if (ImGui::CollapsingHeader("Tank Model Display"))
+		{
+			if (ctx.tankModelLoadStatus && !ctx.tankModelLoadStatus->empty())
+			{
+				ImGui::TextWrapped("%s", ctx.tankModelLoadStatus->c_str());
+			}
+			bool displayChanged = false;
+			displayChanged |= ImGui::Checkbox("Dummy Model", ctx.showDummyModel);
+			ImGui::SeparatorText("glTF Overlay");
+			displayChanged |= ImGui::Checkbox("Body", ctx.showGltfBody);
+			displayChanged |= ImGui::Checkbox("Cannon", ctx.showGltfCannon);
+			displayChanged |= ImGui::Checkbox("Side", ctx.showGltfSide);
+			if (displayChanged && ctx.updateScene)
+			{
+				ctx.updateScene();
+			}
+		}
 		if (ImGui::CollapsingHeader("Turn Traction"))
 		{
 		SliderFloatWithPendingColor(

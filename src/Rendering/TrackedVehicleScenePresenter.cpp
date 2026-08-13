@@ -435,9 +435,11 @@ void TrackedVehicleScenePresenter::BuildScene(
     const Tank::Physics::PhysicsEnvironmentSettings& envSettings,
     const std::vector<Tank::Physics::MapPrimitive>& mapPrimitives,
     const Tank::Rendering::TankVisualSettings& visualSettings,
-    const Tank::Physics::TankSettings&)
+    const Tank::Physics::TankSettings&,
+    const Engine::GltfSceneAsset* tankModelAsset)
 {
     m_sceneBuilder.Clear();
+    m_model = {};
 
     uint32_t floorMaterial = 0;
     if (envSettings.gridEnabled)
@@ -557,6 +559,26 @@ void TrackedVehicleScenePresenter::BuildScene(
         XMMatrixScaling(0.3f, 0.3f, 0.3f) * XMMatrixTranslation(0.0f, 2.0f, 2.5f),
         m_model.forwardMarkerMaterial);
 
+    if (tankModelAsset != nullptr)
+    {
+        const Engine::GltfNodeMeshAddResult body =
+            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Body");
+        const Engine::GltfNodeMeshAddResult cannon =
+            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Cannon");
+        const Engine::GltfNodeMeshAddResult side =
+            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Side");
+        if (body && cannon && side)
+        {
+            m_model.gltfBody = m_sceneBuilder.GetScene().instances.size();
+            m_sceneBuilder.AddInstance(*body.meshId, XMMatrixIdentity(), 0);
+            m_model.gltfCannon = m_sceneBuilder.GetScene().instances.size();
+            m_sceneBuilder.AddInstance(*cannon.meshId, XMMatrixIdentity(), 0);
+            m_model.gltfSide = m_sceneBuilder.GetScene().instances.size();
+            m_sceneBuilder.AddInstance(*side.meshId, XMMatrixIdentity(), 0);
+            m_model.hasGltfOverlay = true;
+        }
+    }
+
     for (int i = 0; i < Tank::Physics::kTankWheelCount; ++i)
     {
         m_model.wheels[static_cast<size_t>(i)] =
@@ -629,7 +651,11 @@ void TrackedVehicleScenePresenter::UpdateScene(
     const Tank::Rendering::TankVisualSettings& visualSettings,
     bool showTrackShoes,
     bool showTrackProxies,
-    bool physicsDebugOverlay)
+    bool physicsDebugOverlay,
+    bool showDummyModel,
+    bool showGltfBody,
+    bool showGltfCannon,
+    bool showGltfSide)
 {
     Engine::Scene& scene = m_sceneBuilder.GetScene();
     const XMVECTOR rotation = XMVectorSet(
@@ -668,8 +694,25 @@ void TrackedVehicleScenePresenter::UpdateScene(
     {
         Engine::InstanceData& inst = scene.instances[part.index];
         inst.prevWorld = inst.world;
-        const XMMATRIX world = part.localTransform * bodyTransform;
+        const XMMATRIX world = showDummyModel
+            ? part.localTransform * bodyTransform
+            : XMMatrixScaling(0.0f, 0.0f, 0.0f);
         XMStoreFloat4x4(&inst.world, XMMatrixTranspose(world));
+    }
+
+    if (m_model.hasGltfOverlay)
+    {
+        const struct { size_t index; bool visible; } gltfParts[] = {
+            { m_model.gltfBody, showGltfBody },
+            { m_model.gltfCannon, showGltfCannon },
+            { m_model.gltfSide, showGltfSide },
+        };
+        for (const auto& part : gltfParts)
+        {
+            SetInstanceWorld(
+                scene.instances[part.index],
+                part.visible ? bodyTransform : XMMatrixScaling(0.0f, 0.0f, 0.0f));
+        }
     }
 
     const float trackRadius = (std::max)(
@@ -749,7 +792,7 @@ void TrackedVehicleScenePresenter::UpdateScene(
             Engine::InstanceData& instance =
                 scene.instances[m_model.trackShoes[static_cast<size_t>(track)]
                     [static_cast<size_t>(shoe)]];
-            if (!showTrackShoes)
+            if (!showDummyModel || !showTrackShoes)
             {
                 SetInstanceWorld(instance, XMMatrixScaling(0.0f, 0.0f, 0.0f));
                 continue;
@@ -777,7 +820,7 @@ void TrackedVehicleScenePresenter::UpdateScene(
             scene.instances[m_model.wheels[static_cast<size_t>(i)]];
         inst.prevWorld = inst.world;
 
-        if (i < state.wheelCount)
+        if (showDummyModel && i < state.wheelCount)
         {
             const Tank::Physics::TrackedWheelState& wheel = state.wheels[static_cast<size_t>(i)];
             SetInstanceWorld(inst, XMMatrixScaling(0.0f, 0.0f, 0.0f));

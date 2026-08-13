@@ -24,6 +24,22 @@ TrackedVehicleMode::TrackedVehicleMode()
 {
 }
 
+bool TrackedVehicleMode::LoadTankModelAsset(const std::filesystem::path& path)
+{
+    Engine::GltfSceneAssetLoadResult result =
+        Engine::LoadGltfSceneAsset(path.string());
+    if (!result)
+    {
+        m_tankModelAsset = {};
+        m_tankModelLoadStatus = "Load failed: " + result.message;
+        return false;
+    }
+
+    m_tankModelAsset = std::move(result.asset);
+    m_tankModelLoadStatus = "Loaded: " + path.filename().string();
+    return true;
+}
+
 void TrackedVehicleMode::SelectMap(Tank::Physics::MapId mapId)
 {
     m_customMap.reset();
@@ -64,7 +80,8 @@ void TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
         m_environmentSettings,
         mapPrimitives,
         m_visualSettings,
-        m_settings);
+        m_settings,
+        m_tankModelAsset.IsValid() ? &m_tankModelAsset : nullptr);
     Engine::Scene& scene = m_presenter.GetScene();
 
     m_test.Initialize(
@@ -100,7 +117,11 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer&)
         m_visualSettings,
         m_trackShoeDisplay,
         m_showTrackProxies,
-        m_physicsDebugOverlay);
+        m_physicsDebugOverlay,
+        m_showDummyModel,
+        m_showGltfBody,
+        m_showGltfCannon,
+        m_showGltfSide);
 }
 
 void TrackedVehicleMode::UpdateScene(RtPbrSurvey::SceneRenderer& renderer)

@@ -6,6 +6,7 @@
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/PhysicsDebugOverlay.h"
 #include "Rendering/TankVisualSettings.h"
+#include "GltfLoader.h"
 #include "Scene/SceneBuilder.h"
 
 #include <array>
@@ -26,6 +27,10 @@ public:
         size_t lowerStructureUpper = 0;
         size_t lowerStructureLower = 0;
         size_t forwardMarker = 0;
+        size_t gltfBody = 0;
+        size_t gltfCannon = 0;
+        size_t gltfSide = 0;
+        bool hasGltfOverlay = false;
         std::array<size_t, Tank::Physics::kTankWheelCount> wheels = {};
         std::array<std::array<size_t, kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount>
             trackShoes = {};
@@ -44,7 +49,8 @@ public:
         const Tank::Physics::PhysicsEnvironmentSettings& envSettings,
         const std::vector<Tank::Physics::MapPrimitive>& mapPrimitives,
         const Tank::Rendering::TankVisualSettings& visualSettings,
-        const Tank::Physics::TankSettings& tankSettings);
+        const Tank::Physics::TankSettings& tankSettings,
+        const Engine::GltfSceneAsset* tankModelAsset);
 
     void UpdateScene(
         const Tank::Physics::TrackedVehicleTestState& state,
@@ -52,7 +58,11 @@ public:
         const Tank::Rendering::TankVisualSettings& visualSettings,
         bool showTrackShoes,
         bool showTrackProxies,
-        bool physicsDebugOverlay);
+        bool physicsDebugOverlay,
+        bool showDummyModel,
+        bool showGltfBody,
+        bool showGltfCannon,
+        bool showGltfSide);
 
     void ApplyMaterials(
         const Tank::Rendering::TankVisualSettings& visualSettings);

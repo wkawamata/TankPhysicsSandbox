@@ -8,7 +8,9 @@
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Rendering/TrackedVehicleScenePresenter.h"
+#include "GltfLoader.h"
 
+#include <filesystem>
 #include <string>
 #include <optional>
 #include <windows.h>
@@ -21,6 +23,8 @@ class TrackedVehicleMode
 {
 public:
     TrackedVehicleMode();
+
+    bool LoadTankModelAsset(const std::filesystem::path& path);
 
     void Enter(RtPbrSurvey::SceneRenderer& renderer);
     void Exit();
@@ -62,6 +66,11 @@ public:
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
     bool& TrackShoeDisplay() { return m_trackShoeDisplay; }
     bool& ShowTrackProxies() { return m_showTrackProxies; }
+    bool& ShowDummyModel() { return m_showDummyModel; }
+    bool& ShowGltfBody() { return m_showGltfBody; }
+    bool& ShowGltfCannon() { return m_showGltfCannon; }
+    bool& ShowGltfSide() { return m_showGltfSide; }
+    const std::string& TankModelLoadStatus() const { return m_tankModelLoadStatus; }
     bool& TankVisualMaterialApplyPending() { return m_tankVisualMaterialApplyPending; }
     int& TankSettingsSlot() { return m_tankSettingsSlot; }
     bool& TankSettingsAutoLoad() { return m_tankSettingsAutoLoad; }
@@ -113,6 +122,10 @@ private:
     bool m_singleStep = false;
     bool m_trackShoeDisplay = true;
     bool m_showTrackProxies = false;
+    bool m_showDummyModel = true;
+    bool m_showGltfBody = true;
+    bool m_showGltfCannon = true;
+    bool m_showGltfSide = true;
     bool m_physicsDebugOverlay = false;
     bool m_tankVisualMaterialApplyPending = false;
     bool m_active = false;
@@ -127,6 +140,8 @@ private:
     std::string m_tankModelExportPath = "Exports/Tank.gltf";
     std::string m_tankModelExportStatus;
     bool m_tankModelExportBinary = false;
+    Engine::GltfSceneAsset m_tankModelAsset;
+    std::string m_tankModelLoadStatus;
 
     float m_analogLeftTrack = 0.0f;
     float m_analogRightTrack = 0.0f;

@@ -449,6 +449,22 @@ if(BUILD_TESTING)
         COMMAND CameraControlTests
     )
 
+    add_executable(TankModelAssetTests
+        tests/TankModelAssetTests.cpp
+    )
+    target_link_libraries(TankModelAssetTests
+        PRIVATE
+            RtPbrSurvey::SceneRenderer
+    )
+    if(MSVC)
+        target_compile_options(TankModelAssetTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(
+        NAME TankRendering.ModelAsset
+        COMMAND TankModelAssetTests
+            "${CMAKE_CURRENT_SOURCE_DIR}/Assets/TankModels/TankModel-2026-08-13-v001.glb"
+    )
+
     add_executable(TestObstacleLayoutTests
         tests/TestObstacleLayoutTests.cpp
     )
