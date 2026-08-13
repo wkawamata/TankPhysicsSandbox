@@ -567,15 +567,23 @@ void TrackedVehicleScenePresenter::BuildScene(
             m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Cannon");
         const Engine::GltfNodeMeshAddResult side =
             m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Side");
-        if (body && cannon && side)
+        if (body)
         {
             m_model.gltfBody = m_sceneBuilder.GetScene().instances.size();
             m_sceneBuilder.AddInstance(*body.meshId, XMMatrixIdentity(), 0);
+            m_model.hasGltfBody = true;
+        }
+        if (cannon)
+        {
             m_model.gltfCannon = m_sceneBuilder.GetScene().instances.size();
             m_sceneBuilder.AddInstance(*cannon.meshId, XMMatrixIdentity(), 0);
+            m_model.hasGltfCannon = true;
+        }
+        if (side)
+        {
             m_model.gltfSide = m_sceneBuilder.GetScene().instances.size();
             m_sceneBuilder.AddInstance(*side.meshId, XMMatrixIdentity(), 0);
-            m_model.hasGltfOverlay = true;
+            m_model.hasGltfSide = true;
         }
     }
 
@@ -701,14 +709,14 @@ void TrackedVehicleScenePresenter::UpdateScene(
         XMStoreFloat4x4(&inst.world, XMMatrixTranspose(world));
     }
 
-    if (m_model.hasGltfOverlay)
+    const struct { size_t index; bool available; bool visible; } gltfParts[] = {
+        { m_model.gltfBody, m_model.hasGltfBody, showGltfBody },
+        { m_model.gltfCannon, m_model.hasGltfCannon, showGltfCannon },
+        { m_model.gltfSide, m_model.hasGltfSide, showGltfSide },
+    };
+    for (const auto& part : gltfParts)
     {
-        const struct { size_t index; bool visible; } gltfParts[] = {
-            { m_model.gltfBody, showGltfBody },
-            { m_model.gltfCannon, showGltfCannon },
-            { m_model.gltfSide, showGltfSide },
-        };
-        for (const auto& part : gltfParts)
+        if (part.available)
         {
             SetInstanceWorld(
                 scene.instances[part.index],
@@ -798,7 +806,7 @@ void TrackedVehicleScenePresenter::UpdateScene(
             Engine::InstanceData& instance =
                 scene.instances[m_model.trackShoes[static_cast<size_t>(track)]
                     [static_cast<size_t>(shoe)]];
-            if (!showDummyModel || !showTrackShoes)
+            if (!showTrackShoes)
             {
                 SetInstanceWorld(instance, XMMatrixScaling(0.0f, 0.0f, 0.0f));
                 continue;

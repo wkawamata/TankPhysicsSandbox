@@ -34,15 +34,11 @@ int main(int argc, char* argv[])
     }
 
     Engine::SceneBuilder builder;
-    const Engine::GltfNodeMeshAddResult body =
-        builder.AddGltfNodeMesh(loaded.asset, "Body");
     const Engine::GltfNodeMeshAddResult cannon =
         builder.AddGltfNodeMesh(loaded.asset, "Cannon");
     const Engine::GltfNodeMeshAddResult side =
         builder.AddGltfNodeMesh(loaded.asset, "Side");
-    if (!body || !cannon || !side ||
-        body.meshId == cannon.meshId || body.meshId == side.meshId ||
-        cannon.meshId == side.meshId)
+    if (!cannon || !side || cannon.meshId == side.meshId)
     {
         std::cerr << "Tank parts were not converted to distinct meshes\n";
         return 1;

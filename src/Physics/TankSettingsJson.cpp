@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 13;
+        constexpr int kSchemaVersion = 14;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -71,6 +71,7 @@ namespace Tank::Physics
         json["endWheelOffsetM"] = settings.endWheelOffsetM;
         json["endWheelVerticalOffsetM"] = settings.endWheelVerticalOffsetM;
         json["roadWheelVerticalOffsetM"] = settings.roadWheelVerticalOffsetM;
+        json["wheelHorizontalOffsetM"] = settings.wheelHorizontalOffsetM;
         json["twoRoadWheelOffsetM"] = settings.twoRoadWheelOffsetM;
         json["threeRoadWheelOffsetM"] = settings.threeRoadWheelOffsetM;
         json["rideHeightScale"] = settings.rideHeightScale;
@@ -168,6 +169,7 @@ namespace Tank::Physics
         ReadFloat(json, "endWheelOffsetM", loaded.endWheelOffsetM);
         ReadFloat(json, "endWheelVerticalOffsetM", loaded.endWheelVerticalOffsetM);
         ReadFloat(json, "roadWheelVerticalOffsetM", loaded.roadWheelVerticalOffsetM);
+        ReadFloat(json, "wheelHorizontalOffsetM", loaded.wheelHorizontalOffsetM);
         ReadFloat(json, "twoRoadWheelOffsetM", loaded.twoRoadWheelOffsetM);
         ReadFloat(json, "threeRoadWheelOffsetM", loaded.threeRoadWheelOffsetM);
         ReadFloat(json, "rideHeightScale", loaded.rideHeightScale);

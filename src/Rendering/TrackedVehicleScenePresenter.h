@@ -30,7 +30,9 @@ public:
         size_t gltfBody = 0;
         size_t gltfCannon = 0;
         size_t gltfSide = 0;
-        bool hasGltfOverlay = false;
+        bool hasGltfBody = false;
+        bool hasGltfCannon = false;
+        bool hasGltfSide = false;
         std::array<size_t, Tank::Physics::kTankWheelCount> wheels = {};
         std::array<std::array<size_t, kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount>
             trackShoes = {};

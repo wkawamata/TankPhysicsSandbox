@@ -120,8 +120,8 @@ namespace Tank::Physics
             (std::max)(m_settings.rollStabilizationTorqueNm, 0.0f);
         m_settings.rollStabilizationDampingNms =
             (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
-        m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 0.6f);
-        m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 3.2f);
+        m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 1.0f);
+        m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 6.0f);
         m_settings.trackLongitudinalFriction =
             std::clamp(m_settings.trackLongitudinalFriction, 0.0f, 10.0f);
         m_settings.trackLateralFriction =
@@ -176,6 +176,10 @@ namespace Tank::Physics
             (std::min)(2.0f, maximumTwoRoadWheelOffset));
         m_settings.rideHeightScale =
             std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
+        m_settings.wheelHorizontalOffsetM = std::clamp(
+            m_settings.wheelHorizontalOffsetM,
+            -1.0f,
+            1.0f);
         m_impl = std::make_unique<Impl>(world);
 
         const float roadWheelRadius = m_settings.roadWheelRadiusM;
@@ -284,7 +288,10 @@ namespace Tank::Physics
                             endWheel ? m_settings.endWheelVerticalOffsetM
                                      : -roadWheelRadius + m_settings.roadWheelVerticalOffsetM,
                             wheelZ);
-                    wheel->mPosition.SetX(t == 0 ? halfTrackSpacing : -halfTrackSpacing);
+                    const float wheelHorizontalPosition =
+                        halfTrackSpacing + m_settings.wheelHorizontalOffsetM;
+                    wheel->mPosition.SetX(
+                        t == 0 ? wheelHorizontalPosition : -wheelHorizontalPosition);
                     if (upperSurface)
                     {
                         wheel->mPosition.SetY(-wheel->mPosition.GetY());
