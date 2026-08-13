@@ -138,6 +138,60 @@ namespace
         return std::remainder(to - from, 2.0f * 3.14159265358979323846f);
     }
 
+    struct TurnEvaluation
+    {
+        float radiusMeters = 0.0f;
+        float pathLengthMeters = 0.0f;
+        float yawDegrees = 0.0f;
+        float maximumYawSpeedDegrees = 0.0f;
+    };
+
+    TurnEvaluation EvaluateTurn(
+        const Tank::Physics::TankSettings& settings,
+        const Tank::Physics::PhysicsEnvironmentSettings& environment,
+        float deltaTimeSeconds,
+        int settleSteps,
+        float leftTrack,
+        float rightTrack)
+    {
+        constexpr int evaluationSteps = 600;
+        Tank::Physics::TrackedVehicleTest test;
+        test.Initialize(settings, environment);
+        Tank::Physics::TrackedVehicleTestState state = test.State();
+        for (int step = 0; step < settleSteps; ++step)
+        {
+            state = test.Step(deltaTimeSeconds);
+        }
+
+        Tank::Physics::TankInput input;
+        input.throttle = 1.0f;
+        input.leftTrack = leftTrack;
+        input.rightTrack = rightTrack;
+        test.SetInput(input);
+
+        TurnEvaluation result;
+        Tank::Physics::Vec3 previousPosition = state.bodyPosition;
+        float previousYaw = YawRadians(state.bodyRotation);
+        float yawTravel = 0.0f;
+        for (int step = 0; step < evaluationSteps; ++step)
+        {
+            state = test.Step(deltaTimeSeconds);
+            result.pathLengthMeters += DistanceXZ(previousPosition, state.bodyPosition);
+            const float yaw = YawRadians(state.bodyRotation);
+            yawTravel += std::abs(WrappedAngleDelta(previousYaw, yaw));
+            result.maximumYawSpeedDegrees = std::max(
+                result.maximumYawSpeedDegrees,
+                std::abs(state.yawSpeedDegrees));
+            previousPosition = state.bodyPosition;
+            previousYaw = yaw;
+        }
+        result.yawDegrees = yawTravel * (180.0f / 3.14159265358979323846f);
+        result.radiusMeters = yawTravel > 0.01f
+            ? result.pathLengthMeters / yawTravel
+            : std::numeric_limits<float>::infinity();
+        return result;
+    }
+
     int RunMobilityTest(const CliOptions& options)
     {
         Tank::Physics::TankSettings settings;
@@ -224,46 +278,32 @@ namespace
         const float brakingDistance = DistanceXZ(brakeStart, state.bodyPosition);
         const bool brakingStopped = state.speedMetersPerSecond < 0.2f;
 
-        Tank::Physics::TrackedVehicleTest turn;
-        turn.Initialize(settings, environment);
-        Tank::Physics::TrackedVehicleTestState turnState = turn.State();
-        for (int step = 0; step < options.settleSteps; ++step)
-        {
-            turnState = turn.Step(options.deltaTimeSeconds);
-        }
-        Tank::Physics::TankInput turnInput;
-        turnInput.throttle = 1.0f;
-        turnInput.leftTrack = 0.0f;
-        turnInput.rightTrack = 1.0f;
-        turn.SetInput(turnInput);
-        float pathLength = 0.0f;
-        float yawTravel = 0.0f;
-        Tank::Physics::Vec3 previousPosition = turnState.bodyPosition;
-        float previousYaw = YawRadians(turnState.bodyRotation);
-        for (int step = 0; step < evaluationSteps; ++step)
-        {
-            turnState = turn.Step(options.deltaTimeSeconds);
-            pathLength += DistanceXZ(previousPosition, turnState.bodyPosition);
-            const float yaw = YawRadians(turnState.bodyRotation);
-            yawTravel += std::abs(WrappedAngleDelta(previousYaw, yaw));
-            previousPosition = turnState.bodyPosition;
-            previousYaw = yaw;
-        }
-        const float turningRadius = yawTravel > 0.01f
-            ? pathLength / yawTravel
-            : std::numeric_limits<float>::infinity();
+        const TurnEvaluation normalTurn = EvaluateTurn(
+            settings, environment, options.deltaTimeSeconds, options.settleSteps, 0.6f, 1.0f);
+        const TurnEvaluation oneTrackTurn = EvaluateTurn(
+            settings, environment, options.deltaTimeSeconds, options.settleSteps, 0.0f, 1.0f);
+        const TurnEvaluation pivotTurn = EvaluateTurn(
+            settings, environment, options.deltaTimeSeconds, options.settleSteps, -1.0f, 1.0f);
 
         const bool passed = std::isfinite(maximumSpeed) && maximumSpeed > 0.0f &&
             std::isfinite(zeroToTenSeconds) && zeroToTenSeconds >= 0.0f &&
             std::isfinite(brakingDistance) && std::isfinite(brakingTime) &&
-            std::isfinite(turningRadius) && contactCount > 0;
+            std::isfinite(normalTurn.radiusMeters) &&
+            std::isfinite(oneTrackTurn.radiusMeters) &&
+            std::isfinite(pivotTurn.radiusMeters) && contactCount > 0;
         std::cout << (passed ? "PASS" : "FAIL") << " mobility"
                   << " max_speed_mps=" << maximumSpeed
                   << " zero_to_ten_s=" << zeroToTenSeconds
                   << " braking_distance_m=" << brakingDistance
                   << " braking_time_s=" << brakingTime
                   << " braking_stopped=" << (brakingStopped ? "true" : "false")
-                  << " one_track_radius_m=" << turningRadius
+                  << " normal_turn_radius_m=" << normalTurn.radiusMeters
+                  << " normal_turn_yaw_deg=" << normalTurn.yawDegrees
+                  << " one_track_radius_m=" << oneTrackTurn.radiusMeters
+                  << " one_track_yaw_deg=" << oneTrackTurn.yawDegrees
+                  << " pivot_radius_m=" << pivotTurn.radiusMeters
+                  << " pivot_yaw_deg=" << pivotTurn.yawDegrees
+                  << " pivot_max_yaw_speed_deg_s=" << pivotTurn.maximumYawSpeedDegrees
                   << " left_contact_span_m=" << contactSpan[0]
                   << " right_contact_span_m=" << contactSpan[1]
                   << " contact_angle_deg=" << averageContactAngleDegrees
