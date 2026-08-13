@@ -13,9 +13,9 @@ namespace Tank::Physics
         float yawRadians = 0.0f;
     };
 
-    constexpr float kPassengerCarWidthM = 1.8f;
-    constexpr float kPassengerCarHeightM = 1.5f;
-    constexpr float kPassengerCarLengthM = 4.5f;
+    constexpr float kPassengerCarWidthM = 2.7f;
+    constexpr float kPassengerCarHeightM = 2.25f;
+    constexpr float kPassengerCarLengthM = 6.75f;
 
     std::vector<TestObstaclePlacement> GenerateTestObstacleLayout(
         const PhysicsEnvironmentSettings& settings);

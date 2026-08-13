@@ -10,7 +10,7 @@ namespace Tank::Physics
         const PhysicsEnvironmentSettings& settings)
     {
         constexpr float spawnClearRadiusM = 10.0f;
-        constexpr float minimumSeparationM = 6.0f;
+        constexpr float minimumSeparationM = 9.0f;
         constexpr int maximumAttemptsPerObstacle = 64;
 
         const int obstacleCount = std::clamp(settings.obstacleCount, 0, 100);

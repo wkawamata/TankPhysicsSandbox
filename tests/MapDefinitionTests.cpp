@@ -56,6 +56,16 @@ int main()
     {
         return 1;
     }
+    if (obstaclePrimitives.front().size.x != 2.7f ||
+        obstaclePrimitives.front().size.y != 2.25f ||
+        obstaclePrimitives.front().size.z != 6.75f ||
+        rampPrimitives.front().size.x != 6.0f ||
+        rampPrimitives.front().size.y != 3.0f ||
+        rampPrimitives.front().size.z != 12.0f)
+    {
+        std::cerr << "FAIL enlarged map obstacle dimensions\n";
+        return 1;
+    }
     std::cout << "PASS MapDefinition\n";
     return 0;
 }
