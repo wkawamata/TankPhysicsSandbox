@@ -579,10 +579,6 @@ namespace Ui
 			{
 				ImGui::TextWrapped("%s", ctx.tankVisualSettingsStatus->c_str());
 			}
-		if (ImGui::Checkbox("Track Shoe Display", ctx.trackShoeDisplay))
-		{
-			if (ctx.updateScene) ctx.updateScene();
-		}
 		if (ImGui::Checkbox(
 			"Color Wheels by Contact",
 			&ctx.visualSettings->colorWheelsByContact))
@@ -593,6 +589,32 @@ namespace Ui
 		{
 			if (ctx.updateScene) ctx.updateScene();
 		}
+		}
+		if (ImGui::CollapsingHeader("Tank Model Display"))
+		{
+			if (ctx.tankModelLoadStatus && !ctx.tankModelLoadStatus->empty())
+			{
+				ImGui::TextWrapped("%s", ctx.tankModelLoadStatus->c_str());
+			}
+			bool displayChanged = false;
+			ImGui::SeparatorText("Dummy Model");
+			displayChanged |= ImGui::Checkbox("Body##Dummy", ctx.showDummyModel);
+			ImGui::SameLine();
+			displayChanged |= ImGui::Checkbox("Wheels##Dummy", ctx.showDummyWheels);
+			ImGui::SameLine();
+			displayChanged |= ImGui::Checkbox("Track Shoes##Dummy", ctx.trackShoeDisplay);
+			ImGui::SeparatorText("glTF Overlay");
+			displayChanged |= ImGui::SliderFloat(
+				"Model Scale", &ctx.visualSettings->gltfModelScale, 0.1f, 3.0f, "%.3f");
+			displayChanged |= ImGui::Checkbox("Body", ctx.showGltfBody);
+			ImGui::SameLine();
+			displayChanged |= ImGui::Checkbox("Cannon", ctx.showGltfCannon);
+			ImGui::SameLine();
+			displayChanged |= ImGui::Checkbox("Side", ctx.showGltfSide);
+			if (displayChanged && ctx.updateScene)
+			{
+				ctx.updateScene();
+			}
 		}
 		if (ImGui::CollapsingHeader("Turn Traction"))
 		{
@@ -782,10 +804,10 @@ namespace Ui
 		if (ImGui::CollapsingHeader("Track Layout Adjustment"))
 		{
 		SliderFloatWithPendingColor(
-			"Track Width", &ctx.tankSettings->trackWidthM, 0.15f, 0.6f, 0.01f, 0.3f, "%.2f m",
+			"Track Width", &ctx.tankSettings->trackWidthM, 0.15f, 1.0f, 0.01f, 0.3f, "%.2f m",
 			IsPending(ctx.tankSettings->trackWidthM, ctx.appliedTankSettings->trackWidthM));
 		SliderFloatWithPendingColor(
-			"Track Spacing", &ctx.tankSettings->trackSpacingM, 1.8f, 3.2f, 0.1f, 2.4f, "%.2f m",
+			"Track Spacing", &ctx.tankSettings->trackSpacingM, 1.8f, 6.0f, 0.1f, 2.4f, "%.2f m",
 			IsPending(ctx.tankSettings->trackSpacingM, ctx.appliedTankSettings->trackSpacingM));
 		SliderFloatWithPendingColor(
 			"Suspension Stroke", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
@@ -859,6 +881,17 @@ namespace Ui
 			IsPending(
 				ctx.tankSettings->roadWheelVerticalOffsetM,
 				ctx.appliedTankSettings->roadWheelVerticalOffsetM));
+		SliderFloatWithPendingColor(
+			"Wheel Horizontal Offset",
+			&ctx.tankSettings->wheelHorizontalOffsetM,
+			-1.0f,
+			1.0f,
+			0.05f,
+			0.0f,
+			"%.2f m",
+			IsPending(
+				ctx.tankSettings->wheelHorizontalOffsetM,
+				ctx.appliedTankSettings->wheelHorizontalOffsetM));
 		if (ctx.tankSettings->roadWheelCount == 2)
 		{
 			SliderFloatWithPendingColor(

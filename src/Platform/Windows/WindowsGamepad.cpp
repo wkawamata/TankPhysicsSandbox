@@ -129,6 +129,10 @@ namespace Tank::Platform::Windows
         {
             state.leftStickX = gamepadState.leftThumbstickX;
             state.leftStickY = gamepadState.leftThumbstickY;
+            state.dpadUp = (gamepadState.buttons & GameInputGamepadDPadUp) != 0;
+            state.dpadDown = (gamepadState.buttons & GameInputGamepadDPadDown) != 0;
+            state.dpadLeft = (gamepadState.buttons & GameInputGamepadDPadLeft) != 0;
+            state.dpadRight = (gamepadState.buttons & GameInputGamepadDPadRight) != 0;
         }
         else
         {
@@ -136,6 +140,22 @@ namespace Tank::Platform::Windows
             {
                 state.leftStickX = state.rawAxes[0];
                 state.leftStickY = -state.rawAxes[1];
+            }
+            if (rawSwitchCount > 0)
+            {
+                const GameInputSwitchPosition dpad = rawSwitches[0];
+                state.dpadUp = dpad == GameInputSwitchUp ||
+                    dpad == GameInputSwitchUpRight ||
+                    dpad == GameInputSwitchUpLeft;
+                state.dpadDown = dpad == GameInputSwitchDown ||
+                    dpad == GameInputSwitchDownRight ||
+                    dpad == GameInputSwitchDownLeft;
+                state.dpadLeft = dpad == GameInputSwitchLeft ||
+                    dpad == GameInputSwitchUpLeft ||
+                    dpad == GameInputSwitchDownLeft;
+                state.dpadRight = dpad == GameInputSwitchRight ||
+                    dpad == GameInputSwitchUpRight ||
+                    dpad == GameInputSwitchDownRight;
             }
         }
 

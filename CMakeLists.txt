@@ -198,6 +198,13 @@ add_custom_command(TARGET TankSandbox POST_BUILD
     COMMENT "Copying Tank map definitions"
 )
 
+add_custom_command(TARGET TankSandbox POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/Assets/TankModels"
+        "$<TARGET_FILE_DIR:TankSandbox>/Assets/TankModels"
+    COMMENT "Copying Tank model assets"
+)
+
 add_executable(TankPhysicsCli
     src/cli/TankPhysicsCli.cpp
 )
@@ -350,6 +357,63 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.MobilityEvaluationCli
+        COMMAND TankPhysicsCli
+            --test mobility
+            --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
+            --settle-steps 180
+            --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.MobilityEvaluationCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS mobility"
+    )
+
+    add_test(
+        NAME TankPhysics.MobilitySlopeCli
+        COMMAND TankPhysicsCli
+            --test mobility-slope
+            --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
+            --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.MobilitySlopeCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS mobility-slope"
+    )
+
+    add_test(
+        NAME TankPhysics.MobilityStepCli
+        COMMAND TankPhysicsCli
+            --test mobility-step
+            --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
+            --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.MobilityStepCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS mobility-step"
+    )
+
+    add_test(
+        NAME TankPhysics.MobilityOrientationCli
+        COMMAND TankPhysicsCli
+            --test mobility-orientation
+            --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
+            --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.MobilityOrientationCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS mobility-orientation"
+    )
+
+    add_test(
+        NAME TankPhysics.MobilityAllCli
+        COMMAND TankPhysicsCli
+            --test mobility-all
+            --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
+            --settle-steps 180
+            --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.MobilityAllCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS mobility-all"
+    )
+
+    add_test(
         NAME TankPhysics.TankControllerBoundary
         COMMAND TankControllerTests
     )
@@ -440,6 +504,22 @@ if(BUILD_TESTING)
     add_test(
         NAME TankApp.CameraControl
         COMMAND CameraControlTests
+    )
+
+    add_executable(TankModelAssetTests
+        tests/TankModelAssetTests.cpp
+    )
+    target_link_libraries(TankModelAssetTests
+        PRIVATE
+            RtPbrSurvey::SceneRenderer
+    )
+    if(MSVC)
+        target_compile_options(TankModelAssetTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(
+        NAME TankRendering.ModelAsset
+        COMMAND TankModelAssetTests
+            "${CMAKE_CURRENT_SOURCE_DIR}/Assets/TankModels/TankModel-2026-08-14-v001.glb"
     )
 
     add_executable(TestObstacleLayoutTests

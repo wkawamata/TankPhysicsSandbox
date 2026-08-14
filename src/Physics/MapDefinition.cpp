@@ -63,15 +63,15 @@ namespace Tank::Physics
             {
                 MapPrimitive ramp;
                 ramp.type = MapPrimitiveType::TriangularPrism;
-                ramp.position = { (static_cast<float>(index) - 1.0f) * 6.0f, 1.0f, 15.0f };
-                ramp.size = { 4.0f, 2.0f, 8.0f };
+                ramp.position = { (static_cast<float>(index) - 1.0f) * 6.0f, 1.5f, 15.0f };
+                ramp.size = { 6.0f, 3.0f, 12.0f };
                 ramp.friction = frictionBands[index];
                 primitives.push_back(ramp);
 
                 MapPrimitive platform;
                 platform.type = MapPrimitiveType::Box;
-                platform.position = { ramp.position.x, 1.0f, 23.0f };
-                platform.size = { 4.0f, 2.0f, 8.0f };
+                platform.position = { ramp.position.x, 1.5f, 27.0f };
+                platform.size = { 6.0f, 3.0f, 12.0f };
                 platform.friction = frictionBands[index];
                 primitives.push_back(platform);
             }

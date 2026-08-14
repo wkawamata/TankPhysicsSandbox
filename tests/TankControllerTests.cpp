@@ -62,6 +62,8 @@ int main()
         "two road wheel offset must preserve its default");
     passed &= Check(NearlyEqual(controller.Settings().endWheelOffsetM, 0.0f),
         "end wheel offset must default to the chassis ends");
+    passed &= Check(NearlyEqual(controller.Settings().wheelHorizontalOffsetM, 0.0f),
+        "wheel horizontal offset must default to zero");
     passed &= Check(NearlyEqual(controller.Settings().threeRoadWheelOffsetM, 1.0f),
         "three road wheel offset must preserve its default");
     passed &= Check(NearlyEqual(controller.Settings().stationaryTurnLeftTraction, 1.0f),
@@ -135,6 +137,16 @@ int main()
     tractionSettings.pivotTurnRightTraction = 0.8f;
     Tank::Physics::TankController tractionController;
     tractionController.Initialize(world, tractionSettings);
+
+    Tank::Physics::TankSettings wideTrackSettings;
+    wideTrackSettings.trackSpacingM = 6.0f;
+    wideTrackSettings.trackWidthM = 1.0f;
+    Tank::Physics::TankController wideTrackController;
+    wideTrackController.Initialize(world, wideTrackSettings);
+    passed &= Check(NearlyEqual(wideTrackController.Settings().trackSpacingM, 6.0f),
+        "track spacing must support the expanded outer limit");
+    passed &= Check(NearlyEqual(wideTrackController.Settings().trackWidthM, 1.0f),
+        "track width must support the expanded upper limit");
 
     Tank::Physics::TankInput tractionInput;
     tractionInput.throttle = 1.0f;

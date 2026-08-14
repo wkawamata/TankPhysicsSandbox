@@ -6,7 +6,7 @@ namespace Tank::Rendering
 {
     namespace
     {
-        constexpr int kSchemaVersion = 3;
+        constexpr int kSchemaVersion = 4;
 
         nlohmann::json SerializeMaterial(const BodyMaterialSettings& material)
         {
@@ -25,6 +25,15 @@ namespace Tank::Rendering
             if (entry != object.end() && entry->is_number())
             {
                 value = entry->get<float>();
+            }
+        }
+
+        void ReadBool(const nlohmann::json& object, const char* name, bool& value)
+        {
+            const auto entry = object.find(name);
+            if (entry != object.end() && entry->is_boolean())
+            {
+                value = entry->get<bool>();
             }
         }
 
@@ -60,6 +69,10 @@ namespace Tank::Rendering
     {
         nlohmann::json json;
         json["version"] = kSchemaVersion;
+        json["gltfModelScale"] = settings.gltfModelScale;
+        json["showDummyBody"] = settings.showDummyBody;
+        json["showDummyWheels"] = settings.showDummyWheels;
+        json["showDummyTrackShoes"] = settings.showDummyTrackShoes;
         json["hullUpper"] = SerializeMaterial(settings.hullUpper);
         json["hullLower"] = SerializeMaterial(settings.hullLower);
         json["structureUpper"] = SerializeMaterial(settings.structureUpper);
@@ -103,6 +116,10 @@ namespace Tank::Rendering
         }
 
         TankVisualSettings loaded = settings;
+        ReadFloat(json, "gltfModelScale", loaded.gltfModelScale);
+        ReadBool(json, "showDummyBody", loaded.showDummyBody);
+        ReadBool(json, "showDummyWheels", loaded.showDummyWheels);
+        ReadBool(json, "showDummyTrackShoes", loaded.showDummyTrackShoes);
         ReadMaterial(json, "hullUpper", loaded.hullUpper);
         ReadMaterial(json, "hullLower", loaded.hullLower);
         ReadMaterial(json, "structureUpper", loaded.structureUpper);

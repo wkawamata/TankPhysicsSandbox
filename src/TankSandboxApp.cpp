@@ -58,6 +58,23 @@ using namespace DirectX;
 namespace
 {
     constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
+    constexpr const wchar_t* kTankModelAssetPath =
+        L"Assets/TankModels/TankModel-2026-08-14-v001.glb";
+
+    std::filesystem::path ResolveRuntimePath(const std::filesystem::path& relativePath)
+    {
+        std::array<wchar_t, 32768> executablePath = {};
+        const DWORD length = GetModuleFileNameW(
+            nullptr,
+            executablePath.data(),
+            static_cast<DWORD>(executablePath.size()));
+        if (length == 0 || length >= executablePath.size())
+        {
+            return relativePath;
+        }
+        return std::filesystem::path(executablePath.data()).parent_path() /
+            relativePath;
+    }
 
     std::filesystem::path ResolveMapsDirectory()
     {
@@ -202,6 +219,8 @@ void TankSandboxApp::OnInit()
     InitializeImGui();
 
     m_sceneRenderer.Initialize(GetWidth(), GetHeight());
+    m_trackedVehicleMode.LoadTankModelAsset(
+        ResolveRuntimePath(kTankModelAssetPath));
 
     m_sceneRenderer.SetToolUiHandler([this]() { DrawToolUi(); });
 
@@ -275,6 +294,13 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
     m_trackedVehiclePanelCtx.trackShoeDisplay = &m_trackedVehicleMode.TrackShoeDisplay();
     m_trackedVehiclePanelCtx.showTrackProxies = &m_trackedVehicleMode.ShowTrackProxies();
+    m_trackedVehiclePanelCtx.showDummyModel = &m_trackedVehicleMode.ShowDummyModel();
+    m_trackedVehiclePanelCtx.showDummyWheels = &m_trackedVehicleMode.ShowDummyWheels();
+    m_trackedVehiclePanelCtx.showGltfBody = &m_trackedVehicleMode.ShowGltfBody();
+    m_trackedVehiclePanelCtx.showGltfCannon = &m_trackedVehicleMode.ShowGltfCannon();
+    m_trackedVehiclePanelCtx.showGltfSide = &m_trackedVehicleMode.ShowGltfSide();
+    m_trackedVehiclePanelCtx.tankModelLoadStatus =
+        &m_trackedVehicleMode.TankModelLoadStatus();
     m_trackedVehiclePanelCtx.trackedVehiclePaused = &m_trackedVehicleMode.Paused();
     m_trackedVehiclePanelCtx.trackedVehicleSingleStep = &m_trackedVehicleMode.SingleStep();
     m_trackedVehiclePanelCtx.tankSettingsSlot = &m_trackedVehicleMode.TankSettingsSlot();
@@ -591,6 +617,14 @@ void TankSandboxApp::OnIdle()
             {
                 LoadCameraSettings();
             }
+            const float orbitHorizontal =
+                (gp.dpadRight ? 1.0f : 0.0f) - (gp.dpadLeft ? 1.0f : 0.0f);
+            const float orbitVertical =
+                (gp.dpadUp ? 1.0f : 0.0f) - (gp.dpadDown ? 1.0f : 0.0f);
+            m_cameraController.UpdateChaseOrbitInput(
+                orbitHorizontal,
+                orbitVertical,
+                TrackedVehicleMode::kPhysicsFixedDt);
         }
         m_trackedVehicleMode.UpdateInput(
             vehicleGamepadState,

@@ -360,6 +360,33 @@ namespace
             NearlyEqual(camera.gazePoint.y, 1.5f) &&
             NearlyEqual(camera.gazePoint.z, -2.0f);
     }
+
+    bool TestChaseOrbitOffsetReturnsToRear()
+    {
+        Tank::App::CameraController controller;
+        controller.SetFollowEnabled(true);
+        controller.SetTankYawChaseEnabled(true);
+        controller.SetLookDownDegrees(45.0f);
+        constexpr float dt = 1.0f / 60.0f;
+        for (int frame = 0; frame < 180; ++frame)
+        {
+            controller.UpdateChaseOrbitInput(1.0f, 1.0f, dt);
+        }
+        const bool reachesOffset =
+            controller.ChaseOrbitYawOffsetDegrees() > 55.0f &&
+            controller.ChaseOrbitYawOffsetDegrees() <= 90.0f &&
+            controller.ChaseOrbitPitchOffsetDegrees() > 30.0f &&
+            controller.LookDownDegrees() +
+                controller.ChaseOrbitPitchOffsetDegrees() <=
+                Tank::App::CameraController::kMaximumLookDownDegrees;
+        for (int frame = 0; frame < 180; ++frame)
+        {
+            controller.UpdateChaseOrbitInput(0.0f, 0.0f, dt);
+        }
+        return reachesOffset &&
+            std::abs(controller.ChaseOrbitYawOffsetDegrees()) < 0.01f &&
+            std::abs(controller.ChaseOrbitPitchOffsetDegrees()) < 0.01f;
+    }
 }
 
 int main()
@@ -379,12 +406,13 @@ int main()
         TestProjectionTransitionDoesNotOverwriteSlotCache();
     const bool debugResetFocus =
         TestDebugCameraKeepsTankFocusAcrossRepeatedResets();
+    const bool chaseOrbitOffset = TestChaseOrbitOffsetReturnsToRear();
 
     if (!camera2Horizontal || !camera2Vertical ||
         !nearPolarHorizontal || !nearPolarVertical ||
         !positionOnlyFollow || !tankOrbitPivot || !lookDownLimit ||
         !orthoToPerspective || !perspectiveToOrtho ||
-        !projectionCachePreserved || !debugResetFocus)
+        !projectionCachePreserved || !debugResetFocus || !chaseOrbitOffset)
     {
         std::cerr << "Camera control contract failed:"
                   << " camera2Horizontal=" << camera2Horizontal
@@ -398,6 +426,7 @@ int main()
                   << " perspectiveToOrtho=" << perspectiveToOrtho
                   << " projectionCachePreserved=" << projectionCachePreserved
                   << " debugResetFocus=" << debugResetFocus
+                  << " chaseOrbitOffset=" << chaseOrbitOffset
                   << '\n';
         return 1;
     }

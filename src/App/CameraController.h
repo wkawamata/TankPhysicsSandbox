@@ -103,6 +103,9 @@ namespace Tank::App
         void SetYawSpeedLimitDegrees(float d) { m_yawSpeedLimitDegrees = d; }
         float YawDamping() const { return m_yawDamping; }
         void SetYawDamping(float d) { m_yawDamping = d; }
+        float ChaseOrbitYawOffsetDegrees() const { return m_chaseOrbitYawOffsetDegrees; }
+        float ChaseOrbitPitchOffsetDegrees() const { return m_chaseOrbitPitchOffsetDegrees; }
+        void UpdateChaseOrbitInput(float horizontal, float vertical, float dt);
 
         void ResetFollowState();
         void OnTankTeleported(
@@ -168,6 +171,10 @@ namespace Tank::App
         float m_damping = 1.0f;
         float m_yawSpeedLimitDegrees = 180.0f;
         float m_yawDamping = 8.0f;
+        float m_chaseOrbitYawOffsetDegrees = 0.0f;
+        float m_chaseOrbitPitchOffsetDegrees = 0.0f;
+        float m_chaseOrbitYawVelocity = 0.0f;
+        float m_chaseOrbitPitchVelocity = 0.0f;
 
         DirectX::XMFLOAT3 m_followVelocity = {};
         float m_fovTarget = 35.0f;

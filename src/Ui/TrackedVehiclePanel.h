@@ -33,6 +33,12 @@ namespace Ui
         bool* physicsDebugOverlay = nullptr;
         bool* trackShoeDisplay = nullptr;
         bool* showTrackProxies = nullptr;
+        bool* showDummyModel = nullptr;
+        bool* showDummyWheels = nullptr;
+        bool* showGltfBody = nullptr;
+        bool* showGltfCannon = nullptr;
+        bool* showGltfSide = nullptr;
+        const std::string* tankModelLoadStatus = nullptr;
         bool* trackedVehiclePaused = nullptr;
         bool* trackedVehicleSingleStep = nullptr;
         int* tankSettingsSlot = nullptr;

@@ -27,6 +27,10 @@ namespace Tank::Input
         std::array<std::uint32_t, MaxRawSwitches> rawSwitches = {};
         float leftStickX = 0.0f;
         float leftStickY = 0.0f;
+        bool dpadUp = false;
+        bool dpadDown = false;
+        bool dpadLeft = false;
+        bool dpadRight = false;
         bool brakePressed = false;
     };
 }
