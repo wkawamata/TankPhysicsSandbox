@@ -70,6 +70,8 @@ namespace Tank::Physics
         float twoRoadWheelOffsetM = 0.67f;
         float threeRoadWheelOffsetM = 1.0f;
         float rideHeightScale = 0.8f;
+        float suspensionFrequencyHz = 1.0f;
+        float suspensionDamping = 0.5f;
         std::array<float, kTankWheelCount> suspensionStrokeMeters =
             MakeDefaultSuspensionStrokes();
         bool neutralBrakeEnabled = true;
@@ -128,6 +130,7 @@ namespace Tank::Physics
         float suspensionLength = 0.0f;
         float suspensionMinLength = 0.0f;
         float suspensionMaxLength = 0.0f;
+        bool suspensionAtHardPoint = false;
         float angularVelocityRadians = 0.0f;
         float suspensionImpulseNewtonSeconds = 0.0f;
         float longitudinalImpulseNewtonSeconds = 0.0f;

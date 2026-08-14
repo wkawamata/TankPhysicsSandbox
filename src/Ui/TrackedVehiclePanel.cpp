@@ -211,7 +211,7 @@ namespace Ui
 			{
 				if (ImGui::BeginTable(
 					"SuspensionTelemetry",
-					6,
+					7,
 					ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
 						ImGuiTableFlags_SizingFixedFit))
 				{
@@ -220,6 +220,7 @@ namespace Ui
 					ImGui::TableSetupColumn("Length");
 					ImGui::TableSetupColumn("Range");
 					ImGui::TableSetupColumn("Used");
+					ImGui::TableSetupColumn("Hard");
 					ImGui::TableSetupColumn("Impulse");
 					ImGui::TableHeadersRow();
 					const int wheelsPerSurface = ctx.tankSettings->roadWheelCount + 2;
@@ -266,6 +267,8 @@ namespace Ui
 							ImGui::Text("%.0f%%", used * 100.0f);
 						}
 						ImGui::TableSetColumnIndex(5);
+						ImGui::TextUnformatted(wheel.suspensionAtHardPoint ? "yes" : "no");
+						ImGui::TableSetColumnIndex(6);
 						ImGui::Text("%.1f Ns", wheel.suspensionImpulseNewtonSeconds);
 					}
 					ImGui::EndTable();
@@ -877,6 +880,28 @@ namespace Ui
 		SliderFloatWithPendingColor(
 			"Ride Height Scale", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
 			IsPending(ctx.tankSettings->rideHeightScale, ctx.appliedTankSettings->rideHeightScale));
+		SliderFloatWithPendingColor(
+			"Suspension Frequency",
+			&ctx.tankSettings->suspensionFrequencyHz,
+			0.1f,
+			10.0f,
+			0.1f,
+			1.0f,
+			"%.1f Hz",
+			IsPending(
+				ctx.tankSettings->suspensionFrequencyHz,
+				ctx.appliedTankSettings->suspensionFrequencyHz));
+		SliderFloatWithPendingColor(
+			"Suspension Damping",
+			&ctx.tankSettings->suspensionDamping,
+			0.0f,
+			2.0f,
+			0.05f,
+			0.5f,
+			"%.2f",
+			IsPending(
+				ctx.tankSettings->suspensionDamping,
+				ctx.appliedTankSettings->suspensionDamping));
 		if (ImGui::TreeNode("Suspension Stroke per Wheel"))
 		{
 			const char* trackNames[] = { "Left", "Right" };
