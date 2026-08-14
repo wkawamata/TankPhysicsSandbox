@@ -47,6 +47,8 @@ int main()
     source.twoRoadWheelOffsetM = 0.82f;
     source.threeRoadWheelOffsetM = 1.15f;
     source.rideHeightScale = 0.75f;
+    source.suspensionStrokeMeters[
+        Tank::Physics::TankSuspensionSlotIndex(1, 1, 4)] = 0.37f;
     source.neutralBrakeEnabled = false;
     source.neutralBrakeAmount = 0.35f;
     source.stationaryTurnInnerTrackRatio = 0.25f;
@@ -135,6 +137,12 @@ int main()
         "three road wheel offset must round trip");
     passed &= Check(NearlyEqual(loaded.rideHeightScale, source.rideHeightScale),
         "ride height must round trip");
+    passed &= Check(
+        NearlyEqual(
+            loaded.suspensionStrokeMeters[
+                Tank::Physics::TankSuspensionSlotIndex(1, 1, 4)],
+            0.37f),
+        "per-wheel suspension stroke must round trip");
     passed &= Check(loaded.neutralBrakeEnabled == source.neutralBrakeEnabled,
         "neutral brake enabled must round trip");
     passed &= Check(NearlyEqual(loaded.neutralBrakeAmount, source.neutralBrakeAmount),
@@ -211,6 +219,12 @@ int main()
         "present field must load");
     passed &= Check(NearlyEqual(loaded.rollTorqueNm, beforeInvalid.rollTorqueNm),
         "missing field must preserve current value");
+    passed &= Check(
+        NearlyEqual(
+            loaded.suspensionStrokeMeters[
+                Tank::Physics::TankSuspensionSlotIndex(0, 0, 1)],
+            0.2f * loaded.rideHeightScale),
+        "legacy settings must derive road-wheel stroke from ride height");
 
     Tank::Physics::TankSettings legacyLoaded;
     passed &= Check(

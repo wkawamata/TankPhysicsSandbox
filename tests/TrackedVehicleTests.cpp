@@ -116,8 +116,17 @@ int main()
         passed &= Check(IsFinite(wheel.suspensionDirection.z),
             "suspension direction Z must be finite");
         passed &= Check(IsFinite(wheel.suspensionLength), "suspension length must be finite");
-        passed &= Check(wheel.suspensionLength >= 0.0f && wheel.suspensionLength <= 0.5f,
+        passed &= Check(
+            wheel.suspensionLength >= wheel.suspensionMinLength - 0.001f &&
+                wheel.suspensionLength <= wheel.suspensionMaxLength + 0.001f,
             "suspension length must remain within the configured range");
+        passed &= Check(
+            wheel.suspensionSlotIndex >= 0 &&
+                wheel.suspensionSlotIndex < Tank::Physics::kTankWheelCount,
+            "suspension slot index must remain in range");
+        passed &= Check(
+            wheel.suspensionMaxLength >= wheel.suspensionMinLength,
+            "suspension maximum length must not be below minimum length");
         if (wheel.hasContact)
         {
             passed &= Check(IsFinite(wheel.contactPosition.x), "contact position X must be finite");
@@ -194,6 +203,45 @@ int main()
             passed &= Check(std::abs(rearMiddleZ + 1.25f) < 0.01f,
                 "rear middle wheel must use the configured negative offset");
         }
+    }
+
+    {
+        Tank::Physics::TankSettings strokeSettings;
+        strokeSettings.roadWheelCount = 4;
+        const int leftLowerFront =
+            Tank::Physics::TankSuspensionSlotIndex(0, 0, 0);
+        const int rightUpperRoadFour =
+            Tank::Physics::TankSuspensionSlotIndex(1, 1, 4);
+        strokeSettings.suspensionStrokeMeters[static_cast<size_t>(leftLowerFront)] = 0.12f;
+        strokeSettings.suspensionStrokeMeters[static_cast<size_t>(rightUpperRoadFour)] = 0.34f;
+        Tank::Physics::TrackedVehicleTest strokeTest;
+        strokeTest.Initialize(strokeSettings);
+        strokeTest.Step(dt);
+        bool foundLeftLowerFront = false;
+        bool foundRightUpperRoadFour = false;
+        for (int wheelIndex = 0; wheelIndex < strokeTest.State().wheelCount; ++wheelIndex)
+        {
+            const Tank::Physics::TrackedWheelState& wheel =
+                strokeTest.State().wheels[static_cast<size_t>(wheelIndex)];
+            if (wheel.suspensionSlotIndex == leftLowerFront)
+            {
+                foundLeftLowerFront = true;
+                passed &= Check(
+                    std::abs(
+                        wheel.suspensionMaxLength - wheel.suspensionMinLength - 0.12f) < 0.001f,
+                    "left lower front stroke must use its stable slot");
+            }
+            if (wheel.suspensionSlotIndex == rightUpperRoadFour)
+            {
+                foundRightUpperRoadFour = true;
+                passed &= Check(
+                    std::abs(
+                        wheel.suspensionMaxLength - wheel.suspensionMinLength - 0.34f) < 0.001f,
+                    "right upper road wheel stroke must use its stable slot");
+            }
+        }
+        passed &= Check(foundLeftLowerFront, "left lower front suspension slot must exist");
+        passed &= Check(foundRightUpperRoadFour, "right upper road wheel slot must exist");
     }
 
     if (!passed)
