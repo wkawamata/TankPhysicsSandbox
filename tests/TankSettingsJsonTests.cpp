@@ -47,6 +47,8 @@ int main()
     source.twoRoadWheelOffsetM = 0.82f;
     source.threeRoadWheelOffsetM = 1.15f;
     source.rideHeightScale = 0.75f;
+    source.suspensionFrequencyHz = 2.4f;
+    source.suspensionDamping = 0.85f;
     source.suspensionStrokeMeters[
         Tank::Physics::TankSuspensionSlotIndex(1, 1, 4)] = 0.37f;
     source.neutralBrakeEnabled = false;
@@ -137,6 +139,12 @@ int main()
         "three road wheel offset must round trip");
     passed &= Check(NearlyEqual(loaded.rideHeightScale, source.rideHeightScale),
         "ride height must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.suspensionFrequencyHz, source.suspensionFrequencyHz),
+        "suspension frequency must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.suspensionDamping, source.suspensionDamping),
+        "suspension damping must round trip");
     passed &= Check(
         NearlyEqual(
             loaded.suspensionStrokeMeters[

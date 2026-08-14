@@ -58,6 +58,10 @@ int main()
         "track spacing must default to 2.4 m");
     passed &= Check(NearlyEqual(controller.Settings().rideHeightScale, 0.8f),
         "ride height must default to 80 percent");
+    passed &= Check(NearlyEqual(controller.Settings().suspensionFrequencyHz, 1.0f),
+        "suspension frequency must preserve current behavior");
+    passed &= Check(NearlyEqual(controller.Settings().suspensionDamping, 0.5f),
+        "suspension damping must preserve the Jolt default");
     passed &= Check(NearlyEqual(controller.Settings().twoRoadWheelOffsetM, 0.67f),
         "two road wheel offset must preserve its default");
     passed &= Check(NearlyEqual(controller.Settings().endWheelOffsetM, 0.0f),
@@ -171,6 +175,18 @@ int main()
     passed &= Check(
         NearlyEqual(tractionController.DriverInput().rightRatio, 0.8f),
         "pivot right track must use its traction coefficient");
+
+    Tank::Physics::TankSettings suspensionLimitSettings;
+    suspensionLimitSettings.suspensionFrequencyHz = 50.0f;
+    suspensionLimitSettings.suspensionDamping = -1.0f;
+    Tank::Physics::TankController suspensionLimitController;
+    suspensionLimitController.Initialize(world, suspensionLimitSettings);
+    passed &= Check(
+        NearlyEqual(suspensionLimitController.Settings().suspensionFrequencyHz, 10.0f),
+        "suspension frequency must be clamped before Jolt setup");
+    passed &= Check(
+        NearlyEqual(suspensionLimitController.Settings().suspensionDamping, 0.0f),
+        "suspension damping must be clamped before Jolt setup");
 
     if (!passed)
     {

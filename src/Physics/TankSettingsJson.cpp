@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 15;
+        constexpr int kSchemaVersion = 16;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -75,6 +75,8 @@ namespace Tank::Physics
         json["twoRoadWheelOffsetM"] = settings.twoRoadWheelOffsetM;
         json["threeRoadWheelOffsetM"] = settings.threeRoadWheelOffsetM;
         json["rideHeightScale"] = settings.rideHeightScale;
+        json["suspensionFrequencyHz"] = settings.suspensionFrequencyHz;
+        json["suspensionDamping"] = settings.suspensionDamping;
         json["suspensionStrokeMeters"] = settings.suspensionStrokeMeters;
         json["neutralBrakeEnabled"] = settings.neutralBrakeEnabled;
         json["neutralBrakeAmount"] = settings.neutralBrakeAmount;
@@ -174,6 +176,8 @@ namespace Tank::Physics
         ReadFloat(json, "twoRoadWheelOffsetM", loaded.twoRoadWheelOffsetM);
         ReadFloat(json, "threeRoadWheelOffsetM", loaded.threeRoadWheelOffsetM);
         ReadFloat(json, "rideHeightScale", loaded.rideHeightScale);
+        ReadFloat(json, "suspensionFrequencyHz", loaded.suspensionFrequencyHz);
+        ReadFloat(json, "suspensionDamping", loaded.suspensionDamping);
         const auto suspensionStrokes = json.find("suspensionStrokeMeters");
         if (suspensionStrokes == json.end())
         {

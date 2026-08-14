@@ -176,6 +176,10 @@ namespace Tank::Physics
             (std::min)(2.0f, maximumTwoRoadWheelOffset));
         m_settings.rideHeightScale =
             std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
+        m_settings.suspensionFrequencyHz =
+            std::clamp(m_settings.suspensionFrequencyHz, 0.1f, 10.0f);
+        m_settings.suspensionDamping =
+            std::clamp(m_settings.suspensionDamping, 0.0f, 2.0f);
         for (float& stroke : m_settings.suspensionStrokeMeters)
         {
             stroke = std::clamp(stroke, 0.0f, 0.5f);
@@ -193,7 +197,6 @@ namespace Tank::Physics
         const float halfVehicleLength = 0.5f * m_settings.chassisLengthM;
         const float halfVehicleHeight = 0.5f;
         const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
-        const float suspensionFrequency = 1.0f;
 
         JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
 
@@ -319,7 +322,10 @@ namespace Tank::Physics
                     wheel->mSuspensionMaxLength = suspensionMinLength +
                         m_settings.suspensionStrokeMeters[
                             static_cast<size_t>(suspensionSlot)];
-                    wheel->mSuspensionSpring.mFrequency = suspensionFrequency;
+                    wheel->mSuspensionSpring.mFrequency =
+                        m_settings.suspensionFrequencyHz;
+                    wheel->mSuspensionSpring.mDamping =
+                        m_settings.suspensionDamping;
 
                     track.mWheels.push_back(static_cast<JPH::uint>(vehicle.mWheels.size()));
                     vehicle.mWheels.push_back(wheel);
@@ -689,6 +695,7 @@ namespace Tank::Physics
             wheelState.suspensionLength = wheel->GetSuspensionLength();
             wheelState.suspensionMinLength = wheelSettings->mSuspensionMinLength;
             wheelState.suspensionMaxLength = wheelSettings->mSuspensionMaxLength;
+            wheelState.suspensionAtHardPoint = wheel->HasHitHardPoint();
             wheelState.angularVelocityRadians = wheel->GetAngularVelocity();
             wheelState.suspensionImpulseNewtonSeconds = wheel->GetSuspensionLambda();
             wheelState.longitudinalImpulseNewtonSeconds =
