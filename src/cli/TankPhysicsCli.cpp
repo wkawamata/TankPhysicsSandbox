@@ -116,12 +116,12 @@ namespace
         std::cout << "Usage:\n"
                   << "  TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667\n"
                   << "  TankPhysicsCli --test maps --map-directory Config/Maps\n"
-                  << "  TankPhysicsCli --test mobility --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
-                  << "  TankPhysicsCli --test mobility-slope --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
-                  << "  TankPhysicsCli --test mobility-step --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
-                  << "  TankPhysicsCli --test mobility-orientation --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
-                  << "  TankPhysicsCli --test mobility-all --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
-                  << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --tank-settings Config/Tank/tank_1.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
+                  << "  TankPhysicsCli --test mobility --tank-settings Config/tank_physics_slot1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test mobility-slope --tank-settings Config/tank_physics_slot1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test mobility-step --tank-settings Config/tank_physics_slot1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test mobility-orientation --tank-settings Config/tank_physics_slot1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test mobility-all --tank-settings Config/tank_physics_slot1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --tank-settings Config/tank_physics_slot1.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
     }
 
     float DistanceXZ(const Tank::Physics::Vec3& a, const Tank::Physics::Vec3& b)

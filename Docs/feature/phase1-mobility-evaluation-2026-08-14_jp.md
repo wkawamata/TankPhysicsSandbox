@@ -21,6 +21,12 @@ build\Debug\TankPhysicsCli.exe --test mobility-all --tank-settings tests\data\ta
 
 `mobility-all`は基礎機動性、坂道保持・横滑り、段差乗越え、正立・反転比較を順番に実行し、最後に各評価の終了コードをまとめて表示する。
 
+`tests/data/tank_mobility.json`は、2026-08-14時点の`build/Config/tank_physics_slot1.json`をGit管理用にsnapshotしたTank Slot 1基準データである。現在保存されているSlot 1を直接評価する場合は、build directoryをworking directoryとして次を実行する。
+
+```bat
+Debug\TankPhysicsCli.exe --test mobility-all --tank-settings Config\tank_physics_slot1.json --settle-steps 180 --dt 0.0166667
+```
+
 評価では1000m四方の平坦な床を使用する。これは最高速・制動試験中に車両が既定床の端から落下することを防ぐためであり、車両物理パラメータは変更しない。
 
 ## 測定項目
@@ -39,18 +45,18 @@ build\Debug\TankPhysicsCli.exe --test mobility-all --tank-settings tests\data\ta
 
 `tests/data/tank_mobility.json`を使用した初回測定値:
 
-- 最高速度: 26.54 m/s（約95.5 km/h）
-- 0-10 m/s: 2.22 s
-- 制動距離: 23.20 m
-- 制動時間: 1.78 s
-- 通常旋回半径（Left 0.6 / Right 1.0）: 5.61 m
-- 片履帯入力半径（Left 0.0 / Right 1.0）: 1.36 m
-- 超信地旋回半径（Left -1.0 / Right 1.0）: 0.00058 m
-- 超信地旋回の最大Yaw速度: 325.54 degrees/s
-- 左右接地長: 2.00 m / 2.00 m
+- 最高速度: 27.87 m/s（約100.3 km/h）
+- 0-10 m/s: 1.48 s
+- 制動距離: 36.24 m
+- 制動時間: 2.65 s
+- 通常旋回半径（Left 0.6 / Right 1.0）: 10.04 m
+- 片履帯入力半径（Left 0.0 / Right 1.0）: 23.16 m
+- 超信地旋回半径（Left -1.0 / Right 1.0）: 0.33 m
+- 超信地旋回の最大Yaw速度: 100.00 degrees/s
+- 左右接地長: 2.35 m / 2.35 m
 - 接地角度: 0.00 degrees
-- サスペンション範囲: 0.24-0.40 m
-- 平均サスペンションImpulse: 115.31 Ns
+- サスペンション範囲: 0.33-0.55 m
+- 平均サスペンションImpulse: 163.37 Ns
 
 ### 坂道保持と横滑り
 
@@ -61,9 +67,9 @@ build\Debug\TankPhysicsCli.exe --test mobility-all --tank-settings tests\data\ta
 
 | Ramp friction | Full-brake hold slide | Lateral slide |
 | --- | ---: | ---: |
-| 0.3 | 0.091 m | 0.0535 m |
-| 0.6 | 0.127 m | 0.000048 m |
-| 1.0 | 0.139 m | 0.000001 m |
+| 0.3 | 0.053 m | 0.00445 m |
+| 0.6 | 0.049 m | 0.000315 m |
+| 1.0 | 0.048 m | 0.000172 m |
 
 全ブレーキ保持ではTerrain frictionによる単調な差は出ておらず、ブレーキトルクが支配的と考えられる。横滑りでは低摩擦時の変位が明確に大きい。
 
@@ -73,14 +79,14 @@ build\Debug\TankPhysicsCli.exe --test mobility-all --tank-settings tests\data\ta
 
 | Step height | Result | Traversal time |
 | --- | --- | ---: |
-| 0.25 m | PASS | 2.05 s |
-| 0.50 m | PASS | 2.65 s |
-| 0.75 m | PASS | 2.80 s |
+| 0.25 m | PASS | 1.97 s |
+| 0.50 m | PASS | 2.47 s |
+| 0.75 m | FAIL | - |
 | 1.00 m | FAIL | - |
 | 1.25 m | FAIL | - |
 | 1.50 m | FAIL | - |
 
-現在の最大成功高さは0.75m。これは0.25m刻みの探索結果であり、厳密な限界高さではない。
+現在の最大成功高さは0.50m。これは0.25m刻みの探索結果であり、厳密な限界高さではない。
 
 ### 正立・反転性能
 
@@ -88,11 +94,11 @@ Assault固有要件として、正立状態と上下反転状態を別々のPhys
 
 | Metric | Upright | Inverted | Inverted / Upright |
 | --- | ---: | ---: | ---: |
-| Forward distance | 62.84 m | 62.86 m | 1.0003 |
-| Maximum speed | 24.79 m/s | 24.80 m/s | approximately 1.0 |
-| 0-10 m/s | 2.22 s | 2.20 s | approximately 1.0 |
-| Pivot yaw travel | 811.61 degrees | 812.12 degrees | 1.0006 |
-| Contact wheels | lower 6 | upper 6 | - |
+| Forward distance | 58.20 m | 58.20 m | 1.0000 |
+| Maximum speed | 17.81 m/s | 17.81 m/s | 1.0000 |
+| 0-10 m/s | 1.48 s | 1.48 s | 1.0000 |
+| Pivot yaw travel | 322.93 degrees | 322.93 degrees | 1.0000 |
+| Contact wheels | lower 8 | upper 8 | - |
 
 直進距離比と超信地旋回量比は0.9-1.1を回帰条件とする。現在の車両は正立・反転でほぼ対称な機動性能を持つ。
 
