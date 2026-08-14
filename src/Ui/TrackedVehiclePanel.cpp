@@ -810,8 +810,60 @@ namespace Ui
 			"Track Spacing", &ctx.tankSettings->trackSpacingM, 1.8f, 6.0f, 0.1f, 2.4f, "%.2f m",
 			IsPending(ctx.tankSettings->trackSpacingM, ctx.appliedTankSettings->trackSpacingM));
 		SliderFloatWithPendingColor(
-			"Suspension Stroke", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
+			"Ride Height Scale", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
 			IsPending(ctx.tankSettings->rideHeightScale, ctx.appliedTankSettings->rideHeightScale));
+		if (ImGui::TreeNode("Suspension Stroke per Wheel"))
+		{
+			const char* trackNames[] = { "Left", "Right" };
+			const char* surfaceNames[] = { "Lower", "Upper" };
+			for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
+			{
+				for (int surface = 0; surface < Tank::Physics::kTankSurfacesPerTrack; ++surface)
+				{
+					ImGui::PushID(track * Tank::Physics::kTankSurfacesPerTrack + surface);
+					const std::string groupLabel =
+						std::string(trackNames[track]) + " " + surfaceNames[surface];
+					if (ImGui::TreeNode(groupLabel.c_str()))
+					{
+						for (int position = 0;
+							position < Tank::Physics::kTankSuspensionPositionsPerSurface;
+							++position)
+						{
+							const bool endWheel = position == 0 ||
+								position == Tank::Physics::kTankSuspensionPositionsPerSurface - 1;
+							if (!endWheel && position > ctx.tankSettings->roadWheelCount)
+							{
+								continue;
+							}
+							const int slot = Tank::Physics::TankSuspensionSlotIndex(
+								track, surface, position);
+							const char* positionLabel = position == 0
+								? "Front End"
+								: (position == Tank::Physics::kTankSuspensionPositionsPerSurface - 1
+									? "Rear End"
+									: nullptr);
+							const std::string roadLabel = positionLabel == nullptr
+								? "Road " + std::to_string(position)
+								: positionLabel;
+							SliderFloatWithPendingColor(
+								roadLabel.c_str(),
+								&ctx.tankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)],
+								0.0f,
+								0.5f,
+								0.01f,
+								endWheel ? 0.0f : 0.2f * ctx.tankSettings->rideHeightScale,
+								"%.2f m",
+								IsPending(
+									ctx.tankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)],
+									ctx.appliedTankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)]));
+						}
+						ImGui::TreePop();
+					}
+					ImGui::PopID();
+				}
+			}
+			ImGui::TreePop();
+		}
 		SliderFloatWithPendingColor(
 			"Chassis Width", &ctx.tankSettings->chassisWidthM, 1.6f, 3.2f, 0.1f, 2.4f, "%.2f m",
 			IsPending(ctx.tankSettings->chassisWidthM, ctx.appliedTankSettings->chassisWidthM));

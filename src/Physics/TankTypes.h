@@ -10,9 +10,37 @@ namespace Tank::Physics
     constexpr int kTankMaxRoadWheelCount = 4;
     constexpr int kTankMaxWheelsPerSurface = kTankMaxRoadWheelCount + 2;
     constexpr int kTankSurfacesPerTrack = 2;
+    constexpr int kTankSuspensionPositionsPerSurface =
+        kTankMaxRoadWheelCount + 2;
     constexpr int kTankMaxWheelsPerTrack =
         kTankMaxWheelsPerSurface * kTankSurfacesPerTrack;
     constexpr int kTankWheelCount = kTankTrackCount * kTankMaxWheelsPerTrack;
+
+    constexpr int TankSuspensionSlotIndex(
+        int trackIndex, int surfaceIndex, int positionIndex)
+    {
+        return trackIndex *
+                (kTankSurfacesPerTrack * kTankSuspensionPositionsPerSurface) +
+            surfaceIndex * kTankSuspensionPositionsPerSurface + positionIndex;
+    }
+
+    constexpr std::array<float, kTankWheelCount> MakeDefaultSuspensionStrokes(
+        float rideHeightScale = 0.8f)
+    {
+        std::array<float, kTankWheelCount> strokes = {};
+        for (int track = 0; track < kTankTrackCount; ++track)
+        {
+            for (int surface = 0; surface < kTankSurfacesPerTrack; ++surface)
+            {
+                for (int road = 1; road <= kTankMaxRoadWheelCount; ++road)
+                {
+                    strokes[static_cast<size_t>(TankSuspensionSlotIndex(
+                        track, surface, road))] = 0.2f * rideHeightScale;
+                }
+            }
+        }
+        return strokes;
+    }
 
     struct TankSettings
     {
@@ -42,6 +70,8 @@ namespace Tank::Physics
         float twoRoadWheelOffsetM = 0.67f;
         float threeRoadWheelOffsetM = 1.0f;
         float rideHeightScale = 0.8f;
+        std::array<float, kTankWheelCount> suspensionStrokeMeters =
+            MakeDefaultSuspensionStrokes();
         bool neutralBrakeEnabled = true;
         float neutralBrakeAmount = 0.15f;
         float stationaryTurnInnerTrackRatio = 0.0f;
@@ -90,11 +120,14 @@ namespace Tank::Physics
     {
         int trackIndex = 0;
         int wheelIndex = 0;
+        int suspensionSlotIndex = 0;
         bool upperSurface = false;
         TransformState transform = {};
         Vec3 suspensionOrigin = {};
         Vec3 suspensionDirection = {};
         float suspensionLength = 0.0f;
+        float suspensionMinLength = 0.0f;
+        float suspensionMaxLength = 0.0f;
         float angularVelocityRadians = 0.0f;
         float suspensionImpulseNewtonSeconds = 0.0f;
         float longitudinalImpulseNewtonSeconds = 0.0f;

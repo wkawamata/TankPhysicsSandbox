@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 14;
+        constexpr int kSchemaVersion = 15;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -75,6 +75,7 @@ namespace Tank::Physics
         json["twoRoadWheelOffsetM"] = settings.twoRoadWheelOffsetM;
         json["threeRoadWheelOffsetM"] = settings.threeRoadWheelOffsetM;
         json["rideHeightScale"] = settings.rideHeightScale;
+        json["suspensionStrokeMeters"] = settings.suspensionStrokeMeters;
         json["neutralBrakeEnabled"] = settings.neutralBrakeEnabled;
         json["neutralBrakeAmount"] = settings.neutralBrakeAmount;
         json["stationaryTurnInnerTrackRatio"] = settings.stationaryTurnInnerTrackRatio;
@@ -173,6 +174,37 @@ namespace Tank::Physics
         ReadFloat(json, "twoRoadWheelOffsetM", loaded.twoRoadWheelOffsetM);
         ReadFloat(json, "threeRoadWheelOffsetM", loaded.threeRoadWheelOffsetM);
         ReadFloat(json, "rideHeightScale", loaded.rideHeightScale);
+        const auto suspensionStrokes = json.find("suspensionStrokeMeters");
+        if (suspensionStrokes == json.end())
+        {
+            loaded.suspensionStrokeMeters =
+                MakeDefaultSuspensionStrokes(loaded.rideHeightScale);
+        }
+        else
+        {
+            if (!suspensionStrokes->is_array() ||
+                suspensionStrokes->size() != loaded.suspensionStrokeMeters.size())
+            {
+                if (error != nullptr)
+                {
+                    *error = "suspensionStrokeMeters must contain 24 values";
+                }
+                return false;
+            }
+            for (size_t index = 0; index < loaded.suspensionStrokeMeters.size(); ++index)
+            {
+                if (!(*suspensionStrokes)[index].is_number())
+                {
+                    if (error != nullptr)
+                    {
+                        *error = "suspensionStrokeMeters values must be numbers";
+                    }
+                    return false;
+                }
+                loaded.suspensionStrokeMeters[index] =
+                    (*suspensionStrokes)[index].get<float>();
+            }
+        }
         ReadBool(json, "neutralBrakeEnabled", loaded.neutralBrakeEnabled);
         ReadFloat(json, "neutralBrakeAmount", loaded.neutralBrakeAmount);
         ReadFloat(

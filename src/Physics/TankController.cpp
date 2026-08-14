@@ -176,6 +176,10 @@ namespace Tank::Physics
             (std::min)(2.0f, maximumTwoRoadWheelOffset));
         m_settings.rideHeightScale =
             std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
+        for (float& stroke : m_settings.suspensionStrokeMeters)
+        {
+            stroke = std::clamp(stroke, 0.0f, 0.5f);
+        }
         m_settings.wheelHorizontalOffsetM = std::clamp(
             m_settings.wheelHorizontalOffsetM,
             -1.0f,
@@ -189,7 +193,6 @@ namespace Tank::Physics
         const float halfVehicleLength = 0.5f * m_settings.chassisLengthM;
         const float halfVehicleHeight = 0.5f;
         const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
-        const float suspensionMaxLength = 0.5f * m_settings.rideHeightScale;
         const float suspensionFrequency = 1.0f;
 
         JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
@@ -306,10 +309,16 @@ namespace Tank::Physics
                     wheel->mSuspensionForcePoint = wheel->mPosition;
                     wheel->mEnableSuspensionForcePoint = true;
                     wheel->mSuspensionMinLength = suspensionMinLength;
-                    wheel->mSuspensionMaxLength =
-                        endWheel
-                        ? suspensionMinLength
-                        : suspensionMaxLength;
+                    const int suspensionPosition = w == 0
+                        ? 0
+                        : (w == numWheelsPerSurface - 1
+                            ? kTankSuspensionPositionsPerSurface - 1
+                            : w);
+                    const int suspensionSlot = TankSuspensionSlotIndex(
+                        t, surface, suspensionPosition);
+                    wheel->mSuspensionMaxLength = suspensionMinLength +
+                        m_settings.suspensionStrokeMeters[
+                            static_cast<size_t>(suspensionSlot)];
                     wheel->mSuspensionSpring.mFrequency = suspensionFrequency;
 
                     track.mWheels.push_back(static_cast<JPH::uint>(vehicle.mWheels.size()));
@@ -650,6 +659,16 @@ namespace Tank::Physics
             wheelState.trackIndex = i / wheelsPerTrack;
             wheelState.wheelIndex = i % wheelsPerTrack;
             wheelState.upperSurface = wheelState.wheelIndex >= wheelsPerSurface;
+            const int wheelOnSurface = wheelState.wheelIndex % wheelsPerSurface;
+            const int suspensionPosition = wheelOnSurface == 0
+                ? 0
+                : (wheelOnSurface == wheelsPerSurface - 1
+                    ? kTankSuspensionPositionsPerSurface - 1
+                    : wheelOnSurface);
+            wheelState.suspensionSlotIndex = TankSuspensionSlotIndex(
+                wheelState.trackIndex,
+                wheelState.upperSurface ? 1 : 0,
+                suspensionPosition);
             wheelState.transform.position = {
                 static_cast<float>(wheelPosition.GetX()),
                 static_cast<float>(wheelPosition.GetY()),
@@ -668,6 +687,8 @@ namespace Tank::Physics
                 static_cast<float>(suspensionDirection.GetY()),
                 static_cast<float>(suspensionDirection.GetZ())};
             wheelState.suspensionLength = wheel->GetSuspensionLength();
+            wheelState.suspensionMinLength = wheelSettings->mSuspensionMinLength;
+            wheelState.suspensionMaxLength = wheelSettings->mSuspensionMaxLength;
             wheelState.angularVelocityRadians = wheel->GetAngularVelocity();
             wheelState.suspensionImpulseNewtonSeconds = wheel->GetSuspensionLambda();
             wheelState.longitudinalImpulseNewtonSeconds =
