@@ -13,6 +13,14 @@
 build\Debug\TankPhysicsCli.exe --test mobility --tank-settings tests\data\tank_mobility.json --settle-steps 180 --dt 0.0166667
 ```
 
+全評価を一括実行する場合:
+
+```bat
+build\Debug\TankPhysicsCli.exe --test mobility-all --tank-settings tests\data\tank_mobility.json --settle-steps 180 --dt 0.0166667
+```
+
+`mobility-all`は基礎機動性、坂道保持・横滑り、段差乗越え、正立・反転比較を順番に実行し、最後に各評価の終了コードをまとめて表示する。
+
 評価では1000m四方の平坦な床を使用する。これは最高速・制動試験中に車両が既定床の端から落下することを防ぐためであり、車両物理パラメータは変更しない。
 
 ## 測定項目

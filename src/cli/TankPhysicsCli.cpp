@@ -38,6 +38,7 @@ namespace
         const std::string& path,
         Tank::Physics::TankSettings& settings,
         std::string& error);
+    int RunMobilityTest(const CliOptions& options);
 
     bool ParseArgs(int argc, char* argv[], CliOptions& options)
     {
@@ -119,6 +120,7 @@ namespace
                   << "  TankPhysicsCli --test mobility-slope --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test mobility-step --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test mobility-orientation --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test mobility-all --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --tank-settings Config/Tank/tank_1.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
     }
 
@@ -505,6 +507,23 @@ namespace
         return passed ? 0 : 1;
     }
 
+    int RunAllMobilityTests(const CliOptions& options)
+    {
+        const int mobility = RunMobilityTest(options);
+        const int slope = RunSlopeTest(options);
+        const int step = RunStepTest(options);
+        const int orientation = RunOrientationTest(options);
+        const bool passed =
+            mobility == 0 && slope == 0 && step == 0 && orientation == 0;
+        std::cout << (passed ? "PASS" : "FAIL") << " mobility-all"
+                  << " mobility=" << mobility
+                  << " slope=" << slope
+                  << " step=" << step
+                  << " orientation=" << orientation
+                  << "\n";
+        return passed ? 0 : 1;
+    }
+
     int RunMobilityTest(const CliOptions& options)
     {
         Tank::Physics::TankSettings settings;
@@ -837,6 +856,10 @@ int main(int argc, char* argv[])
     if (options.testName == "mobility-orientation")
     {
         return RunOrientationTest(options);
+    }
+    if (options.testName == "mobility-all")
+    {
+        return RunAllMobilityTests(options);
     }
     if (options.testName != "box-drop")
     {
