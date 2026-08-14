@@ -21,6 +21,22 @@ build\Debug\TankPhysicsCli.exe --test mobility-all --tank-settings tests\data\ta
 
 `mobility-all`は基礎機動性、坂道保持・横滑り、段差乗越え、正立・反転比較を順番に実行し、最後に各評価の終了コードをまとめて表示する。
 
+## レポート保存
+
+Git管理snapshotを評価する:
+
+```bat
+scripts\run-mobility-evaluation.bat Snapshot
+```
+
+現在のTank Slot 1を評価する:
+
+```bat
+scripts\run-mobility-evaluation.bat Slot1
+```
+
+レポートは`build/Reports/Mobility/mobility-<settings>-<timestamp>.txt`へUTF-8で保存される。実行日時、設定ファイルの絶対パス、Git commit、全評価出力、終了コードを含む。調整前後でレポートを残すことで、性能値の変化を比較できる。
+
 `tests/data/tank_mobility.json`は、2026-08-14時点の`build/Config/tank_physics_slot1.json`をGit管理用にsnapshotしたTank Slot 1基準データである。現在保存されているSlot 1を直接評価する場合は、build directoryをworking directoryとして次を実行する。
 
 ```bat
