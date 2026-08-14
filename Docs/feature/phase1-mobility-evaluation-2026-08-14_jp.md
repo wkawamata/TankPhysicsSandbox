@@ -44,6 +44,21 @@ build\Debug\TankPhysicsCli.exe --test mobility --tank-settings tests\data\tank_m
 - サスペンション範囲: 0.24-0.40 m
 - 平均サスペンションImpulse: 115.31 Ns
 
+### 坂道保持と横滑り
+
+坂道保持と横滑りは必要な傾斜条件が異なるため、別条件で測定する。
+
+- 坂道保持: 20.6 degrees（高さ9m / 長さ24m）、全ブレーキ、5秒
+- 横滑り: 36.9 degrees（高さ18m / 長さ24m）、既定Neutral Brake、車体を斜面に対して横向き、5秒
+
+| Ramp friction | Full-brake hold slide | Lateral slide |
+| --- | ---: | ---: |
+| 0.3 | 0.091 m | 0.0535 m |
+| 0.6 | 0.127 m | 0.000048 m |
+| 1.0 | 0.139 m | 0.000001 m |
+
+全ブレーキ保持ではTerrain frictionによる単調な差は出ておらず、ブレーキトルクが支配的と考えられる。横滑りでは低摩擦時の変位が明確に大きい。
+
 数値は現時点の比較用baselineであり、実車として妥当な目標値を意味しない。
 
 ## 旋回入力の定義
@@ -62,6 +77,5 @@ build\Debug\TankPhysicsCli.exe --test mobility --tank-settings tests\data\tank_m
 
 ## 次の評価
 
-1. 坂道保持と横滑りを摩擦別に測定する。
-2. 段差乗越えの成功高さと所要時間を測定する。
-3. 正立時と反転時の加速・旋回性能を比較する。
+1. 段差乗越えの成功高さと所要時間を測定する。
+2. 正立時と反転時の加速・旋回性能を比較する。

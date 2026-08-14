@@ -369,6 +369,17 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.MobilitySlopeCli
+        COMMAND TankPhysicsCli
+            --test mobility-slope
+            --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
+            --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.MobilitySlopeCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS mobility-slope"
+    )
+
+    add_test(
         NAME TankPhysics.TankControllerBoundary
         COMMAND TankControllerTests
     )

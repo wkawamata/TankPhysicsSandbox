@@ -116,6 +116,7 @@ namespace
                   << "  TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667\n"
                   << "  TankPhysicsCli --test maps --map-directory Config/Maps\n"
                   << "  TankPhysicsCli --test mobility --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test mobility-slope --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --tank-settings Config/Tank/tank_1.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
     }
 
@@ -144,6 +145,12 @@ namespace
         float pathLengthMeters = 0.0f;
         float yawDegrees = 0.0f;
         float maximumYawSpeedDegrees = 0.0f;
+    };
+
+    struct SlopeEvaluation
+    {
+        float holdSlideMeters = 0.0f;
+        float lateralSlideMeters = 0.0f;
     };
 
     TurnEvaluation EvaluateTurn(
@@ -190,6 +197,98 @@ namespace
             ? result.pathLengthMeters / yawTravel
             : std::numeric_limits<float>::infinity();
         return result;
+    }
+
+    float EvaluateSlopeSlide(
+        const Tank::Physics::TankSettings& sourceSettings,
+        float deltaTimeSeconds,
+        float friction,
+        float tankYawRadians,
+        float rampHeightMeters,
+        bool fullBrake)
+    {
+        Tank::Physics::TankSettings settings = sourceSettings;
+        Tank::Physics::PhysicsEnvironmentSettings environment;
+        environment.floorSizeM = 200.0f;
+        environment.obstacleCount = 0;
+
+        Tank::Physics::MapPrimitive ramp;
+        ramp.type = Tank::Physics::MapPrimitiveType::TriangularPrism;
+        ramp.position = { 0.0f, 0.5f * rampHeightMeters, 0.0f };
+        ramp.size = { 20.0f, rampHeightMeters, 24.0f };
+        ramp.friction = friction;
+        Tank::Physics::MapSpawn spawn;
+        spawn.position = { 0.0f, 0.5f * rampHeightMeters + 2.5f, 0.0f };
+        spawn.yawRadians = tankYawRadians;
+
+        Tank::Physics::TrackedVehicleTest test;
+        test.Initialize(settings, environment, { ramp }, spawn);
+        if (fullBrake)
+        {
+            Tank::Physics::TankInput brake;
+            brake.brake = true;
+            test.SetInput(brake);
+        }
+        Tank::Physics::TrackedVehicleTestState state = test.State();
+        for (int step = 0; step < 120; ++step)
+        {
+            state = test.Step(deltaTimeSeconds);
+        }
+        const Tank::Physics::Vec3 start = state.bodyPosition;
+        for (int step = 0; step < 300; ++step)
+        {
+            state = test.Step(deltaTimeSeconds);
+        }
+        return std::abs(state.bodyPosition.z - start.z);
+    }
+
+    SlopeEvaluation EvaluateSlope(
+        const Tank::Physics::TankSettings& settings,
+        float deltaTimeSeconds,
+        float friction)
+    {
+        SlopeEvaluation result;
+        result.holdSlideMeters = EvaluateSlopeSlide(
+            settings, deltaTimeSeconds, friction, 0.0f, 9.0f, true);
+        result.lateralSlideMeters = EvaluateSlopeSlide(
+            settings,
+            deltaTimeSeconds,
+            friction,
+            0.5f * 3.14159265358979323846f,
+            18.0f,
+            false);
+        return result;
+    }
+
+    int RunSlopeTest(const CliOptions& options)
+    {
+        Tank::Physics::TankSettings settings;
+        std::string error;
+        if (!LoadTankSettings(options.tankSettingsPath, settings, error))
+        {
+            std::cerr << "FAIL mobility-slope tank_settings_error=" << error << "\n";
+            return 1;
+        }
+
+        const SlopeEvaluation low = EvaluateSlope(settings, options.deltaTimeSeconds, 0.3f);
+        const SlopeEvaluation medium = EvaluateSlope(settings, options.deltaTimeSeconds, 0.6f);
+        const SlopeEvaluation high = EvaluateSlope(settings, options.deltaTimeSeconds, 1.0f);
+        const bool passed =
+            std::isfinite(low.holdSlideMeters) && std::isfinite(low.lateralSlideMeters) &&
+            std::isfinite(medium.holdSlideMeters) && std::isfinite(medium.lateralSlideMeters) &&
+            std::isfinite(high.holdSlideMeters) && std::isfinite(high.lateralSlideMeters) &&
+            low.holdSlideMeters < 0.5f && medium.holdSlideMeters < 0.5f &&
+            high.holdSlideMeters < 0.5f &&
+            high.lateralSlideMeters <= low.lateralSlideMeters;
+        std::cout << (passed ? "PASS" : "FAIL") << " mobility-slope"
+                  << " low_hold_slide_m=" << low.holdSlideMeters
+                  << " low_lateral_slide_m=" << low.lateralSlideMeters
+                  << " medium_hold_slide_m=" << medium.holdSlideMeters
+                  << " medium_lateral_slide_m=" << medium.lateralSlideMeters
+                  << " high_hold_slide_m=" << high.holdSlideMeters
+                  << " high_lateral_slide_m=" << high.lateralSlideMeters
+                  << "\n";
+        return passed ? 0 : 1;
     }
 
     int RunMobilityTest(const CliOptions& options)
@@ -512,6 +611,10 @@ int main(int argc, char* argv[])
     if (options.testName == "mobility")
     {
         return RunMobilityTest(options);
+    }
+    if (options.testName == "mobility-slope")
+    {
+        return RunSlopeTest(options);
     }
     if (options.testName != "box-drop")
     {
