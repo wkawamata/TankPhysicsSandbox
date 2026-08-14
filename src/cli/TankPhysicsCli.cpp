@@ -117,6 +117,7 @@ namespace
                   << "  TankPhysicsCli --test maps --map-directory Config/Maps\n"
                   << "  TankPhysicsCli --test mobility --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test mobility-slope --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test mobility-step --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --tank-settings Config/Tank/tank_1.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
     }
 
@@ -151,6 +152,15 @@ namespace
     {
         float holdSlideMeters = 0.0f;
         float lateralSlideMeters = 0.0f;
+    };
+
+    struct StepEvaluation
+    {
+        float heightMeters = 0.0f;
+        bool succeeded = false;
+        float traversalTimeSeconds = -1.0f;
+        float maximumBodyHeightMeters = 0.0f;
+        float finalForwardMeters = 0.0f;
     };
 
     TurnEvaluation EvaluateTurn(
@@ -287,6 +297,91 @@ namespace
                   << " medium_lateral_slide_m=" << medium.lateralSlideMeters
                   << " high_hold_slide_m=" << high.holdSlideMeters
                   << " high_lateral_slide_m=" << high.lateralSlideMeters
+                  << "\n";
+        return passed ? 0 : 1;
+    }
+
+    StepEvaluation EvaluateStep(
+        const Tank::Physics::TankSettings& settings,
+        float deltaTimeSeconds,
+        float heightMeters)
+    {
+        Tank::Physics::PhysicsEnvironmentSettings environment;
+        environment.obstacleCount = 0;
+        Tank::Physics::MapPrimitive stepBlock;
+        stepBlock.type = Tank::Physics::MapPrimitiveType::Box;
+        stepBlock.position = { 0.0f, 0.5f * heightMeters, 10.0f };
+        stepBlock.size = { 20.0f, heightMeters, 4.0f };
+        stepBlock.friction = 1.0f;
+
+        Tank::Physics::TrackedVehicleTest test;
+        test.Initialize(settings, environment, { stepBlock });
+        Tank::Physics::TrackedVehicleTestState state = test.State();
+        for (int step = 0; step < 180; ++step)
+        {
+            state = test.Step(deltaTimeSeconds);
+        }
+        const Tank::Physics::Vec3 start = state.bodyPosition;
+        StepEvaluation result;
+        result.heightMeters = heightMeters;
+        result.maximumBodyHeightMeters = state.bodyPosition.y;
+
+        Tank::Physics::TankInput input;
+        input.throttle = 1.0f;
+        test.SetInput(input);
+        for (int step = 0; step < 480; ++step)
+        {
+            state = test.Step(deltaTimeSeconds);
+            result.maximumBodyHeightMeters = std::max(
+                result.maximumBodyHeightMeters,
+                state.bodyPosition.y);
+            result.finalForwardMeters = state.bodyPosition.z - start.z;
+            if (state.bodyPosition.z >= 14.0f)
+            {
+                result.succeeded = true;
+                result.traversalTimeSeconds = static_cast<float>(step + 1) * deltaTimeSeconds;
+                break;
+            }
+        }
+        return result;
+    }
+
+    int RunStepTest(const CliOptions& options)
+    {
+        Tank::Physics::TankSettings settings;
+        std::string error;
+        if (!LoadTankSettings(options.tankSettingsPath, settings, error))
+        {
+            std::cerr << "FAIL mobility-step tank_settings_error=" << error << "\n";
+            return 1;
+        }
+
+        constexpr std::array<float, 6> heights = {
+            0.25f, 0.50f, 0.75f, 1.00f, 1.25f, 1.50f };
+        float maximumSuccessfulHeight = 0.0f;
+        float maximumHeightTime = -1.0f;
+        bool valid = true;
+        std::cout << "step-results";
+        for (float height : heights)
+        {
+            const StepEvaluation result = EvaluateStep(
+                settings, options.deltaTimeSeconds, height);
+            valid &= std::isfinite(result.maximumBodyHeightMeters) &&
+                std::isfinite(result.finalForwardMeters);
+            if (result.succeeded)
+            {
+                maximumSuccessfulHeight = height;
+                maximumHeightTime = result.traversalTimeSeconds;
+            }
+            std::cout << " h" << static_cast<int>(height * 100.0f)
+                      << "=" << (result.succeeded ? "pass" : "fail")
+                      << ":" << result.traversalTimeSeconds;
+        }
+        std::cout << "\n";
+        const bool passed = valid && maximumSuccessfulHeight >= 0.5f;
+        std::cout << (passed ? "PASS" : "FAIL") << " mobility-step"
+                  << " maximum_height_m=" << maximumSuccessfulHeight
+                  << " traversal_time_s=" << maximumHeightTime
                   << "\n";
         return passed ? 0 : 1;
     }
@@ -615,6 +710,10 @@ int main(int argc, char* argv[])
     if (options.testName == "mobility-slope")
     {
         return RunSlopeTest(options);
+    }
+    if (options.testName == "mobility-step")
+    {
+        return RunStepTest(options);
     }
     if (options.testName != "box-drop")
     {

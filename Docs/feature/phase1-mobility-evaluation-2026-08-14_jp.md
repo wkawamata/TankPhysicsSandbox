@@ -59,6 +59,21 @@ build\Debug\TankPhysicsCli.exe --test mobility --tank-settings tests\data\tank_m
 
 全ブレーキ保持ではTerrain frictionによる単調な差は出ておらず、ブレーキトルクが支配的と考えられる。横滑りでは低摩擦時の変位が明確に大きい。
 
+### 段差乗越え
+
+幅20m、進行方向厚さ4m、摩擦1.0のBox段差へ全開前進し、車体中心が段差の奥端を2m越えるまでを測定する。各高さは独立したPhysics Worldで評価し、制限時間は8秒とする。
+
+| Step height | Result | Traversal time |
+| --- | --- | ---: |
+| 0.25 m | PASS | 2.05 s |
+| 0.50 m | PASS | 2.65 s |
+| 0.75 m | PASS | 2.80 s |
+| 1.00 m | FAIL | - |
+| 1.25 m | FAIL | - |
+| 1.50 m | FAIL | - |
+
+現在の最大成功高さは0.75m。これは0.25m刻みの探索結果であり、厳密な限界高さではない。
+
 数値は現時点の比較用baselineであり、実車として妥当な目標値を意味しない。
 
 ## 旋回入力の定義
@@ -77,5 +92,4 @@ build\Debug\TankPhysicsCli.exe --test mobility --tank-settings tests\data\tank_m
 
 ## 次の評価
 
-1. 段差乗越えの成功高さと所要時間を測定する。
-2. 正立時と反転時の加速・旋回性能を比較する。
+1. 正立時と反転時の加速・旋回性能を比較する。
