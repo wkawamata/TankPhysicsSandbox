@@ -388,6 +388,47 @@ namespace Tank::App
         m_followPivotInitialized = false;
     }
 
+    void CameraController::UpdateChaseOrbitInput(
+        float horizontal, float vertical, float dt)
+    {
+        const float safeDt = std::clamp(dt, 0.0f, 1.0f / 30.0f);
+        if (!m_followTank || !m_tankYawChaseEnabled || IsDebugSlot())
+        {
+            horizontal = 0.0f;
+            vertical = 0.0f;
+        }
+        horizontal = std::clamp(horizontal, -1.0f, 1.0f);
+        vertical = std::clamp(vertical, -1.0f, 1.0f);
+
+        constexpr float targetYawDegrees = 60.0f;
+        constexpr float hardYawDegrees = 90.0f;
+        constexpr float targetPitchDegrees = 45.0f;
+        constexpr float springFrequency = 7.0f;
+        constexpr float springDamping = 1.0f;
+        const float yawTarget = horizontal * targetYawDegrees;
+        const float pitchTarget = std::clamp(
+            vertical * targetPitchDegrees,
+            -m_lookDownDegrees,
+            kMaximumLookDownDegrees - m_lookDownDegrees);
+        const float spring = springFrequency * springFrequency;
+        const float damper = 2.0f * springDamping * springFrequency;
+
+        m_chaseOrbitYawVelocity +=
+            ((yawTarget - m_chaseOrbitYawOffsetDegrees) * spring -
+                m_chaseOrbitYawVelocity * damper) * safeDt;
+        m_chaseOrbitPitchVelocity +=
+            ((pitchTarget - m_chaseOrbitPitchOffsetDegrees) * spring -
+                m_chaseOrbitPitchVelocity * damper) * safeDt;
+        m_chaseOrbitYawOffsetDegrees = std::clamp(
+            m_chaseOrbitYawOffsetDegrees + m_chaseOrbitYawVelocity * safeDt,
+            -hardYawDegrees,
+            hardYawDegrees);
+        m_chaseOrbitPitchOffsetDegrees = std::clamp(
+            m_chaseOrbitPitchOffsetDegrees + m_chaseOrbitPitchVelocity * safeDt,
+            -m_lookDownDegrees,
+            kMaximumLookDownDegrees - m_lookDownDegrees);
+    }
+
     void CameraController::OnTankTeleported(
         const Tank::Physics::TrackedVehicleTestState& previousState,
         const Tank::Physics::TrackedVehicleTestState& currentState,
@@ -521,7 +562,9 @@ namespace Tank::App
         const float desiredRearYaw =
             std::atan2(-forwardVector.x, -forwardVector.z) +
             XMConvertToRadians(std::clamp(
-                m_followYawOffsetDegrees, -180.0f, 180.0f));
+                m_followYawOffsetDegrees + m_chaseOrbitYawOffsetDegrees,
+                -270.0f,
+                270.0f));
         if (!m_orbitInitialized)
         {
             m_orbitYaw = std::atan2(
@@ -552,7 +595,9 @@ namespace Tank::App
         }
         const float lookDownRadians =
             XMConvertToRadians(std::clamp(
-                m_lookDownDegrees, 0.0f, kMaximumLookDownDegrees));
+                m_lookDownDegrees + m_chaseOrbitPitchOffsetDegrees,
+                0.0f,
+                kMaximumLookDownDegrees));
         const float horizontalDistance =
             std::cos(lookDownRadians) * m_followDistance;
         const float verticalDistance =

@@ -617,6 +617,14 @@ void TankSandboxApp::OnIdle()
             {
                 LoadCameraSettings();
             }
+            const float orbitHorizontal =
+                (gp.dpadRight ? 1.0f : 0.0f) - (gp.dpadLeft ? 1.0f : 0.0f);
+            const float orbitVertical =
+                (gp.dpadUp ? 1.0f : 0.0f) - (gp.dpadDown ? 1.0f : 0.0f);
+            m_cameraController.UpdateChaseOrbitInput(
+                orbitHorizontal,
+                orbitVertical,
+                TrackedVehicleMode::kPhysicsFixedDt);
         }
         m_trackedVehicleMode.UpdateInput(
             vehicleGamepadState,
