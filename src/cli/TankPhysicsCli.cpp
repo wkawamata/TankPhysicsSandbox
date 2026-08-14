@@ -548,9 +548,41 @@ namespace
         Tank::Physics::TankInput drive;
         drive.throttle = 1.0f;
         straight.SetInput(drive);
+        float maximumSuspensionCompressionSpeed = 0.0f;
+        float maximumSuspensionExtensionSpeed = 0.0f;
+        float maximumSuspensionImpulse = 0.0f;
+        int suspensionHardPointSamples = 0;
+        int adjustableContactSamples = 0;
+        const auto accumulateSuspensionMetrics = [&](
+            const Tank::Physics::TrackedVehicleTestState& sample)
+        {
+            for (int wheelIndex = 0; wheelIndex < sample.wheelCount; ++wheelIndex)
+            {
+                const Tank::Physics::TrackedWheelState& wheel =
+                    sample.wheels[static_cast<size_t>(wheelIndex)];
+                maximumSuspensionCompressionSpeed = std::max(
+                    maximumSuspensionCompressionSpeed,
+                    -wheel.suspensionVelocityMetersPerSecond);
+                maximumSuspensionExtensionSpeed = std::max(
+                    maximumSuspensionExtensionSpeed,
+                    wheel.suspensionVelocityMetersPerSecond);
+                maximumSuspensionImpulse = std::max(
+                    maximumSuspensionImpulse,
+                    wheel.suspensionImpulseNewtonSeconds);
+                const bool adjustableSuspension =
+                    wheel.suspensionMaxLength - wheel.suspensionMinLength > 0.0001f;
+                adjustableContactSamples +=
+                    wheel.hasContact && adjustableSuspension ? 1 : 0;
+                suspensionHardPointSamples +=
+                    wheel.hasContact && adjustableSuspension && wheel.suspensionAtHardPoint
+                        ? 1
+                        : 0;
+            }
+        };
         for (int step = 0; step < evaluationSteps; ++step)
         {
             state = straight.Step(options.deltaTimeSeconds);
+            accumulateSuspensionMetrics(state);
         }
         const float maximumSpeed = state.maximumSpeedMetersPerSecond;
         const float zeroToTenSeconds = state.zeroToTenTimeSeconds;
@@ -593,6 +625,10 @@ namespace
         const float averageContactAngleDegrees = contactCount > 0
             ? contactAngleSumDegrees / static_cast<float>(contactCount)
             : 0.0f;
+        const float suspensionHardPointRatio = adjustableContactSamples > 0
+            ? static_cast<float>(suspensionHardPointSamples) /
+                static_cast<float>(adjustableContactSamples)
+            : 0.0f;
 
         Tank::Physics::TankInput brake;
         brake.brake = true;
@@ -601,6 +637,7 @@ namespace
         for (int step = 0; step < evaluationSteps; ++step)
         {
             state = straight.Step(options.deltaTimeSeconds);
+            accumulateSuspensionMetrics(state);
             brakingTime += options.deltaTimeSeconds;
             if (state.speedMetersPerSecond < 0.2f)
             {
@@ -642,6 +679,13 @@ namespace
                   << " suspension_min_m=" << minimumSuspensionLength
                   << " suspension_max_m=" << maximumSuspensionLength
                   << " suspension_avg_impulse_ns=" << averageSuspensionImpulse
+                  << " suspension_max_impulse_ns=" << maximumSuspensionImpulse
+                  << " suspension_max_compression_speed_mps="
+                  << maximumSuspensionCompressionSpeed
+                  << " suspension_max_extension_speed_mps="
+                  << maximumSuspensionExtensionSpeed
+                  << " suspension_hard_point_samples=" << suspensionHardPointSamples
+                  << " suspension_hard_point_ratio=" << suspensionHardPointRatio
                   << "\n";
         return passed ? 0 : 1;
     }
