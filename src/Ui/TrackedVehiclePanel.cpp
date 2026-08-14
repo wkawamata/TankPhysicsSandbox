@@ -207,6 +207,71 @@ namespace Ui
 				contacts[0], longitudinalImpulse[0], lateralImpulse[0], slipSpeed[0]);
 			ImGui::Text("Right: contact %d  drive %.1f Ns  lateral %.1f Ns  slip %.2f m/s",
 				contacts[1], longitudinalImpulse[1], lateralImpulse[1], slipSpeed[1]);
+			if (ImGui::TreeNode("Suspension per Wheel"))
+			{
+				if (ImGui::BeginTable(
+					"SuspensionTelemetry",
+					6,
+					ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+						ImGuiTableFlags_SizingFixedFit))
+				{
+					ImGui::TableSetupColumn("Wheel");
+					ImGui::TableSetupColumn("Contact");
+					ImGui::TableSetupColumn("Length");
+					ImGui::TableSetupColumn("Range");
+					ImGui::TableSetupColumn("Used");
+					ImGui::TableSetupColumn("Impulse");
+					ImGui::TableHeadersRow();
+					const int wheelsPerSurface = ctx.tankSettings->roadWheelCount + 2;
+					for (int i = 0; i < state.wheelCount; ++i)
+					{
+						const Tank::Physics::TrackedWheelState& wheel =
+							state.wheels[static_cast<size_t>(i)];
+						const int wheelOnSurface = wheel.wheelIndex % wheelsPerSurface;
+						const bool endWheel = wheelOnSurface == 0 ||
+							wheelOnSurface == wheelsPerSurface - 1;
+						const char* positionName = wheelOnSurface == 0
+							? "Front"
+							: (wheelOnSurface == wheelsPerSurface - 1 ? "Rear" : nullptr);
+						const std::string wheelName = std::string(wheel.trackIndex == 0 ? "L" : "R") +
+							(wheel.upperSurface ? "-U-" : "-L-") +
+							(positionName != nullptr
+								? positionName
+								: "Road" + std::to_string(wheelOnSurface));
+						const float stroke =
+							wheel.suspensionMaxLength - wheel.suspensionMinLength;
+						const float used = stroke > 0.0001f
+							? std::clamp(
+								(wheel.suspensionLength - wheel.suspensionMinLength) / stroke,
+								0.0f,
+								1.0f)
+							: 0.0f;
+
+						ImGui::TableNextRow();
+						ImGui::TableSetColumnIndex(0);
+						ImGui::TextUnformatted(wheelName.c_str());
+						ImGui::TableSetColumnIndex(1);
+						ImGui::TextUnformatted(wheel.hasContact ? "yes" : "no");
+						ImGui::TableSetColumnIndex(2);
+						ImGui::Text("%.3f m", wheel.suspensionLength);
+						ImGui::TableSetColumnIndex(3);
+						ImGui::Text("%.3f-%.3f", wheel.suspensionMinLength, wheel.suspensionMaxLength);
+						ImGui::TableSetColumnIndex(4);
+						if (endWheel && stroke <= 0.0001f)
+						{
+							ImGui::TextUnformatted("fixed");
+						}
+						else
+						{
+							ImGui::Text("%.0f%%", used * 100.0f);
+						}
+						ImGui::TableSetColumnIndex(5);
+						ImGui::Text("%.1f Ns", wheel.suspensionImpulseNewtonSeconds);
+					}
+					ImGui::EndTable();
+				}
+				ImGui::TreePop();
+			}
 		}
 		if (ImGui::CollapsingHeader("Map"))
 		{
