@@ -692,7 +692,12 @@ namespace Tank::Physics
                 static_cast<float>(suspensionDirection.GetX()),
                 static_cast<float>(suspensionDirection.GetY()),
                 static_cast<float>(suspensionDirection.GetZ())};
+            const float previousSuspensionLength = wheelState.suspensionLength;
             wheelState.suspensionLength = wheel->GetSuspensionLength();
+            wheelState.suspensionVelocityMetersPerSecond = m_state.stepIndex > 1
+                ? (wheelState.suspensionLength - previousSuspensionLength) /
+                    deltaTimeSeconds
+                : 0.0f;
             wheelState.suspensionMinLength = wheelSettings->mSuspensionMinLength;
             wheelState.suspensionMaxLength = wheelSettings->mSuspensionMaxLength;
             wheelState.suspensionAtHardPoint = wheel->HasHitHardPoint();
