@@ -74,6 +74,20 @@ build\Debug\TankPhysicsCli.exe --test mobility --tank-settings tests\data\tank_m
 
 現在の最大成功高さは0.75m。これは0.25m刻みの探索結果であり、厳密な限界高さではない。
 
+### 正立・反転性能
+
+Assault固有要件として、正立状態と上下反転状態を別々のPhysics Worldで評価する。5秒の全開直進と3秒の超信地旋回を行い、反転時は上面側Wheel surfaceの接地も確認する。
+
+| Metric | Upright | Inverted | Inverted / Upright |
+| --- | ---: | ---: | ---: |
+| Forward distance | 62.84 m | 62.86 m | 1.0003 |
+| Maximum speed | 24.79 m/s | 24.80 m/s | approximately 1.0 |
+| 0-10 m/s | 2.22 s | 2.20 s | approximately 1.0 |
+| Pivot yaw travel | 811.61 degrees | 812.12 degrees | 1.0006 |
+| Contact wheels | lower 6 | upper 6 | - |
+
+直進距離比と超信地旋回量比は0.9-1.1を回帰条件とする。現在の車両は正立・反転でほぼ対称な機動性能を持つ。
+
 数値は現時点の比較用baselineであり、実車として妥当な目標値を意味しない。
 
 ## 旋回入力の定義
@@ -92,4 +106,4 @@ build\Debug\TankPhysicsCli.exe --test mobility --tank-settings tests\data\tank_m
 
 ## 次の評価
 
-1. 正立時と反転時の加速・旋回性能を比較する。
+Phase 1の基礎数値評価は完了した。今後は各値の実車・ゲーム要件上の目標範囲を決め、設定変更前後の比較レポートを保存する。

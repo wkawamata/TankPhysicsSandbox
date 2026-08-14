@@ -118,6 +118,7 @@ namespace
                   << "  TankPhysicsCli --test mobility --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test mobility-slope --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test mobility-step --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
+                  << "  TankPhysicsCli --test mobility-orientation --tank-settings Config/Tank/tank_1.json --dt 0.0166667\n"
                   << "  TankPhysicsCli --test map --map Config/Maps/topology_course.json --tank-settings Config/Tank/tank_1.json --settle-steps 180 --steps 300 --throttle 1 --min-forward-distance 5 --min-final-y 0\n";
     }
 
@@ -161,6 +162,16 @@ namespace
         float traversalTimeSeconds = -1.0f;
         float maximumBodyHeightMeters = 0.0f;
         float finalForwardMeters = 0.0f;
+    };
+
+    struct OrientationEvaluation
+    {
+        float forwardDistanceMeters = 0.0f;
+        float maximumSpeedMetersPerSecond = 0.0f;
+        float zeroToTenSeconds = -1.0f;
+        float pivotYawDegrees = 0.0f;
+        int lowerContactCount = 0;
+        int upperContactCount = 0;
     };
 
     TurnEvaluation EvaluateTurn(
@@ -382,6 +393,114 @@ namespace
         std::cout << (passed ? "PASS" : "FAIL") << " mobility-step"
                   << " maximum_height_m=" << maximumSuccessfulHeight
                   << " traversal_time_s=" << maximumHeightTime
+                  << "\n";
+        return passed ? 0 : 1;
+    }
+
+    OrientationEvaluation EvaluateOrientation(
+        const Tank::Physics::TankSettings& sourceSettings,
+        float deltaTimeSeconds,
+        bool inverted)
+    {
+        Tank::Physics::TankSettings settings = sourceSettings;
+        settings.startUpsideDown = inverted;
+        Tank::Physics::PhysicsEnvironmentSettings environment;
+        environment.floorSizeM = 1000.0f;
+        environment.obstacleCount = 0;
+
+        Tank::Physics::TrackedVehicleTest straight;
+        straight.Initialize(settings, environment);
+        Tank::Physics::TrackedVehicleTestState state = straight.State();
+        for (int step = 0; step < 180; ++step)
+        {
+            state = straight.Step(deltaTimeSeconds);
+        }
+        OrientationEvaluation result;
+        for (int wheelIndex = 0; wheelIndex < state.wheelCount; ++wheelIndex)
+        {
+            const Tank::Physics::TrackedWheelState& wheel = state.wheels[wheelIndex];
+            result.lowerContactCount += !wheel.upperSurface && wheel.hasContact ? 1 : 0;
+            result.upperContactCount += wheel.upperSurface && wheel.hasContact ? 1 : 0;
+        }
+        const Tank::Physics::Vec3 start = state.bodyPosition;
+        Tank::Physics::TankInput forward;
+        forward.throttle = 1.0f;
+        straight.SetInput(forward);
+        for (int step = 0; step < 300; ++step)
+        {
+            state = straight.Step(deltaTimeSeconds);
+        }
+        result.forwardDistanceMeters = state.bodyPosition.z - start.z;
+        result.maximumSpeedMetersPerSecond = state.maximumSpeedMetersPerSecond;
+        result.zeroToTenSeconds = state.zeroToTenTimeSeconds;
+
+        Tank::Physics::TrackedVehicleTest pivot;
+        pivot.Initialize(settings, environment);
+        state = pivot.State();
+        for (int step = 0; step < 180; ++step)
+        {
+            state = pivot.Step(deltaTimeSeconds);
+        }
+        float previousYaw = YawRadians(state.bodyRotation);
+        float yawTravel = 0.0f;
+        Tank::Physics::TankInput pivotInput;
+        pivotInput.throttle = 1.0f;
+        pivotInput.leftTrack = -1.0f;
+        pivotInput.rightTrack = 1.0f;
+        pivot.SetInput(pivotInput);
+        for (int step = 0; step < 180; ++step)
+        {
+            state = pivot.Step(deltaTimeSeconds);
+            const float yaw = YawRadians(state.bodyRotation);
+            yawTravel += std::abs(WrappedAngleDelta(previousYaw, yaw));
+            previousYaw = yaw;
+        }
+        result.pivotYawDegrees = yawTravel * (180.0f / 3.14159265358979323846f);
+        return result;
+    }
+
+    int RunOrientationTest(const CliOptions& options)
+    {
+        Tank::Physics::TankSettings settings;
+        std::string error;
+        if (!LoadTankSettings(options.tankSettingsPath, settings, error))
+        {
+            std::cerr << "FAIL mobility-orientation tank_settings_error=" << error << "\n";
+            return 1;
+        }
+        const OrientationEvaluation upright = EvaluateOrientation(
+            settings, options.deltaTimeSeconds, false);
+        const OrientationEvaluation inverted = EvaluateOrientation(
+            settings, options.deltaTimeSeconds, true);
+        const float distanceRatio = upright.forwardDistanceMeters > 0.0f
+            ? inverted.forwardDistanceMeters / upright.forwardDistanceMeters
+            : 0.0f;
+        const float pivotRatio = upright.pivotYawDegrees > 0.0f
+            ? inverted.pivotYawDegrees / upright.pivotYawDegrees
+            : 0.0f;
+        const bool passed =
+            std::isfinite(upright.forwardDistanceMeters) &&
+            std::isfinite(inverted.forwardDistanceMeters) &&
+            std::isfinite(upright.pivotYawDegrees) &&
+            std::isfinite(inverted.pivotYawDegrees) &&
+            upright.lowerContactCount > 0 && inverted.upperContactCount > 0 &&
+            upright.forwardDistanceMeters > 1.0f && inverted.forwardDistanceMeters > 1.0f &&
+            upright.pivotYawDegrees > 10.0f && inverted.pivotYawDegrees > 10.0f &&
+            distanceRatio >= 0.9f && distanceRatio <= 1.1f &&
+            pivotRatio >= 0.9f && pivotRatio <= 1.1f;
+        std::cout << (passed ? "PASS" : "FAIL") << " mobility-orientation"
+                  << " upright_distance_m=" << upright.forwardDistanceMeters
+                  << " inverted_distance_m=" << inverted.forwardDistanceMeters
+                  << " distance_ratio=" << distanceRatio
+                  << " upright_max_speed_mps=" << upright.maximumSpeedMetersPerSecond
+                  << " inverted_max_speed_mps=" << inverted.maximumSpeedMetersPerSecond
+                  << " upright_zero_to_ten_s=" << upright.zeroToTenSeconds
+                  << " inverted_zero_to_ten_s=" << inverted.zeroToTenSeconds
+                  << " upright_pivot_yaw_deg=" << upright.pivotYawDegrees
+                  << " inverted_pivot_yaw_deg=" << inverted.pivotYawDegrees
+                  << " pivot_ratio=" << pivotRatio
+                  << " upright_lower_contacts=" << upright.lowerContactCount
+                  << " inverted_upper_contacts=" << inverted.upperContactCount
                   << "\n";
         return passed ? 0 : 1;
     }
@@ -714,6 +833,10 @@ int main(int argc, char* argv[])
     if (options.testName == "mobility-step")
     {
         return RunStepTest(options);
+    }
+    if (options.testName == "mobility-orientation")
+    {
+        return RunOrientationTest(options);
     }
     if (options.testName != "box-drop")
     {

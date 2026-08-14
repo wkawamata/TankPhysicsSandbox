@@ -391,6 +391,17 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.MobilityOrientationCli
+        COMMAND TankPhysicsCli
+            --test mobility-orientation
+            --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
+            --dt 0.0166667
+    )
+    set_tests_properties(TankPhysics.MobilityOrientationCli PROPERTIES
+        PASS_REGULAR_EXPRESSION "PASS mobility-orientation"
+    )
+
+    add_test(
         NAME TankPhysics.TankControllerBoundary
         COMMAND TankControllerTests
     )
