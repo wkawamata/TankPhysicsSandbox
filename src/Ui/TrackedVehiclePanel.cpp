@@ -211,7 +211,7 @@ namespace Ui
 			{
 				if (ImGui::BeginTable(
 					"SuspensionTelemetry",
-					7,
+					8,
 					ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
 						ImGuiTableFlags_SizingFixedFit))
 				{
@@ -220,6 +220,7 @@ namespace Ui
 					ImGui::TableSetupColumn("Length");
 					ImGui::TableSetupColumn("Range");
 					ImGui::TableSetupColumn("Used");
+					ImGui::TableSetupColumn("Velocity");
 					ImGui::TableSetupColumn("Hard");
 					ImGui::TableSetupColumn("Impulse");
 					ImGui::TableHeadersRow();
@@ -267,8 +268,10 @@ namespace Ui
 							ImGui::Text("%.0f%%", used * 100.0f);
 						}
 						ImGui::TableSetColumnIndex(5);
-						ImGui::TextUnformatted(wheel.suspensionAtHardPoint ? "yes" : "no");
+						ImGui::Text("%+.2f m/s", wheel.suspensionVelocityMetersPerSecond);
 						ImGui::TableSetColumnIndex(6);
+						ImGui::TextUnformatted(wheel.suspensionAtHardPoint ? "yes" : "no");
+						ImGui::TableSetColumnIndex(7);
 						ImGui::Text("%.1f Ns", wheel.suspensionImpulseNewtonSeconds);
 					}
 					ImGui::EndTable();

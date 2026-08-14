@@ -35,6 +35,22 @@ int main()
     const int numSteps = 300;
     const float dt = 1.0f / 60.0f;
 
+    {
+        Tank::Physics::TrackedVehicleTest firstStepTest;
+        firstStepTest.Initialize();
+        firstStepTest.Step(dt);
+        for (int wheelIndex = 0;
+            wheelIndex < firstStepTest.State().wheelCount;
+            ++wheelIndex)
+        {
+            passed &= Check(
+                std::abs(firstStepTest.State()
+                    .wheels[static_cast<size_t>(wheelIndex)]
+                    .suspensionVelocityMetersPerSecond) < 0.0001f,
+                "first snapshot suspension velocity must start at zero");
+        }
+    }
+
     for (int i = 0; i < numSteps; ++i)
     {
         test.Step(dt);
@@ -116,6 +132,9 @@ int main()
         passed &= Check(IsFinite(wheel.suspensionDirection.z),
             "suspension direction Z must be finite");
         passed &= Check(IsFinite(wheel.suspensionLength), "suspension length must be finite");
+        passed &= Check(
+            IsFinite(wheel.suspensionVelocityMetersPerSecond),
+            "suspension velocity must be finite");
         passed &= Check(
             wheel.suspensionLength >= wheel.suspensionMinLength - 0.001f &&
                 wheel.suspensionLength <= wheel.suspensionMaxLength + 0.001f,

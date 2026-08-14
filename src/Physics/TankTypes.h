@@ -130,6 +130,7 @@ namespace Tank::Physics
         float suspensionLength = 0.0f;
         float suspensionMinLength = 0.0f;
         float suspensionMaxLength = 0.0f;
+        float suspensionVelocityMetersPerSecond = 0.0f;
         bool suspensionAtHardPoint = false;
         float angularVelocityRadians = 0.0f;
         float suspensionImpulseNewtonSeconds = 0.0f;
