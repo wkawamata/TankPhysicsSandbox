@@ -23,6 +23,14 @@ namespace Ui
         Tank::Input::GamepadState gamepadState = {};
         bool gamepadAvailable = false;
         float cpuFrameTimeMs = 0.0f;
+        float peakCpuFrameTimeMs = 0.0f;
+        float averageCpuFrameTimeMs = 0.0f;
+        float p95CpuFrameTimeMs = 0.0f;
+        float p99CpuFrameTimeMs = 0.0f;
+        float physicsStepTimeMs = 0.0f;
+        float physicsStepPeakTimeMs = 0.0f;
+        float sceneUpdateTimeMs = 0.0f;
+        float sceneUpdatePeakTimeMs = 0.0f;
         const std::string* activeMapName = nullptr;
         float analogLeftTrack = 0.0f;
         float analogRightTrack = 0.0f;
@@ -70,6 +78,7 @@ namespace Ui
         std::function<void()> saveEnvSettings;
         std::function<void()> loadEnvSettings;
         std::function<void()> exportTankModel;
+        std::function<void()> resetFrameTimingPeaks;
     };
 
     void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx);

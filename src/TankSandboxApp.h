@@ -92,6 +92,7 @@ private:
     void ClearVehicleInputState();
     void FlushD3d12DebugLog();
     void LogFps(float cpuFrameTimeMs);
+    void FinishFrameBenchmark();
 
     static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
     static constexpr UINT kImGuiDescriptorCount = 100;
@@ -136,6 +137,25 @@ private:
     Ui::CameraPanelContext m_cameraPanelCtx;
     Ui::RendererSettingsPanelContext m_rendererPanelCtx;
     Ui::TrackedVehiclePanelContext m_trackedVehiclePanelCtx;
+    float m_peakCpuFrameTimeMs = 0.0f;
+    static constexpr size_t kFrameTimingSampleCount = 300;
+    std::array<float, kFrameTimingSampleCount> m_cpuFrameTimeSamples = {};
+    size_t m_cpuFrameTimeSampleIndex = 0;
+    size_t m_cpuFrameTimeSamplesRecorded = 0;
+    float m_averageCpuFrameTimeMs = 0.0f;
+    float m_p95CpuFrameTimeMs = 0.0f;
+    float m_p99CpuFrameTimeMs = 0.0f;
+    UINT64 m_benchmarkWarmupFrames = 120;
+    UINT64 m_benchmarkMeasureFrames = 0;
+    UINT64 m_benchmarkElapsedFrames = 0;
+    std::filesystem::path m_benchmarkOutputPath;
+    std::vector<float> m_benchmarkCpuFrameTimes;
+    bool m_benchmarkTrackShoesOff = false;
+    bool m_benchmarkTrackShoesOn = false;
+    bool m_benchmarkShadowsOff = false;
+    bool m_benchmarkShadowsOn = false;
+    bool m_benchmarkReflectionsOff = false;
+    bool m_benchmarkReflectionsOn = false;
 
     // Renderer state
     bool m_rendererDebugOpen = true;

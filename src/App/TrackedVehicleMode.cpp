@@ -10,6 +10,7 @@
 #include "Runtime/SceneRenderer.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -251,9 +252,21 @@ void TrackedVehicleMode::Step(
 {
     if (!m_paused || m_singleStep)
     {
-        const Tank::Physics::TrackedVehicleTestState state = m_test.Step(kPhysicsFixedDt);
+        const auto physicsStart = std::chrono::steady_clock::now();
+        m_test.Step(kPhysicsFixedDt);
+        const auto sceneStart = std::chrono::steady_clock::now();
+        m_physicsStepTimeMs = std::chrono::duration<float, std::milli>(
+            sceneStart - physicsStart).count();
+        m_physicsStepPeakTimeMs = (std::max)(
+            m_physicsStepPeakTimeMs,
+            m_physicsStepTimeMs);
         UpdateSceneInternal(renderer);
         renderer.SetScene(m_presenter.GetScene());
+        m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - sceneStart).count();
+        m_sceneUpdatePeakTimeMs = (std::max)(
+            m_sceneUpdatePeakTimeMs,
+            m_sceneUpdateTimeMs);
         m_singleStep = false;
     }
 
@@ -264,6 +277,12 @@ void TrackedVehicleMode::Step(
             kPhysicsFixedDt,
             *camera);
     }
+}
+
+void TrackedVehicleMode::ResetFrameTimingPeaks()
+{
+    m_physicsStepPeakTimeMs = m_physicsStepTimeMs;
+    m_sceneUpdatePeakTimeMs = m_sceneUpdateTimeMs;
 }
 
 void TrackedVehicleMode::Reset(

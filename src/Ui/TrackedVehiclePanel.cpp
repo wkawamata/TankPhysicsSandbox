@@ -141,6 +141,26 @@ namespace Ui
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
 		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
+		if (ImGui::CollapsingHeader("Frame Timing"))
+		{
+			ImGui::Text("Total CPU: %.2f ms  peak %.2f ms",
+				ctx.cpuFrameTimeMs,
+				ctx.peakCpuFrameTimeMs);
+			ImGui::Text("Rolling 300: avg %.2f  p95 %.2f  p99 %.2f ms",
+				ctx.averageCpuFrameTimeMs,
+				ctx.p95CpuFrameTimeMs,
+				ctx.p99CpuFrameTimeMs);
+			ImGui::Text("Physics: %.2f ms  peak %.2f ms",
+				ctx.physicsStepTimeMs,
+				ctx.physicsStepPeakTimeMs);
+			ImGui::Text("Scene Update: %.2f ms  peak %.2f ms",
+				ctx.sceneUpdateTimeMs,
+				ctx.sceneUpdatePeakTimeMs);
+			if (ImGui::Button("Reset Timing Peaks") && ctx.resetFrameTimingPeaks)
+			{
+				ctx.resetFrameTimingPeaks();
+			}
+		}
 		ImGui::Text("Step: %d", state.stepIndex);
 		ImGui::Text("Time: %.2f s", state.timeSeconds);
 		ImGui::Text("Position: %.2f, %.2f, %.2f",

@@ -99,6 +99,11 @@ public:
 
     bool IsActive() const { return m_active; }
     void SetPhysicsDebugOverlayDefault(bool enabled) { m_physicsDebugOverlay = enabled; }
+    float PhysicsStepTimeMs() const { return m_physicsStepTimeMs; }
+    float PhysicsStepPeakTimeMs() const { return m_physicsStepPeakTimeMs; }
+    float SceneUpdateTimeMs() const { return m_sceneUpdateTimeMs; }
+    float SceneUpdatePeakTimeMs() const { return m_sceneUpdatePeakTimeMs; }
+    void ResetFrameTimingPeaks();
 
     static constexpr float kPhysicsFixedDt = 1.0f / 60.0f;
 
@@ -147,4 +152,8 @@ private:
     float m_analogRoll = 0.0f;
     bool m_analogTracksConnected = false;
     bool m_analogTracksArmed = false;
+    float m_physicsStepTimeMs = 0.0f;
+    float m_physicsStepPeakTimeMs = 0.0f;
+    float m_sceneUpdateTimeMs = 0.0f;
+    float m_sceneUpdatePeakTimeMs = 0.0f;
 };

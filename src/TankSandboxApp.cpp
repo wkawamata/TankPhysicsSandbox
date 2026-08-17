@@ -169,6 +169,38 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
         {
             m_trackedVehicleMode.SetPhysicsDebugOverlayDefault(true);
         }
+        else if (arg == L"--benchmark-frames" && i + 1 < argc)
+        {
+            m_benchmarkMeasureFrames = _wtoi64(argv[++i]);
+        }
+        else if (arg == L"--benchmark-output" && i + 1 < argc)
+        {
+            m_benchmarkOutputPath = argv[++i];
+        }
+        else if (arg == L"--benchmark-track-shoes-off")
+        {
+            m_benchmarkTrackShoesOff = true;
+        }
+        else if (arg == L"--benchmark-track-shoes-on")
+        {
+            m_benchmarkTrackShoesOn = true;
+        }
+        else if (arg == L"--benchmark-shadows-off")
+        {
+            m_benchmarkShadowsOff = true;
+        }
+        else if (arg == L"--benchmark-shadows-on")
+        {
+            m_benchmarkShadowsOn = true;
+        }
+        else if (arg == L"--benchmark-reflections-off")
+        {
+            m_benchmarkReflectionsOff = true;
+        }
+        else if (arg == L"--benchmark-reflections-on")
+        {
+            m_benchmarkReflectionsOn = true;
+        }
     }
 }
 
@@ -260,6 +292,22 @@ void TankSandboxApp::OnInit()
     m_defaultRendererSettings = m_sceneRenderer.CaptureSettings();
     ReloadCustomMaps();
     LoadRendererSettings();
+    if (m_benchmarkTrackShoesOff || m_benchmarkTrackShoesOn)
+    {
+        m_trackedVehicleMode.TrackShoeDisplay() = m_benchmarkTrackShoesOn;
+    }
+    if (m_benchmarkShadowsOff || m_benchmarkShadowsOn)
+    {
+        auto benchmarkShadows = m_sceneRenderer.GetShadowSettings();
+        benchmarkShadows.enabled = m_benchmarkShadowsOn;
+        m_sceneRenderer.SetShadowSettings(benchmarkShadows);
+    }
+    if (m_benchmarkReflectionsOff || m_benchmarkReflectionsOn)
+    {
+        auto benchmarkReflections = m_sceneRenderer.GetHybridReflectionSettings();
+        benchmarkReflections.enabled = m_benchmarkReflectionsOn;
+        m_sceneRenderer.SetHybridReflectionSettings(benchmarkReflections);
+    }
     m_environmentMappingUi.lighting = m_sceneRenderer.GetLightingParams();
     m_environmentMappingUi.iblEnabled =
         m_environmentMappingUi.lighting.diffuseIblEnabled ||
@@ -368,6 +416,17 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.exportTankModel = [this]()
     {
         m_trackedVehicleMode.ExportTankModel();
+    };
+    m_trackedVehiclePanelCtx.resetFrameTimingPeaks = [this]()
+    {
+        m_peakCpuFrameTimeMs = m_sceneRenderer.CpuFrameTimeMs();
+        m_cpuFrameTimeSamples.fill(0.0f);
+        m_cpuFrameTimeSampleIndex = 0;
+        m_cpuFrameTimeSamplesRecorded = 0;
+        m_averageCpuFrameTimeMs = 0.0f;
+        m_p95CpuFrameTimeMs = 0.0f;
+        m_p99CpuFrameTimeMs = 0.0f;
+        m_trackedVehicleMode.ResetFrameTimingPeaks();
     };
 
     if (m_autoSceneMode.has_value())
@@ -661,6 +720,48 @@ void TankSandboxApp::OnIdle()
         {
             m_imguiSystem.Render(commandList);
         });
+    m_peakCpuFrameTimeMs = (std::max)(
+        m_peakCpuFrameTimeMs,
+        m_sceneRenderer.CpuFrameTimeMs());
+    const float cpuFrameTimeMs = m_sceneRenderer.CpuFrameTimeMs();
+    if (cpuFrameTimeMs > 0.0f)
+    {
+        m_cpuFrameTimeSamples[m_cpuFrameTimeSampleIndex] = cpuFrameTimeMs;
+        m_cpuFrameTimeSampleIndex =
+            (m_cpuFrameTimeSampleIndex + 1) % kFrameTimingSampleCount;
+        m_cpuFrameTimeSamplesRecorded = (std::min)(
+            m_cpuFrameTimeSamplesRecorded + 1,
+            kFrameTimingSampleCount);
+        if (m_cpuFrameTimeSamplesRecorded == kFrameTimingSampleCount &&
+            m_cpuFrameTimeSampleIndex % 30 == 0)
+        {
+            std::array<float, kFrameTimingSampleCount> sorted =
+                m_cpuFrameTimeSamples;
+            std::sort(sorted.begin(), sorted.end());
+            float sum = 0.0f;
+            for (float sample : sorted)
+            {
+                sum += sample;
+            }
+            m_averageCpuFrameTimeMs =
+                sum / static_cast<float>(kFrameTimingSampleCount);
+            m_p95CpuFrameTimeMs = sorted[284];
+            m_p99CpuFrameTimeMs = sorted[296];
+        }
+    }
+    if (m_benchmarkMeasureFrames > 0)
+    {
+        ++m_benchmarkElapsedFrames;
+        if (m_benchmarkElapsedFrames > m_benchmarkWarmupFrames)
+        {
+            m_benchmarkCpuFrameTimes.push_back(cpuFrameTimeMs);
+            if (m_benchmarkCpuFrameTimes.size() >= m_benchmarkMeasureFrames)
+            {
+                FinishFrameBenchmark();
+                PostQuitMessage(0);
+            }
+        }
+    }
     UpdateScreenshotResult();
 
     if (m_autoCaptureFrameCount > 0)
@@ -747,6 +848,57 @@ void TankSandboxApp::LogFps(float cpuFrameTimeMs)
             cpuFrameTimeMs);
         fflush(m_logFile);
     }
+}
+
+void TankSandboxApp::FinishFrameBenchmark()
+{
+    if (m_benchmarkCpuFrameTimes.empty() || m_benchmarkOutputPath.empty())
+    {
+        return;
+    }
+
+    std::vector<float> sorted = m_benchmarkCpuFrameTimes;
+    std::sort(sorted.begin(), sorted.end());
+    float sum = 0.0f;
+    for (float sample : sorted)
+    {
+        sum += sample;
+    }
+    const auto percentile = [&sorted](float fraction)
+    {
+        const size_t index = (std::min)(
+            static_cast<size_t>(fraction * static_cast<float>(sorted.size() - 1)),
+            sorted.size() - 1);
+        return sorted[index];
+    };
+
+    std::error_code errorCode;
+    if (!m_benchmarkOutputPath.parent_path().empty())
+    {
+        std::filesystem::create_directories(
+            m_benchmarkOutputPath.parent_path(),
+            errorCode);
+    }
+    std::ofstream output(m_benchmarkOutputPath, std::ios::binary | std::ios::trunc);
+    if (!output)
+    {
+        return;
+    }
+    output << "{\r\n"
+           << "  \"frames\": " << sorted.size() << ",\r\n"
+           << "  \"trackShoesEnabled\": "
+           << (m_trackedVehicleMode.TrackShoeDisplay() ? "true" : "false") << ",\r\n"
+           << "  \"shadowsEnabled\": "
+           << (m_sceneRenderer.GetShadowSettings().enabled ? "true" : "false") << ",\r\n"
+           << "  \"reflectionsEnabled\": "
+           << (m_sceneRenderer.GetHybridReflectionSettings().enabled ? "true" : "false") << ",\r\n"
+           << "  \"averageCpuFrameTimeMs\": " << sum / static_cast<float>(sorted.size()) << ",\r\n"
+           << "  \"p95CpuFrameTimeMs\": " << percentile(0.95f) << ",\r\n"
+           << "  \"p99CpuFrameTimeMs\": " << percentile(0.99f) << ",\r\n"
+           << "  \"maximumCpuFrameTimeMs\": " << sorted.back() << ",\r\n"
+           << "  \"physicsPeakTimeMs\": " << m_trackedVehicleMode.PhysicsStepPeakTimeMs() << ",\r\n"
+           << "  \"sceneUpdatePeakTimeMs\": " << m_trackedVehicleMode.SceneUpdatePeakTimeMs() << "\r\n"
+           << "}\r\n";
 }
 
 void TankSandboxApp::InitializeImGui()
@@ -989,6 +1141,18 @@ void TankSandboxApp::DrawToolUi()
             m_trackedVehiclePanelCtx.gamepadState = gp;
             m_trackedVehiclePanelCtx.gamepadAvailable = m_gamepad.IsAvailable();
             m_trackedVehiclePanelCtx.cpuFrameTimeMs = m_sceneRenderer.CpuFrameTimeMs();
+            m_trackedVehiclePanelCtx.peakCpuFrameTimeMs = m_peakCpuFrameTimeMs;
+            m_trackedVehiclePanelCtx.averageCpuFrameTimeMs = m_averageCpuFrameTimeMs;
+            m_trackedVehiclePanelCtx.p95CpuFrameTimeMs = m_p95CpuFrameTimeMs;
+            m_trackedVehiclePanelCtx.p99CpuFrameTimeMs = m_p99CpuFrameTimeMs;
+            m_trackedVehiclePanelCtx.physicsStepTimeMs =
+                m_trackedVehicleMode.PhysicsStepTimeMs();
+            m_trackedVehiclePanelCtx.physicsStepPeakTimeMs =
+                m_trackedVehicleMode.PhysicsStepPeakTimeMs();
+            m_trackedVehiclePanelCtx.sceneUpdateTimeMs =
+                m_trackedVehicleMode.SceneUpdateTimeMs();
+            m_trackedVehiclePanelCtx.sceneUpdatePeakTimeMs =
+                m_trackedVehicleMode.SceneUpdatePeakTimeMs();
             m_trackedVehiclePanelCtx.analogLeftTrack = m_trackedVehicleMode.AnalogLeftTrack();
             m_trackedVehiclePanelCtx.analogRightTrack = m_trackedVehicleMode.AnalogRightTrack();
             m_trackedVehiclePanelCtx.analogRoll = m_trackedVehicleMode.AnalogRoll();
@@ -1125,6 +1289,14 @@ void TankSandboxApp::EnterBoxDropMode()
 void TankSandboxApp::EnterTrackedVehicleMode()
 {
     ClearVehicleInputState();
+    m_peakCpuFrameTimeMs = 0.0f;
+    m_cpuFrameTimeSamples.fill(0.0f);
+    m_cpuFrameTimeSampleIndex = 0;
+    m_cpuFrameTimeSamplesRecorded = 0;
+    m_averageCpuFrameTimeMs = 0.0f;
+    m_p95CpuFrameTimeMs = 0.0f;
+    m_p99CpuFrameTimeMs = 0.0f;
+    m_trackedVehicleMode.ResetFrameTimingPeaks();
     m_trackedVehicleMode.Enter(m_sceneRenderer);
     ActivateOrbitCamera(m_trackedVehicleMode.GetScene(), { 0.0f, 0.8f, 0.0f });
     m_appMode = AppMode::PhysicsTrackedVehicle;
