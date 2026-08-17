@@ -66,6 +66,36 @@ namespace Ui
 			}
 			return changed;
 		}
+
+		bool IsPendingColor(
+			const Tank::Physics::ColorRgb& value,
+			const Tank::Physics::ColorRgb& appliedValue)
+		{
+			return
+				IsPending(value.r, appliedValue.r) ||
+				IsPending(value.g, appliedValue.g) ||
+				IsPending(value.b, appliedValue.b);
+		}
+
+		bool ColorEdit3WithPendingColor(
+			const char* label,
+			float color[3],
+			bool pending)
+		{
+			if (pending)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+			}
+			const bool changed = ImGui::ColorEdit3(
+				label,
+				color,
+				ImGuiColorEditFlags_NoInputs);
+			if (pending)
+			{
+				ImGui::PopStyleColor();
+			}
+			return changed;
+		}
 	}
 
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
@@ -441,6 +471,14 @@ namespace Ui
 				5.0f,
 				"%.1f m",
 				IsPending(ctx.envSettings->gridSpacingM, ctx.appliedEnvSettings->gridSpacingM));
+			ColorEdit3WithPendingColor(
+				"Ground Color",
+				&ctx.envSettings->groundColor.r,
+				IsPendingColor(ctx.envSettings->groundColor, ctx.appliedEnvSettings->groundColor));
+			ColorEdit3WithPendingColor(
+				"Grid Line Color",
+				&ctx.envSettings->gridLineColor.r,
+				IsPendingColor(ctx.envSettings->gridLineColor, ctx.appliedEnvSettings->gridLineColor));
 			SliderIntWithPendingColor(
 				"Obstacle Count",
 				&ctx.envSettings->obstacleCount,
