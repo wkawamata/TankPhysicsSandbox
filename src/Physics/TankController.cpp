@@ -1,4 +1,6 @@
 #include "TankController.h"
+
+#include "TankMotionObservation.h"
 #include "PhysicsWorld.h"
 
 #include <Jolt/Jolt.h>
@@ -742,5 +744,6 @@ namespace Tank::Physics
             }
         }
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
+        m_state.motionObservation = BuildTankMotionObservation(m_state);
     }
 }

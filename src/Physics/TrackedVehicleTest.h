@@ -29,6 +29,7 @@ namespace Tank::Physics
         std::array<TrackedWheelState, kTankWheelCount> wheels = {};
         int wheelCount = 0;
         bool sleeping = false;
+        TankMotionObservation motionObservation = {};
     };
 
     class TrackedVehicleTest

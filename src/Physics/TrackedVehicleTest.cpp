@@ -249,6 +249,8 @@ namespace Tank::Physics
         m_state.wheels = m_impl->controller.State().wheels;
         m_state.wheelCount = m_impl->controller.State().wheelCount;
         m_state.sleeping = m_impl->controller.State().sleeping;
+        m_state.motionObservation =
+            m_impl->controller.State().motionObservation;
 
         return m_state;
     }

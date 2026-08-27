@@ -49,6 +49,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/PhysicsWorld.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
+    src/Physics/TankMotionObservation.cpp
+    src/Physics/TankMotionObservation.h
     src/Physics/TankSettingsJson.cpp
     src/Physics/TankSettingsJson.h
     src/Physics/TankTypes.h
@@ -283,6 +285,17 @@ if(BUILD_TESTING)
         target_compile_options(TankControllerTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TankMotionObservationTests
+        tests/TankMotionObservationTests.cpp
+    )
+    target_link_libraries(TankMotionObservationTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TankMotionObservationTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
     )
@@ -416,6 +429,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TankControllerBoundary
         COMMAND TankControllerTests
+    )
+
+    add_test(
+        NAME TankPhysics.TankMotionObservation
+        COMMAND TankMotionObservationTests
     )
 
     add_test(
@@ -584,6 +602,17 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehiclePowerTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehicleCoastingTests
+        tests/TrackedVehicleCoastingTests.cpp
+    )
+    target_link_libraries(TrackedVehicleCoastingTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleCoastingTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(TrackedVehicleSteeringTests
         tests/TrackedVehicleSteeringTests.cpp
     )
@@ -671,6 +700,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TrackedVehiclePower
         COMMAND TrackedVehiclePowerTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleCoasting
+        COMMAND TrackedVehicleCoastingTests
     )
 
     add_test(

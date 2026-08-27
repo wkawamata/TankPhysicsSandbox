@@ -96,6 +96,49 @@ namespace Ui
 			}
 			return changed;
 		}
+
+		void DrawStateSummary(
+			const TrackedVehiclePanelContext& ctx,
+			const Tank::Physics::TrackedVehicleTestState& state)
+		{
+			const Tank::Physics::TankMotionObservation& motion =
+				state.motionObservation;
+			ImGui::SeparatorText("State Summary");
+			ImGui::TextUnformatted("Mobility: Unavailable (Step 2)");
+			ImGui::TextUnformatted("Special: Legacy (Step 3)");
+			ImGui::Text(
+				"Input: Roll %+.2f",
+				ctx.analogRoll);
+			if (!motion.allFinite)
+			{
+				ImGui::PushStyleColor(
+					ImGuiCol_Text,
+					ImVec4(1.0f, 0.35f, 0.25f, 1.0f));
+			}
+			ImGui::Text(
+				"Motion Data: %s",
+				motion.allFinite ? "Valid" : "INVALID");
+			if (!motion.allFinite)
+			{
+				ImGui::PopStyleColor();
+			}
+			ImGui::Text(
+				"Speed: %.2f m/s  Angular: %.2f rad/s",
+				motion.linearSpeedMetersPerSecond,
+				motion.angularSpeedRadiansPerSecond);
+			ImGui::Text(
+				"Contacts: L %d (%d lower)  R %d (%d lower)",
+				motion.tracks[0].contactCount,
+				motion.tracks[0].lowerSurfaceContactCount,
+				motion.tracks[1].contactCount,
+				motion.tracks[1].lowerSurfaceContactCount);
+			ImGui::Text(
+				"Max Slip: L %.2f  R %.2f m/s",
+				motion.tracks[0]
+					.maximumAbsoluteLongitudinalSlipMetersPerSecond,
+				motion.tracks[1]
+					.maximumAbsoluteLongitudinalSlipMetersPerSecond);
+		}
 	}
 
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
@@ -104,6 +147,11 @@ namespace Ui
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
+		DrawStateSummary(ctx, state);
+		ImGui::BeginChild(
+			"TrackedVehicleControls",
+			ImVec2(0.0f, 0.0f),
+			ImGuiChildFlags_None);
 		if (ImGui::Button("Reset GUI"))
 		{
 			ImGui::SetWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
@@ -1194,6 +1242,7 @@ namespace Ui
 			driverInput.rightRatio,
 			driverInput.brake);
 		}
+		ImGui::EndChild();
 		ImGui::End();
 	}
 }

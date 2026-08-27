@@ -144,6 +144,41 @@ namespace Tank::Physics
         Vec3 contactLateral = {};
     };
 
+    struct TrackContactObservation
+    {
+        int contactCount = 0;
+        int lowerSurfaceContactCount = 0;
+        int upperSurfaceContactCount = 0;
+        Vec3 averageContactNormal = {};
+        float maximumAbsoluteLongitudinalSlipMetersPerSecond = 0.0f;
+        float averageAbsoluteLongitudinalSlipMetersPerSecond = 0.0f;
+        float maximumAbsoluteSuspensionVelocityMetersPerSecond = 0.0f;
+        bool hasSuspensionHardPoint = false;
+    };
+
+    struct TankMotionObservation
+    {
+        int stepIndex = 0;
+        float timeSeconds = 0.0f;
+        Vec3 bodyRight = {};
+        Vec3 bodyUp = {};
+        Vec3 bodyForward = {};
+        Vec3 localLinearVelocity = {};
+        Vec3 localAngularVelocity = {};
+        float linearSpeedMetersPerSecond = 0.0f;
+        float horizontalSpeedMetersPerSecond = 0.0f;
+        float angularSpeedRadiansPerSecond = 0.0f;
+        std::array<TrackContactObservation, kTankTrackCount> tracks = {};
+        int totalContactCount = 0;
+        int totalLowerSurfaceContactCount = 0;
+        int totalUpperSurfaceContactCount = 0;
+        Vec3 averageContactNormal = {};
+        bool hasLeftDriveContact = false;
+        bool hasRightDriveContact = false;
+        bool hasRequiredDriveContact = false;
+        bool allFinite = true;
+    };
+
     struct TankState
     {
         int stepIndex = 0;
@@ -162,5 +197,6 @@ namespace Tank::Physics
         std::array<TrackedWheelState, kTankWheelCount> wheels = {};
         int wheelCount = 0;
         bool sleeping = false;
+        TankMotionObservation motionObservation = {};
     };
 }
