@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <vector>
 
 namespace
 {
@@ -37,6 +38,14 @@ bool TrackedVehicleMode::LoadTankModelAsset(const std::filesystem::path& path)
     }
 
     m_tankModelAsset = std::move(result.asset);
+    const std::vector<std::string> nodeNames =
+        Engine::GetGltfMeshNodeNames(m_tankModelAsset);
+    if (nodeNames.size() == 1)
+    {
+        m_showGltfBody = true;
+        m_showGltfCannon = false;
+        m_showGltfSide = false;
+    }
     m_tankModelLoadStatus = "Loaded: " + path.filename().string();
     return true;
 }

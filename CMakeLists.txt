@@ -555,7 +555,7 @@ if(BUILD_TESTING)
     add_test(
         NAME TankRendering.ModelAsset
         COMMAND TankModelAssetTests
-            "${CMAKE_CURRENT_SOURCE_DIR}/Assets/TankModels/TankModel-2026-08-14-v001.glb"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Assets/TankModels/TankModel-2026-08-27-v001.glb"
     )
 
     add_executable(TestObstacleLayoutTests

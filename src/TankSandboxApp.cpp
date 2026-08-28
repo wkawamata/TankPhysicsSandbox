@@ -59,7 +59,7 @@ namespace
 {
     constexpr const char* kRendererSettingsPath = "Config/renderer_debug.json";
     constexpr const wchar_t* kTankModelAssetPath =
-        L"Assets/TankModels/TankModel-2026-08-14-v001.glb";
+        L"Assets/TankModels/TankModel-2026-08-27-v001.glb";
 
     std::filesystem::path ResolveRuntimePath(const std::filesystem::path& relativePath)
     {

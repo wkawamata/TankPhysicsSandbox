@@ -581,29 +581,36 @@ void TrackedVehicleScenePresenter::BuildScene(
 
     if (tankModelAsset != nullptr)
     {
+        const std::vector<std::string> nodeNames =
+            Engine::GetGltfMeshNodeNames(*tankModelAsset);
+        const std::string bodyNodeName = nodeNames.size() == 1 ?
+            nodeNames.front() : "Body";
         const Engine::GltfNodeMeshAddResult body =
-            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Body");
-        const Engine::GltfNodeMeshAddResult cannon =
-            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Cannon");
-        const Engine::GltfNodeMeshAddResult side =
-            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Side");
+            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, bodyNodeName);
         if (body)
         {
             m_model.gltfBody = m_sceneBuilder.GetScene().instances.size();
             m_sceneBuilder.AddInstance(*body.meshId, XMMatrixIdentity(), 0);
             m_model.hasGltfBody = true;
         }
-        if (cannon)
+        if (nodeNames.size() != 1)
         {
-            m_model.gltfCannon = m_sceneBuilder.GetScene().instances.size();
-            m_sceneBuilder.AddInstance(*cannon.meshId, XMMatrixIdentity(), 0);
-            m_model.hasGltfCannon = true;
-        }
-        if (side)
-        {
-            m_model.gltfSide = m_sceneBuilder.GetScene().instances.size();
-            m_sceneBuilder.AddInstance(*side.meshId, XMMatrixIdentity(), 0);
-            m_model.hasGltfSide = true;
+            const Engine::GltfNodeMeshAddResult cannon =
+                m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Cannon");
+            const Engine::GltfNodeMeshAddResult side =
+                m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Side");
+            if (cannon)
+            {
+                m_model.gltfCannon = m_sceneBuilder.GetScene().instances.size();
+                m_sceneBuilder.AddInstance(*cannon.meshId, XMMatrixIdentity(), 0);
+                m_model.hasGltfCannon = true;
+            }
+            if (side)
+            {
+                m_model.gltfSide = m_sceneBuilder.GetScene().instances.size();
+                m_sceneBuilder.AddInstance(*side.meshId, XMMatrixIdentity(), 0);
+                m_model.hasGltfSide = true;
+            }
         }
     }
 
