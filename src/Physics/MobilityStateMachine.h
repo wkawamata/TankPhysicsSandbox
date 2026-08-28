@@ -55,6 +55,21 @@ namespace Tank::Physics
         explicit MobilityStateMachine(
             const MobilityStateSettings& settings = {});
 
+        explicit MobilityStateMachine(const TankSettings& settings)
+            : MobilityStateMachine(MobilityStateSettings{
+                settings.stoppedEnterLinearSpeedMetersPerSecond,
+                settings.stoppedExitLinearSpeedMetersPerSecond,
+                settings.stoppedEnterAngularSpeedRadiansPerSecond,
+                settings.stoppedExitAngularSpeedRadiansPerSecond,
+                settings.stoppedEnterTrackSlipMetersPerSecond,
+                settings.stoppedExitTrackSlipMetersPerSecond,
+                settings.stoppedEnterSuspensionSpeedMetersPerSecond,
+                settings.stoppedExitSuspensionSpeedMetersPerSecond,
+                settings.stoppedMinimumUpAlignment,
+                settings.stoppedConfirmSeconds })
+        {
+        }
+
         void Reset();
         const MobilityStateSnapshot& Update(
             const TankMotionObservation& observation,

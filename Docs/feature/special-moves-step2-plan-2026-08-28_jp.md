@@ -133,6 +133,8 @@ Stopped
 
 ## 5. Step 2.3：設定とJSON
 
+**状態: 2026-08-28 完了。** 停止判定値を `TankSettings` とschema version 17へ追加し、round-tripテストを通過した。詳細は [Step 2.3 停止判定設定とJSON](./special-moves-step2-3-settings-json-2026-08-28_jp.md) を参照する。
+
 ### 目的
 
 停止判定値を `TankSettings` へ追加し、JSONで保存・読込可能にする。

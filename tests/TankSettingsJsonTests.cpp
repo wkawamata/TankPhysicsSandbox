@@ -68,6 +68,16 @@ int main()
     source.yawSpeedLimitDegrees = 240.0f;
     source.yawDamping = 6.0f;
     source.startUpsideDown = true;
+    source.stoppedEnterLinearSpeedMetersPerSecond = 0.11f;
+    source.stoppedExitLinearSpeedMetersPerSecond = 0.31f;
+    source.stoppedEnterAngularSpeedRadiansPerSecond = 0.12f;
+    source.stoppedExitAngularSpeedRadiansPerSecond = 0.32f;
+    source.stoppedEnterTrackSlipMetersPerSecond = 0.13f;
+    source.stoppedExitTrackSlipMetersPerSecond = 0.43f;
+    source.stoppedEnterSuspensionSpeedMetersPerSecond = 0.14f;
+    source.stoppedExitSuspensionSpeedMetersPerSecond = 0.24f;
+    source.stoppedMinimumUpAlignment = 0.91f;
+    source.stoppedConfirmSeconds = 0.27f;
 
     Tank::Physics::TankSettings loaded;
     std::string error;
@@ -155,6 +165,36 @@ int main()
         "neutral brake enabled must round trip");
     passed &= Check(NearlyEqual(loaded.neutralBrakeAmount, source.neutralBrakeAmount),
         "neutral brake amount must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedEnterLinearSpeedMetersPerSecond,
+        source.stoppedEnterLinearSpeedMetersPerSecond),
+        "mobility linear enter threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedExitLinearSpeedMetersPerSecond,
+        source.stoppedExitLinearSpeedMetersPerSecond),
+        "mobility linear exit threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedEnterAngularSpeedRadiansPerSecond,
+        source.stoppedEnterAngularSpeedRadiansPerSecond),
+        "mobility angular enter threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedExitAngularSpeedRadiansPerSecond,
+        source.stoppedExitAngularSpeedRadiansPerSecond),
+        "mobility angular exit threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedEnterTrackSlipMetersPerSecond,
+        source.stoppedEnterTrackSlipMetersPerSecond),
+        "mobility slip enter threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedExitTrackSlipMetersPerSecond,
+        source.stoppedExitTrackSlipMetersPerSecond),
+        "mobility slip exit threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedEnterSuspensionSpeedMetersPerSecond,
+        source.stoppedEnterSuspensionSpeedMetersPerSecond),
+        "mobility suspension enter threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedExitSuspensionSpeedMetersPerSecond,
+        source.stoppedExitSuspensionSpeedMetersPerSecond),
+        "mobility suspension exit threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedMinimumUpAlignment,
+        source.stoppedMinimumUpAlignment),
+        "mobility pose threshold must round trip");
+    passed &= Check(NearlyEqual(loaded.stoppedConfirmSeconds,
+        source.stoppedConfirmSeconds),
+        "mobility confirmation time must round trip");
     passed &= Check(
         NearlyEqual(
             loaded.stationaryTurnInnerTrackRatio,

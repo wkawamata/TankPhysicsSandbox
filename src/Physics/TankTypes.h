@@ -91,6 +91,16 @@ namespace Tank::Physics
         float yawSpeedLimitDegrees = 720.0f;
         float yawDamping = 0.0f;
         bool startUpsideDown = false;
+        float stoppedEnterLinearSpeedMetersPerSecond = 0.20f;
+        float stoppedExitLinearSpeedMetersPerSecond = 0.35f;
+        float stoppedEnterAngularSpeedRadiansPerSecond = 0.20f;
+        float stoppedExitAngularSpeedRadiansPerSecond = 0.35f;
+        float stoppedEnterTrackSlipMetersPerSecond = 0.20f;
+        float stoppedExitTrackSlipMetersPerSecond = 0.40f;
+        float stoppedEnterSuspensionSpeedMetersPerSecond = 0.10f;
+        float stoppedExitSuspensionSpeedMetersPerSecond = 0.20f;
+        float stoppedMinimumUpAlignment = 0.90f;
+        float stoppedConfirmSeconds = 0.25f;
     };
 
     struct TankInput

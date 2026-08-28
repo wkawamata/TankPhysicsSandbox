@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 16;
+        constexpr int kSchemaVersion = 17;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -95,6 +95,16 @@ namespace Tank::Physics
         json["yawSpeedLimitDegrees"] = settings.yawSpeedLimitDegrees;
         json["yawDamping"] = settings.yawDamping;
         json["startUpsideDown"] = settings.startUpsideDown;
+        json["stoppedEnterLinearSpeedMetersPerSecond"] = settings.stoppedEnterLinearSpeedMetersPerSecond;
+        json["stoppedExitLinearSpeedMetersPerSecond"] = settings.stoppedExitLinearSpeedMetersPerSecond;
+        json["stoppedEnterAngularSpeedRadiansPerSecond"] = settings.stoppedEnterAngularSpeedRadiansPerSecond;
+        json["stoppedExitAngularSpeedRadiansPerSecond"] = settings.stoppedExitAngularSpeedRadiansPerSecond;
+        json["stoppedEnterTrackSlipMetersPerSecond"] = settings.stoppedEnterTrackSlipMetersPerSecond;
+        json["stoppedExitTrackSlipMetersPerSecond"] = settings.stoppedExitTrackSlipMetersPerSecond;
+        json["stoppedEnterSuspensionSpeedMetersPerSecond"] = settings.stoppedEnterSuspensionSpeedMetersPerSecond;
+        json["stoppedExitSuspensionSpeedMetersPerSecond"] = settings.stoppedExitSuspensionSpeedMetersPerSecond;
+        json["stoppedMinimumUpAlignment"] = settings.stoppedMinimumUpAlignment;
+        json["stoppedConfirmSeconds"] = settings.stoppedConfirmSeconds;
         return json.dump(2);
     }
 
@@ -238,6 +248,16 @@ namespace Tank::Physics
         ReadFloat(json, "yawSpeedLimitDegrees", loaded.yawSpeedLimitDegrees);
         ReadFloat(json, "yawDamping", loaded.yawDamping);
         ReadBool(json, "startUpsideDown", loaded.startUpsideDown);
+        ReadFloat(json, "stoppedEnterLinearSpeedMetersPerSecond", loaded.stoppedEnterLinearSpeedMetersPerSecond);
+        ReadFloat(json, "stoppedExitLinearSpeedMetersPerSecond", loaded.stoppedExitLinearSpeedMetersPerSecond);
+        ReadFloat(json, "stoppedEnterAngularSpeedRadiansPerSecond", loaded.stoppedEnterAngularSpeedRadiansPerSecond);
+        ReadFloat(json, "stoppedExitAngularSpeedRadiansPerSecond", loaded.stoppedExitAngularSpeedRadiansPerSecond);
+        ReadFloat(json, "stoppedEnterTrackSlipMetersPerSecond", loaded.stoppedEnterTrackSlipMetersPerSecond);
+        ReadFloat(json, "stoppedExitTrackSlipMetersPerSecond", loaded.stoppedExitTrackSlipMetersPerSecond);
+        ReadFloat(json, "stoppedEnterSuspensionSpeedMetersPerSecond", loaded.stoppedEnterSuspensionSpeedMetersPerSecond);
+        ReadFloat(json, "stoppedExitSuspensionSpeedMetersPerSecond", loaded.stoppedExitSuspensionSpeedMetersPerSecond);
+        ReadFloat(json, "stoppedMinimumUpAlignment", loaded.stoppedMinimumUpAlignment);
+        ReadFloat(json, "stoppedConfirmSeconds", loaded.stoppedConfirmSeconds);
         settings = loaded;
         if (error != nullptr)
         {
