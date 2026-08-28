@@ -27,11 +27,15 @@
 
 ### Step 3.3 共通状態型
 
+**状態: 2026-08-29 完了。**
+
 - `SpecialMoveState`、イベント、拒否理由、遷移履歴を定義する。
 - `MobilityState != Stopped`、既存特殊動作中、無効入力を開始拒否理由にする。
 - UI、カメラ、Jolt型へ依存しない純粋型とする。
 
 ### Step 3.4 `SpecialMoveStateMachine`
+
+**状態: 次の実装対象。**
 
 - `Idle`、`RollStarting`、`Rolling`、`MortarStarting`、`MortarAiming`、`Blocked` を定義する。
 - 1 physics stepにつき最大1遷移とする。
