@@ -53,6 +53,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/SpecialActionRecognizer.cpp
     src/Physics/SpecialActionRecognizer.h
     src/Physics/SpecialMoveTypes.h
+    src/Physics/SpecialMoveStateMachine.cpp
+    src/Physics/SpecialMoveStateMachine.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
     src/Physics/TankMotionObservation.cpp
@@ -329,6 +331,14 @@ if(BUILD_TESTING)
         target_compile_options(SpecialMoveTypesTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(SpecialMoveStateMachineTests
+        tests/SpecialMoveStateMachineTests.cpp
+    )
+    target_link_libraries(SpecialMoveStateMachineTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(SpecialMoveStateMachineTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
     )
@@ -482,6 +492,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.SpecialMoveTypes
         COMMAND SpecialMoveTypesTests
+    )
+
+    add_test(
+        NAME TankPhysics.SpecialMoveStateMachine
+        COMMAND SpecialMoveStateMachineTests
     )
 
     add_test(
