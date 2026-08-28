@@ -51,7 +51,9 @@ stoppedEnterSuspensionSpeed:   0.10 m/s
 stoppedConfirmSeconds:         0.25 s
 ```
 
-値は仮置きであり、観測結果とテスト安定性を確認して確定する。
+2026-08-28の特性テストで各状態を分離できることを確認し、Step 2.2へ渡す初期値として採用した。測定結果は [Step 2.1 停止観測値と初期閾値](./special-moves-step2-1-threshold-observation-2026-08-28_jp.md) を参照する。
+
+追加の初期値として、suspension離脱閾値を0.20 m/s、body upと平均接触法線の最低dot値を0.90とする。
 
 ### 完了条件
 
@@ -60,6 +62,8 @@ stoppedConfirmSeconds:         0.25 s
 - 停止時の物理ノイズを誤って `Moving` とし続けない。
 
 ## 4. Step 2.2：純粋な状態機械
+
+**状態: 2026-08-28 完了。** 実装とテスト結果は [Step 2.2 純粋な走行状態機械](./special-moves-step2-2-state-machine-2026-08-28_jp.md) を参照する。
 
 ### 目的
 

@@ -45,6 +45,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/MapDefinition.h
     src/Physics/MapDefinitionJson.cpp
     src/Physics/MapDefinitionJson.h
+    src/Physics/MobilityStateMachine.cpp
+    src/Physics/MobilityStateMachine.h
     src/Physics/PhysicsWorld.cpp
     src/Physics/PhysicsWorld.h
     src/Physics/TankController.cpp
@@ -296,6 +298,17 @@ if(BUILD_TESTING)
         target_compile_options(TankMotionObservationTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(MobilityStateMachineTests
+        tests/MobilityStateMachineTests.cpp
+    )
+    target_link_libraries(MobilityStateMachineTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(MobilityStateMachineTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
     )
@@ -434,6 +447,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TankMotionObservation
         COMMAND TankMotionObservationTests
+    )
+
+    add_test(
+        NAME TankPhysics.MobilityStateMachine
+        COMMAND MobilityStateMachineTests
     )
 
     add_test(
@@ -613,6 +631,17 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehicleCoastingTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(MobilityObservationCharacterizationTests
+        tests/MobilityObservationCharacterizationTests.cpp
+    )
+    target_link_libraries(MobilityObservationCharacterizationTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(MobilityObservationCharacterizationTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(TrackedVehicleSteeringTests
         tests/TrackedVehicleSteeringTests.cpp
     )
@@ -705,6 +734,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TrackedVehicleCoasting
         COMMAND TrackedVehicleCoastingTests
+    )
+
+    add_test(
+        NAME TankPhysics.MobilityObservationCharacterization
+        COMMAND MobilityObservationCharacterizationTests
     )
 
     add_test(
