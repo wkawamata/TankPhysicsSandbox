@@ -2,6 +2,7 @@
 
 #include "TankTypes.h"
 #include "MapDefinition.h"
+#include "MobilityStateMachine.h"
 
 #include <memory>
 
@@ -43,6 +44,8 @@ namespace Tank::Physics
         TrackedDriverInput m_driverInput = {};
         TankState m_state = {};
         TankSettings m_settings = {};
+        MobilityStateMachine m_mobilityStateMachine =
+            MobilityStateMachine(MobilityStateSettings{});
         std::unique_ptr<Impl> m_impl;
     };
 }

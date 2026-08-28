@@ -25,6 +25,10 @@ int main()
     {
         test.Step(deltaTimeSeconds);
     }
+    bool passed = true;
+    passed &= Check(test.State().mobility.state ==
+            Tank::Physics::MobilityState::Stopped,
+        "settled vehicle must publish Stopped mobility state");
 
     Tank::Physics::TankInput driveInput;
     driveInput.throttle = 1.0f;
@@ -41,7 +45,9 @@ int main()
         test.Step(deltaTimeSeconds);
     const float coastSpeed = coastState.speedMetersPerSecond;
 
-    bool passed = true;
+    passed &= Check(test.State().mobility.state ==
+            Tank::Physics::MobilityState::Moving,
+        "drive request must publish Moving immediately");
     passed &= Check(std::isfinite(drivenSpeed) && std::isfinite(coastSpeed),
         "driven and coasting speed must be finite");
     passed &= Check(drivenSpeed > 5.0f,
@@ -59,6 +65,8 @@ int main()
         "coasting observation must retain forward local velocity");
     passed &= Check(coastState.motionObservation.hasRequiredDriveContact,
         "coasting vehicle must retain lower contact on both tracks");
+    passed &= Check(coastState.mobility.state == Tank::Physics::MobilityState::Moving,
+        "coasting vehicle must remain Moving");
 
     Tank::Physics::TankInput brakeInput;
     brakeInput.brake = true;
@@ -68,6 +76,9 @@ int main()
         test.Step(deltaTimeSeconds);
     }
     const float brakedSpeed = test.State().speedMetersPerSecond;
+    passed &= Check(test.State().mobility.state ==
+            Tank::Physics::MobilityState::Stopped,
+        "braking and settling must eventually publish Stopped");
     passed &= Check(std::isfinite(brakedSpeed),
         "braked speed must remain finite");
     passed &= Check(brakedSpeed < coastSpeed,

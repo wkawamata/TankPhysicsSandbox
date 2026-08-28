@@ -159,6 +159,8 @@ Stopped
 
 ## 6. Step 2.4：TankControllerへの統合
 
+**状態: 2026-08-29 完了。** `PostStep`で観測後に状態機械を更新し、`TankState`とテスト状態へsnapshotを公開した。詳細は [Step 2.4 TankController統合](./special-moves-step2-4-controller-integration-2026-08-29_jp.md) を参照する。
+
 ### 目的
 
 physics step後の観測値を使って状態機械を更新し、`TankState` へ状態を公開する。

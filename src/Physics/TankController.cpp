@@ -113,6 +113,7 @@ namespace Tank::Physics
         m_input = {};
         m_state = {};
         m_settings = settings;
+        m_mobilityStateMachine = MobilityStateMachine(m_settings);
         m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
         m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
         m_settings.rollDistanceM = std::clamp(m_settings.rollDistanceM, 0.5f, 5.0f);
@@ -745,5 +746,13 @@ namespace Tank::Physics
         }
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
         m_state.motionObservation = BuildTankMotionObservation(m_state);
+        const bool mobilityDriveRequested =
+            std::abs(m_input.throttle) > 0.001f ||
+            std::abs(m_input.leftTrack - 1.0f) > 0.001f ||
+            std::abs(m_input.rightTrack - 1.0f) > 0.001f;
+        m_state.mobility = m_mobilityStateMachine.Update(
+            m_state.motionObservation,
+            mobilityDriveRequested,
+            deltaTimeSeconds);
     }
 }

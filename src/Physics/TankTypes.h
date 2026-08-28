@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhysicsTypes.h"
+#include "MobilityTypes.h"
 
 #include <array>
 
@@ -208,5 +209,6 @@ namespace Tank::Physics
         int wheelCount = 0;
         bool sleeping = false;
         TankMotionObservation motionObservation = {};
+        MobilityStateSnapshot mobility = {};
     };
 }

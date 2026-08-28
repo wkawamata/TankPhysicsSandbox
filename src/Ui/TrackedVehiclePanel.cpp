@@ -10,6 +10,7 @@
 #include <ImGuiWidgets.h>
 
 #include <filesystem>
+#include <cmath>
 #include <string>
 
 namespace Ui
@@ -97,6 +98,36 @@ namespace Ui
 			return changed;
 		}
 
+		const char* MobilityReasonName(
+			Tank::Physics::MobilityTransitionReason reason)
+		{
+			switch (reason)
+			{
+			case Tank::Physics::MobilityTransitionReason::StopConditionsEntered:
+				return "StopConditionsEntered";
+			case Tank::Physics::MobilityTransitionReason::StopConfirmed:
+				return "StopConfirmed";
+			case Tank::Physics::MobilityTransitionReason::DriveRequested:
+				return "DriveRequested";
+			case Tank::Physics::MobilityTransitionReason::LinearSpeedExceeded:
+				return "LinearSpeedExceeded";
+			case Tank::Physics::MobilityTransitionReason::AngularSpeedExceeded:
+				return "AngularSpeedExceeded";
+			case Tank::Physics::MobilityTransitionReason::TrackSlipExceeded:
+				return "TrackSlipExceeded";
+			case Tank::Physics::MobilityTransitionReason::SuspensionUnstable:
+				return "SuspensionUnstable";
+			case Tank::Physics::MobilityTransitionReason::RequiredContactLost:
+				return "RequiredContactLost";
+			case Tank::Physics::MobilityTransitionReason::PoseUnstable:
+				return "PoseUnstable";
+			case Tank::Physics::MobilityTransitionReason::InvalidObservation:
+				return "InvalidObservation";
+			default:
+				return "None";
+			}
+		}
+
 		void DrawStateSummary(
 			const TrackedVehiclePanelContext& ctx,
 			const Tank::Physics::TrackedVehicleTestState& state)
@@ -104,7 +135,24 @@ namespace Ui
 			const Tank::Physics::TankMotionObservation& motion =
 				state.motionObservation;
 			ImGui::SeparatorText("State Summary");
-			ImGui::TextUnformatted("Mobility: Unavailable (Step 2)");
+			const char* mobilityName = "Moving";
+			switch (state.mobility.state)
+			{
+			case Tank::Physics::MobilityState::StopCandidate:
+				mobilityName = "StopCandidate";
+				break;
+			case Tank::Physics::MobilityState::Stopped:
+				mobilityName = "Stopped";
+				break;
+			default:
+				break;
+			}
+			ImGui::Text("Mobility: %s", mobilityName);
+			ImGui::Text("State Time: %.2f s  Stop Progress: %.0f%%",
+				state.mobility.stateTimeSeconds,
+				state.mobility.stopCandidateProgress * 100.0f);
+			ImGui::Text("Transition Reason: %s",
+				MobilityReasonName(state.mobility.lastTransitionReason));
 			ImGui::TextUnformatted("Special: Legacy (Step 3)");
 			ImGui::Text(
 				"Input: Roll %+.2f",
@@ -138,6 +186,18 @@ namespace Ui
 					.maximumAbsoluteLongitudinalSlipMetersPerSecond,
 				motion.tracks[1]
 					.maximumAbsoluteLongitudinalSlipMetersPerSecond);
+			if (ctx.tankSettings != nullptr)
+			{
+				const Tank::Physics::TankSettings& settings = *ctx.tankSettings;
+				ImGui::Text("Stop In: Speed %.2f  Angular %.2f  Slip %.2f",
+					settings.stoppedEnterLinearSpeedMetersPerSecond,
+					settings.stoppedEnterAngularSpeedRadiansPerSecond,
+					settings.stoppedEnterTrackSlipMetersPerSecond);
+				ImGui::Text("Stop Out: Speed %.2f  Angular %.2f  Slip %.2f",
+					settings.stoppedExitLinearSpeedMetersPerSecond,
+					settings.stoppedExitAngularSpeedRadiansPerSecond,
+					settings.stoppedExitTrackSlipMetersPerSecond);
+			}
 		}
 	}
 

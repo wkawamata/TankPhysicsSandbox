@@ -45,6 +45,7 @@ add_library(TankPhysicsCore STATIC
     src/Physics/MapDefinition.h
     src/Physics/MapDefinitionJson.cpp
     src/Physics/MapDefinitionJson.h
+    src/Physics/MobilityTypes.h
     src/Physics/MobilityStateMachine.cpp
     src/Physics/MobilityStateMachine.h
     src/Physics/PhysicsWorld.cpp

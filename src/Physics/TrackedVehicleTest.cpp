@@ -251,6 +251,7 @@ namespace Tank::Physics
         m_state.sleeping = m_impl->controller.State().sleeping;
         m_state.motionObservation =
             m_impl->controller.State().motionObservation;
+        m_state.mobility = m_impl->controller.State().mobility;
 
         return m_state;
     }
