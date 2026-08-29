@@ -31,6 +31,7 @@ namespace Tank::Physics
         bool sleeping = false;
         TankMotionObservation motionObservation = {};
         MobilityStateSnapshot mobility = {};
+        RollingPhase rollingPhase = RollingPhase::None;
     };
 
     class TrackedVehicleTest

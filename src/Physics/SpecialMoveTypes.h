@@ -6,6 +6,16 @@
 
 namespace Tank::Physics
 {
+    enum class RollingPhase
+    {
+        None,
+        Windup,
+        PoweredRoll,
+        Evaluating,
+        BallisticRoll,
+        Settling
+    };
+
     enum class SpecialMoveState
     {
         Idle,

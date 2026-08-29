@@ -46,20 +46,12 @@ namespace Tank::Physics
 
     struct TankController::Impl
     {
-        enum class RollingPhase
-        {
-            None,
-            PoweredRoll,
-            BallisticRoll,
-            Settling
-        };
-
         PhysicsWorld& world;
         JPH::BodyID bodyId;
         JPH::Ref<JPH::VehicleConstraint> vehicleConstraint;
         bool hasBody = false;
         bool rollInputLatched = false;
-        RollingPhase rollingPhase = RollingPhase::None;
+        Tank::Physics::RollingPhase rollingPhase = RollingPhase::None;
         int rollSettledFrames = 0;
         float rollDistanceIntegral = 0.0f;
         JPH::RVec3 rollStartPosition;
@@ -427,7 +419,7 @@ namespace Tank::Physics
         {
             const JPH::Vec3 bodyRight = bodyRotation * JPH::Vec3::sAxisX();
             m_impl->rollInputLatched = true;
-            m_impl->rollingPhase = Impl::RollingPhase::PoweredRoll;
+            m_impl->rollingPhase = RollingPhase::PoweredRoll;
             m_impl->rollSettledFrames = 0;
             m_impl->rollDistanceIntegral = 0.0f;
             m_impl->rollStartPosition =
@@ -441,7 +433,7 @@ namespace Tank::Physics
             m_impl->rollInputLatched = false;
         }
 
-        if (m_impl->rollingPhase == Impl::RollingPhase::PoweredRoll)
+        if (m_impl->rollingPhase == RollingPhase::PoweredRoll)
         {
             const float cutoffDot = std::cos(
                 JPH::DegreesToRadians(m_settings.rollTorqueCutoffDegrees));
@@ -453,12 +445,12 @@ namespace Tank::Physics
             }
             else
             {
-                m_impl->rollingPhase = Impl::RollingPhase::BallisticRoll;
+                m_impl->rollingPhase = RollingPhase::BallisticRoll;
             }
         }
 
-        if (m_impl->rollingPhase == Impl::RollingPhase::BallisticRoll ||
-            m_impl->rollingPhase == Impl::RollingPhase::Settling)
+        if (m_impl->rollingPhase == RollingPhase::BallisticRoll ||
+            m_impl->rollingPhase == RollingPhase::Settling)
         {
             constexpr float positionGain = 80000.0f;
             constexpr float integralGain = 40000.0f;
@@ -485,7 +477,7 @@ namespace Tank::Physics
                 maximumForce);
             bodyInterface.AddForce(m_impl->bodyId, m_impl->rollDirection * force);
 
-            if (m_impl->rollingPhase == Impl::RollingPhase::BallisticRoll &&
+            if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
                 std::abs(distanceError) < 0.05f &&
                 std::abs(lateralVelocity) < 0.1f &&
                 std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
@@ -494,7 +486,7 @@ namespace Tank::Physics
                 ++m_impl->rollSettledFrames;
                 if (m_impl->rollSettledFrames >= 60)
                 {
-                    m_impl->rollingPhase = Impl::RollingPhase::None;
+                    m_impl->rollingPhase = RollingPhase::None;
                 }
             }
             else
@@ -503,7 +495,7 @@ namespace Tank::Physics
             }
         }
 
-        if (m_impl->rollingPhase != Impl::RollingPhase::PoweredRoll)
+        if (m_impl->rollingPhase != RollingPhase::PoweredRoll)
         {
             const JPH::Vec3 targetUp =
                 bodyUp.Dot(JPH::Vec3::sAxisY()) >= 0.0f
@@ -755,6 +747,7 @@ namespace Tank::Physics
         }
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
         m_state.motionObservation = BuildTankMotionObservation(m_state);
+        m_state.rollingPhase = m_impl->rollingPhase;
         const bool mobilityDriveRequested =
             std::abs(m_input.throttle) > 0.001f ||
             std::abs(m_input.leftTrack - 1.0f) > 0.001f ||

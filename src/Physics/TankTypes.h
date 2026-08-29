@@ -2,6 +2,7 @@
 
 #include "PhysicsTypes.h"
 #include "MobilityTypes.h"
+#include "SpecialMoveTypes.h"
 
 #include <array>
 
@@ -210,5 +211,6 @@ namespace Tank::Physics
         bool sleeping = false;
         TankMotionObservation motionObservation = {};
         MobilityStateSnapshot mobility = {};
+        RollingPhase rollingPhase = RollingPhase::None;
     };
 }
