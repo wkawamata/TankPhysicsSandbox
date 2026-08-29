@@ -4,7 +4,7 @@ Step 3で確立した特殊動作状態基盤を、既存ローリング物理�
 
 ## 内部ステップ
 
-1. 既存の `rollInputLatched`、`rollPowered`、`rollTranslationActive` を状態と補助データへ整理する。
+1. 既存の `rollInputLatched`、`rollPowered`、`rollTranslationActive` を状態と補助データへ整理する。**完了:** `RollingPhase`（None/PoweredRoll/BallisticRoll/Settling）を導入し、既存の出力条件を維持した。
 2. `Windup`、`PoweredRoll`、`Evaluating`、`BallisticRoll`、`Settling` をローリング専用状態として定義する。
 3. `MobilityState::Stopped` からだけWindupへ入る開始ガードを追加する。
 4. 90度付近の完了可能性評価を状態遷移として記録する。
