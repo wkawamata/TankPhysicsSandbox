@@ -415,6 +415,8 @@ namespace Tank::Physics
         const bool hasRollInput = m_input.roll != 0.0f;
         const bool canStartRoll =
             m_state.mobility.state == MobilityState::Stopped;
+        const bool wasRollingEvaluating =
+            m_impl->rollingPhase == RollingPhase::Evaluating;
         if (hasRollInput && !m_impl->rollInputLatched && canStartRoll)
         {
             const JPH::Vec3 bodyRight = bodyRotation * JPH::Vec3::sAxisX();
@@ -445,11 +447,18 @@ namespace Tank::Physics
             }
             else
             {
-                m_impl->rollingPhase = RollingPhase::BallisticRoll;
+                m_impl->rollingPhase = RollingPhase::Evaluating;
             }
         }
 
-        if (m_impl->rollingPhase == RollingPhase::BallisticRoll ||
+        if (wasRollingEvaluating &&
+            m_impl->rollingPhase == RollingPhase::Evaluating)
+        {
+            m_impl->rollingPhase = RollingPhase::BallisticRoll;
+        }
+
+        if (m_impl->rollingPhase == RollingPhase::Evaluating ||
+            m_impl->rollingPhase == RollingPhase::BallisticRoll ||
             m_impl->rollingPhase == RollingPhase::Settling)
         {
             constexpr float positionGain = 80000.0f;
