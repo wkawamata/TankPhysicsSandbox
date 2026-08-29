@@ -54,9 +54,21 @@ int main()
     input.roll = 1.0f;
     test.SetInput(input);
     float maximumRollSpeed = 0.0f;
+    bool sawPoweredRoll = false;
+    bool sawEvaluating = false;
+    bool sawBallisticRoll = false;
+    bool sawSettling = false;
     for (int i = 0; i < 240; ++i)
     {
         test.Step(dt);
+        sawPoweredRoll |= test.State().rollingPhase ==
+            Tank::Physics::RollingPhase::PoweredRoll;
+        sawEvaluating |= test.State().rollingPhase ==
+            Tank::Physics::RollingPhase::Evaluating;
+        sawBallisticRoll |= test.State().rollingPhase ==
+            Tank::Physics::RollingPhase::BallisticRoll;
+        sawSettling |= test.State().rollingPhase ==
+            Tank::Physics::RollingPhase::Settling;
         maximumRollSpeed = (std::max)(
             maximumRollSpeed,
             std::abs(test.State().angularVelocity.z));
@@ -70,6 +82,8 @@ int main()
     for (int i = 0; i < 300; ++i)
     {
         test.Step(dt);
+        sawSettling |= test.State().rollingPhase ==
+            Tank::Physics::RollingPhase::Settling;
     }
 
     const Tank::Physics::TrackedVehicleTestState& state = test.State();
@@ -83,6 +97,12 @@ int main()
         "orientation must remain finite");
     passed &= Check(operatedUpY < 0.5f,
         "roll input must rotate the body away from upright");
+    passed &= Check(sawPoweredRoll,
+        "rolling must expose PoweredRoll phase");
+    passed &= Check(sawEvaluating,
+        "rolling must expose Evaluating phase near the cutoff");
+    passed &= Check(sawBallisticRoll,
+        "rolling must expose BallisticRoll phase");
     passed &= Check(heldRollSpeed < maximumRollSpeed,
         "held roll input must not keep increasing roll speed after 90 degrees");
     passed &= Check(std::abs(settledUpY) > 0.8f,
