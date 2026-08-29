@@ -486,13 +486,15 @@ namespace Tank::Physics
                 maximumForce);
             bodyInterface.AddForce(m_impl->bodyId, m_impl->rollDirection * force);
 
-            if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
+            if ((m_impl->rollingPhase == RollingPhase::BallisticRoll ||
+                m_impl->rollingPhase == RollingPhase::Settling) &&
                 std::abs(distanceError) < 0.05f &&
                 std::abs(lateralVelocity) < 0.1f &&
                 std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
                 std::abs(rollAngularVelocity) < 0.1f)
             {
                 ++m_impl->rollSettledFrames;
+                m_impl->rollingPhase = RollingPhase::Settling;
                 if (m_impl->rollSettledFrames >= 60)
                 {
                     m_impl->rollingPhase = RollingPhase::None;
