@@ -128,6 +128,19 @@ namespace Ui
 			}
 		}
 
+		const char* RollingPhaseName(Tank::Physics::RollingPhase phase)
+		{
+			switch (phase)
+			{
+			case Tank::Physics::RollingPhase::Windup: return "Windup";
+			case Tank::Physics::RollingPhase::PoweredRoll: return "PoweredRoll";
+			case Tank::Physics::RollingPhase::Evaluating: return "Evaluating";
+			case Tank::Physics::RollingPhase::BallisticRoll: return "BallisticRoll";
+			case Tank::Physics::RollingPhase::Settling: return "Settling";
+			default: return "None";
+			}
+		}
+
 		void DrawStateSummary(
 			const TrackedVehiclePanelContext& ctx,
 			const Tank::Physics::TrackedVehicleTestState& state)
@@ -148,6 +161,8 @@ namespace Ui
 				break;
 			}
 			ImGui::Text("Mobility: %s", mobilityName);
+			ImGui::Text("Rolling Phase: %s",
+				RollingPhaseName(state.rollingPhase));
 			ImGui::Text("State Time: %.2f s  Stop Progress: %.0f%%",
 				state.mobility.stateTimeSeconds,
 				state.mobility.stopCandidateProgress * 100.0f);
