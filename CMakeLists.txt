@@ -339,6 +339,14 @@ if(BUILD_TESTING)
         target_compile_options(SpecialMoveStateMachineTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(SpecialMoveIntegrationTests
+        tests/SpecialMoveIntegrationTests.cpp
+    )
+    target_link_libraries(SpecialMoveIntegrationTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(SpecialMoveIntegrationTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
     )
@@ -497,6 +505,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.SpecialMoveStateMachine
         COMMAND SpecialMoveStateMachineTests
+    )
+
+    add_test(
+        NAME TankPhysics.SpecialMoveIntegration
+        COMMAND SpecialMoveIntegrationTests
     )
 
     add_test(
