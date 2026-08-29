@@ -421,7 +421,9 @@ namespace Tank::Physics
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
         const bool hasRollInput = m_input.roll != 0.0f;
-        if (hasRollInput && !m_impl->rollInputLatched)
+        const bool canStartRoll =
+            m_state.mobility.state == MobilityState::Stopped;
+        if (hasRollInput && !m_impl->rollInputLatched && canStartRoll)
         {
             const JPH::Vec3 bodyRight = bodyRotation * JPH::Vec3::sAxisX();
             m_impl->rollInputLatched = true;

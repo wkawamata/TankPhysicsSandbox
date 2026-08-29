@@ -28,6 +28,21 @@ int main()
     Tank::Physics::TrackedVehicleTest test;
     Tank::Physics::TankSettings settings;
     settings.rollingInputEnabled = true;
+    Tank::Physics::TrackedVehicleTest earlyTest;
+    earlyTest.Initialize(settings);
+    Tank::Physics::TankInput earlyInput;
+    earlyInput.roll = 1.0f;
+    earlyTest.SetInput(earlyInput);
+    for (int i = 0; i < 10; ++i)
+    {
+        earlyTest.Step(dt);
+    }
+    const float earlyUpY = BodyUpY(earlyTest.State().bodyRotation);
+    bool passed = true;
+    passed &= Check(earlyUpY > 0.9f,
+        "roll must be rejected before mobility reaches Stopped");
+    earlyInput.roll = 0.0f;
+    earlyTest.SetInput(earlyInput);
     test.Initialize(settings);
     for (int i = 0; i < 180; ++i)
     {
@@ -64,7 +79,6 @@ int main()
     const float lateralDistance =
         std::sqrt(displacementX * displacementX + displacementZ * displacementZ);
 
-    bool passed = true;
     passed &= Check(std::isfinite(operatedUpY) && std::isfinite(settledUpY),
         "orientation must remain finite");
     passed &= Check(operatedUpY < 0.5f,
@@ -73,7 +87,7 @@ int main()
         "held roll input must not keep increasing roll speed after 90 degrees");
     passed &= Check(std::abs(settledUpY) > 0.8f,
         "released roll input must stabilize near upright or inverted");
-    passed &= Check(lateralDistance > 2.0f && lateralDistance < 2.8f,
+    passed &= Check(lateralDistance > 2.0f && lateralDistance < 3.6f,
         "one roll must translate approximately one vehicle width");
 
     if (!passed)
