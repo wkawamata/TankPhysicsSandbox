@@ -498,6 +498,10 @@ namespace Tank::Physics
                 if (m_impl->rollSettledFrames >= 60)
                 {
                     m_impl->rollingPhase = RollingPhase::None;
+                    // A completed roll may immediately re-arm while the
+                    // player keeps the same direction held. This is the
+                    // intentional post-completion re-evaluation point.
+                    m_impl->rollInputLatched = false;
                 }
             }
             else
