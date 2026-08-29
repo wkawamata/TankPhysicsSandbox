@@ -57,6 +57,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/SpecialMoveStateMachine.h
     src/Physics/RollingObstructionDetector.cpp
     src/Physics/RollingObstructionDetector.h
+    src/Physics/RollingRecoveryController.cpp
+    src/Physics/RollingRecoveryController.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
     src/Physics/TankMotionObservation.cpp
@@ -357,6 +359,14 @@ if(BUILD_TESTING)
         target_compile_options(RollingObstructionDetectorTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(RollingRecoveryControllerTests
+        tests/RollingRecoveryControllerTests.cpp
+    )
+    target_link_libraries(RollingRecoveryControllerTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(RollingRecoveryControllerTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
     )
@@ -525,6 +535,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.RollingObstructionDetector
         COMMAND RollingObstructionDetectorTests
+    )
+
+    add_test(
+        NAME TankPhysics.RollingRecoveryController
+        COMMAND RollingRecoveryControllerTests
     )
 
     add_test(
