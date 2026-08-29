@@ -23,7 +23,8 @@ namespace Tank::Physics
         Rolling,
         MortarStarting,
         MortarAiming,
-        Blocked
+        Blocked,
+        RecoveringToStart
     };
 
     enum class SpecialMoveEvent
@@ -33,7 +34,9 @@ namespace Tank::Physics
         RollRightRequested,
         MortarRequested,
         MoveBlocked,
-        MoveCompleted
+        MoveCompleted,
+        RecoveryStarted,
+        RecoveryCompleted
     };
 
     enum class SpecialMoveRejectReason

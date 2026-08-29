@@ -51,7 +51,11 @@ int main()
     machine.Update(SpecialMoveEvent::MoveBlocked, true);
     passed &= Check(machine.Snapshot().state == SpecialMoveState::Blocked,
         "active move must enter Blocked on obstruction");
-    machine.Update(SpecialMoveEvent::MoveCompleted, true);
+    machine.Update(SpecialMoveEvent::RecoveryStarted, true);
+    passed &= Check(machine.Snapshot().state ==
+            SpecialMoveState::RecoveringToStart,
+        "blocked move must enter recovery before returning idle");
+    machine.Update(SpecialMoveEvent::RecoveryCompleted, true);
     passed &= Check(machine.Snapshot().state == SpecialMoveState::Idle,
         "blocked move completion must return to Idle");
 

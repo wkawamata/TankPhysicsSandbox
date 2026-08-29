@@ -41,8 +41,35 @@ namespace Tank::Physics
                 ++m_snapshot.transitionCount;
             }
             else if (m_snapshot.state == SpecialMoveState::Rolling ||
-                m_snapshot.state == SpecialMoveState::MortarAiming ||
-                m_snapshot.state == SpecialMoveState::Blocked)
+                m_snapshot.state == SpecialMoveState::MortarAiming)
+            {
+                m_snapshot.state = SpecialMoveState::Idle;
+                ++m_snapshot.transitionCount;
+            }
+            else
+            {
+                Reject(SpecialMoveRejectReason::InvalidInput);
+            }
+            return m_snapshot;
+        }
+
+        if (event == SpecialMoveEvent::RecoveryStarted)
+        {
+            if (m_snapshot.state == SpecialMoveState::Blocked)
+            {
+                m_snapshot.state = SpecialMoveState::RecoveringToStart;
+                ++m_snapshot.transitionCount;
+            }
+            else
+            {
+                Reject(SpecialMoveRejectReason::InvalidInput);
+            }
+            return m_snapshot;
+        }
+
+        if (event == SpecialMoveEvent::RecoveryCompleted)
+        {
+            if (m_snapshot.state == SpecialMoveState::RecoveringToStart)
             {
                 m_snapshot.state = SpecialMoveState::Idle;
                 ++m_snapshot.transitionCount;
