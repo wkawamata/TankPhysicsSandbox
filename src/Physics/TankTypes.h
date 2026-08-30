@@ -112,6 +112,8 @@ namespace Tank::Physics
         float leftTrack = 1.0f;
         float rightTrack = 1.0f;
         float roll = 0.0f;
+        float leftLeverX = 0.0f;
+        float rightLeverX = 0.0f;
         float brakeAmount = 0.0f;
         bool brake = false;
     };
