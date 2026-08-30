@@ -103,6 +103,13 @@ target_include_directories(TankInputCore
         src
 )
 
+add_library(TankInputMappingJson STATIC
+    src/Input/TankInputMappingJson.cpp
+    src/Input/TankInputMappingJson.h
+)
+target_include_directories(TankInputMappingJson PUBLIC src)
+target_link_libraries(TankInputMappingJson PUBLIC TankInputCore nlohmann_json::nlohmann_json)
+
 set(TANK_GAMEINPUT_VERSION "3.5.262" CACHE STRING "Microsoft.GameInput NuGet version.")
 set(TANK_GAMEINPUT_PACKAGE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/packages/Microsoft.GameInput.${TANK_GAMEINPUT_VERSION}"
@@ -437,6 +444,14 @@ if(BUILD_TESTING)
         target_compile_options(TankSettingsJsonTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TankInputMappingJsonTests
+        tests/TankInputMappingJsonTests.cpp
+    )
+    target_link_libraries(TankInputMappingJsonTests PRIVATE TankInputMappingJson)
+    if(MSVC)
+        target_compile_options(TankInputMappingJsonTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_test(
         NAME TankPhysics.BoxDrop
         COMMAND TankPhysicsCli --test box-drop --steps 300 --dt 0.0166667
@@ -618,6 +633,10 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TankSettingsJson
         COMMAND TankSettingsJsonTests
+    )
+    add_test(
+        NAME TankPhysics.TankInputMappingJson
+        COMMAND TankInputMappingJsonTests
     )
 
     add_executable(PhysicsEnvironmentSettingsJsonTests
