@@ -75,6 +75,14 @@ int main()
         Tank::Input::MapGamepadToTankInput(braking);
     passed &= Check(brakingInput.brake, "brake button must be preserved");
 
+    Tank::Input::GamepadState specialLevers;
+    specialLevers.connected = true;
+    specialLevers.rawAxes[2] = -1.0f;
+    specialLevers.rawAxes[3] = 1.0f;
+    const auto specialInput = Tank::Input::MapGamepadToTankInput(specialLevers);
+    passed &= Check(NearlyEqual(specialInput.leftLeverX, -1.0f), "left lever axis must map");
+    passed &= Check(NearlyEqual(specialInput.rightLeverX, 1.0f), "right lever axis must map");
+
     if (!passed)
     {
         return 1;
