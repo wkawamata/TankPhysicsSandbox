@@ -203,6 +203,7 @@ target_link_libraries(TankSandbox
     PRIVATE
         TankPhysicsCore
         TankInputCore
+        TankInputMappingJson
         TankWindowsInput
         Jolt
         RtPbrSurvey::SceneRenderer

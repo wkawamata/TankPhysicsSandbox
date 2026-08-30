@@ -90,6 +90,8 @@ public:
 
     bool SaveTankSettings();
     bool LoadTankSettings(bool apply, RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
+    bool SaveInputMappingSettings() const;
+    bool LoadInputMappingSettings();
     bool SaveTankVisualSettings();
     bool LoadTankVisualSettings(bool apply, RtPbrSurvey::SceneRenderer& renderer);
     bool SaveEnvironmentSettings();

@@ -1,4 +1,6 @@
 #include "App/TrackedVehicleMode.h"
+#include "Input/TankInputMappingJson.h"
+#include <fstream>
 #include "App/CameraController.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
@@ -356,6 +358,24 @@ bool TrackedVehicleMode::SaveTankSettings()
 {
     Tank::App::TankSettingsStore store(m_tankSettingsSlot);
     return store.Write(m_settings, m_tankSettingsStatus);
+}
+
+bool TrackedVehicleMode::SaveInputMappingSettings() const
+{
+    std::ofstream file("Config/input_mapping.json");
+    if (!file) return false;
+    file << Tank::Input::SaveTankInputMappingSettings(m_inputMappingSettings).dump(4);
+    return true;
+}
+
+bool TrackedVehicleMode::LoadInputMappingSettings()
+{
+    std::ifstream file("Config/input_mapping.json");
+    if (!file) return false;
+    nlohmann::json json;
+    file >> json;
+    m_inputMappingSettings = Tank::Input::LoadTankInputMappingSettings(json);
+    return true;
 }
 
 bool TrackedVehicleMode::LoadTankSettings(
