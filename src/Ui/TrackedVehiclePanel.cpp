@@ -10,6 +10,7 @@
 #include <ImGuiWidgets.h>
 
 #include <filesystem>
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -193,9 +194,12 @@ namespace Ui
 				static_cast<unsigned long long>(state.specialMove.transitionCount));
 			if (ctx.inputMappingSettings != nullptr)
 			{
-				ImGui::Text("Lever Axes: L %zu  R %zu",
-					ctx.inputMappingSettings->leftLeverAxis,
-					ctx.inputMappingSettings->rightLeverAxis);
+				int leftAxis = static_cast<int>(ctx.inputMappingSettings->leftLeverAxis);
+				int rightAxis = static_cast<int>(ctx.inputMappingSettings->rightLeverAxis);
+				if (ImGui::InputInt("Left Lever Axis", &leftAxis))
+					ctx.inputMappingSettings->leftLeverAxis = static_cast<std::size_t>(std::clamp(leftAxis, 0, 15));
+				if (ImGui::InputInt("Right Lever Axis", &rightAxis))
+					ctx.inputMappingSettings->rightLeverAxis = static_cast<std::size_t>(std::clamp(rightAxis, 0, 15));
 			}
 			ImGui::Text(
 				"Input: Roll %+.2f",
