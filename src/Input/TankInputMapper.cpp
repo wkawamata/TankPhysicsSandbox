@@ -47,6 +47,10 @@ namespace Tank::Input
         input.throttle = stick.y;
         input.steering = stick.x;
         input.brake = state.brakePressed;
+        if (settings.leftLeverAxis < state.rawAxes.size())
+            input.leftLeverX = std::clamp(state.rawAxes[settings.leftLeverAxis], -1.0f, 1.0f);
+        if (settings.rightLeverAxis < state.rawAxes.size())
+            input.rightLeverX = std::clamp(state.rawAxes[settings.rightLeverAxis], -1.0f, 1.0f);
 
         const float pivotThreshold = std::clamp(settings.pivotThreshold, 0.0f, 1.0f);
         if (std::abs(input.throttle) <= pivotThreshold && input.steering != 0.0f)
