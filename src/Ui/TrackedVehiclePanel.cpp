@@ -141,6 +141,20 @@ namespace Ui
 			}
 		}
 
+		const char* SpecialMoveStateName(Tank::Physics::SpecialMoveState state)
+		{
+			switch (state)
+			{
+			case Tank::Physics::SpecialMoveState::RollStarting: return "RollStarting";
+			case Tank::Physics::SpecialMoveState::Rolling: return "Rolling";
+			case Tank::Physics::SpecialMoveState::MortarStarting: return "MortarStarting";
+			case Tank::Physics::SpecialMoveState::MortarAiming: return "MortarAiming";
+			case Tank::Physics::SpecialMoveState::Blocked: return "Blocked";
+			case Tank::Physics::SpecialMoveState::RecoveringToStart: return "Recovering";
+			default: return "Idle";
+			}
+		}
+
 		void DrawStateSummary(
 			const TrackedVehiclePanelContext& ctx,
 			const Tank::Physics::TrackedVehicleTestState& state)
@@ -174,7 +188,9 @@ namespace Ui
 				state.mobility.stopCandidateProgress * 100.0f);
 			ImGui::Text("Transition Reason: %s",
 				MobilityReasonName(state.mobility.lastTransitionReason));
-			ImGui::TextUnformatted("Special: Legacy (Step 3)");
+			ImGui::Text("Special Move: %s  (Transition %llu)",
+				SpecialMoveStateName(state.specialMove.state),
+				static_cast<unsigned long long>(state.specialMove.transitionCount));
 			ImGui::Text(
 				"Input: Roll %+.2f",
 				ctx.analogRoll);
