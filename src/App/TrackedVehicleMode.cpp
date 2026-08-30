@@ -237,7 +237,7 @@ void TrackedVehicleMode::UpdateInput(
     {
         const bool keyboardBrake = input.brake;
         const float keyboardRoll = input.roll;
-        input = Tank::Input::MapGamepadToTankInput(gamepadState);
+        input = Tank::Input::MapGamepadToTankInput(gamepadState, m_inputMappingSettings);
         input.brake = input.brake || keyboardBrake;
         input.roll = keyboardRoll;
     }

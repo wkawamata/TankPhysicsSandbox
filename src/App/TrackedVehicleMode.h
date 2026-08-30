@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Input/GamepadState.h"
+#include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/MapDefinition.h"
 #include "Physics/MapDefinitionJson.h"
@@ -60,6 +61,7 @@ public:
     Tank::Physics::PhysicsEnvironmentSettings& EnvSettings() { return m_environmentSettings; }
     const Tank::Physics::PhysicsEnvironmentSettings& AppliedEnvSettings() const { return m_appliedEnvironmentSettings; }
     Tank::Rendering::TankVisualSettings& VisualSettings() { return m_visualSettings; }
+    Tank::Input::TankInputMappingSettings& InputMappingSettings() { return m_inputMappingSettings; }
 
     bool& Paused() { return m_paused; }
     bool& SingleStep() { return m_singleStep; }
@@ -117,6 +119,7 @@ private:
     Tank::Physics::TrackedVehicleTest m_test;
 
     Tank::Physics::TankSettings m_settings;
+    Tank::Input::TankInputMappingSettings m_inputMappingSettings;
     Tank::Physics::TankSettings m_appliedSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
