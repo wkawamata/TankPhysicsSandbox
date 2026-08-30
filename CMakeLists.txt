@@ -63,6 +63,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/RollingSafetyCoordinator.h
     src/Physics/MortarAimController.cpp
     src/Physics/MortarAimController.h
+    src/Physics/MortarAimIntegration.cpp
+    src/Physics/MortarAimIntegration.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
     src/Physics/TankMotionObservation.cpp
@@ -387,6 +389,14 @@ if(BUILD_TESTING)
         target_compile_options(MortarAimControllerTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(MortarAimIntegrationTests
+        tests/MortarAimIntegrationTests.cpp
+    )
+    target_link_libraries(MortarAimIntegrationTests PRIVATE TankPhysicsCore)
+    if (MSVC)
+        target_compile_options(MortarAimIntegrationTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
     )
@@ -568,6 +578,10 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.MortarAimController
         COMMAND MortarAimControllerTests
+    )
+    add_test(
+        NAME TankPhysics.MortarAimIntegration
+        COMMAND MortarAimIntegrationTests
     )
 
     add_test(
