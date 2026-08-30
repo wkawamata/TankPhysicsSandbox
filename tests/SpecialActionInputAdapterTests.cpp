@@ -10,7 +10,7 @@ int main()
     input.leftLeverX = -1.0f;
     input.rightLeverX = 1.0f;
     const auto adapted = SpecialActionInputAdapter::FromTankInput(input);
-    const bool passed = adapted.leftLeverHorizontal == -1.0f &&
+    bool passed = adapted.leftLeverHorizontal == -1.0f &&
         adapted.rightLeverHorizontal == 1.0f;
     SpecialActionRecognizer recognizer;
     passed &= SpecialActionInputAdapter::Update(recognizer, input) ==
