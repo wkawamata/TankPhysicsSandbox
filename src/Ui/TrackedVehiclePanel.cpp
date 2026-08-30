@@ -163,6 +163,12 @@ namespace Ui
 			ImGui::Text("Mobility: %s", mobilityName);
 			ImGui::Text("Rolling Phase: %s",
 				RollingPhaseName(state.rollingPhase));
+			ImGui::Text("Mortar Aim: %.1f deg  Range: %.1f m",
+				state.mortarAim.angleDegrees,
+				state.mortarAim.rangeMeters);
+			ImGui::Text("Mortar: %s%s",
+				state.mortarAim.canFire ? "Ready" : "Charging",
+				state.mortarAim.atMaximum ? " (Max)" : "");
 			ImGui::Text("State Time: %.2f s  Stop Progress: %.0f%%",
 				state.mobility.stateTimeSeconds,
 				state.mobility.stopCandidateProgress * 100.0f);

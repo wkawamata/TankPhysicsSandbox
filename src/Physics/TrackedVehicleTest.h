@@ -4,6 +4,7 @@
 #include "PhysicsEnvironmentSettings.h"
 #include "MapDefinition.h"
 #include "TankTypes.h"
+#include "MortarAimController.h"
 
 #include <array>
 #include <memory>
@@ -32,6 +33,7 @@ namespace Tank::Physics
         TankMotionObservation motionObservation = {};
         MobilityStateSnapshot mobility = {};
         RollingPhase rollingPhase = RollingPhase::None;
+        MortarAimSnapshot mortarAim = {};
     };
 
     class TrackedVehicleTest
