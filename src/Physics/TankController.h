@@ -3,6 +3,7 @@
 #include "TankTypes.h"
 #include "MapDefinition.h"
 #include "MobilityStateMachine.h"
+#include "SpecialMoveInputProcessor.h"
 
 #include <memory>
 
@@ -46,6 +47,8 @@ namespace Tank::Physics
         TankSettings m_settings = {};
         MobilityStateMachine m_mobilityStateMachine =
             MobilityStateMachine(MobilityStateSettings{});
+        SpecialMoveStateMachine m_specialMoveStateMachine;
+        SpecialMoveInputProcessor m_specialMoveInputProcessor;
         std::unique_ptr<Impl> m_impl;
     };
 }

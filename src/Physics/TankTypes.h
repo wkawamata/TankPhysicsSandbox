@@ -214,5 +214,6 @@ namespace Tank::Physics
         TankMotionObservation motionObservation = {};
         MobilityStateSnapshot mobility = {};
         RollingPhase rollingPhase = RollingPhase::None;
+        SpecialMoveStateSnapshot specialMove = {};
     };
 }

@@ -413,6 +413,10 @@ namespace Tank::Physics
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
         const bool hasRollInput = m_input.roll != 0.0f;
+        m_state.specialMove = m_specialMoveInputProcessor.Update(
+            m_specialMoveStateMachine,
+            m_input,
+            m_state.mobility.state == MobilityState::Stopped);
         const bool canStartRoll =
             m_state.mobility.state == MobilityState::Stopped;
         const bool wasRollingEvaluating =
