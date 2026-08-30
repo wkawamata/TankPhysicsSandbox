@@ -11,5 +11,12 @@ namespace Tank::Physics
         {
             return { input.leftLeverX, input.rightLeverX };
         }
+
+        static SpecialAction Update(
+            SpecialActionRecognizer& recognizer,
+            const TankInput& input)
+        {
+            return recognizer.Update(FromTankInput(input));
+        }
     };
 }
