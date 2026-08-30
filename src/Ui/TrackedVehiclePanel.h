@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Input/GamepadState.h"
+#include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TankTypes.h"
 #include "Rendering/TankVisualSettings.h"
@@ -61,6 +62,7 @@ namespace Ui
         bool* tankModelExportBinary = nullptr;
 
         Tank::Physics::TankSettings* tankSettings = nullptr;
+        Tank::Input::TankInputMappingSettings* inputMappingSettings = nullptr;
         const Tank::Physics::TankSettings* appliedTankSettings = nullptr;
         Tank::Physics::PhysicsEnvironmentSettings* envSettings = nullptr;
         const Tank::Physics::PhysicsEnvironmentSettings* appliedEnvSettings = nullptr;

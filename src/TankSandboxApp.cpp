@@ -365,6 +365,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.tankModelExportBinary =
         &m_trackedVehicleMode.TankModelExportBinary();
     m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleMode.Settings();
+    m_trackedVehiclePanelCtx.inputMappingSettings = &m_trackedVehicleMode.InputMappingSettings();
     m_trackedVehiclePanelCtx.appliedTankSettings = &m_trackedVehicleMode.AppliedSettings();
     m_trackedVehiclePanelCtx.envSettings = &m_trackedVehicleMode.EnvSettings();
     m_trackedVehiclePanelCtx.appliedEnvSettings = &m_trackedVehicleMode.AppliedEnvSettings();

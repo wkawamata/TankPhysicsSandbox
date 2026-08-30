@@ -191,6 +191,12 @@ namespace Ui
 			ImGui::Text("Special Move: %s  (Transition %llu)",
 				SpecialMoveStateName(state.specialMove.state),
 				static_cast<unsigned long long>(state.specialMove.transitionCount));
+			if (ctx.inputMappingSettings != nullptr)
+			{
+				ImGui::Text("Lever Axes: L %zu  R %zu",
+					ctx.inputMappingSettings->leftLeverAxis,
+					ctx.inputMappingSettings->rightLeverAxis);
+			}
 			ImGui::Text(
 				"Input: Roll %+.2f",
 				ctx.analogRoll);
