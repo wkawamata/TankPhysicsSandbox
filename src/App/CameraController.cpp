@@ -25,6 +25,9 @@ namespace Tank::App
     void CameraController::StabilizeWorldUp(Engine::CameraState& camera)
     {
         using namespace DirectX;
+        const float cueAlpha = 1.0f - std::exp(-6.0f * dt);
+        m_mortarPitchOffsetDegrees +=
+            (m_mortarCameraCue.pitchOffsetDegrees - m_mortarPitchOffsetDegrees) * cueAlpha;
 
         const XMVECTOR position = XMLoadFloat3(&camera.pos);
         const XMVECTOR gaze = XMLoadFloat3(&camera.gazePoint);
@@ -596,7 +599,7 @@ namespace Tank::App
         const float lookDownRadians =
             XMConvertToRadians(std::clamp(
                 m_lookDownDegrees + m_chaseOrbitPitchOffsetDegrees +
-                    m_mortarCameraCue.pitchOffsetDegrees,
+                    m_mortarPitchOffsetDegrees,
                 0.0f,
                 kMaximumLookDownDegrees));
         const float horizontalDistance =

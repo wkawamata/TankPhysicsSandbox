@@ -208,6 +208,7 @@ namespace Tank::App
         bool m_button4WasPressed = false;
         bool m_button7WasPressed = false;
         Tank::Physics::MortarCameraCue m_mortarCameraCue = {};
+        float m_mortarPitchOffsetDegrees = 0.0f;
     };
 
 }
