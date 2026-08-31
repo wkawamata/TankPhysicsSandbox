@@ -595,7 +595,8 @@ namespace Tank::App
         }
         const float lookDownRadians =
             XMConvertToRadians(std::clamp(
-                m_lookDownDegrees + m_chaseOrbitPitchOffsetDegrees,
+                m_lookDownDegrees + m_chaseOrbitPitchOffsetDegrees +
+                    m_mortarCameraCue.pitchOffsetDegrees,
                 0.0f,
                 kMaximumLookDownDegrees));
         const float horizontalDistance =
