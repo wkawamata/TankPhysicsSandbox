@@ -2,6 +2,7 @@
 
 #include "CameraSettingsStore.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Physics/MortarCameraCue.h"
 #include "Rendering/CameraSettings.h"
 
 #include <Camera/DebugCameraController.h>
@@ -87,6 +88,14 @@ namespace Tank::App
         float FollowDistance() const { return m_followDistance; }
         void SetFollowDistance(float d) { m_followDistance = d; }
         float LookDownDegrees() const { return m_lookDownDegrees; }
+        void SetMortarCameraCue(const Tank::Physics::MortarCameraCue& cue)
+        {
+            m_mortarCameraCue = cue;
+        }
+        const Tank::Physics::MortarCameraCue& MortarCameraCue() const
+        {
+            return m_mortarCameraCue;
+        }
         void SetLookDownDegrees(float d)
         {
             m_lookDownDegrees = std::clamp(d, 0.0f, kMaximumLookDownDegrees);
@@ -198,6 +207,7 @@ namespace Tank::App
 
         bool m_button4WasPressed = false;
         bool m_button7WasPressed = false;
+        Tank::Physics::MortarCameraCue m_mortarCameraCue = {};
     };
 
 }
