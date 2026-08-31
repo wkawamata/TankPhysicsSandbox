@@ -283,6 +283,11 @@ void TrackedVehicleMode::Step(
 
     if (Engine::CameraState* camera = ActiveCamera())
     {
+        const auto& aim = m_test.State().mortarAim;
+        const float progress = aim.atMaximum ? 1.0f :
+            (aim.canFire ? 0.5f : 0.0f);
+        cameraController.SetMortarCameraCue(
+            Tank::Physics::MortarCameraCue::FromWheelieProgress(progress));
         cameraController.UpdateFollowCamera(
             m_test.State(),
             kPhysicsFixedDt,
