@@ -67,6 +67,7 @@ add_library(TankPhysicsCore STATIC
     src/Physics/MortarAimIntegration.h
     src/Physics/SpecialActionInputAdapter.h
     src/Physics/SpecialMoveInputProcessor.h
+    src/Physics/MortarCameraCue.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
     src/Physics/TankMotionObservation.cpp
@@ -423,6 +424,12 @@ if(BUILD_TESTING)
         target_compile_options(SpecialMoveInputProcessorTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(MortarCameraCueTests tests/MortarCameraCueTests.cpp)
+    target_link_libraries(MortarCameraCueTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(MortarCameraCueTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
     )
@@ -625,6 +632,7 @@ if(BUILD_TESTING)
         NAME TankPhysics.SpecialMoveInputProcessor
         COMMAND SpecialMoveInputProcessorTests
     )
+    add_test(NAME TankPhysics.MortarCameraCue COMMAND MortarCameraCueTests)
 
     add_test(
         NAME TankPhysics.PhysicsWorld
