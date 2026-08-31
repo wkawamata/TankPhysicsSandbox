@@ -74,6 +74,8 @@ namespace Ui
         std::function<void()> fireRecoil;
         std::function<void()> applyMaterials;
         std::function<void()> saveTankSettings;
+        std::function<void()> saveInputMappingSettings;
+        std::function<void()> loadInputMappingSettings;
         std::function<void()> loadTankSettings;
         std::function<void()> saveTankVisualSettings;
         std::function<void()> loadTankVisualSettings;

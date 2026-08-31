@@ -201,6 +201,11 @@ namespace Ui
 				if (ImGui::InputInt("Right Lever Axis", &rightAxis))
 					ctx.inputMappingSettings->rightLeverAxis = static_cast<std::size_t>(std::clamp(rightAxis, 0, 15));
 			}
+			if (ImGui::Button("Save Input Mapping") && ctx.saveInputMappingSettings)
+				ctx.saveInputMappingSettings();
+			ImGui::SameLine();
+			if (ImGui::Button("Load Input Mapping") && ctx.loadInputMappingSettings)
+				ctx.loadInputMappingSettings();
 			ImGui::Text(
 				"Input: Roll %+.2f",
 				ctx.analogRoll);

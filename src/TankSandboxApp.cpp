@@ -391,6 +391,14 @@ void TankSandboxApp::OnInit()
     {
         m_trackedVehicleMode.SaveTankSettings();
     };
+    m_trackedVehiclePanelCtx.saveInputMappingSettings = [this]()
+    {
+        m_trackedVehicleMode.SaveInputMappingSettings();
+    };
+    m_trackedVehiclePanelCtx.loadInputMappingSettings = [this]()
+    {
+        m_trackedVehicleMode.LoadInputMappingSettings();
+    };
     m_trackedVehiclePanelCtx.loadTankSettings = [this]()
     {
         m_trackedVehicleMode.LoadTankSettings(true, m_sceneRenderer, m_cameraController);
