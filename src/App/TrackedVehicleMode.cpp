@@ -359,6 +359,17 @@ Engine::Scene& TrackedVehicleMode::GetScene()
     return m_presenter.GetScene();
 }
 
+Tank::Rendering::MortarRangeCue TrackedVehicleMode::MortarRangeCue() const
+{
+    const auto& state = m_test.State();
+    Tank::Rendering::MortarRangeCue cue;
+    cue.center = state.bodyPosition;
+    cue.radiusMeters = state.mortarAim.rangeMeters;
+    cue.visible = state.specialMove.state == Tank::Physics::SpecialMoveState::MortarAiming;
+    cue.canFire = state.mortarAim.canFire;
+    return cue;
+}
+
 bool TrackedVehicleMode::SaveTankSettings()
 {
     Tank::App::TankSettingsStore store(m_tankSettingsSlot);

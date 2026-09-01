@@ -9,6 +9,7 @@
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Rendering/TrackedVehicleScenePresenter.h"
+#include "Rendering/MortarRangeCue.h"
 #include "GltfLoader.h"
 
 #include <filesystem>
@@ -55,6 +56,7 @@ public:
     Tank::Physics::TrackedVehicleTest& Test() { return m_test; }
     const Tank::Physics::TrackedVehicleTestState& TestState() const { return m_test.State(); }
     const Tank::Physics::TrackedDriverInput& DriverInput() const { return m_test.DriverInput(); }
+    Tank::Rendering::MortarRangeCue MortarRangeCue() const;
 
     Tank::Physics::TankSettings& Settings() { return m_settings; }
     const Tank::Physics::TankSettings& AppliedSettings() const { return m_appliedSettings; }
