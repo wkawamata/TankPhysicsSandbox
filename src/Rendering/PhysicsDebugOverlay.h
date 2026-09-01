@@ -27,6 +27,7 @@ public:
     void SetMortarRangeCue(const Tank::Rendering::MortarRangeCue& cue)
     {
         m_mortarRangeCue = cue;
+        m_mortarRangeCue.Sanitize();
     }
     const Tank::Rendering::MortarRangeCue& MortarRangeCue() const
     {
