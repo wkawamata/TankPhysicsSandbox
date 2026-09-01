@@ -8,7 +8,10 @@ int main()
     cue.radiusMeters = 20.0f;
     cue.visible = true;
     const bool passed = cue.visible && cue.radiusMeters == 20.0f;
-    if (!passed)
+    cue.radiusMeters = 5000.0f;
+    cue.Sanitize();
+    const bool sanitized = cue.radiusMeters == 1000.0f;
+    if (!passed || !sanitized)
     {
         std::cerr << "FAIL MortarRangeCue\n";
         return 1;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Physics/PhysicsTypes.h"
+#include <cmath>
 
 namespace Tank::Rendering
 {
@@ -10,5 +11,12 @@ namespace Tank::Rendering
         float radiusMeters = 0.0f;
         bool visible = false;
         bool canFire = false;
+
+        void Sanitize()
+        {
+            if (!std::isfinite(radiusMeters)) radiusMeters = 0.0f;
+            radiusMeters = std::clamp(radiusMeters, 0.0f, 1000.0f);
+            if (!visible) canFire = false;
+        }
     };
 }
