@@ -123,6 +123,7 @@ void TrackedVehicleMode::Exit()
 
 void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer&)
 {
+    m_presenter.SetMortarRangeCue(MortarRangeCue());
     m_presenter.UpdateScene(
         m_test.State(),
         m_settings,
