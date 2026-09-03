@@ -9,6 +9,7 @@
 #include "Physics/TankSettingsJson.h"
 #include "Rendering/TankVisualSettingsJson.h"
 #include "Rendering/TankModelExporter.h"
+#include "Rendering/MortarRangeGeometry.h"
 #include "Runtime/SceneRenderer.h"
 
 #include <algorithm>
@@ -121,9 +122,31 @@ void TrackedVehicleMode::Exit()
     m_active = false;
 }
 
-void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer&)
+void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer)
 {
-    m_presenter.SetMortarRangeCue(MortarRangeCue());
+    const auto cue = MortarRangeCue();
+    m_presenter.SetMortarRangeCue(cue);
+    const auto vertices = Tank::Rendering::MortarRangeGeometry::BuildCircle(
+        cue.center, cue.radiusMeters, 32);
+    for (size_t i = 0; i < m_mortarRangeLines.size(); ++i)
+    {
+        const size_t next = (i + 1) % m_mortarRangeLines.size();
+        RtPbrSurvey::DebugLineDesc line;
+        if (vertices.size() == m_mortarRangeLines.size())
+        {
+            line.start = {vertices[i].x, vertices[i].y, vertices[i].z};
+            line.end = {vertices[next].x, vertices[next].y, vertices[next].z};
+        }
+        line.visible = cue.visible;
+        line.color = cue.canFire
+            ? DirectX::XMFLOAT4(1.0f, 0.2f, 0.1f, 1.0f)
+            : DirectX::XMFLOAT4(1.0f, 0.8f, 0.1f, 1.0f);
+        line.depthMode = RtPbrSurvey::DebugLineDepthMode::DepthTested;
+        if (m_mortarRangeLines[i] == RtPbrSurvey::kInvalidDebugLineHandle)
+            m_mortarRangeLines[i] = renderer.AddDebugLine(line);
+        else
+            renderer.UpdateDebugLine(m_mortarRangeLines[i], line);
+    }
     m_presenter.UpdateScene(
         m_test.State(),
         m_settings,
