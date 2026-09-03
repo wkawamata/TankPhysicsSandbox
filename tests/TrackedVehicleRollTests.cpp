@@ -52,6 +52,13 @@ int main()
     const Tank::Physics::Vec3 startPosition = test.State().bodyPosition;
     Tank::Physics::TankInput input;
     input.roll = 1.0f;
+    input.leftLeverX = 1.0f;
+    input.rightLeverX = 1.0f;
+    test.SetInput(input);
+    test.Step(dt);
+    input.roll = 0.0f;
+    input.leftLeverX = 0.0f;
+    input.rightLeverX = 0.0f;
     test.SetInput(input);
     float maximumRollSpeed = 0.0f;
     bool sawPoweredRoll = false;
@@ -77,8 +84,6 @@ int main()
     const float operatedUpY = BodyUpY(test.State().bodyRotation);
     const float heldRollSpeed = std::abs(test.State().angularVelocity.z);
 
-    input.roll = 0.0f;
-    test.SetInput(input);
     for (int i = 0; i < 300; ++i)
     {
         test.Step(dt);
@@ -99,6 +104,9 @@ int main()
         "roll input must rotate the body away from upright");
     passed &= Check(sawPoweredRoll,
         "rolling must expose PoweredRoll phase");
+    passed &= Check(state.specialMove.state !=
+            Tank::Physics::SpecialMoveState::RollStarting,
+        "physical roll start must leave RollStarting");
     passed &= Check(sawEvaluating,
         "rolling must expose Evaluating phase near the cutoff");
     passed &= Check(sawBallisticRoll,

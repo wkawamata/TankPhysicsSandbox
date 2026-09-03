@@ -51,6 +51,7 @@ namespace Tank::Physics
         JPH::Ref<JPH::VehicleConstraint> vehicleConstraint;
         bool hasBody = false;
         bool rollInputLatched = false;
+        float latchedRollCommand = 0.0f;
         Tank::Physics::RollingPhase rollingPhase = RollingPhase::None;
         int rollSettledFrames = 0;
         float rollDistanceIntegral = 0.0f;
@@ -352,6 +353,8 @@ namespace Tank::Physics
         m_input.rightTrack = ClampNormalized(input.rightTrack);
         m_input.roll =
             m_settings.rollingInputEnabled ? ClampNormalized(input.roll) : 0.0f;
+        m_input.leftLeverX = ClampNormalized(input.leftLeverX);
+        m_input.rightLeverX = ClampNormalized(input.rightLeverX);
         m_input.brakeAmount = std::clamp(input.brakeAmount, 0.0f, 1.0f);
         m_input.brake = input.brake;
     }
@@ -412,18 +415,39 @@ namespace Tank::Physics
         const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
-        const bool hasRollInput = m_input.roll != 0.0f;
+        TankInput specialMoveInput = m_input;
+        if (!m_settings.rollingInputEnabled &&
+            specialMoveInput.leftLeverX * specialMoveInput.rightLeverX > 0.0f)
+        {
+            specialMoveInput.leftLeverX = 0.0f;
+            specialMoveInput.rightLeverX = 0.0f;
+        }
+        const SpecialMoveState previousSpecialMove = m_state.specialMove.state;
         m_state.specialMove = m_specialMoveInputProcessor.Update(
             m_specialMoveStateMachine,
-            m_input,
+            specialMoveInput,
             m_state.mobility.state == MobilityState::Stopped);
+        if (previousSpecialMove != SpecialMoveState::MortarStarting &&
+            previousSpecialMove != SpecialMoveState::MortarAiming &&
+            m_state.specialMove.state == SpecialMoveState::MortarStarting)
+        {
+            m_mortarAimController.Reset();
+            m_state.mortarAim = m_mortarAimController.Snapshot();
+        }
         const bool canStartRoll =
             m_state.mobility.state == MobilityState::Stopped;
+        const RollingPhase rollingPhaseBefore = m_impl->rollingPhase;
         const bool wasRollingEvaluating =
             m_impl->rollingPhase == RollingPhase::Evaluating;
-        if (hasRollInput && !m_impl->rollInputLatched && canStartRoll)
+        const bool rollStartRequested =
+            previousSpecialMove != SpecialMoveState::RollStarting &&
+            m_state.specialMove.state == SpecialMoveState::RollStarting;
+        if (rollStartRequested && !m_impl->rollInputLatched && canStartRoll)
         {
             const JPH::Vec3 bodyRight = bodyRotation * JPH::Vec3::sAxisX();
+            m_impl->latchedRollCommand =
+                m_state.specialMove.lastEvent == SpecialMoveEvent::RollLeftRequested
+                ? -1.0f : 1.0f;
             m_impl->rollInputLatched = true;
             m_impl->rollingPhase = RollingPhase::PoweredRoll;
             m_impl->rollSettledFrames = 0;
@@ -432,22 +456,19 @@ namespace Tank::Physics
                 bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
             m_impl->rollStartUp = bodyUp;
             m_impl->rollDirection =
-                m_input.roll > 0.0f ? -bodyRight : bodyRight;
-        }
-        else if (!hasRollInput)
-        {
-            m_impl->rollInputLatched = false;
+                m_impl->latchedRollCommand > 0.0f ? -bodyRight : bodyRight;
         }
 
         if (m_impl->rollingPhase == RollingPhase::PoweredRoll)
         {
             const float cutoffDot = std::cos(
                 JPH::DegreesToRadians(m_settings.rollTorqueCutoffDegrees));
-            if (bodyUp.Dot(m_impl->rollStartUp) > cutoffDot && hasRollInput)
+            if (bodyUp.Dot(m_impl->rollStartUp) > cutoffDot)
             {
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
-                    bodyForward * (m_input.roll * m_settings.rollTorqueNm));
+                    bodyForward *
+                        (m_impl->latchedRollCommand * m_settings.rollTorqueNm));
             }
             else
             {
@@ -530,6 +551,22 @@ namespace Tank::Physics
                         rollAngularVelocity * m_settings.rollStabilizationDampingNms));
         }
 
+        if (rollingPhaseBefore == RollingPhase::None &&
+            m_impl->rollingPhase != RollingPhase::None &&
+            m_state.specialMove.state == SpecialMoveState::RollStarting)
+        {
+            m_state.specialMove = m_specialMoveStateMachine.Update(
+                SpecialMoveEvent::MoveCompleted, true);
+        }
+        else if (rollingPhaseBefore != RollingPhase::None &&
+            m_impl->rollingPhase == RollingPhase::None &&
+            m_state.specialMove.state == SpecialMoveState::Rolling)
+        {
+            m_state.specialMove = m_specialMoveStateMachine.Update(
+                SpecialMoveEvent::MoveCompleted, true);
+            m_specialMoveInputProcessor.Reset();
+        }
+
         float forward = m_input.throttle;
         float leftTrack = m_input.leftTrack;
         float rightTrack = m_input.rightTrack;
@@ -578,6 +615,19 @@ namespace Tank::Physics
 
         m_state.stepIndex++;
         m_state.timeSeconds += deltaTimeSeconds;
+
+        if (m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+            m_state.specialMove.state == SpecialMoveState::MortarAiming)
+        {
+            m_state.mortarAim =
+                m_mortarAimController.Update(deltaTimeSeconds);
+            if (m_state.specialMove.state == SpecialMoveState::MortarStarting &&
+                m_state.mortarAim.canFire)
+            {
+                m_state.specialMove = m_specialMoveStateMachine.Update(
+                    SpecialMoveEvent::MoveCompleted, true);
+            }
+        }
 
         if (m_impl == nullptr)
         {

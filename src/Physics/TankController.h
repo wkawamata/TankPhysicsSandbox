@@ -49,6 +49,7 @@ namespace Tank::Physics
             MobilityStateMachine(MobilityStateSettings{});
         SpecialMoveStateMachine m_specialMoveStateMachine;
         SpecialMoveInputProcessor m_specialMoveInputProcessor;
+        MortarAimController m_mortarAimController;
         std::unique_ptr<Impl> m_impl;
     };
 }

@@ -3,6 +3,7 @@
 #include "PhysicsTypes.h"
 #include "MobilityTypes.h"
 #include "SpecialMoveTypes.h"
+#include "MortarAimController.h"
 
 #include <array>
 
@@ -215,5 +216,6 @@ namespace Tank::Physics
         MobilityStateSnapshot mobility = {};
         RollingPhase rollingPhase = RollingPhase::None;
         SpecialMoveStateSnapshot specialMove = {};
+        MortarAimSnapshot mortarAim = {};
     };
 }

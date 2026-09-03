@@ -751,7 +751,10 @@ namespace Ui
 		if (ImGui::CollapsingHeader("Rolling Parameters"))
 		{
 
-		ImGui::Checkbox("Rolling Input", &ctx.tankSettings->rollingInputEnabled);
+		if (ImGui::Checkbox("Rolling Input", &ctx.tankSettings->rollingInputEnabled))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
 		SliderFloatWithPendingColor(
 			"Roll Torque",
 			&ctx.tankSettings->rollTorqueNm,

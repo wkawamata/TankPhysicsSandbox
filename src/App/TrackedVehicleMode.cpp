@@ -198,6 +198,16 @@ void TrackedVehicleMode::UpdateInput(
     const float analogRollAxis2 =
         useAnalogTracks ? NormalizeRawGamepadAxis(gamepadState.rawAxes[2]) : 0.0f;
 
+    input.leftLeverX = analogRollAxis2;
+    input.rightLeverX = analogRollAxis0;
+
+    if (!useAnalogTracks && rollLeft != rollRight)
+    {
+        const float keyboardLeverX = rollLeft ? -1.0f : 1.0f;
+        input.leftLeverX = keyboardLeverX;
+        input.rightLeverX = keyboardLeverX;
+    }
+
     m_analogRoll = std::clamp((analogRollAxis0 + analogRollAxis2) * 0.5f, -1.0f, 1.0f);
 
     if (m_analogLeftTrack != 0.0f || m_analogRightTrack != 0.0f)

@@ -42,6 +42,23 @@ int main()
             SpecialMoveState::MortarStarting,
         "Stopped physics state must accept mortar request");
 
+    TankInput mortarInput;
+    mortarInput.leftLeverX = -1.0f;
+    mortarInput.rightLeverX = 1.0f;
+    vehicle.SetInput(mortarInput);
+    vehicle.Step(deltaTimeSeconds);
+    passed &= Check(
+        vehicle.State().specialMove.state == SpecialMoveState::MortarStarting,
+        "outward TankInput must enter MortarStarting");
+    for (int step = 0; step < 120; ++step)
+    {
+        vehicle.Step(deltaTimeSeconds);
+    }
+    passed &= Check(
+        vehicle.State().specialMove.state == SpecialMoveState::MortarAiming &&
+            vehicle.State().mortarAim.canFire,
+        "mortar elevation must reach MortarAiming");
+
     TankInput driveInput;
     driveInput.throttle = 1.0f;
     vehicle.SetInput(driveInput);

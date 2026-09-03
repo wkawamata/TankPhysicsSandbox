@@ -253,6 +253,8 @@ namespace Tank::Physics
             m_impl->controller.State().motionObservation;
         m_state.mobility = m_impl->controller.State().mobility;
         m_state.rollingPhase = m_impl->controller.State().rollingPhase;
+        m_state.specialMove = m_impl->controller.State().specialMove;
+        m_state.mortarAim = m_impl->controller.State().mortarAim;
 
         return m_state;
     }
