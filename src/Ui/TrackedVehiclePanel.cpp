@@ -192,6 +192,9 @@ namespace Ui
 			ImGui::Text("Special Move: %s  (Transition %llu)",
 				SpecialMoveStateName(state.specialMove.state),
 				static_cast<unsigned long long>(state.specialMove.transitionCount));
+			ImGui::Text("Rolling Safety: %s%s",
+				state.rollingObstructionSuspected ? "Obstruction" : "Clear",
+				state.rollingRecoveryActive ? " / Recovery" : "");
 			if (ctx.inputMappingSettings != nullptr)
 			{
 				int leftAxis = static_cast<int>(ctx.inputMappingSettings->leftLeverAxis);

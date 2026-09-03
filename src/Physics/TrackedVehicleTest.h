@@ -35,6 +35,8 @@ namespace Tank::Physics
         RollingPhase rollingPhase = RollingPhase::None;
         MortarAimSnapshot mortarAim = {};
         SpecialMoveStateSnapshot specialMove = {};
+        bool rollingObstructionSuspected = false;
+        bool rollingRecoveryActive = false;
     };
 
     class TrackedVehicleTest
