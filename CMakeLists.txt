@@ -68,6 +68,7 @@ add_library(TankPhysicsCore STATIC
     src/Physics/SpecialActionInputAdapter.h
     src/Physics/SpecialMoveInputProcessor.h
     src/Physics/MortarCameraCue.h
+    src/Physics/RollingSafetyStateMapper.h
     src/Rendering/MortarRangeCue.h
     src/Rendering/MortarRangeGeometry.h
     src/Physics/TankController.cpp
@@ -441,6 +442,11 @@ if(BUILD_TESTING)
     if(MSVC)
         target_compile_options(MortarRangeGeometryTests PRIVATE /W4 /permissive-)
     endif()
+    add_executable(RollingSafetyStateMapperTests tests/RollingSafetyStateMapperTests.cpp)
+    target_link_libraries(RollingSafetyStateMapperTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(RollingSafetyStateMapperTests PRIVATE /W4 /permissive-)
+    endif()
 
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
@@ -647,6 +653,7 @@ if(BUILD_TESTING)
     add_test(NAME TankPhysics.MortarCameraCue COMMAND MortarCameraCueTests)
     add_test(NAME TankPhysics.MortarRangeCue COMMAND MortarRangeCueTests)
     add_test(NAME TankPhysics.MortarRangeGeometry COMMAND MortarRangeGeometryTests)
+    add_test(NAME TankPhysics.RollingSafetyStateMapper COMMAND RollingSafetyStateMapperTests)
 
     add_test(
         NAME TankPhysics.PhysicsWorld
