@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Physics/PhysicsTypes.h"
+#include <algorithm>
 #include <cmath>
 
 namespace Tank::Rendering
