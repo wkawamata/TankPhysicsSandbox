@@ -13,9 +13,11 @@
 #include "GltfLoader.h"
 
 #include <filesystem>
+#include <array>
 #include <string>
 #include <optional>
 #include <windows.h>
+#include <Runtime/DebugLine.h>
 
 namespace Engine { struct CameraState; class Scene; }
 namespace RtPbrSurvey { class SceneRenderer; }
@@ -140,6 +142,7 @@ private:
     bool m_physicsDebugOverlay = false;
     bool m_tankVisualMaterialApplyPending = false;
     bool m_active = false;
+    std::array<RtPbrSurvey::DebugLineHandle, 32> m_mortarRangeLines = {};
 
     int m_tankSettingsSlot = 0;
     bool m_tankSettingsAutoLoad = true;
