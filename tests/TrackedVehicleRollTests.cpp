@@ -130,6 +130,8 @@ int main()
         "completed roll must return special move to Idle");
     passed &= Check(lateralDistance > 2.5f && lateralDistance < 2.85f,
         "one roll must translate approximately one vehicle width");
+    passed &= Check(displacementX > 2.5f,
+        "positive same-direction lever input must roll toward vehicle right");
     passed &= Check(maximumAirborneFrames <= 30,
         "air braking must prevent prolonged airborne rotation");
 

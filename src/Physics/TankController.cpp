@@ -447,7 +447,7 @@ namespace Tank::Physics
             const JPH::Vec3 bodyRight = bodyRotation * JPH::Vec3::sAxisX();
             m_impl->latchedRollCommand =
                 m_state.specialMove.lastEvent == SpecialMoveEvent::RollLeftRequested
-                ? -1.0f : 1.0f;
+                ? 1.0f : -1.0f;
             m_impl->rollInputLatched = true;
             m_impl->rollingPhase = RollingPhase::PoweredRoll;
             m_impl->rollSettledFrames = 0;
