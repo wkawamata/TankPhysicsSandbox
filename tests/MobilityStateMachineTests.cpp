@@ -112,6 +112,17 @@ int main()
     passed &= Check(confirmed.stopCandidateProgress == 0.0f,
         "progress must reset after leaving StopCandidate");
 
+    TankMotionObservation invertedStopped = stopped;
+    invertedStopped.bodyUp = { 0.0f, -1.0f, 0.0f };
+    MobilityStateMachine invertedMachine;
+    invertedMachine.Update(invertedStopped, false, 0.10f);
+    invertedMachine.Update(invertedStopped, false, 0.10f);
+    invertedMachine.Update(invertedStopped, false, 0.10f);
+    passed &= Check(
+        invertedMachine.Update(invertedStopped, false, 0.05f).state ==
+            MobilityState::Stopped,
+        "stable inverted pose must reach Stopped");
+
     TankMotionObservation hysteresis = stopped;
     hysteresis.linearSpeedMetersPerSecond = 0.25f;
     const MobilityStateSnapshot& heldStopped = normal.Update(

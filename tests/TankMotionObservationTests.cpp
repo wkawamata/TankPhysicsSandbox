@@ -133,6 +133,21 @@ int main()
     passed &= Check(contacts.hasLeftDriveContact &&
             contacts.hasRightDriveContact && contacts.hasRequiredDriveContact,
         "lower contacts on both tracks must report required drive contact");
+
+    Tank::Physics::TankState invertedContactState;
+    invertedContactState.wheelCount = 2;
+    invertedContactState.wheels[0].trackIndex = 0;
+    invertedContactState.wheels[0].upperSurface = true;
+    invertedContactState.wheels[0].hasContact = true;
+    invertedContactState.wheels[0].contactNormal = {0.0f, 1.0f, 0.0f};
+    invertedContactState.wheels[1].trackIndex = 1;
+    invertedContactState.wheels[1].upperSurface = true;
+    invertedContactState.wheels[1].hasContact = true;
+    invertedContactState.wheels[1].contactNormal = {0.0f, 1.0f, 0.0f};
+    const Tank::Physics::TankMotionObservation invertedContacts =
+        Tank::Physics::BuildTankMotionObservation(invertedContactState);
+    passed &= Check(invertedContacts.hasRequiredDriveContact,
+        "upper contacts on both tracks must support inverted drive contact");
     passed &= Check(contacts.allFinite,
         "finite contact input must produce a finite observation");
 

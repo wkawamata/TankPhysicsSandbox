@@ -115,6 +115,12 @@ int main()
         "held roll input must not keep increasing roll speed after 90 degrees");
     passed &= Check(std::abs(settledUpY) > 0.8f,
         "released roll input must stabilize near upright or inverted");
+    passed &= Check(state.mobility.state ==
+            Tank::Physics::MobilityState::Stopped,
+        "completed roll must return mobility to Stopped");
+    passed &= Check(state.specialMove.state ==
+            Tank::Physics::SpecialMoveState::Idle,
+        "completed roll must return special move to Idle");
     passed &= Check(lateralDistance > 2.0f && lateralDistance < 3.6f,
         "one roll must translate approximately one vehicle width");
 
@@ -124,7 +130,25 @@ int main()
             << " settledUpY=" << settledUpY
             << " maxRollSpeed=" << maximumRollSpeed
             << " heldRollSpeed=" << heldRollSpeed
-            << " lateralDistance=" << lateralDistance << "\n";
+            << " lateralDistance=" << lateralDistance
+            << " mobility=" << static_cast<int>(state.mobility.state)
+            << " reason=" << static_cast<int>(state.mobility.lastTransitionReason)
+            << " phase=" << static_cast<int>(state.rollingPhase)
+            << " special=" << static_cast<int>(state.specialMove.state)
+            << " speed=" << state.motionObservation.linearSpeedMetersPerSecond
+            << " angular=" << state.motionObservation.angularSpeedRadiansPerSecond
+            << " contacts=" << state.motionObservation.totalContactCount
+            << " lower=" << state.motionObservation.totalLowerSurfaceContactCount
+            << " upper=" << state.motionObservation.totalUpperSurfaceContactCount
+            << " slipL=" << state.motionObservation.tracks[0]
+                .maximumAbsoluteLongitudinalSlipMetersPerSecond
+            << " slipR=" << state.motionObservation.tracks[1]
+                .maximumAbsoluteLongitudinalSlipMetersPerSecond
+            << " suspensionL=" << state.motionObservation.tracks[0]
+                .maximumAbsoluteSuspensionVelocityMetersPerSecond
+            << " suspensionR=" << state.motionObservation.tracks[1]
+                .maximumAbsoluteSuspensionVelocityMetersPerSecond
+            << "\n";
         return 1;
     }
 

@@ -133,7 +133,9 @@ namespace Tank::Physics
         {
             return MobilityTransitionReason::RequiredContactLost;
         }
-        if (Dot(observation.bodyUp, observation.averageContactNormal) <
+        if (std::abs(Dot(
+                observation.bodyUp,
+                observation.averageContactNormal)) <
             m_settings.stoppedMinimumUpAlignment)
         {
             return MobilityTransitionReason::PoseUnstable;
@@ -177,7 +179,9 @@ namespace Tank::Physics
         {
             return MobilityTransitionReason::RequiredContactLost;
         }
-        if (Dot(observation.bodyUp, observation.averageContactNormal) <
+        if (std::abs(Dot(
+                observation.bodyUp,
+                observation.averageContactNormal)) <
             m_settings.stoppedMinimumUpAlignment)
         {
             return MobilityTransitionReason::PoseUnstable;

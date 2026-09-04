@@ -483,8 +483,7 @@ namespace Tank::Physics
         }
 
         if (m_impl->rollingPhase == RollingPhase::Evaluating ||
-            m_impl->rollingPhase == RollingPhase::BallisticRoll ||
-            m_impl->rollingPhase == RollingPhase::Settling)
+            m_impl->rollingPhase == RollingPhase::BallisticRoll)
         {
             constexpr float positionGain = 80000.0f;
             constexpr float integralGain = 40000.0f;
@@ -511,15 +510,27 @@ namespace Tank::Physics
                 maximumForce);
             bodyInterface.AddForce(m_impl->bodyId, m_impl->rollDirection * force);
 
-            if ((m_impl->rollingPhase == RollingPhase::BallisticRoll ||
-                m_impl->rollingPhase == RollingPhase::Settling) &&
-                std::abs(distanceError) < 0.05f &&
-                std::abs(lateralVelocity) < 0.1f &&
+            if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
+                std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
+                std::abs(rollAngularVelocity) < 0.1f)
+            {
+                m_impl->rollingPhase = RollingPhase::Settling;
+                m_impl->rollSettledFrames = 0;
+            }
+        }
+
+        if (m_impl->rollingPhase == RollingPhase::Settling)
+        {
+            const float lateralVelocity =
+                bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(
+                    m_impl->rollDirection);
+            const float rollAngularVelocity =
+                bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+            if (std::abs(lateralVelocity) < 0.1f &&
                 std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
                 std::abs(rollAngularVelocity) < 0.1f)
             {
                 ++m_impl->rollSettledFrames;
-                m_impl->rollingPhase = RollingPhase::Settling;
                 if (m_impl->rollSettledFrames >= 60)
                 {
                     m_impl->rollingPhase = RollingPhase::None;

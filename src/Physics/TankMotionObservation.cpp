@@ -168,9 +168,11 @@ namespace Tank::Physics
                 static_cast<float>(observation.totalContactCount));
         }
         observation.hasLeftDriveContact =
-            observation.tracks[0].lowerSurfaceContactCount > 0;
+            observation.tracks[0].lowerSurfaceContactCount > 0 ||
+            observation.tracks[0].upperSurfaceContactCount > 0;
         observation.hasRightDriveContact =
-            observation.tracks[1].lowerSurfaceContactCount > 0;
+            observation.tracks[1].lowerSurfaceContactCount > 0 ||
+            observation.tracks[1].upperSurfaceContactCount > 0;
         observation.hasRequiredDriveContact =
             observation.hasLeftDriveContact && observation.hasRightDriveContact;
         observation.allFinite = observation.allFinite &&
