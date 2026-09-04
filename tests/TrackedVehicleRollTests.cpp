@@ -135,6 +135,28 @@ int main()
     passed &= Check(maximumAirborneFrames <= 30,
         "air braking must prevent prolonged airborne rotation");
 
+    const float firstRollEndX = state.bodyPosition.x;
+    input.roll = 1.0f;
+    input.leftLeverX = 1.0f;
+    input.rightLeverX = 1.0f;
+    test.SetInput(input);
+    test.Step(dt);
+    input.roll = 0.0f;
+    input.leftLeverX = 0.0f;
+    input.rightLeverX = 0.0f;
+    test.SetInput(input);
+    for (int i = 0; i < 540; ++i)
+    {
+        test.Step(dt);
+    }
+    const float secondRollDisplacementX =
+        test.State().bodyPosition.x - firstRollEndX;
+    passed &= Check(secondRollDisplacementX > 2.5f,
+        "a second right roll from inverted must continue toward vehicle right");
+    passed &= Check(test.State().mobility.state ==
+            Tank::Physics::MobilityState::Stopped,
+        "a second roll must also return mobility to Stopped");
+
     if (!passed)
     {
         std::cerr << "  operatedUpY=" << operatedUpY
@@ -160,6 +182,7 @@ int main()
             << " suspensionR=" << state.motionObservation.tracks[1]
                 .maximumAbsoluteSuspensionVelocityMetersPerSecond
             << " maxAirborneFrames=" << maximumAirborneFrames
+            << " secondRollDisplacementX=" << secondRollDisplacementX
             << "\n";
         return 1;
     }
@@ -167,6 +190,7 @@ int main()
     std::cout << "PASS TrackedVehicle roll operated_up_y=" << operatedUpY
         << " settled_up_y=" << settledUpY
         << " lateral_distance=" << lateralDistance
-        << " max_airborne_frames=" << maximumAirborneFrames << "\n";
+        << " max_airborne_frames=" << maximumAirborneFrames
+        << " second_roll_dx=" << secondRollDisplacementX << "\n";
     return 0;
 }
