@@ -497,6 +497,15 @@ namespace Tank::Physics
                 bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(m_impl->rollDirection);
             const float rollAngularVelocity =
                 bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+            if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
+                rollAngularVelocity * m_impl->latchedRollCommand > 0.5f)
+            {
+                bodyInterface.AddTorque(
+                    m_impl->bodyId,
+                    bodyForward *
+                        (-m_impl->latchedRollCommand *
+                            m_settings.rollAirBrakeTorqueNm));
+            }
             const float distanceError = m_settings.rollDistanceM - lateralDistance;
             m_impl->rollDistanceIntegral = std::clamp(
                 m_impl->rollDistanceIntegral + distanceError / 60.0f,

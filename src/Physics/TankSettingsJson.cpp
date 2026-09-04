@@ -55,6 +55,7 @@ namespace Tank::Physics
         json["recoilPointHeightM"] = settings.recoilPointHeightM;
         json["rollingInputEnabled"] = settings.rollingInputEnabled;
         json["rollTorqueNm"] = settings.rollTorqueNm;
+        json["rollAirBrakeTorqueNm"] = settings.rollAirBrakeTorqueNm;
         json["rollDistanceM"] = settings.rollDistanceM;
         json["rollTorqueCutoffDegrees"] = settings.rollTorqueCutoffDegrees;
         json["rollStabilizationTorqueNm"] = settings.rollStabilizationTorqueNm;
@@ -154,6 +155,7 @@ namespace Tank::Physics
         ReadFloat(json, "recoilPointHeightM", loaded.recoilPointHeightM);
         ReadBool(json, "rollingInputEnabled", loaded.rollingInputEnabled);
         ReadFloat(json, "rollTorqueNm", loaded.rollTorqueNm);
+        ReadFloat(json, "rollAirBrakeTorqueNm", loaded.rollAirBrakeTorqueNm);
         ReadFloat(json, "rollDistanceM", loaded.rollDistanceM);
         ReadFloat(json, "rollTorqueCutoffDegrees", loaded.rollTorqueCutoffDegrees);
         ReadFloat(json, "rollStabilizationTorqueNm", loaded.rollStabilizationTorqueNm);

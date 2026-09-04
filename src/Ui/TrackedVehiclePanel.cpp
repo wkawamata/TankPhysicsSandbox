@@ -782,6 +782,17 @@ namespace Ui
 			"%.2f m",
 			IsPending(ctx.tankSettings->rollDistanceM, ctx.appliedTankSettings->rollDistanceM));
 		SliderFloatWithPendingColor(
+			"Air Brake Torque",
+			&ctx.tankSettings->rollAirBrakeTorqueNm,
+			0.0f,
+			300000.0f,
+			5000.0f,
+			120000.0f,
+			"%.0f N m",
+			IsPending(
+				ctx.tankSettings->rollAirBrakeTorqueNm,
+				ctx.appliedTankSettings->rollAirBrakeTorqueNm));
+		SliderFloatWithPendingColor(
 			"Torque Cutoff Angle",
 			&ctx.tankSettings->rollTorqueCutoffDegrees,
 			45.0f,

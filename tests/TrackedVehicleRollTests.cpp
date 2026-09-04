@@ -65,6 +65,8 @@ int main()
     bool sawEvaluating = false;
     bool sawBallisticRoll = false;
     bool sawSettling = false;
+    int airborneFrames = 0;
+    int maximumAirborneFrames = 0;
     for (int i = 0; i < 240; ++i)
     {
         test.Step(dt);
@@ -76,6 +78,11 @@ int main()
             Tank::Physics::RollingPhase::BallisticRoll;
         sawSettling |= test.State().rollingPhase ==
             Tank::Physics::RollingPhase::Settling;
+        airborneFrames = test.State().motionObservation.totalContactCount == 0
+            ? airborneFrames + 1 : 0;
+        maximumAirborneFrames = (std::max)(
+            maximumAirborneFrames,
+            airborneFrames);
         maximumRollSpeed = (std::max)(
             maximumRollSpeed,
             std::abs(test.State().angularVelocity.z));
@@ -121,8 +128,10 @@ int main()
     passed &= Check(state.specialMove.state ==
             Tank::Physics::SpecialMoveState::Idle,
         "completed roll must return special move to Idle");
-    passed &= Check(lateralDistance > 2.0f && lateralDistance < 3.6f,
+    passed &= Check(lateralDistance > 2.5f && lateralDistance < 2.85f,
         "one roll must translate approximately one vehicle width");
+    passed &= Check(maximumAirborneFrames <= 30,
+        "air braking must prevent prolonged airborne rotation");
 
     if (!passed)
     {
@@ -148,12 +157,14 @@ int main()
                 .maximumAbsoluteSuspensionVelocityMetersPerSecond
             << " suspensionR=" << state.motionObservation.tracks[1]
                 .maximumAbsoluteSuspensionVelocityMetersPerSecond
+            << " maxAirborneFrames=" << maximumAirborneFrames
             << "\n";
         return 1;
     }
 
     std::cout << "PASS TrackedVehicle roll operated_up_y=" << operatedUpY
         << " settled_up_y=" << settledUpY
-        << " lateral_distance=" << lateralDistance << "\n";
+        << " lateral_distance=" << lateralDistance
+        << " max_airborne_frames=" << maximumAirborneFrames << "\n";
     return 0;
 }
