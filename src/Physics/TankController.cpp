@@ -506,7 +506,14 @@ namespace Tank::Physics
                 bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(m_impl->rollDirection);
             const float rollAngularVelocity =
                 bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+            const float airBrakeReleaseDegrees = std::clamp(
+                m_settings.rollAirBrakeReleaseDegrees,
+                0.0f,
+                89.0f);
+            const float airBrakeReleaseDot = -std::cos(
+                JPH::DegreesToRadians(airBrakeReleaseDegrees));
             if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
+                bodyUp.Dot(m_impl->rollStartUp) > airBrakeReleaseDot &&
                 rollAngularVelocity * m_impl->latchedRollCommand > 0.5f)
             {
                 bodyInterface.AddTorque(

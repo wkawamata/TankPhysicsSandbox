@@ -53,7 +53,8 @@ namespace Tank::Physics
         float recoilPointHeightM = 0.8f;
         bool rollingInputEnabled = true;
         float rollTorqueNm = 120000.0f;
-        float rollAirBrakeTorqueNm = 120000.0f;
+        float rollAirBrakeTorqueNm = 90000.0f;
+        float rollAirBrakeReleaseDegrees = 30.0f;
         float rollDistanceM = 2.4f;
         float rollTorqueCutoffDegrees = 90.0f;
         float rollStabilizationTorqueNm = 30000.0f;

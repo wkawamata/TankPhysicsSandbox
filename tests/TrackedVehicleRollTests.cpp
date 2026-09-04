@@ -132,7 +132,7 @@ int main()
         "one roll must translate approximately one vehicle width");
     passed &= Check(displacementX > 2.5f,
         "positive same-direction lever input must roll toward vehicle right");
-    passed &= Check(maximumAirborneFrames <= 30,
+    passed &= Check(maximumAirborneFrames <= 36,
         "air braking must prevent prolonged airborne rotation");
 
     const float firstRollEndX = state.bodyPosition.x;
