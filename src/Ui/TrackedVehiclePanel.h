@@ -36,6 +36,8 @@ namespace Ui
         float analogLeftTrack = 0.0f;
         float analogRightTrack = 0.0f;
         float analogRoll = 0.0f;
+        float leftLeverX = 0.0f;
+        float rightLeverX = 0.0f;
         bool analogTracksConnected = false;
         bool analogTracksArmed = false;
 

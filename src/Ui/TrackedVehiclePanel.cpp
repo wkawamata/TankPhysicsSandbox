@@ -187,14 +187,22 @@ namespace Ui
 			ImGui::Text("State Time: %.2f s  Stop Progress: %.0f%%",
 				state.mobility.stateTimeSeconds,
 				state.mobility.stopCandidateProgress * 100.0f);
-			ImGui::Text("Transition Reason: %s",
+			ImGui::Text("Mobility Transition Reason: %s",
 				MobilityReasonName(state.mobility.lastTransitionReason));
 			ImGui::Text("Special Move: %s  (Transition %llu)",
 				SpecialMoveStateName(state.specialMove.state),
 				static_cast<unsigned long long>(state.specialMove.transitionCount));
-			ImGui::Text("Rolling Safety: %s%s",
-				state.rollingObstructionSuspected ? "Obstruction" : "Clear",
+			ImGui::Text("Rolling Obstruction: %s%s",
+				state.rollingObstructionSuspected ? "Detected" : "None",
 				state.rollingRecoveryActive ? " / Recovery" : "");
+			ImGui::Text("Special Input: Left X %+.2f  Right X %+.2f",
+				ctx.leftLeverX,
+				ctx.rightLeverX);
+			if (ctx.appliedTankSettings != nullptr)
+			{
+				ImGui::Text("Rolling Input Applied: %s",
+					ctx.appliedTankSettings->rollingInputEnabled ? "ON" : "OFF");
+			}
 			if (ctx.inputMappingSettings != nullptr)
 			{
 				int leftAxis = static_cast<int>(ctx.inputMappingSettings->leftLeverAxis);

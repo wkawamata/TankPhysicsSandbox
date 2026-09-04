@@ -1161,6 +1161,10 @@ void TankSandboxApp::DrawToolUi()
             m_trackedVehiclePanelCtx.analogLeftTrack = m_trackedVehicleMode.AnalogLeftTrack();
             m_trackedVehiclePanelCtx.analogRightTrack = m_trackedVehicleMode.AnalogRightTrack();
             m_trackedVehiclePanelCtx.analogRoll = m_trackedVehicleMode.AnalogRoll();
+            m_trackedVehiclePanelCtx.leftLeverX =
+                m_trackedVehicleMode.Test().Input().leftLeverX;
+            m_trackedVehiclePanelCtx.rightLeverX =
+                m_trackedVehicleMode.Test().Input().rightLeverX;
             m_trackedVehiclePanelCtx.analogTracksConnected = m_trackedVehicleMode.AnalogTracksConnected();
             m_trackedVehiclePanelCtx.analogTracksArmed = m_trackedVehicleMode.AnalogTracksArmed();
             Ui::DrawTrackedVehiclePanel(m_trackedVehiclePanelCtx);

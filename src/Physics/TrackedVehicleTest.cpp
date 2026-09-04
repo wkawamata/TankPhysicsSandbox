@@ -177,6 +177,12 @@ namespace Tank::Physics
         return m_impl != nullptr ? m_impl->controller.Settings() : defaultSettings;
     }
 
+    const TankInput& TrackedVehicleTest::Input() const
+    {
+        static const TankInput defaultInput;
+        return m_impl != nullptr ? m_impl->controller.Input() : defaultInput;
+    }
+
     const TrackedDriverInput& TrackedVehicleTest::DriverInput() const
     {
         static const TrackedDriverInput defaultInput;

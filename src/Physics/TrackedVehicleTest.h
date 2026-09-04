@@ -60,6 +60,7 @@ namespace Tank::Physics
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
         const TrackedVehicleTestState& State() const { return m_state; }
+        const TankInput& Input() const;
         const TrackedDriverInput& DriverInput() const;
         const TankSettings& Settings() const;
 
