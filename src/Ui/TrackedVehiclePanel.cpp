@@ -320,13 +320,14 @@ namespace Ui
 			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
 		}
 		ImGui::SeparatorText("Simulation");
-		if (ImGui::Button(*ctx.trackedVehiclePaused ? "Resume" : "Pause"))
+		if (ImGui::Button(
+			*ctx.trackedVehiclePaused ? "Resume [Space]" : "Pause [Space]"))
 		{
 			*ctx.trackedVehiclePaused = !*ctx.trackedVehiclePaused;
 		}
 		ImGui::SameLine();
 		ImGui::BeginDisabled(!*ctx.trackedVehiclePaused);
-		if (ImGui::Button("Step Fwd"))
+		if (ImGui::Button("Step Fwd [F]"))
 		{
 			*ctx.trackedVehicleSingleStep = true;
 		}
@@ -536,7 +537,7 @@ namespace Ui
 			ImGui::TextUnformatted("Cyan: suspension  Green/Orange: contact  Yellow: normal");
 		}
 		ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
-		ImGui::Text("Q/E roll, Space brake");
+		ImGui::Text("Q/E roll, B brake, Space pause, F step fwd");
 		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
 		if (ImGui::CollapsingHeader("Gamepad"))
 		{

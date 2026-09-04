@@ -494,9 +494,25 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     {
         m_trackedVehicleMode.Paused() = !m_trackedVehicleMode.Paused();
     }
+    else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == VK_SPACE)
+    {
+        if (!m_pauseShortcutHeld)
+        {
+            m_trackedVehicleMode.Paused() = !m_trackedVehicleMode.Paused();
+        }
+        m_pauseShortcutHeld = true;
+    }
     else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'N' && m_trackedVehicleMode.Paused())
     {
         m_trackedVehicleMode.SingleStep() = true;
+    }
+    else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'F')
+    {
+        if (!m_stepForwardShortcutHeld && m_trackedVehicleMode.Paused())
+        {
+            m_trackedVehicleMode.SingleStep() = true;
+        }
+        m_stepForwardShortcutHeld = true;
     }
     else if (key == 'W') m_moveForward = true;
     else if (key == 'S') m_moveBackward = true;
@@ -505,7 +521,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     else if (key == 'Q') m_rollLeft = true;
     else if (key == 'E') m_rollRight = true;
     else if (key == VK_SHIFT) m_pivotTurnModifier = true;
-    else if (key == VK_SPACE) m_brake = true;
+    else if (key == 'B') m_brake = true;
 }
 
 void TankSandboxApp::OnKeyUp(UINT8 key)
@@ -517,7 +533,9 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
     else if (key == 'Q') m_rollLeft = false;
     else if (key == 'E') m_rollRight = false;
     else if (key == VK_SHIFT) m_pivotTurnModifier = false;
-    else if (key == VK_SPACE) m_brake = false;
+    else if (key == 'B') m_brake = false;
+    else if (key == VK_SPACE) m_pauseShortcutHeld = false;
+    else if (key == 'F') m_stepForwardShortcutHeld = false;
 }
 
 bool TankSandboxApp::EnsureDebugCameraForMouse()
@@ -597,6 +615,8 @@ void TankSandboxApp::ClearVehicleInputState()
     m_rollLeft = false;
     m_rollRight = false;
     m_brake = false;
+    m_pauseShortcutHeld = false;
+    m_stepForwardShortcutHeld = false;
 }
 
 void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)

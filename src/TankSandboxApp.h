@@ -130,6 +130,8 @@ private:
     bool m_rollLeft = false;
     bool m_rollRight = false;
     bool m_brake = false;
+    bool m_pauseShortcutHeld = false;
+    bool m_stepForwardShortcutHeld = false;
     // Camera
     Tank::App::CameraController m_cameraController;
 

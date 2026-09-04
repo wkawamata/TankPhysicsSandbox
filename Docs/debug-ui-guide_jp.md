@@ -248,8 +248,8 @@ Loadしただけでは、黄色表示される物理設定は現在の車両へ�
 
 シミュレーション操作はウィンドウ上部に常時表示されます。
 
-- `Pause / Resume`: シミュレーション停止・再開
-- `Step Fwd`: Pause中に1 Stepだけ進める
+- `Pause / Resume`: シミュレーション停止・再開（`Space`、従来の`P`も使用可能）
+- `Step Fwd`: Pause中に1 Stepだけ進める（`F`、従来の`N`も使用可能）
 - `Fire / Recoil`: 設定済み反動を車体へ適用
 - `Reset`: 現在の設定とマップで車両を初期化
 
@@ -366,7 +366,9 @@ G-bufferやShadow Maskの確認にはDeferredを選択します。
 - `A / D`: 左右旋回
 - `Shift + A / D`: 超信地旋回
 - `Q / E`: 左右ロール
-- `Space`: ブレーキ
+- `B`: ブレーキ
+- `Space`: Pause / Resume
+- `F`: Pause中に1 Step前進
 - `ESC`: Top Menuへ戻る
 - `F12`: スクリーンショット
 
