@@ -218,5 +218,6 @@ namespace Tank::Physics
         RollingPhase rollingPhase = RollingPhase::None;
         SpecialMoveStateSnapshot specialMove = {};
         MortarAimSnapshot mortarAim = {};
+        bool trackInputSwapped = false;
     };
 }

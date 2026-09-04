@@ -37,6 +37,7 @@ namespace Tank::Physics
         SpecialMoveStateSnapshot specialMove = {};
         bool rollingObstructionSuspected = false;
         bool rollingRecoveryActive = false;
+        bool trackInputSwapped = false;
     };
 
     class TrackedVehicleTest

@@ -192,6 +192,10 @@ namespace Ui
 			ImGui::Text("Special Move: %s  (Transition %llu)",
 				SpecialMoveStateName(state.specialMove.state),
 				static_cast<unsigned long long>(state.specialMove.transitionCount));
+			ImGui::Text("Track Input Mapping: %s",
+				state.trackInputSwapped
+					? "Swapped (Inverted)"
+					: "Normal (Upright)");
 			ImGui::Text("Rolling Obstruction: %s%s",
 				state.rollingObstructionSuspected ? "Detected" : "None",
 				state.rollingRecoveryActive ? " / Recovery" : "");

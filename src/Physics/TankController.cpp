@@ -599,6 +599,12 @@ namespace Tank::Physics
         float forward = m_input.throttle;
         float leftTrack = m_input.leftTrack;
         float rightTrack = m_input.rightTrack;
+        m_state.trackInputSwapped =
+            bodyUp.Dot(JPH::Vec3::sAxisY()) < 0.0f;
+        if (m_state.trackInputSwapped)
+        {
+            std::swap(leftTrack, rightTrack);
+        }
         constexpr float turnInputEpsilon = 0.001f;
         const bool stationaryTurn =
             (std::abs(leftTrack) < turnInputEpsilon) !=
