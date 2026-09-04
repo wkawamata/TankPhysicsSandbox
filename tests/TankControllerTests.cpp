@@ -42,8 +42,8 @@ int main()
         "chassis mass must default to 4000 kg");
     passed &= Check(controller.Settings().rollingInputEnabled,
         "rolling input must be enabled by default");
-    passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 120000.0f),
-        "roll torque must default to 120000 N m");
+    passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 135000.0f),
+        "roll torque must default to 135000 N m");
     passed &= Check(NearlyEqual(controller.Settings().rollDistanceM, 2.4f),
         "roll distance must default to one vehicle width");
     passed &= Check(NearlyEqual(controller.Settings().rollTorqueCutoffDegrees, 90.0f),

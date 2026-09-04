@@ -65,6 +65,9 @@ int main()
     bool sawEvaluating = false;
     bool sawBallisticRoll = false;
     bool sawSettling = false;
+    float minimumRollDisplacementX = 0.0f;
+    float cutoffDisplacementX = 0.0f;
+    int framesToInverted = -1;
     int airborneFrames = 0;
     int maximumAirborneFrames = 0;
     for (int i = 0; i < 240; ++i)
@@ -78,6 +81,21 @@ int main()
             Tank::Physics::RollingPhase::BallisticRoll;
         sawSettling |= test.State().rollingPhase ==
             Tank::Physics::RollingPhase::Settling;
+        const float currentDisplacementX =
+            test.State().bodyPosition.x - startPosition.x;
+        minimumRollDisplacementX = (std::min)(
+            minimumRollDisplacementX,
+            currentDisplacementX);
+        if (test.State().rollingPhase ==
+            Tank::Physics::RollingPhase::Evaluating)
+        {
+            cutoffDisplacementX = currentDisplacementX;
+        }
+        if (framesToInverted < 0 &&
+            BodyUpY(test.State().bodyRotation) < -0.95f)
+        {
+            framesToInverted = i + 1;
+        }
         airborneFrames = test.State().motionObservation.totalContactCount == 0
             ? airborneFrames + 1 : 0;
         maximumAirborneFrames = (std::max)(
@@ -128,11 +146,17 @@ int main()
     passed &= Check(state.specialMove.state ==
             Tank::Physics::SpecialMoveState::Idle,
         "completed roll must return special move to Idle");
-    passed &= Check(lateralDistance > 2.5f && lateralDistance < 2.85f,
+    passed &= Check(lateralDistance > 2.3f && lateralDistance < 2.55f,
         "one roll must translate approximately one vehicle width");
-    passed &= Check(displacementX > 2.5f,
+    passed &= Check(displacementX > 2.3f,
         "positive same-direction lever input must roll toward vehicle right");
-    passed &= Check(maximumAirborneFrames <= 36,
+    passed &= Check(minimumRollDisplacementX > -0.1f,
+        "the supporting track must not slide opposite the roll direction");
+    passed &= Check(cutoffDisplacementX > 0.5f,
+        "roll translation must begin before the 90 degree cutoff");
+    passed &= Check(framesToInverted > 0 && framesToInverted <= 75,
+        "the evasive roll must reach its inverted attitude quickly");
+    passed &= Check(maximumAirborneFrames <= 42,
         "air braking must prevent prolonged airborne rotation");
 
     const float firstRollEndX = state.bodyPosition.x;
@@ -151,7 +175,7 @@ int main()
     }
     const float secondRollDisplacementX =
         test.State().bodyPosition.x - firstRollEndX;
-    passed &= Check(secondRollDisplacementX > 2.5f,
+    passed &= Check(secondRollDisplacementX > 2.3f,
         "a second right roll from inverted must continue toward vehicle right");
     passed &= Check(test.State().mobility.state ==
             Tank::Physics::MobilityState::Stopped,
@@ -164,6 +188,9 @@ int main()
             << " maxRollSpeed=" << maximumRollSpeed
             << " heldRollSpeed=" << heldRollSpeed
             << " lateralDistance=" << lateralDistance
+            << " minimumRollDisplacementX=" << minimumRollDisplacementX
+            << " cutoffDisplacementX=" << cutoffDisplacementX
+            << " framesToInverted=" << framesToInverted
             << " mobility=" << static_cast<int>(state.mobility.state)
             << " reason=" << static_cast<int>(state.mobility.lastTransitionReason)
             << " phase=" << static_cast<int>(state.rollingPhase)

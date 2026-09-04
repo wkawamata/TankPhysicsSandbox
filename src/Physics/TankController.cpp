@@ -491,7 +491,8 @@ namespace Tank::Physics
             m_impl->rollingPhase = RollingPhase::BallisticRoll;
         }
 
-        if (m_impl->rollingPhase == RollingPhase::Evaluating ||
+        if (m_impl->rollingPhase == RollingPhase::PoweredRoll ||
+            m_impl->rollingPhase == RollingPhase::Evaluating ||
             m_impl->rollingPhase == RollingPhase::BallisticRoll)
         {
             constexpr float positionGain = 80000.0f;
@@ -522,7 +523,15 @@ namespace Tank::Physics
                         (-m_impl->latchedRollCommand *
                             m_settings.rollAirBrakeTorqueNm));
             }
-            const float distanceError = m_settings.rollDistanceM - lateralDistance;
+            const float rollAngleRadians = std::acos(std::clamp(
+                bodyUp.Dot(m_impl->rollStartUp),
+                -1.0f,
+                1.0f));
+            const float rollProgress =
+                rollAngleRadians / JPH::JPH_PI;
+            const float targetDistance =
+                m_settings.rollDistanceM * rollProgress;
+            const float distanceError = targetDistance - lateralDistance;
             m_impl->rollDistanceIntegral = std::clamp(
                 m_impl->rollDistanceIntegral + distanceError / 60.0f,
                 -2.0f,
@@ -537,7 +546,9 @@ namespace Tank::Physics
 
             if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
                 std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
-                std::abs(rollAngularVelocity) < 0.1f)
+                std::abs(rollAngularVelocity) < 0.1f &&
+                std::abs(distanceError) < 0.02f &&
+                std::abs(lateralVelocity) < 0.1f)
             {
                 m_impl->rollingPhase = RollingPhase::Settling;
                 m_impl->rollSettledFrames = 0;
