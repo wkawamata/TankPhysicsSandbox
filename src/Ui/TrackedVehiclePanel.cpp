@@ -756,7 +756,7 @@ namespace Ui
 			0.0f,
 			1.0f,
 			0.05f,
-			0.15f,
+			0.30f,
 			"%.2f",
 			false);
 

@@ -80,7 +80,7 @@ namespace Tank::Physics
         std::array<float, kTankWheelCount> suspensionStrokeMeters =
             MakeDefaultSuspensionStrokes();
         bool neutralBrakeEnabled = true;
-        float neutralBrakeAmount = 0.15f;
+        float neutralBrakeAmount = 0.30f;
         float stationaryTurnInnerTrackRatio = 0.0f;
         float stationaryTurnLeftTraction = 1.0f;
         float stationaryTurnRightTraction = 1.0f;

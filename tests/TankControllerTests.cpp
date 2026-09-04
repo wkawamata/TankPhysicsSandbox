@@ -76,6 +76,8 @@ int main()
         "stationary turn inner track ratio must default to zero");
     passed &= Check(NearlyEqual(controller.Settings().pivotTurnRightTraction, 1.0f),
         "pivot turn right traction must default to one");
+    passed &= Check(NearlyEqual(controller.Settings().neutralBrakeAmount, 0.30f),
+        "neutral brake strength must default to 0.30");
 
     Tank::Physics::TankInput input;
     input.throttle = 2.0f;
