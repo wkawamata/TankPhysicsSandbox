@@ -410,6 +410,11 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     }
     else if (key == VK_ESCAPE)
     {
+        if (m_appMode == AppMode::MapEditor)
+        {
+            m_mapEditorMode.RequestExit();
+            return;
+        }
         if (m_appMode != AppMode::TopMenu)
         {
             m_appMode = AppMode::TopMenu;
@@ -770,6 +775,12 @@ void TankSandboxApp::UpdateUiFrame()
     m_imguiSystem.BeginFrame();
     DrawToolUi();
 
+    if (m_appMode == AppMode::MapEditor)
+    {
+        m_imguiSystem.EndFrame();
+        return;
+    }
+
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
     m_cameraPanelCtx.camera = ActiveCamera();
@@ -980,6 +991,48 @@ void TankSandboxApp::DrawToolUi()
     case AppMode::TopMenu:
         DrawTopMenuUi();
         break;
+    case AppMode::MapEditor:
+        m_mapEditorMode.SetAssetValidator([this](const std::filesystem::path& path,
+            const Tank::Map::GltfRoles& roles, std::string& error)
+            { return m_mapEditorScenePresenter.ValidateVisualAsset(path, roles, error); });
+        if (m_mapEditorMode.DrawUi(Win32Application::GetHwnd()))
+        {
+            m_mapEditorScenePresenter.Clear();
+            m_sceneRenderer.SetScene(Engine::Scene{});
+            m_appMode = AppMode::TopMenu;
+        }
+        else if (m_mapEditorMode.ConsumeSceneReloadRequest())
+        {
+            const Tank::Map::MapFolder& map = m_mapEditorMode.Map();
+            if (map.IsOpen())
+            {
+                std::string error;
+                const Tank::Rendering::MapEditorGridSettings grid = {
+                    m_mapEditorMode.GridSpacingMeters(),
+                    m_mapEditorMode.GridHalfCellCount(),
+                    m_mapEditorMode.GridLineWidthMeters() };
+                if (m_mapEditorScenePresenter.Rebuild(map.Folder(), map.Document(), grid, error))
+                {
+                    m_sceneRenderer.SetScene(m_mapEditorScenePresenter.GetScene());
+                    m_sceneRenderer.ReloadSceneResources(m_mapEditorScenePresenter.GetScene());
+                    m_sceneRenderer.SetDisplayInstanceCount(
+                        static_cast<int>(m_mapEditorScenePresenter.GetScene().instances.size()));
+                    ActivateOrbitCamera(m_mapEditorScenePresenter.GetScene(), { 0.0f, 0.0f, 0.0f });
+                    ApplyActiveCameraScene();
+                }
+                else
+                {
+                    m_mapEditorMode.SetPreviewError(error);
+                }
+            }
+            else
+            {
+                m_mapEditorScenePresenter.Clear();
+                m_sceneRenderer.SetScene(Engine::Scene{});
+                m_sceneRenderer.SetDisplayInstanceCount(0);
+            }
+        }
+        break;
     case AppMode::PhysicsBoxDrop:
         m_boxDropMode.DrawUi(m_sceneRenderer, m_sceneRenderer.CpuFrameTimeMs());
         break;
@@ -1003,6 +1056,13 @@ void TankSandboxApp::DrawToolUi()
 void TankSandboxApp::DrawTopMenuUi()
 {
     ImGui::Begin("Tank Sandbox");
+    if (ImGui::Button("Map Editor"))
+    {
+        ClearVehicleInputState();
+        m_sceneRenderer.SetScene(Engine::Scene{});
+        m_appMode = AppMode::MapEditor;
+    }
+    ImGui::Separator();
     ImGui::Text("Physics Test Scenes");
     ImGui::Text("Frame: %.1f ms", m_sceneRenderer.CpuFrameTimeMs());
     if (ImGui::Button("Box Drop"))
@@ -1172,7 +1232,8 @@ Engine::CameraState* TankSandboxApp::ActiveCamera()
     case AppMode::PhysicsTrackedVehicle:
         return m_trackedVehicleMode.ActiveCamera();
     case AppMode::TopMenu:
-        return nullptr;
+    case AppMode::MapEditor:
+        return &m_mapEditorScenePresenter.GetScene().camera;
     }
 
     return nullptr;
@@ -1187,7 +1248,8 @@ Engine::Scene* TankSandboxApp::ActiveScene()
     case AppMode::PhysicsTrackedVehicle:
         return &m_trackedVehicleMode.GetScene();
     case AppMode::TopMenu:
-        return nullptr;
+    case AppMode::MapEditor:
+        return &m_mapEditorScenePresenter.GetScene();
     }
 
     return nullptr;

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "playerSpawn": {
+    "position": [0.0, 2.0, 0.0],
+    "rotationDegrees": [0.0, 0.0, 0.0]
+  },
+  "instances": [
+    {
+      "id": "triangle-001",
+      "asset": "Models/Triangle.gltf",
+      "position": [0.0, 0.02, 0.0],
+      "rotationDegrees": [0.0, 0.0, 0.0]
+    }
+  ],
+  "clearAreas": []
+}

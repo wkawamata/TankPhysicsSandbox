@@ -9,6 +9,7 @@
 #include <d3d12sdklayers.h>
 
 #include "App/BoxDropMode.h"
+#include "App/MapEditorMode.h"
 #include "App/CameraController.h"
 #include "App/CameraSettingsStore.h"
 #include "App/TankSettingsStore.h"
@@ -20,6 +21,7 @@
 #include "Runtime/SceneRendererDebugUi.h"
 #include "Runtime/SceneRendererSettings.h"
 #include "Rendering/CameraSettings.h"
+#include "Rendering/MapEditorScenePresenter.h"
 #include "Ui/ImGuiSystem.h"
 #include "Ui/CameraPanel.h"
 #include "Ui/RendererSettingsPanel.h"
@@ -66,6 +68,7 @@ private:
         TopMenu,
         PhysicsBoxDrop,
         PhysicsTrackedVehicle,
+        MapEditor,
     };
 
     void InitializeImGui();
@@ -117,6 +120,8 @@ private:
 
     // Mode state
     BoxDropMode m_boxDropMode;
+    MapEditorMode m_mapEditorMode;
+    Tank::Rendering::MapEditorScenePresenter m_mapEditorScenePresenter;
     TrackedVehicleMode m_trackedVehicleMode;
 
     // Platform input (owned here to avoid mixing platform input with physics mode)

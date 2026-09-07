@@ -34,6 +34,22 @@ add_subdirectory(External/RtPbrSurvey)
 
 find_package(nlohmann_json CONFIG REQUIRED)
 
+add_library(TankMapCore STATIC
+    src/Map/GltfRoles.cpp
+    src/Map/GltfRoles.h
+    src/Map/MapAssetCatalog.cpp
+    src/Map/MapAssetCatalog.h
+    src/Map/MapFolder.cpp
+    src/Map/MapFolder.h
+    src/Map/MapManifest.cpp
+    src/Map/MapManifest.h
+)
+target_include_directories(TankMapCore PUBLIC src)
+target_link_libraries(TankMapCore PRIVATE nlohmann_json::nlohmann_json)
+if(MSVC)
+    target_compile_options(TankMapCore PRIVATE /W4 /permissive-)
+endif()
+
 add_library(TankPhysicsCore STATIC
     src/Physics/BoxDropTest.cpp
     src/Physics/BoxDropTest.h
@@ -117,6 +133,10 @@ target_link_libraries(TankWindowsInput
 
 # ── TankSandbox executable ─────────────────────────────────────
 add_executable(TankSandbox
+    src/App/MapEditorMode.cpp
+    src/App/MapEditorMode.h
+    src/Platform/Windows/MapFolderPicker.cpp
+    src/Platform/Windows/MapFolderPicker.h
     src/main.cpp
     src/App/BoxDropMode.cpp
     src/App/BoxDropMode.h
@@ -132,6 +152,8 @@ add_executable(TankSandbox
     src/App/TrackedVehicleMode.h
     src/Rendering/BoxDropScenePresenter.h
     src/Rendering/BoxDropScenePresenter.cpp
+    src/Rendering/MapEditorScenePresenter.cpp
+    src/Rendering/MapEditorScenePresenter.h
     src/Rendering/CameraSettings.h
     src/Rendering/CameraSettingsJson.cpp
     src/Rendering/TankVisualSettings.h
@@ -164,6 +186,9 @@ set_target_properties(TankSandbox PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
+# ALL_BUILD is a CMake utility target and cannot be launched. Select the game executable for F5.
+set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT TankSandbox)
+
 target_include_directories(TankSandbox
     PRIVATE
         External/JoltPhysics
@@ -172,6 +197,10 @@ target_include_directories(TankSandbox
 
 target_link_libraries(TankSandbox
     PRIVATE
+        TankMapCore
+        ole32
+        shell32
+        uuid
         TankPhysicsCore
         TankInputCore
         TankWindowsInput
@@ -219,6 +248,34 @@ if(MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(GltfRolesTests tests/GltfRolesTests.cpp)
+    target_link_libraries(GltfRolesTests PRIVATE TankMapCore nlohmann_json::nlohmann_json)
+    if(MSVC)
+        target_compile_options(GltfRolesTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(NAME TankMap.GltfRoles COMMAND GltfRolesTests)
+
+    add_executable(MapAssetCatalogTests tests/MapAssetCatalogTests.cpp)
+    target_link_libraries(MapAssetCatalogTests PRIVATE TankMapCore)
+    if(MSVC)
+        target_compile_options(MapAssetCatalogTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(NAME TankMap.AssetCatalog COMMAND MapAssetCatalogTests)
+
+    add_executable(MapFolderTests tests/MapFolderTests.cpp)
+    target_link_libraries(MapFolderTests PRIVATE TankMapCore)
+    if(MSVC)
+        target_compile_options(MapFolderTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(NAME TankMap.Folder COMMAND MapFolderTests)
+
+    add_executable(MapManifestTests tests/MapManifestTests.cpp)
+    target_link_libraries(MapManifestTests PRIVATE TankMapCore nlohmann_json::nlohmann_json)
+    if(MSVC)
+        target_compile_options(MapManifestTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(NAME TankMap.Manifest COMMAND MapManifestTests)
+
     add_executable(MapDefinitionTests tests/MapDefinitionTests.cpp)
     target_link_libraries(MapDefinitionTests PRIVATE TankPhysicsCore)
     add_test(NAME TankPhysics.MapDefinition COMMAND MapDefinitionTests)
