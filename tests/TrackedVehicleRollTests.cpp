@@ -71,6 +71,7 @@ int main()
     chainTest.SetInput(chainInput);
     bool chainRequestedWhileSliding = false;
     bool chainStarted = false;
+    bool chainStartedWhileSliding = false;
     for (int i = 0; i < 480; ++i)
     {
         chainTest.Step(dt);
@@ -97,6 +98,7 @@ int main()
                     Tank::Physics::RollingPhase::Evaluating ||
                 chainState.rollingPhase ==
                     Tank::Physics::RollingPhase::BallisticRoll;
+            chainStartedWhileSliding |= chainStarted && sliding;
             if (chainStarted)
             {
                 break;
@@ -107,6 +109,8 @@ int main()
         "roll chain must become available before lateral slide stops");
     passed &= Check(chainStarted,
         "a roll requested during lateral slide must start");
+    passed &= Check(chainStartedWhileSliding,
+        "a chained roll must start before lateral slide stops");
     test.Initialize(settings);
     for (int i = 0; i < 180; ++i)
     {

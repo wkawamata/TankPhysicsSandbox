@@ -427,19 +427,15 @@ namespace Tank::Physics
         {
             m_impl->rollChainAvailable = false;
         }
-        // A chained input is accepted at landing, then remains pending until
-        // the remaining landing rotation is safe to drive. Do not reject the
-        // one-shot lever gesture merely because the hull is still rotating.
+        // Landing enables the next one-shot roll input. It intentionally
+        // bypasses the normal stopped gate, so the new roll replaces the
+        // previous roll's settling brake while lateral slide remains.
         const bool rollChainRequested =
             m_impl->rollChainAvailable &&
             std::abs(m_input.throttle) < 0.001f;
-        const bool rollChainReady =
-            rollChainRequested &&
-            std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
-            bodyInterface.GetAngularVelocity(m_impl->bodyId).Length() < 0.35f;
         const bool canStartRoll =
             m_state.mobility.state == MobilityState::Stopped ||
-            rollChainReady;
+            rollChainRequested;
         const bool canRequestRoll =
             m_state.mobility.state == MobilityState::Stopped ||
             rollChainRequested;
@@ -466,9 +462,8 @@ namespace Tank::Physics
         const RollingPhase rollingPhaseBefore = m_impl->rollingPhase;
         const bool wasRollingEvaluating =
             m_impl->rollingPhase == RollingPhase::Evaluating;
-        // Keep a valid request pending while the vehicle finishes its landing
-        // rotation. A chain roll deliberately does not wait for lateral slide
-        // to stop, but it must not start until the hull is upright and stable.
+        // A chained request starts immediately and replaces Settling. A
+        // normal request remains subject to the stopped mobility gate above.
         const bool rollStartPending =
             m_state.specialMove.state == SpecialMoveState::RollStarting;
         if (rollStartPending && !m_impl->rollInputLatched && canStartRoll)
@@ -485,13 +480,10 @@ namespace Tank::Physics
             m_impl->latchedRollCommand =
                 m_state.specialMove.lastEvent == SpecialMoveEvent::RollLeftRequested
                 ? 1.0f : -1.0f;
-            // The roll torque must flip when the hull is upside down. This
-            // keeps a same-direction lever command rolling toward the same
-            // vehicle side on alternating rolls.
-            const float uprightSign =
-                bodyUp.Dot(JPH::Vec3::sAxisY()) >= 0.0f ? 1.0f : -1.0f;
-            m_impl->rollRotationSign =
-                m_impl->latchedRollCommand * uprightSign;
+            // Translation is already expressed in the vehicle's horizontal
+            // frame. Keep the rotation sign unchanged across inversion so a
+            // repeated lever command preserves the expected roll rotation.
+            m_impl->rollRotationSign = m_impl->latchedRollCommand;
             m_impl->rollInputLatched = true;
             m_impl->rollChainAvailable = false;
             m_impl->rollingPhase = RollingPhase::PoweredRoll;
@@ -944,14 +936,9 @@ namespace Tank::Physics
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
         m_state.motionObservation = BuildTankMotionObservation(m_state);
         m_state.rollingPhase = m_impl->rollingPhase;
-        const JPH::Quat currentRotation =
-            bodyInterface.GetRotation(m_impl->bodyId);
-        const JPH::Vec3 currentUp = currentRotation * JPH::Vec3::sAxisY();
         m_state.rollChainAvailable =
             m_impl->rollChainAvailable &&
-            std::abs(m_input.throttle) < 0.001f &&
-            std::abs(currentUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
-            bodyInterface.GetAngularVelocity(m_impl->bodyId).Length() < 0.35f;
+            std::abs(m_input.throttle) < 0.001f;
         const bool mobilityDriveRequested =
             std::abs(m_input.throttle) > 0.001f ||
             std::abs(m_input.leftTrack - 1.0f) > 0.001f ||
