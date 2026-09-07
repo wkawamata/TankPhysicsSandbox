@@ -221,5 +221,6 @@ namespace Tank::Physics
         SpecialMoveStateSnapshot specialMove = {};
         MortarAimSnapshot mortarAim = {};
         bool trackInputSwapped = false;
+        bool rollChainAvailable = false;
     };
 }

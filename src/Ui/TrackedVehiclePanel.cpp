@@ -183,6 +183,8 @@ namespace Ui
 				RollingPhaseName(state.rollingPhase),
 				SpecialMoveStateName(state.specialMove.state),
 				static_cast<unsigned long long>(state.specialMove.transitionCount));
+			ImGui::Text("Roll Chain: %s",
+				state.rollChainAvailable ? "Ready while sliding" : "Stopped only");
 			ImGui::Text("Mortar: %s%s  %.1f deg / %.1f m",
 				state.mortarAim.canFire ? "Ready" : "Charging",
 				state.mortarAim.atMaximum ? " (Max)" : "",

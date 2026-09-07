@@ -57,6 +57,7 @@ namespace Tank::Physics
         float rollDistanceIntegral = 0.0f;
         float maximumRollProgress = 0.0f;
         float rollTargetDistanceM = 0.0f;
+        bool rollChainAvailable = false;
         JPH::RVec3 rollStartPosition;
         JPH::Vec3 rollStartUp;
         JPH::Vec3 rollDirection;
@@ -421,6 +422,18 @@ namespace Tank::Physics
         const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+        if (std::abs(m_input.throttle) > 0.001f)
+        {
+            m_impl->rollChainAvailable = false;
+        }
+        const bool rollChainReady =
+            m_impl->rollChainAvailable &&
+            std::abs(m_input.throttle) < 0.001f &&
+            std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
+            bodyInterface.GetAngularVelocity(m_impl->bodyId).Length() < 0.35f;
+        const bool canStartRoll =
+            m_state.mobility.state == MobilityState::Stopped ||
+            rollChainReady;
         TankInput specialMoveInput = m_input;
         if (!m_settings.rollingInputEnabled &&
             specialMoveInput.leftLeverX * specialMoveInput.rightLeverX > 0.0f)
@@ -432,7 +445,8 @@ namespace Tank::Physics
         m_state.specialMove = m_specialMoveInputProcessor.Update(
             m_specialMoveStateMachine,
             specialMoveInput,
-            m_state.mobility.state == MobilityState::Stopped);
+            m_state.mobility.state == MobilityState::Stopped,
+            canStartRoll);
         if (previousSpecialMove != SpecialMoveState::MortarStarting &&
             previousSpecialMove != SpecialMoveState::MortarAiming &&
             m_state.specialMove.state == SpecialMoveState::MortarStarting)
@@ -440,8 +454,6 @@ namespace Tank::Physics
             m_mortarAimController.Reset();
             m_state.mortarAim = m_mortarAimController.Snapshot();
         }
-        const bool canStartRoll =
-            m_state.mobility.state == MobilityState::Stopped;
         const RollingPhase rollingPhaseBefore = m_impl->rollingPhase;
         const bool wasRollingEvaluating =
             m_impl->rollingPhase == RollingPhase::Evaluating;
@@ -463,6 +475,7 @@ namespace Tank::Physics
                 m_state.specialMove.lastEvent == SpecialMoveEvent::RollLeftRequested
                 ? 1.0f : -1.0f;
             m_impl->rollInputLatched = true;
+            m_impl->rollChainAvailable = false;
             m_impl->rollingPhase = RollingPhase::PoweredRoll;
             m_impl->rollSettledFrames = 0;
             m_impl->rollDistanceIntegral = 0.0f;
@@ -591,6 +604,7 @@ namespace Tank::Physics
                 {
                     m_impl->rollingPhase = RollingPhase::None;
                     m_impl->rollInputLatched = false;
+                    m_impl->rollChainAvailable = true;
                     if (m_state.specialMove.state ==
                         SpecialMoveState::Rolling)
                     {
@@ -901,6 +915,7 @@ namespace Tank::Physics
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
         m_state.motionObservation = BuildTankMotionObservation(m_state);
         m_state.rollingPhase = m_impl->rollingPhase;
+        m_state.rollChainAvailable = m_impl->rollChainAvailable;
         const bool mobilityDriveRequested =
             std::abs(m_input.throttle) > 0.001f ||
             std::abs(m_input.leftTrack - 1.0f) > 0.001f ||

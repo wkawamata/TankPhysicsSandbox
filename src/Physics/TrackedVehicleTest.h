@@ -38,6 +38,7 @@ namespace Tank::Physics
         bool rollingObstructionSuspected = false;
         bool rollingRecoveryActive = false;
         bool trackInputSwapped = false;
+        bool rollChainAvailable = false;
     };
 
     class TrackedVehicleTest

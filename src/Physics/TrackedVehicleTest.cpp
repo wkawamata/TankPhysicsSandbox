@@ -263,6 +263,8 @@ namespace Tank::Physics
         m_state.mortarAim = m_impl->controller.State().mortarAim;
         m_state.trackInputSwapped =
             m_impl->controller.State().trackInputSwapped;
+        m_state.rollChainAvailable =
+            m_impl->controller.State().rollChainAvailable;
 
         return m_state;
     }
