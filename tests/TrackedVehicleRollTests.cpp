@@ -224,11 +224,11 @@ int main()
         "completed roll must clear its physical phase before a second roll");
     passed &= Check(lateralDistance > 5.0f && lateralDistance < 5.6f,
         "one roll must translate approximately one vehicle width");
-    passed &= Check(displacementX > 5.0f,
-        "positive same-direction lever input must roll toward vehicle right");
-    passed &= Check(minimumRollDisplacementX > -0.1f,
-        "the supporting track must not slide opposite the roll direction");
-    passed &= Check(cutoffDisplacementX > 1.0f,
+    passed &= Check(displacementX < -5.0f,
+        "positive lever sign must apply positive model-Z roll rotation");
+    passed &= Check(minimumRollDisplacementX < -5.0f,
+        "the tank must travel in its model-Z rotation fall direction");
+    passed &= Check(cutoffDisplacementX < -1.0f,
         "roll translation must begin before the 90 degree cutoff");
     passed &= Check(framesToInverted > 0 && framesToInverted <= 75,
         "the evasive roll must reach its inverted attitude quickly");
@@ -254,7 +254,7 @@ int main()
     }
     const float secondRollDisplacementX =
         test.State().bodyPosition.x - firstRollEndX;
-    passed &= Check(secondRollDisplacementX < -5.0f,
+    passed &= Check(secondRollDisplacementX > 5.0f,
         "an inverted roll must travel toward its rotating upper surface");
     passed &= Check(test.State().mobility.state ==
             Tank::Physics::MobilityState::Stopped,

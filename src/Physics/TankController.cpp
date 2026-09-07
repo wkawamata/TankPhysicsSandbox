@@ -470,10 +470,10 @@ namespace Tank::Physics
         {
             m_impl->latchedRollCommand =
                 m_state.specialMove.lastEvent == SpecialMoveEvent::RollLeftRequested
-                ? 1.0f : -1.0f;
-            // Translation is already expressed in the vehicle's horizontal
-            // frame. Keep the rotation sign unchanged across inversion so a
-            // repeated lever command preserves the expected roll rotation.
+                ? -1.0f : 1.0f;
+            // RollSign is the shared horizontal lever sign. It is applied
+            // directly to the model's local +Z rotation axis regardless of
+            // whether the hull is upright, inverted, or still sliding.
             m_impl->rollRotationSign = m_impl->latchedRollCommand;
             // The lateral motion is not an independently chosen direction:
             // it must follow the side toward which the currently upper hull
