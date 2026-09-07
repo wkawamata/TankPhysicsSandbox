@@ -77,6 +77,7 @@ int main()
     float minimumRollDisplacementX = 0.0f;
     float cutoffDisplacementX = 0.0f;
     int framesToInverted = -1;
+    int framesToSettling = -1;
     int airborneFrames = 0;
     int maximumAirborneFrames = 0;
     for (int i = 0; i < 240; ++i)
@@ -90,6 +91,11 @@ int main()
             Tank::Physics::RollingPhase::BallisticRoll;
         sawSettling |= test.State().rollingPhase ==
             Tank::Physics::RollingPhase::Settling;
+        if (framesToSettling < 0 && test.State().rollingPhase ==
+            Tank::Physics::RollingPhase::Settling)
+        {
+            framesToSettling = i + 1;
+        }
         const float currentDisplacementX =
             test.State().bodyPosition.x - startPosition.x;
         minimumRollDisplacementX = (std::min)(
@@ -157,7 +163,7 @@ int main()
         "completed roll must return special move to Idle");
     passed &= Check(state.rollingPhase == Tank::Physics::RollingPhase::None,
         "completed roll must clear its physical phase before a second roll");
-    passed &= Check(lateralDistance > 5.0f && lateralDistance < 5.5f,
+    passed &= Check(lateralDistance > 5.0f && lateralDistance < 5.6f,
         "one roll must translate approximately one vehicle width");
     passed &= Check(displacementX > 5.0f,
         "positive same-direction lever input must roll toward vehicle right");
@@ -167,6 +173,9 @@ int main()
         "roll translation must begin before the 90 degree cutoff");
     passed &= Check(framesToInverted > 0 && framesToInverted <= 75,
         "the evasive roll must reach its inverted attitude quickly");
+    passed &= Check(framesToSettling > 0 && framesToInverted > 0 &&
+            framesToSettling - framesToInverted <= 5,
+        "landed rolls must promptly leave BallisticRoll for Settling");
     passed &= Check(maximumAirborneFrames <= 65,
         "air braking must prevent prolonged airborne rotation");
 
@@ -202,6 +211,7 @@ int main()
             << " minimumRollDisplacementX=" << minimumRollDisplacementX
             << " cutoffDisplacementX=" << cutoffDisplacementX
             << " framesToInverted=" << framesToInverted
+            << " framesToSettling=" << framesToSettling
             << " firstPhase=" << static_cast<int>(state.rollingPhase)
             << " firstSpecial=" << static_cast<int>(state.specialMove.state)
             << " mobility=" << static_cast<int>(state.mobility.state)

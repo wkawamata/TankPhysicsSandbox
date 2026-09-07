@@ -507,11 +507,15 @@ namespace Tank::Physics
 
         if (m_impl->rollingPhase == RollingPhase::PoweredRoll ||
             m_impl->rollingPhase == RollingPhase::Evaluating ||
-            m_impl->rollingPhase == RollingPhase::BallisticRoll)
+            m_impl->rollingPhase == RollingPhase::BallisticRoll ||
+            m_impl->rollingPhase == RollingPhase::Settling)
         {
             constexpr float positionGain = 80000.0f;
             constexpr float integralGain = 40000.0f;
-            constexpr float velocityGain = 25000.0f;
+            const float velocityGain =
+                m_impl->rollingPhase == RollingPhase::Settling
+                ? 100000.0f
+                : 25000.0f;
             constexpr float maximumForce = 200000.0f;
             const JPH::RVec3 position =
                 bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
@@ -563,12 +567,11 @@ namespace Tank::Physics
 
             if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
                 std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
-                std::abs(rollAngularVelocity) < 0.1f &&
-                std::abs(distanceError) < 0.05f &&
-                std::abs(lateralVelocity) < 0.1f)
+                m_impl->maximumRollProgress > 0.90f)
             {
                 m_impl->rollingPhase = RollingPhase::Settling;
                 m_impl->rollSettledFrames = 0;
+                m_impl->rollDistanceIntegral = 0.0f;
             }
         }
 
