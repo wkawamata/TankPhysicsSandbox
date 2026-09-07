@@ -254,8 +254,8 @@ int main()
     }
     const float secondRollDisplacementX =
         test.State().bodyPosition.x - firstRollEndX;
-    passed &= Check(secondRollDisplacementX > 5.0f,
-        "a second right roll from inverted must continue toward vehicle right");
+    passed &= Check(secondRollDisplacementX < -5.0f,
+        "an inverted roll must travel toward its rotating upper surface");
     passed &= Check(test.State().mobility.state ==
             Tank::Physics::MobilityState::Stopped,
         "a second roll must also return mobility to Stopped");

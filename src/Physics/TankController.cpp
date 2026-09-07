@@ -468,15 +468,6 @@ namespace Tank::Physics
             m_state.specialMove.state == SpecialMoveState::RollStarting;
         if (rollStartPending && !m_impl->rollInputLatched && canStartRoll)
         {
-            const JPH::Vec3 bodyRight = bodyRotation * JPH::Vec3::sAxisX();
-            JPH::Vec3 horizontalForward(
-                bodyForward.GetX(),
-                0.0f,
-                bodyForward.GetZ());
-            const JPH::Vec3 horizontalRight =
-                horizontalForward.LengthSq() > 0.0001f
-                ? JPH::Vec3::sAxisY().Cross(horizontalForward.Normalized())
-                : bodyRight;
             m_impl->latchedRollCommand =
                 m_state.specialMove.lastEvent == SpecialMoveEvent::RollLeftRequested
                 ? 1.0f : -1.0f;
@@ -484,6 +475,12 @@ namespace Tank::Physics
             // frame. Keep the rotation sign unchanged across inversion so a
             // repeated lever command preserves the expected roll rotation.
             m_impl->rollRotationSign = m_impl->latchedRollCommand;
+            // The lateral motion is not an independently chosen direction:
+            // it must follow the side toward which the currently upper hull
+            // surface is falling under the commanded roll rotation.
+            JPH::Vec3 horizontalFallDirection =
+                bodyForward.Cross(bodyUp) * m_impl->rollRotationSign;
+            horizontalFallDirection.SetY(0.0f);
             m_impl->rollInputLatched = true;
             m_impl->rollChainAvailable = false;
             m_impl->rollingPhase = RollingPhase::PoweredRoll;
@@ -501,8 +498,9 @@ namespace Tank::Physics
                 bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
             m_impl->rollStartUp = bodyUp;
             m_impl->rollDirection =
-                m_impl->latchedRollCommand > 0.0f
-                ? -horizontalRight : horizontalRight;
+                horizontalFallDirection.LengthSq() > 0.0001f
+                ? horizontalFallDirection.Normalized()
+                : JPH::Vec3::sAxisX() * m_impl->latchedRollCommand;
         }
 
         if (m_impl->rollingPhase == RollingPhase::PoweredRoll)
