@@ -777,15 +777,29 @@ namespace Ui
 			200000.0f,
 			"%.0f N m",
 			IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm));
-		SliderFloatWithPendingColor(
-			"Roll Distance",
-			&ctx.tankSettings->rollDistanceM,
-			0.5f,
-			5.0f,
-			0.1f,
-			2.4f,
-			"%.2f m",
-			IsPending(ctx.tankSettings->rollDistanceM, ctx.appliedTankSettings->rollDistanceM));
+		ImGui::Checkbox(
+			"Match Physical Vehicle Width",
+			&ctx.tankSettings->rollDistanceMatchesVehicleWidth);
+		const float physicalVehicleWidth = (std::max)(
+			ctx.tankSettings->chassisWidthM,
+			ctx.tankSettings->trackSpacingM + ctx.tankSettings->trackWidthM);
+		ImGui::Text(
+			"Physical Vehicle Width: %.2f m",
+			physicalVehicleWidth);
+		if (!ctx.tankSettings->rollDistanceMatchesVehicleWidth)
+		{
+			SliderFloatWithPendingColor(
+				"Manual Roll Distance",
+				&ctx.tankSettings->rollDistanceM,
+				0.5f,
+				7.0f,
+				0.1f,
+				2.4f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->rollDistanceM,
+					ctx.appliedTankSettings->rollDistanceM));
+		}
 		SliderFloatWithPendingColor(
 			"Air Brake Torque",
 			&ctx.tankSettings->rollAirBrakeTorqueNm,

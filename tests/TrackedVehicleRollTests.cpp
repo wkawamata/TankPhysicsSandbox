@@ -37,7 +37,6 @@ int main()
     settings.roadWheelCount = 4;
     settings.rideHeightScale = 1.1f;
     settings.rollTorqueNm = 200000.0f;
-    settings.rollDistanceM = 4.9f;
     Tank::Physics::TrackedVehicleTest earlyTest;
     earlyTest.Initialize(settings);
     Tank::Physics::TankInput earlyInput;
@@ -158,9 +157,9 @@ int main()
         "completed roll must return special move to Idle");
     passed &= Check(state.rollingPhase == Tank::Physics::RollingPhase::None,
         "completed roll must clear its physical phase before a second roll");
-    passed &= Check(lateralDistance > 4.7f && lateralDistance < 5.1f,
+    passed &= Check(lateralDistance > 5.0f && lateralDistance < 5.5f,
         "one roll must translate approximately one vehicle width");
-    passed &= Check(displacementX > 4.7f,
+    passed &= Check(displacementX > 5.0f,
         "positive same-direction lever input must roll toward vehicle right");
     passed &= Check(minimumRollDisplacementX > -0.1f,
         "the supporting track must not slide opposite the roll direction");
@@ -187,7 +186,7 @@ int main()
     }
     const float secondRollDisplacementX =
         test.State().bodyPosition.x - firstRollEndX;
-    passed &= Check(secondRollDisplacementX > 4.7f,
+    passed &= Check(secondRollDisplacementX > 5.0f,
         "a second right roll from inverted must continue toward vehicle right");
     passed &= Check(test.State().mobility.state ==
             Tank::Physics::MobilityState::Stopped,

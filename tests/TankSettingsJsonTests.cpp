@@ -31,6 +31,7 @@ int main()
     source.rollTorqueNm = 175000.0f;
     source.rollAirBrakeTorqueNm = 135000.0f;
     source.rollAirBrakeReleaseDegrees = 35.0f;
+    source.rollDistanceMatchesVehicleWidth = false;
     source.rollDistanceM = 3.0f;
     source.rollTorqueCutoffDegrees = 80.0f;
     source.rollStabilizationTorqueNm = 45000.0f;
@@ -115,6 +116,10 @@ int main()
             loaded.rollAirBrakeReleaseDegrees,
             source.rollAirBrakeReleaseDegrees),
         "roll air brake release angle must round trip");
+    passed &= Check(
+        loaded.rollDistanceMatchesVehicleWidth ==
+            source.rollDistanceMatchesVehicleWidth,
+        "roll distance width matching must round trip");
     passed &= Check(NearlyEqual(loaded.rollDistanceM, source.rollDistanceM),
         "roll distance must round trip");
     passed &= Check(
