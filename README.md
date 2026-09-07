@@ -23,10 +23,13 @@ The project focuses on convincing vehicle physics before gameplay. Physics and r
 
 ## Prerequisites
 
-- Visual Studio 2022 (with "C++ CMake tools for Windows" component)
-- Windows SDK 10.0+
-- vcpkg at `C:\dev\vcpkg`
-- RtPbrSurvey NuGet packages restored under `C:\work\RtPbrSurvey-work\packages`
+- Windows x64 and Git.
+- [Visual Studio 2022 Community (official installer)](https://aka.ms/vs/17/release/vs_community.exe). Select **Desktop development with C++** and include **MSVC v143 - VS 2022 C++ x64/x86 build tools**, a **Windows 11 SDK**, and **C++ CMake tools for Windows**. CMake 3.25 or later is required.
+- The scripts expect Visual Studio at its default location: C:\Program Files\Microsoft Visual Studio\2022\Community. For another edition or installation path, update the CMAKE path in both scripts/configure.bat and scripts/build.bat.
+- vcpkg at C:\dev\vcpkg (including scripts/buildsystems/vcpkg.cmake). The project's vcpkg.json declares dependencies, which are restored during configure. For another location, update VCPKG_CHAIN in scripts/configure.bat.
+- nuget.exe on PATH, or pass its full path to Restore-NuGet.ps1 -NuGetExe. This restores RtPbrSurvey's Direct3D 12, DXC, and PIX packages.
+- Microsoft GameInput SDK, restored by scripts/Restore-GameInput.ps1 into this workspace's packages directory.
+- Internet access for initial submodule and package downloads.
 
 ## Build
 
@@ -34,6 +37,7 @@ Clone with submodules, then use the project scripts to configure and build:
 
 ```powershell
 git submodule update --init --recursive
+.\External\RtPbrSurvey\Restore-NuGet.ps1 -PackagesDirectory C:\work\RtPbrSurvey-work\packages
 .\scripts\Restore-GameInput.ps1
 .\scripts\configure.bat
 .\scripts\build.bat TankSandbox
