@@ -778,7 +778,7 @@ namespace Ui
 		}
 		if (ImGui::CollapsingHeader("Rolling Parameters"))
 		{
-		if (ImGui::Button("Reset Tank"))
+		if (ImGui::Button("Reset Tank##RollingParameters"))
 		{
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
