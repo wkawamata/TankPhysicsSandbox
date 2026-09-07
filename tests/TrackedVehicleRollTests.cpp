@@ -52,6 +52,61 @@ int main()
         "roll must be rejected before mobility reaches Stopped");
     earlyInput.roll = 0.0f;
     earlyTest.SetInput(earlyInput);
+
+    // A follow-up roll must be accepted while the previous roll is still
+    // sliding. Landing makes the chain eligible before lateral speed is zero.
+    Tank::Physics::TrackedVehicleTest chainTest;
+    chainTest.Initialize(settings);
+    for (int i = 0; i < 180; ++i)
+    {
+        chainTest.Step(dt);
+    }
+    Tank::Physics::TankInput chainInput;
+    chainInput.leftLeverX = 1.0f;
+    chainInput.rightLeverX = 1.0f;
+    chainTest.SetInput(chainInput);
+    chainTest.Step(dt);
+    chainInput.leftLeverX = 0.0f;
+    chainInput.rightLeverX = 0.0f;
+    chainTest.SetInput(chainInput);
+    bool chainRequestedWhileSliding = false;
+    bool chainStarted = false;
+    for (int i = 0; i < 480; ++i)
+    {
+        chainTest.Step(dt);
+        const auto& chainState = chainTest.State();
+        const bool sliding =
+            chainState.motionObservation.linearSpeedMetersPerSecond > 0.20f;
+        if (!chainRequestedWhileSliding && chainState.rollChainAvailable &&
+            sliding)
+        {
+            chainInput.leftLeverX = 1.0f;
+            chainInput.rightLeverX = 1.0f;
+            chainTest.SetInput(chainInput);
+            chainRequestedWhileSliding = true;
+            continue;
+        }
+        if (chainRequestedWhileSliding)
+        {
+            chainInput.leftLeverX = 0.0f;
+            chainInput.rightLeverX = 0.0f;
+            chainTest.SetInput(chainInput);
+            chainStarted |= chainState.rollingPhase ==
+                Tank::Physics::RollingPhase::PoweredRoll ||
+                chainState.rollingPhase ==
+                    Tank::Physics::RollingPhase::Evaluating ||
+                chainState.rollingPhase ==
+                    Tank::Physics::RollingPhase::BallisticRoll;
+            if (chainStarted)
+            {
+                break;
+            }
+        }
+    }
+    passed &= Check(chainRequestedWhileSliding,
+        "roll chain must become available before lateral slide stops");
+    passed &= Check(chainStarted,
+        "a roll requested during lateral slide must start");
     test.Initialize(settings);
     for (int i = 0; i < 180; ++i)
     {

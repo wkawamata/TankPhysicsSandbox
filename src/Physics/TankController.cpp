@@ -52,6 +52,7 @@ namespace Tank::Physics
         bool hasBody = false;
         bool rollInputLatched = false;
         float latchedRollCommand = 0.0f;
+        float rollRotationSign = 0.0f;
         Tank::Physics::RollingPhase rollingPhase = RollingPhase::None;
         int rollSettledFrames = 0;
         float rollDistanceIntegral = 0.0f;
@@ -426,14 +427,22 @@ namespace Tank::Physics
         {
             m_impl->rollChainAvailable = false;
         }
-        const bool rollChainReady =
+        // A chained input is accepted at landing, then remains pending until
+        // the remaining landing rotation is safe to drive. Do not reject the
+        // one-shot lever gesture merely because the hull is still rotating.
+        const bool rollChainRequested =
             m_impl->rollChainAvailable &&
-            std::abs(m_input.throttle) < 0.001f &&
+            std::abs(m_input.throttle) < 0.001f;
+        const bool rollChainReady =
+            rollChainRequested &&
             std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
             bodyInterface.GetAngularVelocity(m_impl->bodyId).Length() < 0.35f;
         const bool canStartRoll =
             m_state.mobility.state == MobilityState::Stopped ||
             rollChainReady;
+        const bool canRequestRoll =
+            m_state.mobility.state == MobilityState::Stopped ||
+            rollChainRequested;
         TankInput specialMoveInput = m_input;
         if (!m_settings.rollingInputEnabled &&
             specialMoveInput.leftLeverX * specialMoveInput.rightLeverX > 0.0f)
@@ -446,7 +455,7 @@ namespace Tank::Physics
             m_specialMoveStateMachine,
             specialMoveInput,
             m_state.mobility.state == MobilityState::Stopped,
-            canStartRoll);
+            canRequestRoll);
         if (previousSpecialMove != SpecialMoveState::MortarStarting &&
             previousSpecialMove != SpecialMoveState::MortarAiming &&
             m_state.specialMove.state == SpecialMoveState::MortarStarting)
@@ -476,6 +485,13 @@ namespace Tank::Physics
             m_impl->latchedRollCommand =
                 m_state.specialMove.lastEvent == SpecialMoveEvent::RollLeftRequested
                 ? 1.0f : -1.0f;
+            // The roll torque must flip when the hull is upside down. This
+            // keeps a same-direction lever command rolling toward the same
+            // vehicle side on alternating rolls.
+            const float uprightSign =
+                bodyUp.Dot(JPH::Vec3::sAxisY()) >= 0.0f ? 1.0f : -1.0f;
+            m_impl->rollRotationSign =
+                m_impl->latchedRollCommand * uprightSign;
             m_impl->rollInputLatched = true;
             m_impl->rollChainAvailable = false;
             m_impl->rollingPhase = RollingPhase::PoweredRoll;
@@ -506,7 +522,7 @@ namespace Tank::Physics
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
                     bodyForward *
-                        (m_impl->latchedRollCommand * m_settings.rollTorqueNm));
+                        (m_impl->rollRotationSign * m_settings.rollTorqueNm));
             }
             else
             {
@@ -548,12 +564,12 @@ namespace Tank::Physics
                 JPH::DegreesToRadians(airBrakeReleaseDegrees));
             if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
                 bodyUp.Dot(m_impl->rollStartUp) > airBrakeReleaseDot &&
-                rollAngularVelocity * m_impl->latchedRollCommand > 0.5f)
+                rollAngularVelocity * m_impl->rollRotationSign > 0.5f)
             {
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
                     bodyForward *
-                        (-m_impl->latchedRollCommand *
+                        (-m_impl->rollRotationSign *
                             m_settings.rollAirBrakeTorqueNm));
             }
             const float rollAngleRadians = std::acos(std::clamp(
@@ -598,7 +614,6 @@ namespace Tank::Physics
                         m_specialMoveStateMachine.Update(
                             SpecialMoveEvent::MoveCompleted,
                             true);
-                    m_specialMoveInputProcessor.Reset();
                 }
             }
         }
@@ -627,7 +642,6 @@ namespace Tank::Physics
                             m_specialMoveStateMachine.Update(
                                 SpecialMoveEvent::MoveCompleted,
                                 true);
-                        m_specialMoveInputProcessor.Reset();
                     }
                 }
             }
