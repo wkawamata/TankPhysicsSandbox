@@ -55,6 +55,7 @@ namespace Tank::Physics
         Tank::Physics::RollingPhase rollingPhase = RollingPhase::None;
         int rollSettledFrames = 0;
         float rollDistanceIntegral = 0.0f;
+        float maximumRollProgress = 0.0f;
         JPH::RVec3 rollStartPosition;
         JPH::Vec3 rollStartUp;
         JPH::Vec3 rollDirection;
@@ -123,6 +124,10 @@ namespace Tank::Physics
             (std::max)(m_settings.rollStabilizationTorqueNm, 0.0f);
         m_settings.rollStabilizationDampingNms =
             (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
+        m_settings.neutralBrakeAmount = std::clamp(
+            m_settings.neutralBrakeAmount,
+            0.0f,
+            1.0f);
         m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 1.0f);
         m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 6.0f);
         m_settings.trackLongitudinalFriction =
@@ -460,6 +465,7 @@ namespace Tank::Physics
             m_impl->rollingPhase = RollingPhase::PoweredRoll;
             m_impl->rollSettledFrames = 0;
             m_impl->rollDistanceIntegral = 0.0f;
+            m_impl->maximumRollProgress = 0.0f;
             m_impl->rollStartPosition =
                 bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
             m_impl->rollStartUp = bodyUp;
@@ -527,10 +533,13 @@ namespace Tank::Physics
                 bodyUp.Dot(m_impl->rollStartUp),
                 -1.0f,
                 1.0f));
-            const float rollProgress =
+            const float instantaneousRollProgress =
                 rollAngleRadians / JPH::JPH_PI;
+            m_impl->maximumRollProgress = (std::max)(
+                m_impl->maximumRollProgress,
+                instantaneousRollProgress);
             const float targetDistance =
-                m_settings.rollDistanceM * rollProgress;
+                m_settings.rollDistanceM * m_impl->maximumRollProgress;
             const float distanceError = targetDistance - lateralDistance;
             m_impl->rollDistanceIntegral = std::clamp(
                 m_impl->rollDistanceIntegral + distanceError / 60.0f,
@@ -547,7 +556,7 @@ namespace Tank::Physics
             if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
                 std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
                 std::abs(rollAngularVelocity) < 0.1f &&
-                std::abs(distanceError) < 0.02f &&
+                std::abs(distanceError) < 0.05f &&
                 std::abs(lateralVelocity) < 0.1f)
             {
                 m_impl->rollingPhase = RollingPhase::Settling;
@@ -567,13 +576,19 @@ namespace Tank::Physics
                 std::abs(rollAngularVelocity) < 0.1f)
             {
                 ++m_impl->rollSettledFrames;
-                if (m_impl->rollSettledFrames >= 60)
+                if (m_impl->rollSettledFrames >= 15)
                 {
                     m_impl->rollingPhase = RollingPhase::None;
-                    // A completed roll may immediately re-arm while the
-                    // player keeps the same direction held. This is the
-                    // intentional post-completion re-evaluation point.
                     m_impl->rollInputLatched = false;
+                    if (m_state.specialMove.state ==
+                        SpecialMoveState::Rolling)
+                    {
+                        m_state.specialMove =
+                            m_specialMoveStateMachine.Update(
+                                SpecialMoveEvent::MoveCompleted,
+                                true);
+                        m_specialMoveInputProcessor.Reset();
+                    }
                 }
             }
             else
@@ -651,6 +666,11 @@ namespace Tank::Physics
         float leftRatio = ToJoltTrackRatio(leftTrack);
         float rightRatio = ToJoltTrackRatio(rightTrack);
         float brake = m_input.brake ? 1.0f : m_input.brakeAmount;
+        if (m_settings.neutralBrakeEnabled &&
+            std::abs(forward) < 0.001f)
+        {
+            brake = (std::max)(brake, m_settings.neutralBrakeAmount);
+        }
         m_driverInput = {forward, leftRatio, rightRatio, brake};
 
         JPH::TrackedVehicleController* controller =

@@ -42,8 +42,8 @@ int main()
         "chassis mass must default to 4000 kg");
     passed &= Check(controller.Settings().rollingInputEnabled,
         "rolling input must be enabled by default");
-    passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 135000.0f),
-        "roll torque must default to 135000 N m");
+    passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 200000.0f),
+        "roll torque must default to 200000 N m");
     passed &= Check(NearlyEqual(controller.Settings().rollDistanceM, 2.4f),
         "roll distance must default to one vehicle width");
     passed &= Check(NearlyEqual(controller.Settings().rollTorqueCutoffDegrees, 90.0f),
@@ -121,6 +121,12 @@ int main()
     controller.PostStep(1.0f / 60.0f);
     passed &= Check(controller.State().stepIndex == 1, "positive step must advance the index");
     passed &= Check(controller.State().timeSeconds > 0.0f, "positive step must advance time");
+
+    Tank::Physics::TankInput neutralInput;
+    controller.SetInput(neutralInput);
+    controller.PreStep();
+    passed &= Check(NearlyEqual(controller.DriverInput().brake, 0.30f),
+        "neutral input must apply the configured auto brake");
 
     controller.PostStep(0.0f);
     passed &= Check(controller.State().stepIndex == 1, "non-positive step must be ignored");

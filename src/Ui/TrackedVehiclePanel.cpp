@@ -774,7 +774,7 @@ namespace Ui
 			20000.0f,
 			300000.0f,
 			5000.0f,
-			135000.0f,
+			200000.0f,
 			"%.0f N m",
 			IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm));
 		SliderFloatWithPendingColor(
