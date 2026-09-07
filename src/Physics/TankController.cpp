@@ -457,10 +457,12 @@ namespace Tank::Physics
         const RollingPhase rollingPhaseBefore = m_impl->rollingPhase;
         const bool wasRollingEvaluating =
             m_impl->rollingPhase == RollingPhase::Evaluating;
-        const bool rollStartRequested =
-            previousSpecialMove != SpecialMoveState::RollStarting &&
+        // Keep a valid request pending while the vehicle finishes its landing
+        // rotation. A chain roll deliberately does not wait for lateral slide
+        // to stop, but it must not start until the hull is upright and stable.
+        const bool rollStartPending =
             m_state.specialMove.state == SpecialMoveState::RollStarting;
-        if (rollStartRequested && !m_impl->rollInputLatched && canStartRoll)
+        if (rollStartPending && !m_impl->rollInputLatched && canStartRoll)
         {
             const JPH::Vec3 bodyRight = bodyRotation * JPH::Vec3::sAxisX();
             JPH::Vec3 horizontalForward(
@@ -585,6 +587,19 @@ namespace Tank::Physics
                 m_impl->rollingPhase = RollingPhase::Settling;
                 m_impl->rollSettledFrames = 0;
                 m_impl->rollDistanceIntegral = 0.0f;
+                // The completed rotation is now eligible to chain. Settling
+                // remains active to control the remaining lateral slide, but
+                // must not keep the special-move FSM busy until it stops.
+                m_impl->rollChainAvailable = true;
+                if (m_state.specialMove.state ==
+                    SpecialMoveState::Rolling)
+                {
+                    m_state.specialMove =
+                        m_specialMoveStateMachine.Update(
+                            SpecialMoveEvent::MoveCompleted,
+                            true);
+                    m_specialMoveInputProcessor.Reset();
+                }
             }
         }
 
@@ -915,7 +930,14 @@ namespace Tank::Physics
         m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
         m_state.motionObservation = BuildTankMotionObservation(m_state);
         m_state.rollingPhase = m_impl->rollingPhase;
-        m_state.rollChainAvailable = m_impl->rollChainAvailable;
+        const JPH::Quat currentRotation =
+            bodyInterface.GetRotation(m_impl->bodyId);
+        const JPH::Vec3 currentUp = currentRotation * JPH::Vec3::sAxisY();
+        m_state.rollChainAvailable =
+            m_impl->rollChainAvailable &&
+            std::abs(m_input.throttle) < 0.001f &&
+            std::abs(currentUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
+            bodyInterface.GetAngularVelocity(m_impl->bodyId).Length() < 0.35f;
         const bool mobilityDriveRequested =
             std::abs(m_input.throttle) > 0.001f ||
             std::abs(m_input.leftTrack - 1.0f) > 0.001f ||
