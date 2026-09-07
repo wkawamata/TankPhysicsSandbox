@@ -57,6 +57,7 @@ namespace Ui
         bool* tankVisualSettingsAutoLoad = nullptr;
         bool* tankVisualMaterialApplyPending = nullptr;
         std::string* tankSettingsStatus = nullptr;
+        const std::string* inputMappingStatus = nullptr;
         std::string* tankVisualSettingsStatus = nullptr;
         std::string* envSettingsStatus = nullptr;
         std::string* tankModelExportPath = nullptr;

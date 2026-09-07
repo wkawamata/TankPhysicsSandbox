@@ -175,95 +175,109 @@ namespace Ui
 			default:
 				break;
 			}
-			ImGui::Text("Mobility: %s", mobilityName);
-			ImGui::Text("Rolling Phase: %s",
-				RollingPhaseName(state.rollingPhase));
-			ImGui::Text("Mortar Aim: %.1f deg  Range: %.1f m",
-				state.mortarAim.angleDegrees,
-				state.mortarAim.rangeMeters);
-			ImGui::Text("Mortar: %s%s",
-				state.mortarAim.canFire ? "Ready" : "Charging",
-				state.mortarAim.atMaximum ? " (Max)" : "");
-			ImGui::Text("State Time: %.2f s  Stop Progress: %.0f%%",
+			ImGui::Text("Mobility: %s  Time: %.2f s  Stop: %.0f%%",
+				mobilityName,
 				state.mobility.stateTimeSeconds,
 				state.mobility.stopCandidateProgress * 100.0f);
-			ImGui::Text("Mobility Transition Reason: %s",
-				MobilityReasonName(state.mobility.lastTransitionReason));
-			ImGui::Text("Special Move: %s  (Transition %llu)",
+			ImGui::Text("Roll: %s  Special: %s (#%llu)",
+				RollingPhaseName(state.rollingPhase),
 				SpecialMoveStateName(state.specialMove.state),
 				static_cast<unsigned long long>(state.specialMove.transitionCount));
-			ImGui::Text("Track Input Mapping: %s",
+			ImGui::Text("Mortar: %s%s  %.1f deg / %.1f m",
+				state.mortarAim.canFire ? "Ready" : "Charging",
+				state.mortarAim.atMaximum ? " (Max)" : "",
+				state.mortarAim.angleDegrees,
+				state.mortarAim.rangeMeters);
+			ImGui::Text("Track: %s  Obstruction: %s%s",
 				state.trackInputSwapped
 					? "Swapped (Inverted)"
-					: "Normal (Upright)");
-			ImGui::Text("Rolling Obstruction: %s%s",
+					: "Normal (Upright)",
 				state.rollingObstructionSuspected ? "Detected" : "None",
 				state.rollingRecoveryActive ? " / Recovery" : "");
-			ImGui::Text("Special Input: Left X %+.2f  Right X %+.2f",
+			ImGui::Text("Lever X: L %+.2f  R %+.2f  Roll: %+.2f",
 				ctx.leftLeverX,
-				ctx.rightLeverX);
+				ctx.rightLeverX,
+				ctx.analogRoll);
 			if (ctx.appliedTankSettings != nullptr)
 			{
 				ImGui::Text("Rolling Input Applied: %s",
 					ctx.appliedTankSettings->rollingInputEnabled ? "ON" : "OFF");
 			}
+			if (ImGui::CollapsingHeader("Motion / Stop Diagnostics"))
+			{
+				ImGui::Text("Mobility Reason: %s",
+					MobilityReasonName(state.mobility.lastTransitionReason));
+				ImGui::Text("Motion Data: %s",
+					motion.allFinite ? "Valid" : "INVALID");
+				ImGui::Text(
+					"Speed: %.2f m/s  Angular: %.2f rad/s",
+					motion.linearSpeedMetersPerSecond,
+					motion.angularSpeedRadiansPerSecond);
+				ImGui::Text(
+					"Contacts: L %d (%d lower)  R %d (%d lower)",
+					motion.tracks[0].contactCount,
+					motion.tracks[0].lowerSurfaceContactCount,
+					motion.tracks[1].contactCount,
+					motion.tracks[1].lowerSurfaceContactCount);
+				ImGui::Text(
+					"Max Slip: L %.2f  R %.2f m/s",
+					motion.tracks[0]
+						.maximumAbsoluteLongitudinalSlipMetersPerSecond,
+					motion.tracks[1]
+						.maximumAbsoluteLongitudinalSlipMetersPerSecond);
+				if (ctx.tankSettings != nullptr)
+				{
+					const Tank::Physics::TankSettings& settings = *ctx.tankSettings;
+					ImGui::Text("Stop In: Speed %.2f  Angular %.2f  Slip %.2f",
+						settings.stoppedEnterLinearSpeedMetersPerSecond,
+						settings.stoppedEnterAngularSpeedRadiansPerSecond,
+						settings.stoppedEnterTrackSlipMetersPerSecond);
+					ImGui::Text("Stop Out: Speed %.2f  Angular %.2f  Slip %.2f",
+						settings.stoppedExitLinearSpeedMetersPerSecond,
+						settings.stoppedExitAngularSpeedRadiansPerSecond,
+						settings.stoppedExitTrackSlipMetersPerSecond);
+				}
+			}
+		}
+
+		void DrawLeverInputMapping(
+			TrackedVehiclePanelContext& ctx)
+		{
+			if (!ImGui::CollapsingHeader("Lever Input Mapping"))
+			{
+				return;
+			}
+
+			ImGui::TextUnformatted("Maps gamepad axes to the left and right levers.");
+			ImGui::TextUnformatted("File: Config/input_mapping.json");
 			if (ctx.inputMappingSettings != nullptr)
 			{
 				int leftAxis = static_cast<int>(ctx.inputMappingSettings->leftLeverAxis);
 				int rightAxis = static_cast<int>(ctx.inputMappingSettings->rightLeverAxis);
 				if (ImGui::InputInt("Left Lever Axis", &leftAxis))
-					ctx.inputMappingSettings->leftLeverAxis = static_cast<std::size_t>(std::clamp(leftAxis, 0, 15));
+				{
+					ctx.inputMappingSettings->leftLeverAxis =
+						static_cast<std::size_t>(std::clamp(leftAxis, 0, 15));
+				}
 				if (ImGui::InputInt("Right Lever Axis", &rightAxis))
-					ctx.inputMappingSettings->rightLeverAxis = static_cast<std::size_t>(std::clamp(rightAxis, 0, 15));
+				{
+					ctx.inputMappingSettings->rightLeverAxis =
+						static_cast<std::size_t>(std::clamp(rightAxis, 0, 15));
+				}
 			}
-			if (ImGui::Button("Save Input Mapping") && ctx.saveInputMappingSettings)
+			if (ImGui::Button("Save Mapping") && ctx.saveInputMappingSettings)
+			{
 				ctx.saveInputMappingSettings();
+			}
 			ImGui::SameLine();
-			if (ImGui::Button("Load Input Mapping") && ctx.loadInputMappingSettings)
+			if (ImGui::Button("Load Mapping") && ctx.loadInputMappingSettings)
+			{
 				ctx.loadInputMappingSettings();
-			ImGui::Text(
-				"Input: Roll %+.2f",
-				ctx.analogRoll);
-			if (!motion.allFinite)
-			{
-				ImGui::PushStyleColor(
-					ImGuiCol_Text,
-					ImVec4(1.0f, 0.35f, 0.25f, 1.0f));
 			}
-			ImGui::Text(
-				"Motion Data: %s",
-				motion.allFinite ? "Valid" : "INVALID");
-			if (!motion.allFinite)
+			if (ctx.inputMappingStatus != nullptr &&
+				!ctx.inputMappingStatus->empty())
 			{
-				ImGui::PopStyleColor();
-			}
-			ImGui::Text(
-				"Speed: %.2f m/s  Angular: %.2f rad/s",
-				motion.linearSpeedMetersPerSecond,
-				motion.angularSpeedRadiansPerSecond);
-			ImGui::Text(
-				"Contacts: L %d (%d lower)  R %d (%d lower)",
-				motion.tracks[0].contactCount,
-				motion.tracks[0].lowerSurfaceContactCount,
-				motion.tracks[1].contactCount,
-				motion.tracks[1].lowerSurfaceContactCount);
-			ImGui::Text(
-				"Max Slip: L %.2f  R %.2f m/s",
-				motion.tracks[0]
-					.maximumAbsoluteLongitudinalSlipMetersPerSecond,
-				motion.tracks[1]
-					.maximumAbsoluteLongitudinalSlipMetersPerSecond);
-			if (ctx.tankSettings != nullptr)
-			{
-				const Tank::Physics::TankSettings& settings = *ctx.tankSettings;
-				ImGui::Text("Stop In: Speed %.2f  Angular %.2f  Slip %.2f",
-					settings.stoppedEnterLinearSpeedMetersPerSecond,
-					settings.stoppedEnterAngularSpeedRadiansPerSecond,
-					settings.stoppedEnterTrackSlipMetersPerSecond);
-				ImGui::Text("Stop Out: Speed %.2f  Angular %.2f  Slip %.2f",
-					settings.stoppedExitLinearSpeedMetersPerSecond,
-					settings.stoppedExitAngularSpeedRadiansPerSecond,
-					settings.stoppedExitTrackSlipMetersPerSecond);
+				ImGui::TextWrapped("%s", ctx.inputMappingStatus->c_str());
 			}
 		}
 	}
@@ -323,6 +337,7 @@ namespace Ui
 		{
 			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
 		}
+		DrawLeverInputMapping(ctx);
 		ImGui::SeparatorText("Simulation");
 		if (ImGui::Button(
 			*ctx.trackedVehiclePaused ? "Resume [Space]" : "Pause [Space]"))
@@ -763,6 +778,13 @@ namespace Ui
 		}
 		if (ImGui::CollapsingHeader("Rolling Parameters"))
 		{
+		if (ImGui::Button("Reset Tank"))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("Apply rolling parameter changes");
+		ImGui::Separator();
 
 		if (ImGui::Checkbox("Rolling Input", &ctx.tankSettings->rollingInputEnabled))
 		{

@@ -410,21 +410,36 @@ bool TrackedVehicleMode::SaveTankSettings()
     return store.Write(m_settings, m_tankSettingsStatus);
 }
 
-bool TrackedVehicleMode::SaveInputMappingSettings() const
+bool TrackedVehicleMode::SaveInputMappingSettings()
 {
     std::ofstream file("Config/input_mapping.json");
-    if (!file) return false;
+    if (!file)
+    {
+        m_inputMappingStatus = "Save failed: Config/input_mapping.json";
+        return false;
+    }
     file << Tank::Input::SaveTankInputMappingSettings(m_inputMappingSettings).dump(4);
+    if (!file)
+    {
+        m_inputMappingStatus = "Save failed: Config/input_mapping.json";
+        return false;
+    }
+    m_inputMappingStatus = "Saved: Config/input_mapping.json";
     return true;
 }
 
 bool TrackedVehicleMode::LoadInputMappingSettings()
 {
     std::ifstream file("Config/input_mapping.json");
-    if (!file) return false;
+    if (!file)
+    {
+        m_inputMappingStatus = "Load failed: Config/input_mapping.json";
+        return false;
+    }
     nlohmann::json json;
     file >> json;
     m_inputMappingSettings = Tank::Input::LoadTankInputMappingSettings(json);
+    m_inputMappingStatus = "Loaded: Config/input_mapping.json";
     return true;
 }
 

@@ -66,6 +66,7 @@ public:
     const Tank::Physics::PhysicsEnvironmentSettings& AppliedEnvSettings() const { return m_appliedEnvironmentSettings; }
     Tank::Rendering::TankVisualSettings& VisualSettings() { return m_visualSettings; }
     Tank::Input::TankInputMappingSettings& InputMappingSettings() { return m_inputMappingSettings; }
+    const std::string& InputMappingStatus() const { return m_inputMappingStatus; }
 
     bool& Paused() { return m_paused; }
     bool& SingleStep() { return m_singleStep; }
@@ -94,7 +95,7 @@ public:
 
     bool SaveTankSettings();
     bool LoadTankSettings(bool apply, RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
-    bool SaveInputMappingSettings() const;
+    bool SaveInputMappingSettings();
     bool LoadInputMappingSettings();
     bool SaveTankVisualSettings();
     bool LoadTankVisualSettings(bool apply, RtPbrSurvey::SceneRenderer& renderer);
@@ -126,6 +127,7 @@ private:
 
     Tank::Physics::TankSettings m_settings;
     Tank::Input::TankInputMappingSettings m_inputMappingSettings;
+    std::string m_inputMappingStatus;
     Tank::Physics::TankSettings m_appliedSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
