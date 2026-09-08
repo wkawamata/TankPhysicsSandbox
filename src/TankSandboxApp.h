@@ -49,6 +49,7 @@ public:
 
     void OnInit() override;
     void OnDestroy() override;
+    bool OnCloseRequested() override;
     void OnKeyDown(UINT8 key) override;
     void OnKeyUp(UINT8 key) override;
     void OnMouseDown(UINT8 button, int x, int y) override;
@@ -155,6 +156,7 @@ private:
     UINT64 m_autoCaptureFrameCount = 0;
     UINT64 m_autoFramesElapsed = 0;
     bool m_quitAfterCapture = false;
+    bool m_windowCloseApproved = false;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;

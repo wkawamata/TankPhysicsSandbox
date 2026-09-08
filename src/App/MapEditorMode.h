@@ -14,9 +14,12 @@ public:
     // Returns true when the user has completed a request to return to the menu.
     bool DrawUi(HWND__* owner);
     void RequestExit();
+    void RequestApplicationExit();
     using AssetValidator = std::function<bool(const std::filesystem::path&, const Tank::Map::GltfRoles&, std::string&)>;
     void SetAssetValidator(AssetValidator validator) { m_assetValidator = std::move(validator); }
     bool ConsumeSceneReloadRequest();
+    bool ConsumeApplicationExitApproval();
+    bool HasUnsavedChanges() const { return m_map.IsDirty(); }
     bool IsMapOpen() const { return m_map.IsOpen(); }
     const Tank::Map::MapFolder& Map() const { return m_map; }
     float GridSpacingMeters() const { return m_gridSpacingMeters; }
@@ -25,13 +28,14 @@ public:
     void SetPreviewError(const std::string& error) { m_status = "Preview failed: " + error; }
 
 private:
-    enum class Action { None, Open, Exit };
+    enum class Action { None, Open, Exit, ExitApplication };
     void Request(Action action);
     bool Execute(HWND__* owner);
     bool Save();
     void RefreshAssets();
     bool AddSelectedModel();
     bool UpdateSelectedInstance(const Tank::Map::Transform& transform);
+    bool DuplicateSelectedInstance();
     bool RemoveSelectedInstance();
 
     Tank::Map::MapFolder m_map;
@@ -46,6 +50,7 @@ private:
     std::string m_roleError;
     std::string m_selectedInstanceId;
     bool m_sceneReloadRequested = false;
+    bool m_applicationExitApproved = false;
     AssetValidator m_assetValidator;
     float m_gridSpacingMeters = 1.0f;
     int m_gridHalfCellCount = 10;

@@ -37,6 +37,8 @@ find_package(nlohmann_json CONFIG REQUIRED)
 add_library(TankMapCore STATIC
     src/Map/GltfRoles.cpp
     src/Map/GltfRoles.h
+    src/Map/MapEditing.cpp
+    src/Map/MapEditing.h
     src/Map/MapAssetCatalog.cpp
     src/Map/MapAssetCatalog.h
     src/Map/MapFolder.cpp
@@ -248,12 +250,27 @@ if(MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(MapEditingTests tests/MapEditingTests.cpp)
+    target_link_libraries(MapEditingTests PRIVATE TankMapCore)
+    if(MSVC)
+        target_compile_options(MapEditingTests PRIVATE /W4 /permissive-)
+    endif()
+    add_test(NAME TankMap.Editing COMMAND MapEditingTests)
+
     add_executable(GltfRolesTests tests/GltfRolesTests.cpp)
     target_link_libraries(GltfRolesTests PRIVATE TankMapCore nlohmann_json::nlohmann_json)
     if(MSVC)
         target_compile_options(GltfRolesTests PRIVATE /W4 /permissive-)
     endif()
     add_test(NAME TankMap.GltfRoles COMMAND GltfRolesTests)
+
+    add_executable(GltfNodeMeshTests
+        External/RtPbrSurvey/Tests/GltfNodeMeshTests.cpp)
+    target_link_libraries(GltfNodeMeshTests PRIVATE RtPbrSurvey::SceneRenderer)
+    if(MSVC)
+        target_compile_options(GltfNodeMeshTests PRIVATE /permissive)
+    endif()
+    add_test(NAME TankRendering.GltfNodeMesh COMMAND GltfNodeMeshTests)
 
     add_executable(MapAssetCatalogTests tests/MapAssetCatalogTests.cpp)
     target_link_libraries(MapAssetCatalogTests PRIVATE TankMapCore)

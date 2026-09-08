@@ -402,6 +402,18 @@ void TankSandboxApp::OnDestroy()
     m_d3d12InfoQueue.Reset();
 }
 
+bool TankSandboxApp::OnCloseRequested()
+{
+    if (m_windowCloseApproved || m_appMode != AppMode::MapEditor ||
+        !m_mapEditorMode.HasUnsavedChanges())
+    {
+        return true;
+    }
+
+    m_mapEditorMode.RequestApplicationExit();
+    return false;
+}
+
 void TankSandboxApp::OnKeyDown(UINT8 key)
 {
     if (key == VK_F12)
@@ -1000,6 +1012,11 @@ void TankSandboxApp::DrawToolUi()
             m_mapEditorScenePresenter.Clear();
             m_sceneRenderer.SetScene(Engine::Scene{});
             m_appMode = AppMode::TopMenu;
+        }
+        else if (m_mapEditorMode.ConsumeApplicationExitApproval())
+        {
+            m_windowCloseApproved = true;
+            PostMessageW(Win32Application::GetHwnd(), WM_CLOSE, 0, 0);
         }
         else if (m_mapEditorMode.ConsumeSceneReloadRequest())
         {

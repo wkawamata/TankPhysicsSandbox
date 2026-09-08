@@ -1,23 +1,10 @@
 #include "MapEditorMode.h"
 
 #include "Map/MapAssetCatalog.h"
+#include "Map/MapEditing.h"
 #include "Platform/Windows/MapFolderPicker.h"
 #include <algorithm>
 #include <imgui.h>
-
-namespace
-{
-    std::string MakeInstanceId(const Tank::Map::Manifest& manifest)
-    {
-        for (size_t number = 1;; ++number)
-        {
-            const std::string candidate = "instance-" + std::to_string(number);
-            const bool used = std::any_of(manifest.instances.begin(), manifest.instances.end(),
-                [&candidate](const Tank::Map::Instance& instance) { return instance.id == candidate; });
-            if (!used) return candidate;
-        }
-    }
-}
 
 void MapEditorMode::RefreshAssets()
 {
@@ -47,11 +34,23 @@ void MapEditorMode::RequestExit()
     Request(Action::Exit);
 }
 
+void MapEditorMode::RequestApplicationExit()
+{
+    Request(Action::ExitApplication);
+}
+
 bool MapEditorMode::ConsumeSceneReloadRequest()
 {
     const bool requested = m_sceneReloadRequested;
     m_sceneReloadRequested = false;
     return requested;
+}
+
+bool MapEditorMode::ConsumeApplicationExitApproval()
+{
+    const bool approved = m_applicationExitApproved;
+    m_applicationExitApproved = false;
+    return approved;
 }
 
 bool MapEditorMode::AddSelectedModel()
@@ -73,7 +72,7 @@ bool MapEditorMode::AddSelectedModel()
     }
     Tank::Map::Manifest updated = m_map.Document();
     Tank::Map::Instance instance;
-    instance.id = MakeInstanceId(updated);
+    instance.id = Tank::Map::MakeUniqueInstanceId(updated);
     instance.asset = m_selectedAsset;
     updated.instances.push_back(std::move(instance));
     std::string error;
@@ -117,7 +116,7 @@ bool MapEditorMode::RemoveSelectedInstance()
         [this](const Tank::Map::Instance& value) { return value.id == m_selectedInstanceId; });
     if (remove == updated.instances.end()) return false;
     const std::string removedAsset = remove->asset;
-    updated.instances.erase(remove);
+    Tank::Map::RemoveInstance(updated, m_selectedInstanceId);
     std::string error;
     if (!m_map.SetManifest(updated, error))
     {
@@ -127,6 +126,24 @@ bool MapEditorMode::RemoveSelectedInstance()
     m_selectedInstanceId.clear();
     m_sceneReloadRequested = true;
     m_status = "Removed " + removedAsset + ". Save to write Manifest.json.";
+    return true;
+}
+
+bool MapEditorMode::DuplicateSelectedInstance()
+{
+    Tank::Map::Manifest updated = m_map.Document();
+    const std::optional<std::string> duplicateId =
+        Tank::Map::DuplicateInstance(updated, m_selectedInstanceId);
+    if (!duplicateId) return false;
+    std::string error;
+    if (!m_map.SetManifest(updated, error))
+    {
+        m_status = "Could not duplicate model: " + error;
+        return false;
+    }
+    m_selectedInstanceId = *duplicateId;
+    m_sceneReloadRequested = true;
+    m_status = "Duplicated model. Move it, then Save to write Manifest.json.";
     return true;
 }
 
@@ -146,6 +163,11 @@ bool MapEditorMode::Execute(HWND__* owner)
 {
     const Action action = m_pending;
     m_pending = Action::None;
+    if (action == Action::ExitApplication)
+    {
+        m_applicationExitApproved = true;
+        return false;
+    }
     if (action == Action::Exit)
     {
         m_map = {};
@@ -186,7 +208,7 @@ bool MapEditorMode::Execute(HWND__* owner)
 bool MapEditorMode::DrawUi(HWND__* owner)
 {
     const auto* viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 10, viewport->WorkPos.y + 10), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 10, viewport->WorkPos.y + 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(520, 700), ImGuiCond_FirstUseEver);
     ImGui::Begin("Map Editor", nullptr, ImGuiWindowFlags_NoCollapse);
     if (ImGui::Button("Open")) Request(Action::Open);
@@ -300,6 +322,11 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 if (ImGui::Button("Remove Selected"))
                 {
                     RemoveSelectedInstance();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Duplicate"))
+                {
+                    DuplicateSelectedInstance();
                 }
                 const bool positionChanged = ImGui::DragFloat3("Position (m)", transform.position.data(), 0.05f);
                 const bool rotationChanged = ImGui::DragFloat3("Rotation (deg)", transform.rotationDegrees.data(), 1.0f);

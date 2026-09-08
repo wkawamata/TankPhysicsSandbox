@@ -23,7 +23,7 @@
 | --- | --- | --- |
 | 0 | 仕様整理・Manifestデータ層 | DONE |
 | 1 | エディタ画面とフォルダ操作 | DONE |
-| 2 | glTFの読み込みと表示 | IN_PROGRESS |
+| 2 | glTFの読み込みと表示 | DONE |
 | 3 | モデル配置の編集 | IN_PROGRESS |
 | 4 | HitMeshの物理判定 | TODO |
 | 5 | 開始地点とクリアエリアの編集 | TODO |
@@ -88,21 +88,20 @@
 - GUI検証フォルダ: `build/MapEditorVerification/Catalog`。一覧検証用の空ファイルを使用しており、有効な3Dモデルではない。
 - 選択操作ではManifestを変更しない。glTFファイル内容の検証・3D表示・追加は2-Bの対象。
 
-### 2-B. 役割識別・3D読み込み — IN_PROGRESS
+### 2-B. 役割識別・3D読み込み — DONE
 
-- [ ] TODO: `Visual` / `Hit` 親ノード案をもとに、役割識別ルールを確定して仕様書へ反映。
+- [x] DONE: `Visual` / `Hit` 親ノード方式をversion 1として確定し、仕様書へ反映。
 - [x] DONE: 役割識別の仮規約を具体化。完全一致のVisual/Hit、両役割必須、入れ子禁止、ノード番号による識別。最終合意とは区別して仕様書へ記載。
 - [x] DONE: glTF/GLBのJSON階層検査をTankMapCoreへ追加。循環・複数親・不正参照・壊れたGLBのエラーと出力保持をテスト。
 - [x] DONE: Inspect Roles画面で正常時のVisual/Hit各1件とノード内訳、規約外Meshのエラー、選択変更時の旧結果クリアを確認。
 - [x] DONE: GltfRolesTestsとTankSandboxのDebugビルド、関連CTest 6件成功。
 - [x] DONE: 検査済みモデルを `Add to Map` でManifestの新規配置へ追加する。Visualノードはノード番号でレンダラーへ渡し、無名・重複名にも対応する。Hitノードは物理段階まで非表示とする。Triangle.gltfのInspect Roles、Add、Placed Modelsへの追加、SaveをGUI確認済み。
 - [x] DONE: 配置済みモデルのVisualメッシュを再構築して3Dプレビューへ表示する。表示件数とテスト三角形の表裏を修正し、回転なしの初期姿勢で表示されることをGUI確認済み。
-- [ ] IN_PROGRESS: レンダラー側のノード番号によるglTF Mesh追加を追加し、既存の名前APIとの互換性を維持する。直接の名前では扱えない重複名ノードの回帰テストを追加した。現行のTank CMake構成ではRtPbrSurveyの当該テスト実行対象が未生成のため、実行は保留。
+- [x] DONE: レンダラー側へノード番号によるglTF Mesh追加を追加し、既存の名前APIとの互換性を維持。Tank側CMakeから回帰テストを生成・実行できるようにし、重複名・祖先変換・回転・左右座標変換を確認。
 - 範囲: JSON階層の検査のみ。GUI検証データは `build/MapEditorVerification/Roles` にあり、形状を持たないメタデータ用fixture。実モデルの3D読み込み成功を示すものではない。
-- [ ] TODO: 座標系、単位、XYZ回転の適用順、glTFの階層変換の扱いを確定。
-- [ ] TODO: 追加前に外部バッファ・テクスチャ・ファイル欠落などの読み込み失敗を判定し、Manifestを変更せず表示する。
-- [ ] TODO: 外部バッファ・テクスチャ・ファイル欠落などの読み込み失敗を表示。
-- [ ] TODO: 役割識別・階層変換のテストと表示確認。
+- [x] DONE: 左手World座標、メートル単位、ManifestのXYZ回転順、glTFの右手系からの変換と階層変換をversion 1として確定。
+- [x] DONE: 追加前に外部バッファ・テクスチャ・ファイル欠落などの読み込み失敗を判定し、Manifestを変更せずエラー表示する。
+- [x] DONE: 役割識別と階層変換を自動テストし、規約に従うTriangle.gltfの役割表示と3D表示をGUI確認。
 
 完了条件: 規約に従うglTFを選択して表示でき、表示用MeshとHitMeshの役割を区別して取り出せる。
 
@@ -110,12 +109,12 @@
 
 - [x] DONE: World原点の水平グリッドをプレビューへ表示する。間隔・範囲・線幅を画面で調整でき、X=0軸を赤、Z=0軸を緑で強調する。グリッドと軸色をGUI確認済み。
 - [x] DONE: 配置済みモデルの一覧と選択状態を実装。
-- [ ] IN_PROGRESS: World位置XYZ・回転XYZをDrag入力で編集し、Manifestの未保存データとVisualプレビューを即時更新する。回転による表示変化とSaveをGUI確認済み。再Openによる保存復元確認が残る。
-- [ ] TODO: 同じglTFの複数配置、配置の複製・削除、一意なIDの発行を実装。
-- [ ] TODO: 編集内容をManifestへ保存し、再読み込み時に復元。
-- [ ] TODO: 未保存のモデル編集後、Open／Back to Menu／ESCで保存・破棄・キャンセルの確認を検証。保存失敗時に遷移しないことも確認。
-- [ ] TODO: アプリの閉じるボタン／Alt+F4にも未保存保護を接続・検証（現在の確認はエディタ内の遷移が対象）。
-- [ ] TODO: 変換・複数配置・保存復元をテストし、GUIで確認。
+- [x] DONE: World位置XYZ・回転XYZをDrag入力で編集し、Manifestの未保存データとVisualプレビューを即時更新する。変更、Save、再Openによる復元をGUI確認済み。
+- [x] DONE: 同じglTFの複数配置、配置の複製・削除、一意なIDの発行を実装。自動テストに加え、Duplicate、2配置表示、Remove SelectedをGUI確認済み。
+- [x] DONE: 編集内容をManifestへ保存し、再読み込み時に復元。
+- [ ] IN_PROGRESS: 未保存のモデル編集後、Open／Back to Menu／ESCで保存・破棄・キャンセルを選ぶ処理を実装。GUI動作と、保存失敗時に遷移しないことの確認が残る。
+- [ ] IN_PROGRESS: アプリの閉じるボタン／Alt+F4にも未保存保護を接続。保存済みなら即時終了し、未保存なら保存／破棄／キャンセルの結果を待つ。Alt+F4からCancelして編集画面に残ること、Save and Continueで終了して再起動後に変更が復元されることをGUI確認済み。破棄での終了確認が残る。
+- [x] DONE: 変換・複数配置・保存復元をテストし、GUIで確認。
 
 完了条件: 複数の配置を個別に編集でき、保存・再読み込み後も位置と向きが一致する。
 
@@ -159,9 +158,9 @@
 
 | 項目 | 確定が必要な段階 | 現在の状態 |
 | --- | --- | --- |
-| 保存タイミング・未保存変更の扱い | 1 / 3 | Save方式を実装。確認ダイアログの編集UI結合検証とアプリ終了時の保護は段階3 |
-| glTFの役割識別規約 | 2 | Visual / Hit親ノード案 |
-| 座標系・回転順・変換規約 | 2 | 未確定 |
+| 保存タイミング・未保存変更の扱い | 1 / 3 | Save方式と各遷移・アプリ終了の確認処理を実装。GUI結合検証は段階3 |
+| glTFの役割識別規約 | 2 | version 1確定。完全一致のVisual / Hit親ノード方式 |
+| 座標系・回転順・変換規約 | 2 | version 1確定。左手World座標、glTFのZ反転、roll Z → pitch X → yaw Y |
 | サブフォルダ検索範囲 | 2 | Mapフォルダ配下を再帰検索。リンク・ジャンクション等は除外 |
 | HitMeshの対応形状と制約 | 4 | 静的Meshを基本案とする |
 | マップの登録・一覧化・記憶 | 6 | 開いたフォルダの登録案 |
@@ -179,3 +178,11 @@
 - 2026-09-07: 検査済みモデルをManifestへ追加し、Visual Meshだけをレンダラーへロードするプレビューを追加。ノード番号でのロードにより無名・重複名を扱えるようにした。DebugビルドとTankMapのCTestを確認。位置・回転編集、読み込み失敗時にManifestを変更しない処理、GUI表示確認は残るため2-BをIN_PROGRESSに維持。
 
 - 2026-09-08: GUI確認で表示インスタンス数、テストglTFのバッファと面方向を修正。Triangle.gltfのInspect Roles、Add、初期姿勢表示、配置回転、軸色、Saveを確認。Map Editorウィンドウの固定も解除した。
+
+- 2026-09-08: 配置のDuplicate、Remove Selected、一意ID発行をデータ層へ分離してUIへ接続。IDがクリアエリアと衝突しないこと、複製時のAsset・Transform保持、対象外削除の非破壊性を自動テストで確認。
+
+- 2026-09-08: Duplicate、位置変更、2配置表示、Save、再Openでの復元、Remove Selectedの一連のGUI確認が完了。段階3は未保存変更の遷移・終了保護のみ継続する。
+- 2026-09-08: 未保存変更をOpen／Back／ESCに加え、ウィンドウの閉じるボタンとAlt+F4でも保護する終了要求コールバックを追加。Map Editorの初期位置指定を初回だけにして、画面上で移動できるよう修正。DebugビルドとMap関連CTest 3件を確認し、GUI確認待ちとして段階3を継続する。
+- 2026-09-08: 未保存状態でAlt+F4を押し、確認ダイアログからCancelするとMap Editorへ戻ることをGUI確認。
+- 2026-09-08: 未保存状態でAlt+F4を押し、Save and Continueで終了した後、再起動・再Openで編集内容が復元されることをGUI確認。
+- 2026-09-08: glTFの役割・座標・変換規約をversion 1として確定。Tank側からRtPbrSurveyのノードMesh回帰テストを生成し、重複名、祖先変換、quaternion回転、右手系から左手系への変換、既存API互換性を確認して段階2をDONEに更新。
