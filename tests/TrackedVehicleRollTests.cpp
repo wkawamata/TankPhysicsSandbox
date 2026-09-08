@@ -111,6 +111,49 @@ int main()
         "a roll requested during lateral slide must start");
     passed &= Check(chainStartedWhileSliding,
         "a chained roll must start before lateral slide stops");
+
+    Tank::Physics::TrackedVehicleTest returnTest;
+    returnTest.Initialize(settings);
+    for (int i = 0; i < 180; ++i)
+    {
+        returnTest.Step(dt);
+    }
+    const Tank::Physics::Vec3 returnStart = returnTest.State().bodyPosition;
+    Tank::Physics::TankInput returnInput;
+    returnInput.leftLeverX = 1.0f;
+    returnInput.rightLeverX = 1.0f;
+    returnTest.SetInput(returnInput);
+    returnTest.Step(dt);
+    returnInput.leftLeverX = 0.0f;
+    returnInput.rightLeverX = 0.0f;
+    returnTest.SetInput(returnInput);
+    bool requestedReturn = false;
+    for (int i = 0; i < 720; ++i)
+    {
+        if (!requestedReturn && returnTest.State().rollingPhase ==
+            Tank::Physics::RollingPhase::Evaluating)
+        {
+            returnInput.leftLeverX = -1.0f;
+            returnInput.rightLeverX = -1.0f;
+            returnTest.SetInput(returnInput);
+            requestedReturn = true;
+        }
+        else if (requestedReturn)
+        {
+            returnInput.leftLeverX = 0.0f;
+            returnInput.rightLeverX = 0.0f;
+            returnTest.SetInput(returnInput);
+        }
+        returnTest.Step(dt);
+    }
+    const Tank::Physics::Vec3 returnEnd = returnTest.State().bodyPosition;
+    const float returnDistance = std::sqrt(
+        (returnEnd.x - returnStart.x) * (returnEnd.x - returnStart.x) +
+        (returnEnd.z - returnStart.z) * (returnEnd.z - returnStart.z));
+    passed &= Check(requestedReturn,
+        "reverse lever pair must be sampled at the quarter-turn decision");
+    passed &= Check(returnDistance < 1.0f,
+        "reverse input at 90 degrees must return near the starting position");
     test.Initialize(settings);
     for (int i = 0; i < 180; ++i)
     {
