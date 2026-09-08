@@ -902,6 +902,17 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehicleRollTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehicleRollGifTrace
+        tests/TrackedVehicleRollGifTrace.cpp
+    )
+    target_link_libraries(TrackedVehicleRollGifTrace
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleRollGifTrace PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(TrackedVehicleRideHeightTests
         tests/TrackedVehicleRideHeightTests.cpp
     )
@@ -969,6 +980,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TrackedVehicleRoll
         COMMAND TrackedVehicleRollTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleRollGifTrace
+        COMMAND TrackedVehicleRollGifTrace
     )
 
     add_test(

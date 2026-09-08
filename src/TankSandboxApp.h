@@ -72,7 +72,9 @@ private:
     void UpdateUiFrame();
     void DrawToolUi();
     void RequestScreenshot();
+    void RequestScreenshot(const std::filesystem::path& path);
     void UpdateScreenshotResult();
+    void CaptureRollTestFrame();
     bool SaveRendererSettings();
     bool LoadRendererSettings();
     void ResetRendererSettings();
@@ -172,6 +174,18 @@ private:
     UINT64 m_autoCaptureFrameCount = 0;
     UINT64 m_autoFramesElapsed = 0;
     bool m_quitAfterCapture = false;
+
+    // Deterministic rendered rolling capture for GIF generation.
+    bool m_rollCaptureEnabled = false;
+    bool m_rollCaptureInitialized = false;
+    float m_rollCaptureSign = 1.0f;
+    UINT64 m_rollCaptureWarmupFrames = 180;
+    UINT64 m_rollCaptureFrameCount = 90;
+    UINT64 m_rollCaptureIntervalFrames = 2;
+    UINT64 m_rollCaptureSimulationFrames = 0;
+    UINT64 m_rollCaptureRequestedFrames = 0;
+    UINT64 m_rollCaptureCompletedFrames = 0;
+    std::filesystem::path m_rollCaptureDirectory;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;

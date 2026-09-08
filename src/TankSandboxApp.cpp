@@ -157,6 +157,25 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
             m_autoCaptureFrameCount = _wtoi64(argv[i + 1]);
             i++;
         }
+        else if (arg == L"--roll-capture-dir" && i + 1 < argc)
+        {
+            m_rollCaptureDirectory = argv[++i];
+            m_rollCaptureEnabled = true;
+            m_autoSceneMode = AppMode::PhysicsTrackedVehicle;
+        }
+        else if (arg == L"--roll-capture-sign" && i + 1 < argc)
+        {
+            m_rollCaptureSign = _wtof(argv[++i]) < 0.0f ? -1.0f : 1.0f;
+        }
+        else if (arg == L"--roll-capture-frames" && i + 1 < argc)
+        {
+            m_rollCaptureFrameCount = _wtoi64(argv[++i]);
+        }
+        else if (arg == L"--roll-capture-interval" && i + 1 < argc)
+        {
+            m_rollCaptureIntervalFrames = (std::max)(
+                UINT64{1}, static_cast<UINT64>(_wtoi64(argv[++i])));
+        }
         else if (arg == L"--map" && i + 1 < argc)
         {
             m_autoMapPath = std::filesystem::path(argv[++i]);
@@ -694,7 +713,10 @@ void TankSandboxApp::OnIdle()
         m_gamepad.Poll();
         const Tank::Input::GamepadState neutralGamepadState;
         const Tank::Input::GamepadState& vehicleGamepadState =
-            hasInputFocus ? m_gamepad.State() : neutralGamepadState;
+            hasInputFocus && !m_rollCaptureEnabled
+            ? m_gamepad.State() : neutralGamepadState;
+        const bool scriptedRoll = m_rollCaptureEnabled &&
+            m_rollCaptureSimulationFrames == m_rollCaptureWarmupFrames;
         {
             const Tank::Input::GamepadState& gp = vehicleGamepadState;
             if (m_cameraController.UpdateButtonStates(
@@ -716,8 +738,14 @@ void TankSandboxApp::OnIdle()
             vehicleGamepadState,
             m_moveForward, m_moveBackward,
             m_turnLeft, m_turnRight, m_pivotTurnModifier,
-            m_rollLeft, m_rollRight, m_brake);
+            scriptedRoll ? m_rollCaptureSign < 0.0f : m_rollLeft,
+            scriptedRoll ? m_rollCaptureSign > 0.0f : m_rollRight,
+            m_rollCaptureEnabled ? false : m_brake);
         m_trackedVehicleMode.Step(m_sceneRenderer, m_cameraController);
+        if (m_rollCaptureEnabled)
+        {
+            ++m_rollCaptureSimulationFrames;
+        }
         if (m_cameraController.IsDebugSlot() &&
             m_cameraController.FollowEnabled() &&
             !m_cameraController.TankYawChaseEnabled())
@@ -791,6 +819,8 @@ void TankSandboxApp::OnIdle()
     }
     UpdateScreenshotResult();
 
+    CaptureRollTestFrame();
+
     if (m_autoCaptureFrameCount > 0)
     {
         m_autoFramesElapsed++;
@@ -803,6 +833,12 @@ void TankSandboxApp::OnIdle()
 
     if (m_quitAfterCapture && m_autoCaptureFrameCount == 0 &&
         m_screenshotStatus.find("Saved: ") == 0)
+    {
+        PostQuitMessage(0);
+    }
+    if (m_rollCaptureEnabled &&
+        m_rollCaptureRequestedFrames == m_rollCaptureFrameCount &&
+        m_rollCaptureCompletedFrames == m_rollCaptureFrameCount)
     {
         PostQuitMessage(0);
     }
@@ -1007,8 +1043,13 @@ void TankSandboxApp::RequestScreenshot()
 
     const std::filesystem::path path =
         std::filesystem::path(executablePath).parent_path() / "Screenshots" / fileName;
-    m_sceneRenderer.RequestScreenshot({ path });
+    RequestScreenshot(path);
     m_screenshotStatus = "Capture requested: " + path.string();
+}
+
+void TankSandboxApp::RequestScreenshot(const std::filesystem::path& path)
+{
+    m_sceneRenderer.RequestScreenshot({ path });
 }
 
 void TankSandboxApp::UpdateScreenshotResult()
@@ -1022,11 +1063,53 @@ void TankSandboxApp::UpdateScreenshotResult()
     if (result->succeeded)
     {
         m_screenshotStatus = "Saved: " + result->path.string();
+        if (m_rollCaptureEnabled &&
+            result->path.filename().string().starts_with("roll_"))
+        {
+            ++m_rollCaptureCompletedFrames;
+        }
     }
     else
     {
         m_screenshotStatus = "Capture failed: " + result->error;
     }
+}
+
+void TankSandboxApp::CaptureRollTestFrame()
+{
+    if (!m_rollCaptureEnabled ||
+        m_rollCaptureSimulationFrames < m_rollCaptureWarmupFrames ||
+        m_rollCaptureRequestedFrames >= m_rollCaptureFrameCount ||
+        (m_rollCaptureSimulationFrames - m_rollCaptureWarmupFrames) %
+            m_rollCaptureIntervalFrames != 0)
+    {
+        return;
+    }
+
+    if (!m_rollCaptureInitialized)
+    {
+        m_rollCaptureDirectory = std::filesystem::absolute(m_rollCaptureDirectory);
+        std::filesystem::create_directories(m_rollCaptureDirectory);
+        std::ofstream trace(m_rollCaptureDirectory / "trace.csv", std::ios::trunc);
+        trace << "frame,x,y,z,qx,qy,qz,qw,rollSign,phase\n";
+        m_rollCaptureInitialized = true;
+    }
+
+    const auto& state = m_trackedVehicleMode.TestState();
+    {
+        std::ofstream trace(m_rollCaptureDirectory / "trace.csv", std::ios::app);
+        trace << m_rollCaptureRequestedFrames << ',' << state.bodyPosition.x << ','
+            << state.bodyPosition.y << ',' << state.bodyPosition.z << ','
+            << state.bodyRotation.x << ',' << state.bodyRotation.y << ','
+            << state.bodyRotation.z << ',' << state.bodyRotation.w << ','
+            << m_rollCaptureSign << ',' << static_cast<int>(state.rollingPhase) << '\n';
+    }
+
+    wchar_t fileName[32] = {};
+    swprintf_s(fileName, L"roll_%03llu.png",
+        static_cast<unsigned long long>(m_rollCaptureRequestedFrames));
+    RequestScreenshot(m_rollCaptureDirectory / fileName);
+    ++m_rollCaptureRequestedFrames;
 }
 
 bool TankSandboxApp::SaveRendererSettings()
