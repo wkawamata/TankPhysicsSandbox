@@ -58,6 +58,8 @@ namespace Tank::Physics
         float rollDistanceIntegral = 0.0f;
         float maximumRollProgress = 0.0f;
         float rollTargetDistanceM = 0.0f;
+        bool rollReturningToStart = false;
+        int rollCommitFramesRemaining = 0;
         bool rollChainAvailable = false;
         JPH::RVec3 rollStartPosition;
         JPH::Vec3 rollStartUp;
@@ -120,7 +122,13 @@ namespace Tank::Physics
         m_mobilityStateMachine = MobilityStateMachine(m_settings);
         m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
         m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
+        m_settings.rollApproachDampingNms = (std::max)(
+            m_settings.rollApproachDampingNms, 0.0f);
+        m_settings.rollCommitTorqueNm = (std::max)(
+            m_settings.rollCommitTorqueNm, 0.0f);
         m_settings.rollDistanceM = std::clamp(m_settings.rollDistanceM, 0.5f, 7.0f);
+        m_settings.rollTravelVehicleWidths = std::clamp(
+            m_settings.rollTravelVehicleWidths, 1.0f, 2.0f);
         m_settings.rollTorqueCutoffDegrees =
             std::clamp(m_settings.rollTorqueCutoffDegrees, 45.0f, 120.0f);
         m_settings.rollStabilizationTorqueNm =
@@ -492,8 +500,9 @@ namespace Tank::Physics
                 m_settings.trackSpacingM + m_settings.trackWidthM);
             m_impl->rollTargetDistanceM =
                 m_settings.rollDistanceMatchesVehicleWidth
-                ? physicalVehicleWidth
+                ? physicalVehicleWidth * m_settings.rollTravelVehicleWidths
                 : m_settings.rollDistanceM;
+            m_impl->rollReturningToStart = false;
             m_impl->rollStartPosition =
                 bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
             m_impl->rollStartUp = bodyUp;
@@ -509,10 +518,18 @@ namespace Tank::Physics
                 JPH::DegreesToRadians(m_settings.rollTorqueCutoffDegrees));
             if (bodyUp.Dot(m_impl->rollStartUp) > cutoffDot)
             {
+                const float rollAngleDegrees = JPH::RadiansToDegrees(std::acos(
+                    std::clamp(bodyUp.Dot(m_impl->rollStartUp), -1.0f, 1.0f)));
+                const float rollAngularVelocity =
+                    bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+                const float approachDamping = rollAngleDegrees >= 80.0f
+                    ? rollAngularVelocity * m_settings.rollApproachDampingNms
+                    : 0.0f;
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
                     bodyForward *
-                        (m_impl->rollRotationSign * m_settings.rollTorqueNm));
+                        (m_impl->rollRotationSign * m_settings.rollTorqueNm -
+                            approachDamping));
             }
             else
             {
@@ -523,11 +540,39 @@ namespace Tank::Physics
         if (wasRollingEvaluating &&
             m_impl->rollingPhase == RollingPhase::Evaluating)
         {
-            m_impl->rollingPhase = RollingPhase::BallisticRoll;
+            const bool sameDirectionLevers =
+                std::abs(m_input.leftLeverX) >= 0.70f &&
+                std::abs(m_input.rightLeverX) >= 0.70f &&
+                m_input.leftLeverX * m_input.rightLeverX > 0.0f;
+            const float leverSign =
+                m_input.leftLeverX < 0.0f ? -1.0f : 1.0f;
+            if (sameDirectionLevers &&
+                leverSign * m_impl->rollRotationSign < 0.0f)
+            {
+                m_impl->rollReturningToStart = true;
+                m_impl->rollRotationSign = -m_impl->rollRotationSign;
+                m_impl->rollTargetDistanceM = 0.0f;
+                m_impl->rollDistanceIntegral = 0.0f;
+            }
+            m_impl->rollingPhase = RollingPhase::CommitRoll;
+            m_impl->rollCommitFramesRemaining = 4;
+        }
+
+        if (m_impl->rollingPhase == RollingPhase::CommitRoll)
+        {
+            bodyInterface.AddTorque(
+                m_impl->bodyId,
+                bodyForward *
+                    (m_impl->rollRotationSign * m_settings.rollCommitTorqueNm));
+            if (--m_impl->rollCommitFramesRemaining <= 0)
+            {
+                m_impl->rollingPhase = RollingPhase::BallisticRoll;
+            }
         }
 
         if (m_impl->rollingPhase == RollingPhase::PoweredRoll ||
             m_impl->rollingPhase == RollingPhase::Evaluating ||
+            m_impl->rollingPhase == RollingPhase::CommitRoll ||
             m_impl->rollingPhase == RollingPhase::BallisticRoll ||
             m_impl->rollingPhase == RollingPhase::Settling)
         {

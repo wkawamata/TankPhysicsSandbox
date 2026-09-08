@@ -12,6 +12,7 @@ namespace Tank::Physics
         Windup,
         PoweredRoll,
         Evaluating,
+        CommitRoll,
         BallisticRoll,
         Settling
     };

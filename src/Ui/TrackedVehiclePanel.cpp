@@ -136,6 +136,7 @@ namespace Ui
 			case Tank::Physics::RollingPhase::Windup: return "Windup";
 			case Tank::Physics::RollingPhase::PoweredRoll: return "PoweredRoll";
 			case Tank::Physics::RollingPhase::Evaluating: return "Evaluating";
+			case Tank::Physics::RollingPhase::CommitRoll: return "CommitRoll";
 			case Tank::Physics::RollingPhase::BallisticRoll: return "BallisticRoll";
 			case Tank::Physics::RollingPhase::Settling: return "Settling";
 			default: return "None";
@@ -801,6 +802,24 @@ namespace Ui
 			200000.0f,
 			"%.0f N m",
 			IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm));
+		SliderFloatWithPendingColor(
+			"Approach Damping (80-90 deg)",
+			&ctx.tankSettings->rollApproachDampingNms,
+			0.0f,
+			100000.0f,
+			1000.0f,
+			30000.0f,
+			"%.0f N m s",
+			IsPending(ctx.tankSettings->rollApproachDampingNms, ctx.appliedTankSettings->rollApproachDampingNms));
+		SliderFloatWithPendingColor(
+			"Commit Torque (90 deg)",
+			&ctx.tankSettings->rollCommitTorqueNm,
+			0.0f,
+			250000.0f,
+			5000.0f,
+			100000.0f,
+			"%.0f N m",
+			IsPending(ctx.tankSettings->rollCommitTorqueNm, ctx.appliedTankSettings->rollCommitTorqueNm));
 		ImGui::Checkbox(
 			"Match Physical Vehicle Width",
 			&ctx.tankSettings->rollDistanceMatchesVehicleWidth);
@@ -810,6 +829,24 @@ namespace Ui
 		ImGui::Text(
 			"Physical Vehicle Width: %.2f m",
 			physicalVehicleWidth);
+		if (ctx.tankSettings->rollDistanceMatchesVehicleWidth)
+		{
+			SliderFloatWithPendingColor(
+				"Roll Travel (Vehicle Widths)",
+				&ctx.tankSettings->rollTravelVehicleWidths,
+				1.0f,
+				2.0f,
+				0.05f,
+				1.0f,
+				"%.2f x",
+				IsPending(
+					ctx.tankSettings->rollTravelVehicleWidths,
+					ctx.appliedTankSettings->rollTravelVehicleWidths));
+			ImGui::Text(
+				"Target Roll Travel: %.2f m",
+				physicalVehicleWidth *
+					ctx.tankSettings->rollTravelVehicleWidths);
+		}
 		if (!ctx.tankSettings->rollDistanceMatchesVehicleWidth)
 		{
 			SliderFloatWithPendingColor(
