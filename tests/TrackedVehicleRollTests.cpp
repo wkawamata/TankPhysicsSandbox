@@ -375,6 +375,25 @@ int main()
         "completed roll must return special move to Idle");
     passed &= Check(state.rollingPhase == Tank::Physics::RollingPhase::None,
         "completed roll must clear its physical phase before a second roll");
+
+    // A completed roll must not replay its old RollStarting request. Keep
+    // both levers neutral for a further three seconds and require the phase
+    // to stay clear throughout.
+    bool restartedWhileNeutral = false;
+    for (int i = 0; i < 180; ++i)
+    {
+        test.Step(dt);
+        restartedWhileNeutral |= test.State().rollingPhase ==
+            Tank::Physics::RollingPhase::PoweredRoll ||
+            test.State().rollingPhase ==
+                Tank::Physics::RollingPhase::Evaluating ||
+            test.State().rollingPhase ==
+                Tank::Physics::RollingPhase::CommitRoll ||
+            test.State().rollingPhase ==
+                Tank::Physics::RollingPhase::BallisticRoll;
+    }
+    passed &= Check(!restartedWhileNeutral,
+        "neutral levers must not replay a completed roll");
     passed &= Check(lateralDistance > 5.0f && lateralDistance < 5.6f,
         "one roll must translate approximately one vehicle width");
     passed &= Check(capturedLandingPosition,

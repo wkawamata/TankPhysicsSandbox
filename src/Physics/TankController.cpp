@@ -496,8 +496,19 @@ namespace Tank::Physics
             m_impl->rollingPhase == RollingPhase::Evaluating;
         // A chained request starts immediately and replaces Settling. A
         // normal request remains subject to the stopped mobility gate above.
+        // A phase may remain RollStarting for one frame while the FSM and
+        // physics synchronize. It is never a standing request: a roll can
+        // only begin in the same frame that the recognizer emitted a fresh
+        // paired-lever event. This prevents a landing from replaying an old
+        // request after the player has returned both levers to neutral.
+        const bool rollStartEventThisFrame =
+            m_state.specialMove.lastEvent ==
+                SpecialMoveEvent::RollLeftRequested ||
+            m_state.specialMove.lastEvent ==
+                SpecialMoveEvent::RollRightRequested;
         const bool rollStartPending =
-            m_state.specialMove.state == SpecialMoveState::RollStarting;
+            m_state.specialMove.state == SpecialMoveState::RollStarting &&
+            rollStartEventThisFrame;
         if (rollStartPending && m_impl->rollInputLatched &&
             m_impl->rollChainAvailable)
         {
