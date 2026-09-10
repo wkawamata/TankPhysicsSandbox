@@ -81,6 +81,12 @@ int main()
             SerializeManifest(reopened.Document(), actual, error) && expected == actual,
             "Every field survives file round trip");
 
+        changed.playerSpawn.position[0] = 25;
+        Check(session.SetManifest(changed, error) && session.IsDirty(), "Edit before discard");
+        session.DiscardChanges();
+        Check(!session.IsDirty() && session.Document().playerSpawn.position[0] == 10,
+            "Discard restores the last saved manifest");
+
         const auto badFolder = root.path / "bad";
         std::filesystem::create_directory(badFolder);
         { std::ofstream output(badFolder / "Manifest.json"); output << "invalid json"; }

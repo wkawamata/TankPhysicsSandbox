@@ -113,6 +113,7 @@ namespace Tank::Map
             if (!SerializeManifest(loaded, serialized, error)) return false;
             m_folder = std::move(resolved);
             m_manifest = std::move(loaded);
+            m_savedManifest = m_manifest;
             m_savedJson = serialized;
             m_currentJson = std::move(serialized);
             error.clear();
@@ -130,6 +131,7 @@ namespace Tank::Map
         try
         {
             if (!WriteManifest(m_folder, m_currentJson, true, error)) return false;
+            m_savedManifest = m_manifest;
             m_savedJson = m_currentJson;
             error.clear();
             return true;
@@ -148,5 +150,12 @@ namespace Tank::Map
         m_manifest = manifest;
         m_currentJson = std::move(serialized);
         return true;
+    }
+
+    void MapFolder::DiscardChanges()
+    {
+        if (!IsOpen()) return;
+        m_manifest = m_savedManifest;
+        m_currentJson = m_savedJson;
     }
 }

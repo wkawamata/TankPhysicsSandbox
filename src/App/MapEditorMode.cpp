@@ -5,6 +5,7 @@
 #include "Platform/Windows/MapFolderPicker.h"
 #include <algorithm>
 #include <imgui.h>
+#include <imgui_stdlib.h>
 
 void MapEditorMode::RefreshAssets()
 {
@@ -51,6 +52,13 @@ bool MapEditorMode::ConsumeApplicationExitApproval()
     const bool approved = m_applicationExitApproved;
     m_applicationExitApproved = false;
     return approved;
+}
+
+std::optional<std::filesystem::path> MapEditorMode::ConsumeClosedMapFolder()
+{
+    std::optional<std::filesystem::path> folder = std::move(m_closedMapFolder);
+    m_closedMapFolder.reset();
+    return folder;
 }
 
 bool MapEditorMode::AddSelectedModel()
@@ -147,6 +155,74 @@ bool MapEditorMode::DuplicateSelectedInstance()
     return true;
 }
 
+bool MapEditorMode::UpdatePlayerSpawn(const Tank::Map::Transform& transform)
+{
+    Tank::Map::Manifest updated = m_map.Document();
+    updated.playerSpawn = transform;
+    std::string error;
+    if (!m_map.SetManifest(updated, error))
+    {
+        m_status = "Could not update player start: " + error;
+        return false;
+    }
+    m_sceneReloadRequested = true;
+    return true;
+}
+
+bool MapEditorMode::AddClearArea()
+{
+    Tank::Map::Manifest updated = m_map.Document();
+    const std::string id = Tank::Map::AddClearArea(updated);
+    std::string error;
+    if (!m_map.SetManifest(updated, error))
+    {
+        m_status = "Could not add clear area: " + error;
+        return false;
+    }
+    m_selectedClearAreaId = id;
+    m_sceneReloadRequested = true;
+    m_status = "Added clear area. Save to write Manifest.json.";
+    return true;
+}
+
+bool MapEditorMode::UpdateSelectedClearArea(const Tank::Map::ClearArea& area)
+{
+    Tank::Map::Manifest updated = m_map.Document();
+    const auto selected = std::find_if(updated.clearAreas.begin(), updated.clearAreas.end(),
+        [this](const Tank::Map::ClearArea& value) { return value.id == m_selectedClearAreaId; });
+    if (selected == updated.clearAreas.end())
+    {
+        m_status = "The selected clear area no longer exists.";
+        m_selectedClearAreaId.clear();
+        return false;
+    }
+    *selected = area;
+    std::string error;
+    if (!m_map.SetManifest(updated, error))
+    {
+        m_status = "Could not update clear area: " + error;
+        return false;
+    }
+    m_sceneReloadRequested = true;
+    return true;
+}
+
+bool MapEditorMode::RemoveSelectedClearArea()
+{
+    Tank::Map::Manifest updated = m_map.Document();
+    if (!Tank::Map::RemoveClearArea(updated, m_selectedClearAreaId)) return false;
+    std::string error;
+    if (!m_map.SetManifest(updated, error))
+    {
+        m_status = "Could not remove clear area: " + error;
+        return false;
+    }
+    m_selectedClearAreaId.clear();
+    m_sceneReloadRequested = true;
+    m_status = "Removed clear area. Save to write Manifest.json.";
+    return true;
+}
+
 bool MapEditorMode::Save()
 {
     std::string error;
@@ -157,6 +233,47 @@ bool MapEditorMode::Save()
     }
     m_status = "Saved Manifest.json";
     return true;
+}
+
+void MapEditorMode::DrawCheatSheet()
+{
+    if (!m_showCheatSheet) return;
+
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(
+        ImVec2(viewport->WorkPos.x + viewport->WorkSize.x - 330.0f, viewport->WorkPos.y + 10.0f),
+        ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(320.0f, 410.0f), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Map Editor Cheat Sheet", &m_showCheatSheet, ImGuiWindowFlags_NoCollapse))
+    {
+        ImGui::SeparatorText("Camera");
+        ImGui::BulletText("Left drag: Orbit");
+        ImGui::BulletText("Middle drag: Pan");
+        ImGui::BulletText("Mouse wheel: Zoom");
+        ImGui::TextWrapped("Move the pointer outside GUI windows before operating the camera.");
+
+        ImGui::SeparatorText("Add a Model");
+        ImGui::BulletText("Open a map folder");
+        ImGui::BulletText("Select a glTF or GLB file");
+        ImGui::BulletText("Inspect Roles");
+        ImGui::BulletText("Add to Map");
+
+        ImGui::SeparatorText("Edit the Map");
+        ImGui::BulletText("Placed Models: position and rotation");
+        ImGui::BulletText("Player Start: chassis-center position and rotation");
+        ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
+        ImGui::BulletText("Clear Areas: goal AABB center and size");
+        ImGui::BulletText("Save: write changes to Manifest.json");
+
+        ImGui::SeparatorText("Preview Markers");
+        ImGui::BulletText("Red / green lines: X / Z axes");
+        ImGui::BulletText("Orange arrow: player start and forward direction");
+        ImGui::BulletText("Cyan wire box: clear area");
+
+        ImGui::SeparatorText("Navigation");
+        ImGui::BulletText("ESC: Back to Menu");
+    }
+    ImGui::End();
 }
 
 bool MapEditorMode::Execute(HWND__* owner)
@@ -170,6 +287,7 @@ bool MapEditorMode::Execute(HWND__* owner)
     }
     if (action == Action::Exit)
     {
+        if (m_map.IsOpen()) m_closedMapFolder = m_map.Folder();
         m_map = {};
         m_status.clear();
         m_assets.clear();
@@ -179,6 +297,7 @@ bool MapEditorMode::Execute(HWND__* owner)
         m_inspectedAsset.clear();
         m_roleError.clear();
         m_selectedInstanceId.clear();
+        m_selectedClearAreaId.clear();
         m_sceneReloadRequested = true;
         return true;
     }
@@ -194,6 +313,7 @@ bool MapEditorMode::Execute(HWND__* owner)
                 m_status = "Opened Manifest.json";
                 m_selectedAsset.clear();
                 m_selectedInstanceId.clear();
+                m_selectedClearAreaId.clear();
                 RefreshAssets();
                 m_sceneReloadRequested = true;
             }
@@ -218,6 +338,8 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
+    ImGui::SameLine();
+    if (ImGui::Button("Cheat Sheet")) m_showCheatSheet = true;
     ImGui::Separator();
     if (!m_map.IsOpen())
     {
@@ -334,8 +456,56 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     m_status = "Transform preview was not updated.";
             }
         }
+
+        ImGui::SeparatorText("Player Start");
+        ImGui::TextWrapped("Position is the tank chassis center. Keep Y above the HitMesh.");
+        Tank::Map::Transform playerSpawn = document.playerSpawn;
+        const bool spawnPositionChanged =
+            ImGui::DragFloat3("Position (m)##PlayerStart", playerSpawn.position.data(), 0.05f);
+        const bool spawnRotationChanged =
+            ImGui::DragFloat3("Rotation (deg)##PlayerStart", playerSpawn.rotationDegrees.data(), 1.0f);
+        if ((spawnPositionChanged || spawnRotationChanged) && !UpdatePlayerSpawn(playerSpawn))
+            m_status = "Player start preview was not updated.";
+
+        ImGui::SeparatorText("Clear Areas");
+        if (ImGui::Button("Add Clear Area")) AddClearArea();
+        if (document.clearAreas.empty())
+        {
+            ImGui::TextUnformatted("No clear areas have been added to this map.");
+        }
+        else
+        {
+            if (ImGui::BeginListBox("##ClearAreas", ImVec2(-1, 80)))
+            {
+                for (size_t index = 0; index < document.clearAreas.size(); ++index)
+                {
+                    const Tank::Map::ClearArea& area = document.clearAreas[index];
+                    ImGui::PushID(static_cast<int>(index));
+                    const std::string label = area.id + "  (" + area.name + ")";
+                    if (ImGui::Selectable(label.c_str(), area.id == m_selectedClearAreaId))
+                        m_selectedClearAreaId = area.id;
+                    ImGui::PopID();
+                }
+                ImGui::EndListBox();
+            }
+            const auto selected = std::find_if(document.clearAreas.begin(), document.clearAreas.end(),
+                [this](const Tank::Map::ClearArea& area) { return area.id == m_selectedClearAreaId; });
+            if (selected != document.clearAreas.end())
+            {
+                Tank::Map::ClearArea area = *selected;
+                bool areaChanged = ImGui::InputText("Name##ClearArea", &area.name);
+                areaChanged |= ImGui::DragFloat3(
+                    "Center (m)##ClearArea", area.center.data(), 0.05f);
+                areaChanged |= ImGui::DragFloat3(
+                    "Size (m)##ClearArea", area.size.data(), 0.05f, 0.01f, 10000.0f);
+                if (areaChanged && !UpdateSelectedClearArea(area))
+                    m_status = "Clear area preview was not updated.";
+                if (ImGui::Button("Remove Clear Area")) RemoveSelectedClearArea();
+            }
+        }
     }
     if (!m_status.empty()) ImGui::TextWrapped("%s", m_status.c_str());
+    ImGui::TextUnformatted("Camera: left drag orbit, middle drag pan, wheel zoom");
     ImGui::TextUnformatted("ESC: Back to Menu");
 
     if (m_confirm) ImGui::OpenPopup("Unsaved map changes");
@@ -350,6 +520,8 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         ImGui::SameLine();
         if (ImGui::Button("Discard"))
         {
+            m_map.DiscardChanges();
+            m_sceneReloadRequested = true;
             m_confirm = false;
             ImGui::CloseCurrentPopup();
         }
@@ -364,5 +536,6 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         ImGui::EndPopup();
     }
     ImGui::End();
+    DrawCheatSheet();
     return !m_confirm && m_pending != Action::None ? Execute(owner) : false;
 }

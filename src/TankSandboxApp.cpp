@@ -1,5 +1,7 @@
 #include "TankSandboxApp.h"
 #include "Input/TankInputMapper.h"
+#include "Map/MapManifest.h"
+#include "App/MapFolderRegistryStore.h"
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
@@ -117,6 +119,24 @@ namespace
             error = path.filename().string() + ": " + error;
             return false;
         }
+        return true;
+    }
+
+    bool LoadManifestDocument(
+        const std::filesystem::path& folder,
+        Tank::Map::Manifest& document,
+        std::string& error)
+    {
+        std::ifstream input(folder / "Manifest.json", std::ios::binary);
+        if (!input)
+        {
+            error = "Manifest.json cannot be opened";
+            return false;
+        }
+        const std::string json((std::istreambuf_iterator<char>(input)),
+            std::istreambuf_iterator<char>());
+        if (!Tank::Map::DeserializeManifest(json, document, error))
+            return false;
         return true;
     }
 }
@@ -292,6 +312,8 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.driverInput = &m_trackedVehicleMode.Test().DriverInput();
     m_trackedVehiclePanelCtx.activeMapName = &m_trackedVehicleMode.ActiveMapName();
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
+    m_trackedVehiclePanelCtx.mapHitMeshOverlay = &m_trackedVehicleMode.MapHitMeshOverlay();
+    m_trackedVehiclePanelCtx.mapMarkersVisible = &m_trackedVehicleMode.MapMarkersVisible();
     m_trackedVehiclePanelCtx.trackShoeDisplay = &m_trackedVehicleMode.TrackShoeDisplay();
     m_trackedVehiclePanelCtx.showTrackProxies = &m_trackedVehicleMode.ShowTrackProxies();
     m_trackedVehiclePanelCtx.showDummyModel = &m_trackedVehicleMode.ShowDummyModel();
@@ -484,6 +506,10 @@ bool TankSandboxApp::EnsureDebugCameraForMouse()
     if (camera == nullptr)
     {
         return false;
+    }
+    if (m_appMode == AppMode::MapEditor)
+    {
+        return true;
     }
     if (m_cameraController.IsDebugSlot())
     {
@@ -1009,6 +1035,11 @@ void TankSandboxApp::DrawToolUi()
             { return m_mapEditorScenePresenter.ValidateVisualAsset(path, roles, error); });
         if (m_mapEditorMode.DrawUi(Win32Application::GetHwnd()))
         {
+            if (const std::optional<std::filesystem::path> folder =
+                    m_mapEditorMode.ConsumeClosedMapFolder())
+            {
+                RegisterManifestMapFolder(*folder);
+            }
             m_mapEditorScenePresenter.Clear();
             m_sceneRenderer.SetScene(Engine::Scene{});
             m_appMode = AppMode::TopMenu;
@@ -1064,6 +1095,12 @@ void TankSandboxApp::DrawToolUi()
             m_trackedVehiclePanelCtx.analogRoll = m_trackedVehicleMode.AnalogRoll();
             m_trackedVehiclePanelCtx.analogTracksConnected = m_trackedVehicleMode.AnalogTracksConnected();
             m_trackedVehiclePanelCtx.analogTracksArmed = m_trackedVehicleMode.AnalogTracksArmed();
+            m_trackedVehiclePanelCtx.manifestMapActive = m_trackedVehicleMode.HasManifestMap();
+            m_trackedVehiclePanelCtx.manifestMapHasClearAreas =
+                m_trackedVehicleMode.HasClearAreas();
+            m_trackedVehiclePanelCtx.mapCleared = m_trackedVehicleMode.MapCleared();
+            m_trackedVehiclePanelCtx.clearedAreaName =
+                &m_trackedVehicleMode.ClearedAreaName();
             Ui::DrawTrackedVehiclePanel(m_trackedVehiclePanelCtx);
         }
         break;
@@ -1078,6 +1115,7 @@ void TankSandboxApp::DrawTopMenuUi()
         ClearVehicleInputState();
         m_sceneRenderer.SetScene(Engine::Scene{});
         m_appMode = AppMode::MapEditor;
+        ActivateOrbitCamera(m_mapEditorScenePresenter.GetScene(), { 0.0f, 0.0f, 0.0f });
     }
     ImGui::Separator();
     ImGui::Text("Physics Test Scenes");
@@ -1090,11 +1128,12 @@ void TankSandboxApp::DrawTopMenuUi()
     for (const Tank::Physics::MapDefinition& map :
          Tank::Physics::GetMapDefinitions())
     {
-        const bool selected = !m_selectedCustomMap && m_selectedMap == map.id;
+        const bool selected = !m_selectedCustomMap && !m_selectedManifestMap && m_selectedMap == map.id;
         if (ImGui::RadioButton(map.name, selected))
         {
             m_selectedMap = map.id;
             m_selectedCustomMap.reset();
+            m_selectedManifestMap.reset();
         }
     }
     for (size_t index = 0; index < m_customMaps.size(); ++index)
@@ -1104,8 +1143,26 @@ void TankSandboxApp::DrawTopMenuUi()
         if (ImGui::RadioButton(m_customMaps[index].document.name.c_str(), selected))
         {
             m_selectedCustomMap = index;
+            m_selectedManifestMap.reset();
         }
         ImGui::PopID();
+    }
+    for (size_t index = 0; index < m_manifestMaps.size(); ++index)
+    {
+        ImGui::PushID(static_cast<int>(m_customMaps.size() + index));
+        const bool selected = m_selectedManifestMap == index;
+        const std::string label = m_manifestMaps[index].folder.filename().string() + " (Manifest)";
+        if (ImGui::RadioButton(label.c_str(), selected))
+        {
+            m_selectedManifestMap = index;
+            m_selectedCustomMap.reset();
+        }
+        ImGui::PopID();
+    }
+    if (m_selectedManifestMap && *m_selectedManifestMap < m_manifestMaps.size())
+    {
+        const std::string folder = m_manifestMaps[*m_selectedManifestMap].folder.string();
+        ImGui::TextWrapped("Map folder: %s", folder.c_str());
     }
     if (ImGui::Button("Reload Map Files"))
     {
@@ -1117,7 +1174,18 @@ void TankSandboxApp::DrawTopMenuUi()
     }
     if (ImGui::Button("Start Tracked Vehicle"))
     {
-        if (m_selectedCustomMap && *m_selectedCustomMap < m_customMaps.size())
+        bool canStart = true;
+        if (m_selectedManifestMap && *m_selectedManifestMap < m_manifestMaps.size())
+        {
+            const ManifestMapEntry& map = m_manifestMaps[*m_selectedManifestMap];
+            std::string error;
+            if (!m_trackedVehicleMode.SelectManifestMap(map.folder, map.document, error))
+            {
+                m_customMapStatus = "Manifest map load failed: " + error;
+                canStart = false;
+            }
+        }
+        else if (m_selectedCustomMap && *m_selectedCustomMap < m_customMaps.size())
         {
             m_trackedVehicleMode.SelectCustomMap(
                 m_customMaps[*m_selectedCustomMap].document);
@@ -1126,7 +1194,7 @@ void TankSandboxApp::DrawTopMenuUi()
         {
             m_trackedVehicleMode.SelectMap(m_selectedMap);
         }
-        EnterTrackedVehicleMode();
+        if (canStart) EnterTrackedVehicleMode();
     }
     ImGui::End();
 }
@@ -1134,7 +1202,9 @@ void TankSandboxApp::DrawTopMenuUi()
 void TankSandboxApp::ReloadCustomMaps()
 {
     m_customMaps.clear();
+    m_manifestMaps.clear();
     m_selectedCustomMap.reset();
+    m_selectedManifestMap.reset();
     const std::filesystem::path mapsDirectory = ResolveMapsDirectory();
     std::error_code errorCode;
     if (!std::filesystem::exists(mapsDirectory, errorCode))
@@ -1160,6 +1230,47 @@ void TankSandboxApp::ReloadCustomMaps()
         }
         m_customMaps.push_back({ entry.path().filename().string(), std::move(document) });
     }
+    errorCode.clear();
+    for (const std::filesystem::directory_entry& entry :
+         std::filesystem::directory_iterator(mapsDirectory, errorCode))
+    {
+        if (errorCode || !entry.is_directory()) continue;
+        Tank::Map::Manifest document;
+        std::string error;
+        if (!LoadManifestDocument(entry.path(), document, error))
+        {
+            if (std::filesystem::exists(entry.path() / "Manifest.json")) ++rejectedCount;
+            continue;
+        }
+        m_manifestMaps.push_back({ entry.path(), std::move(document) });
+    }
+
+    size_t registeredCount = 0;
+    std::vector<std::filesystem::path> registeredFolders;
+    std::string registryStatus;
+    Tank::App::MapFolderRegistryStore registry(ResolveRuntimePath("Config"));
+    if (registry.Read(registeredFolders, registryStatus))
+    {
+        for (const std::filesystem::path& registeredFolder : registeredFolders)
+        {
+            const std::filesystem::path normalized =
+                std::filesystem::absolute(registeredFolder).lexically_normal();
+            Tank::Map::Manifest document;
+            std::string error;
+            if (!LoadManifestDocument(normalized, document, error))
+            {
+                ++rejectedCount;
+                continue;
+            }
+            const std::wstring folderName = normalized.filename().wstring();
+            m_manifestMaps.erase(std::remove_if(m_manifestMaps.begin(), m_manifestMaps.end(),
+                [&folderName](const ManifestMapEntry& entry)
+                { return _wcsicmp(entry.folder.filename().c_str(), folderName.c_str()) == 0; }),
+                m_manifestMaps.end());
+            m_manifestMaps.push_back({ normalized, std::move(document) });
+            ++registeredCount;
+        }
+    }
     std::sort(
         m_customMaps.begin(),
         m_customMaps.end(),
@@ -1167,11 +1278,61 @@ void TankSandboxApp::ReloadCustomMaps()
         {
             return left.fileName < right.fileName;
         });
-    m_customMapStatus = std::to_string(m_customMaps.size()) + " map file(s) loaded";
+    std::sort(m_manifestMaps.begin(), m_manifestMaps.end(),
+        [](const ManifestMapEntry& left, const ManifestMapEntry& right)
+        { return left.folder.filename().wstring() < right.folder.filename().wstring(); });
+    m_customMapStatus = std::to_string(m_customMaps.size()) + " physics map file(s), " +
+        std::to_string(m_manifestMaps.size()) + " Manifest map(s) loaded, " +
+        std::to_string(registeredCount) + " registered folder(s)";
     if (rejectedCount > 0)
     {
         m_customMapStatus += ", " + std::to_string(rejectedCount) + " rejected";
     }
+}
+
+bool TankSandboxApp::RegisterManifestMapFolder(const std::filesystem::path& folder)
+{
+    const std::filesystem::path normalized = std::filesystem::absolute(folder).lexically_normal();
+    Tank::Map::Manifest document;
+    std::string error;
+    if (!LoadManifestDocument(normalized, document, error))
+    {
+        m_customMapStatus = "Cannot register map folder: " + error;
+        return false;
+    }
+
+    const std::wstring folderName = normalized.filename().wstring();
+    m_manifestMaps.erase(std::remove_if(m_manifestMaps.begin(), m_manifestMaps.end(),
+        [&folderName](const ManifestMapEntry& entry)
+        { return _wcsicmp(entry.folder.filename().c_str(), folderName.c_str()) == 0; }),
+        m_manifestMaps.end());
+    m_manifestMaps.push_back({ normalized, std::move(document) });
+    std::sort(m_manifestMaps.begin(), m_manifestMaps.end(),
+        [](const ManifestMapEntry& left, const ManifestMapEntry& right)
+        { return left.folder.filename().wstring() < right.folder.filename().wstring(); });
+    const auto selected = std::find_if(m_manifestMaps.begin(), m_manifestMaps.end(),
+        [&normalized](const ManifestMapEntry& entry)
+        { return entry.folder == normalized; });
+    m_selectedManifestMap = static_cast<size_t>(std::distance(m_manifestMaps.begin(), selected));
+    m_selectedCustomMap.reset();
+
+    Tank::App::MapFolderRegistryStore registry(ResolveRuntimePath("Config"));
+    std::vector<std::filesystem::path> registeredFolders;
+    std::string registryStatus;
+    if (!registry.Read(registeredFolders, registryStatus)) registeredFolders.clear();
+    const auto alreadyRegistered = std::find_if(registeredFolders.begin(), registeredFolders.end(),
+        [&normalized](const std::filesystem::path& value)
+        {
+            const std::filesystem::path candidate =
+                std::filesystem::absolute(value).lexically_normal();
+            return _wcsicmp(candidate.c_str(), normalized.c_str()) == 0;
+        });
+    if (alreadyRegistered == registeredFolders.end()) registeredFolders.push_back(normalized);
+    if (registry.Write(registeredFolders, registryStatus))
+        m_customMapStatus = "Selected and registered Manifest map: " + normalized.string();
+    else
+        m_customMapStatus = "Selected Manifest map, but registration was not saved: " + registryStatus;
+    return true;
 }
 
 bool TankSandboxApp::LoadAutoMap()
@@ -1202,7 +1363,12 @@ void TankSandboxApp::EnterBoxDropMode()
 void TankSandboxApp::EnterTrackedVehicleMode()
 {
     ClearVehicleInputState();
-    m_trackedVehicleMode.Enter(m_sceneRenderer);
+    if (!m_trackedVehicleMode.Enter(m_sceneRenderer))
+    {
+        m_customMapStatus = m_trackedVehicleMode.MapLoadStatus();
+        m_appMode = AppMode::TopMenu;
+        return;
+    }
     ActivateOrbitCamera(m_trackedVehicleMode.GetScene(), { 0.0f, 0.8f, 0.0f });
     m_appMode = AppMode::PhysicsTrackedVehicle;
     if (m_cameraController.AutoLoad())

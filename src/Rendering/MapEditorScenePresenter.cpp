@@ -1,6 +1,7 @@
 #include "MapEditorScenePresenter.h"
 
 #include "Map/GltfRoles.h"
+#include "MapVisualLoader.h"
 
 #include <DirectXMath.h>
 
@@ -12,16 +13,6 @@ namespace
         return { value.begin(), value.end() };
     }
 
-    DirectX::XMMATRIX ToWorld(const Tank::Map::Transform& transform)
-    {
-        using namespace DirectX;
-        constexpr float degreesToRadians = XM_PI / 180.0f;
-        return XMMatrixRotationRollPitchYaw(
-                   transform.rotationDegrees[0] * degreesToRadians,
-                   transform.rotationDegrees[1] * degreesToRadians,
-                   transform.rotationDegrees[2] * degreesToRadians) *
-            XMMatrixTranslation(transform.position[0], transform.position[1], transform.position[2]);
-    }
 }
 
 bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
@@ -33,6 +24,8 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
     const uint32_t gridMaterial = next->AddSolidColorMaterial(100, 150, 185, 255);
     const uint32_t xAxisMaterial = next->AddSolidColorMaterial(210, 85, 85, 255);
     const uint32_t zAxisMaterial = next->AddSolidColorMaterial(85, 190, 105, 255);
+    const uint32_t spawnMaterial = next->AddSolidColorMaterial(255, 190, 35, 255);
+    const uint32_t clearAreaMaterial = next->AddSolidColorMaterial(35, 225, 235, 255);
     const Engine::SceneMeshId gridMesh = next->AddCube(1.0f);
     const float extent = grid.spacingMeters * static_cast<float>(grid.halfCellCount);
     for (int cell = -grid.halfCellCount; cell <= grid.halfCellCount; ++cell)
@@ -47,36 +40,10 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
             DirectX::XMMatrixScaling(grid.lineWidthMeters, grid.lineWidthMeters, extent * 2.0f) *
                 DirectX::XMMatrixTranslation(offset, -grid.lineWidthMeters * 0.5f, 0.0f), xAxisLineMaterial);
     }
-    for (const Map::Instance& instance : manifest.instances)
-    {
-        const std::u8string assetUtf8(instance.asset.begin(), instance.asset.end());
-        const std::filesystem::path assetPath = mapFolder / std::filesystem::path(assetUtf8);
-        Map::GltfRoles roles;
-        std::string loadError;
-        if (!Map::InspectGltfRoles(assetPath, roles, loadError))
-        {
-            error = "Cannot read '" + instance.asset + "': " + loadError;
-            return false;
-        }
-        const Engine::GltfSceneAssetLoadResult asset = Engine::LoadGltfSceneAsset(ToUtf8(assetPath));
-        if (!asset)
-        {
-            error = "Cannot load '" + instance.asset + "': " + asset.message;
-            return false;
-        }
-        for (const Map::RoleMeshNode& node : roles.meshNodes)
-        {
-            if (node.role != Map::MeshRole::Visual)
-                continue;
-            const Engine::GltfNodeMeshAddResult add = next->AddGltfNodeMesh(asset.asset, static_cast<uint32_t>(node.nodeIndex));
-            if (!add)
-            {
-                error = "Cannot load Visual node from '" + instance.asset + "': " + add.message;
-                return false;
-            }
-            next->AddInstance(*add.meshId, ToWorld(instance.transform), fallbackMaterial);
-        }
-    }
+    if (!AppendMapVisuals(*next, mapFolder, manifest, fallbackMaterial, error)) return false;
+    std::vector<size_t> markerInstances;
+    AppendMapMarkers(*next, gridMesh, manifest, spawnMaterial,
+        clearAreaMaterial, markerInstances);
     next->GetScene().camera.pos = { 8.0f, 6.0f, -8.0f };
     next->GetScene().camera.gazePoint = { 0.0f, 0.0f, 0.0f };
     m_builder = std::move(next);

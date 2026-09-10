@@ -29,6 +29,7 @@
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/MapDefinition.h"
 #include "Physics/MapDefinitionJson.h"
+#include "Map/MapManifest.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
@@ -84,6 +85,7 @@ private:
     bool LoadCameraSettings();
     void DrawTopMenuUi();
     void ReloadCustomMaps();
+    bool RegisterManifestMapFolder(const std::filesystem::path& folder);
     bool LoadAutoMap();
     void EnterTrackedVehicleMode();
     void EnterBoxDropMode();
@@ -117,6 +119,13 @@ private:
     };
     std::vector<CustomMapEntry> m_customMaps;
     std::optional<size_t> m_selectedCustomMap;
+    struct ManifestMapEntry
+    {
+        std::filesystem::path folder;
+        Tank::Map::Manifest document;
+    };
+    std::vector<ManifestMapEntry> m_manifestMaps;
+    std::optional<size_t> m_selectedManifestMap;
     std::string m_customMapStatus;
 
     // Mode state

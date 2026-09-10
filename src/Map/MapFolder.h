@@ -13,6 +13,7 @@ namespace Tank::Map
         bool Open(const std::filesystem::path& folder, std::string& error);
         bool Save(std::string& error);
         bool SetManifest(const Manifest& manifest, std::string& error);
+        void DiscardChanges();
 
         bool IsOpen() const { return !m_folder.empty(); }
         bool IsDirty() const { return m_currentJson != m_savedJson; }
@@ -22,6 +23,7 @@ namespace Tank::Map
     private:
         std::filesystem::path m_folder;
         Manifest m_manifest;
+        Manifest m_savedManifest;
         std::string m_currentJson;
         std::string m_savedJson;
     };

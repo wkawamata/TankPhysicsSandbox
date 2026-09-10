@@ -35,6 +35,16 @@ int main()
         Check(RemoveInstance(manifest, "instance-1"), "Existing instance should be removable");
         Check(!RemoveInstance(manifest, "instance-1"), "Removed instance should no longer exist");
         Check(manifest.instances.size() == 2, "Only the selected instance should be removed");
+
+        manifest.instances.push_back({ "clear-area-1", "Models/C.gltf", {} });
+        Check(MakeUniqueClearAreaId(manifest) == "clear-area-2",
+            "Clear area IDs must skip IDs used by model instances");
+        const std::string areaId = AddClearArea(manifest);
+        Check(areaId == "clear-area-2" && manifest.clearAreas.back().name == "Clear Area" &&
+            manifest.clearAreas.back().size == std::array<float, 3>({ 1.0f, 1.0f, 1.0f }),
+            "A new clear area should have editable defaults");
+        Check(RemoveClearArea(manifest, areaId), "Existing clear area should be removable");
+        Check(!RemoveClearArea(manifest, areaId), "Removed clear area should no longer exist");
         std::cout << "Map editing tests passed\n";
         return 0;
     }
