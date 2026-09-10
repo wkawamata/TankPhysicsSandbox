@@ -349,6 +349,16 @@ namespace Ui
 		ImGui::TextWrapped("%s", japanese
 			? "ローリング挙動の調整値です。値を変更した後は Reset Tank / Apply を押してください。"
 			: "Rolling behavior tuning. Press Reset Tank / Apply after changing a value.");
+		ImGui::TextUnformatted(japanese ? "設定値の色" : "Setting value colors");
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+		ImGui::TextUnformatted(japanese ? "白: 現在値はSave済みの値と同じ。" : "White: current value matches the saved value.");
+		ImGui::PopStyleColor();
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.25f, 0.80f, 1.0f, 1.0f));
+		ImGui::TextUnformatted(japanese ? "水色: 現在適用済みだが未保存。Saveしない場合は揮発する。" : "Cyan: applied now but not saved; it is volatile until saved.");
+		ImGui::PopStyleColor();
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+		ImGui::TextUnformatted(japanese ? "オレンジ: 編集中で、Reset Tank / Applyが必要。" : "Orange: edited and awaiting Reset Tank / Apply.");
+		ImGui::PopStyleColor();
 		if (ImGui::Button("Reset Tank / Apply##RollingCheat"))
 		{
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
