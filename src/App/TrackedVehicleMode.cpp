@@ -43,6 +43,8 @@ namespace
         default:
             return "None";
         }
+    }
+
     Tank::Physics::MapSpawn ManifestSpawn(const Tank::Map::Manifest& manifest)
     {
         constexpr float degreesToRadians = 3.14159265358979323846f / 180.0f;
