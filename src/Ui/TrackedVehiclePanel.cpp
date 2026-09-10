@@ -847,6 +847,12 @@ namespace Ui
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
 		ImGui::SameLine();
+		if (ctx.rollingCheatWindowVisible != nullptr &&
+			ImGui::Button("Open Rolling CheatWindow##RollingParameters"))
+		{
+			*ctx.rollingCheatWindowVisible = true;
+		}
+		ImGui::SameLine();
 		ImGui::TextDisabled("Apply rolling parameter changes");
 		ImGui::Separator();
 
