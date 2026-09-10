@@ -970,6 +970,38 @@ namespace Ui
 		}
 		if (ImGui::CollapsingHeader("Rolling Parameters"))
 		{
+		if (ctx.rollingProfileSlot != nullptr)
+		{
+			ImGui::TextUnformatted("Rolling Profile Slot");
+			for (int slot = 0; slot < 3; ++slot)
+			{
+				const std::string label = "Slot " + std::to_string(slot + 1) + "##RollingProfile";
+				if (slot != 0) ImGui::SameLine();
+				if (ImGui::RadioButton(label.c_str(), *ctx.rollingProfileSlot == slot))
+				{
+					*ctx.rollingProfileSlot = slot;
+				}
+			}
+		}
+		if (ctx.saveRollingProfile != nullptr && ImGui::Button("Save Rolling Profile"))
+		{
+			ctx.saveRollingProfile();
+		}
+		ImGui::SameLine();
+		if (ctx.loadRollingProfile != nullptr && ImGui::Button("Load Rolling Profile"))
+		{
+			ctx.loadRollingProfile();
+		}
+		ImGui::SameLine();
+		if (ctx.loadAndApplyRollingProfile != nullptr && ImGui::Button("Load && Apply Rolling Profile"))
+		{
+			ctx.loadAndApplyRollingProfile();
+		}
+		if (ctx.rollingProfileStatus != nullptr && !ctx.rollingProfileStatus->empty())
+		{
+			ImGui::TextWrapped("%s", ctx.rollingProfileStatus->c_str());
+		}
+		ImGui::Separator();
 		if (ImGui::Button("Reset Tank##RollingParameters"))
 		{
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();

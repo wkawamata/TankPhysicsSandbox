@@ -61,10 +61,12 @@ namespace Ui
         bool* rollingCheatWindowVisible = nullptr;
         bool* rollingCheatWindowJapanese = nullptr;
         int* tankSettingsSlot = nullptr;
+        int* rollingProfileSlot = nullptr;
         bool* tankSettingsAutoLoad = nullptr;
         bool* tankVisualSettingsAutoLoad = nullptr;
         bool* tankVisualMaterialApplyPending = nullptr;
         std::string* tankSettingsStatus = nullptr;
+        std::string* rollingProfileStatus = nullptr;
         const std::string* inputMappingStatus = nullptr;
         std::string* tankVisualSettingsStatus = nullptr;
         std::string* envSettingsStatus = nullptr;
@@ -85,9 +87,12 @@ namespace Ui
         std::function<void()> fireRecoil;
         std::function<void()> applyMaterials;
         std::function<void()> saveTankSettings;
+        std::function<void()> saveRollingProfile;
         std::function<void()> saveInputMappingSettings;
         std::function<void()> loadInputMappingSettings;
         std::function<void()> loadTankSettings;
+        std::function<void()> loadRollingProfile;
+        std::function<void()> loadAndApplyRollingProfile;
         std::function<void()> saveTankVisualSettings;
         std::function<void()> loadTankVisualSettings;
         std::function<void()> saveEnvSettings;

@@ -83,6 +83,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/RollingRecoveryController.h
     src/Physics/RollingSafetyCoordinator.cpp
     src/Physics/RollingSafetyCoordinator.h
+    src/Physics/RollingProfile.cpp
+    src/Physics/RollingProfile.h
     src/Physics/MortarAimController.cpp
     src/Physics/MortarAimController.h
     src/Physics/MortarAimIntegration.cpp
@@ -190,6 +192,8 @@ add_executable(TankSandbox
     src/App/CameraSettingsStore.h
     src/App/TankSettingsStore.cpp
     src/App/TankSettingsStore.h
+    src/App/RollingProfileStore.cpp
+    src/App/RollingProfileStore.h
     src/App/TankVisualSettingsStore.cpp
     src/App/TankVisualSettingsStore.h
     src/App/TrackedVehicleMode.cpp
@@ -258,6 +262,7 @@ target_link_libraries(TankSandbox
 target_compile_definitions(TankSandbox
     PRIVATE
         WIN32 _WINDOWS _UNICODE UNICODE
+        TANK_SOURCE_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Config"
 )
 
 if(MSVC)
@@ -422,6 +427,13 @@ if(BUILD_TESTING)
     target_include_directories(TankSettingsStoreTests PRIVATE src)
     target_link_libraries(TankSettingsStoreTests PRIVATE TankPhysicsCore nlohmann_json::nlohmann_json)
 
+    add_executable(RollingProfileStoreTests
+        src/App/RollingProfileStore.cpp
+        tests/RollingProfileStoreTests.cpp
+    )
+    target_include_directories(RollingProfileStoreTests PRIVATE src)
+    target_link_libraries(RollingProfileStoreTests PRIVATE TankPhysicsCore nlohmann_json::nlohmann_json)
+
     add_executable(TankVisualSettingsStoreTests
         src/App/TankVisualSettingsStore.cpp
         src/Rendering/TankVisualSettingsJson.cpp
@@ -441,6 +453,10 @@ if(BUILD_TESTING)
     add_test(
         NAME TankApp.TankSettingsStore
         COMMAND TankSettingsStoreTests
+    )
+    add_test(
+        NAME TankApp.RollingProfileStore
+        COMMAND RollingProfileStoreTests
     )
     add_test(
         NAME TankApp.TankVisualSettingsStore
