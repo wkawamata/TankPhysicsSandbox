@@ -3,6 +3,7 @@
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
+#include "imgui_impl_dx12.h"
 
 #include <Camera/DebugCameraController.h>
 #include <Engine/Rhi/Dx12/GraphicsDevice.h>
@@ -400,6 +401,8 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.trackedVehicleSingleStep = &m_trackedVehicleMode.SingleStep();
     m_trackedVehiclePanelCtx.rollingCheatWindowVisible =
         &m_trackedVehicleMode.RollingCheatWindowVisible();
+    m_trackedVehiclePanelCtx.rollingCheatWindowJapanese =
+        &m_trackedVehicleMode.RollingCheatWindowJapanese();
     m_trackedVehiclePanelCtx.tankSettingsSlot = &m_trackedVehicleMode.TankSettingsSlot();
     m_trackedVehiclePanelCtx.tankSettingsAutoLoad = &m_trackedVehicleMode.TankSettingsAutoLoad();
     m_trackedVehiclePanelCtx.tankVisualSettingsAutoLoad = &m_trackedVehicleMode.TankVisualSettingsAutoLoad();
@@ -1059,6 +1062,34 @@ void TankSandboxApp::InitializeImGui()
         m_imguiHeap.Get(),
         2,
         kSwapChainFormat);
+
+    // The sandbox's tuning help offers Japanese and English text. Prefer the
+    // Windows Japanese UI font when available, while retaining ImGui's
+    // default font as a fallback on systems where it is not installed.
+    wchar_t windowsDirectory[MAX_PATH] = {};
+    if (GetWindowsDirectoryW(windowsDirectory, MAX_PATH) > 0)
+    {
+        const std::filesystem::path japaneseFontPath =
+            std::filesystem::path(windowsDirectory) / "Fonts" / "meiryo.ttc";
+        if (std::filesystem::exists(japaneseFontPath))
+        {
+            ImGuiIO& io = ImGui::GetIO();
+            ImFontConfig fontConfig = {};
+            fontConfig.OversampleH = 1;
+            fontConfig.OversampleV = 1;
+            ImFont* japaneseFont = io.Fonts->AddFontFromFileTTF(
+                japaneseFontPath.string().c_str(),
+                18.0f,
+                &fontConfig,
+                io.Fonts->GetGlyphRangesJapanese());
+            if (japaneseFont != nullptr)
+            {
+                io.FontDefault = japaneseFont;
+                ImGui_ImplDX12_InvalidateDeviceObjects();
+                ImGui_ImplDX12_CreateDeviceObjects();
+            }
+        }
+    }
 }
 
 void TankSandboxApp::UpdateUiFrame()

@@ -72,6 +72,7 @@ public:
     bool& Paused() { return m_paused; }
     bool& SingleStep() { return m_singleStep; }
     bool& RollingCheatWindowVisible() { return m_rollingCheatWindowVisible; }
+    bool& RollingCheatWindowJapanese() { return m_rollingCheatWindowJapanese; }
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
     bool& TrackShoeDisplay() { return m_visualSettings.showDummyTrackShoes; }
     bool& ShowTrackProxies() { return m_showTrackProxies; }
@@ -140,6 +141,7 @@ private:
     bool m_paused = false;
     bool m_singleStep = false;
     bool m_rollingCheatWindowVisible = false;
+    bool m_rollingCheatWindowJapanese = true;
     bool m_showTrackProxies = false;
     bool m_showGltfBody = true;
     bool m_showGltfCannon = true;

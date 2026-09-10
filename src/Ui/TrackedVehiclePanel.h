@@ -53,6 +53,7 @@ namespace Ui
         bool* trackedVehiclePaused = nullptr;
         bool* trackedVehicleSingleStep = nullptr;
         bool* rollingCheatWindowVisible = nullptr;
+        bool* rollingCheatWindowJapanese = nullptr;
         int* tankSettingsSlot = nullptr;
         bool* tankSettingsAutoLoad = nullptr;
         bool* tankVisualSettingsAutoLoad = nullptr;

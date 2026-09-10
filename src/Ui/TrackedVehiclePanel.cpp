@@ -324,24 +324,86 @@ namespace Ui
 			return;
 		}
 
-		ImGui::SetNextWindowSize(ImVec2(420.0f, 330.0f), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(520.0f, 620.0f), ImGuiCond_FirstUseEver);
 		if (!ImGui::Begin("CheatWindow: Rolling", ctx.rollingCheatWindowVisible))
 		{
 			ImGui::End();
 			return;
 		}
-		ImGui::TextUnformatted("Development-only post-90 degree roll tuning.");
+		bool japanese = ctx.rollingCheatWindowJapanese != nullptr &&
+			*ctx.rollingCheatWindowJapanese;
+		if (ImGui::Button("日本語##RollingCheatLanguage"))
+		{
+			japanese = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("English##RollingCheatLanguage"))
+		{
+			japanese = false;
+		}
+		if (ctx.rollingCheatWindowJapanese != nullptr)
+		{
+			*ctx.rollingCheatWindowJapanese = japanese;
+		}
+
+		ImGui::TextWrapped("%s", japanese
+			? "ローリング挙動の調整値です。値を変更した後は Reset Tank / Apply を押してください。"
+			: "Rolling behavior tuning. Press Reset Tank / Apply after changing a value.");
 		if (ImGui::Button("Reset Tank / Apply##RollingCheat"))
 		{
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
 		ImGui::Separator();
-		if (ctx.rollingCheatWindowVisible != nullptr &&
-			ImGui::Button(*ctx.rollingCheatWindowVisible
-				? "Rolling CheatWindow: ON"
-				: "Rolling CheatWindow: OFF"))
+
+		auto description = [japanese](const char* english, const char* japaneseText)
 		{
-			*ctx.rollingCheatWindowVisible = !*ctx.rollingCheatWindowVisible;
+			ImGui::TextWrapped("%s", japanese ? japaneseText : english);
+		};
+
+		if (ImGui::CollapsingHeader(japanese ? "開始と折り返し判断" : "Start and return decision", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			description(
+				"Rolling Input: enables paired-lever rolling. A new roll always requires a fresh lever action after neutral.",
+				"Rolling Input：左右レバーを同方向へ倒したローリング入力を有効にします。次のロールには、必ず一度中立へ戻してから新たに入力します。");
+			description(
+				"Roll Torque: primary torque from the start through the approach angle. Higher values make the initial rise faster.",
+				"Roll Torque：開始から Approach Start Angle までの主トルクです。高くすると初動から立ち上がりまでが速くなります。");
+			description(
+				"Return Decision Angle: reverse paired levers are accepted at this angle or later and select ReturnToStart. Default: 75 deg.",
+				"Return Decision Angle：この角度以降で逆向きの両レバーを受け付け、ReturnToStart を選択します。既定値は75度です。");
+		}
+		if (ImGui::CollapsingHeader(japanese ? "90度へ近づく区間" : "Approach to 90 degrees", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			description(
+				"Approach Start Angle: begins approach damping. Use it to choose where the rise starts to soften before the decision point.",
+				"Approach Start Angle：この角度から減衰を開始します。判断点の前で立ち上がりをどこから穏やかにするかを決めます。");
+			description(
+				"Approach Damping: opposes roll angular velocity from the approach angle to 90 degrees. Higher values reduce overshoot.",
+				"Approach Damping：開始角から90度まで、ロール角速度へ逆らう減衰です。高くすると行き過ぎを抑えます。");
+			description(
+				"Commit Torque: short extra torque after the 90-degree decision. It makes the selected forward fall or return decisive.",
+				"Commit Torque：90度で判断した直後に短時間だけ加えるトルクです。前方への倒れ込み、または復帰を明確にします。");
+		}
+		if (ImGui::CollapsingHeader(japanese ? "横移動と着地" : "Travel and landing", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			description(
+				"Match Physical Vehicle Width and Roll Travel: target travel is the physical hull/track width multiplied by this value (1.0 to 2.0).",
+				"Match Physical Vehicle Width と Roll Travel：車体・履帯から求めた物理幅に倍率（1.0〜2.0）を掛け、横移動の目標距離にします。");
+			description(
+				"Manual Roll Distance: used only when matching the physical vehicle width is disabled.",
+				"Manual Roll Distance：物理車幅への追従をOFFにした場合だけ使う、横移動の直接指定距離です。");
+			description(
+				"Post-90 Air Brake Torque and Air Brake Release Angle: brake rotational speed during the fall, then release near landing. Higher brake torque reduces airborne spin.",
+				"Post-90 Air Brake Torque と Air Brake Release Angle：倒れ込み中の回転を制動し、着地前に解除します。制動トルクを高くすると空中での回り過ぎを抑えます。");
+		}
+		if (ImGui::CollapsingHeader(japanese ? "最終姿勢の安定" : "Final attitude stabilization", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			description(
+				"Torque Cutoff Angle: ends the primary Roll Torque. Normal forward rolling proceeds into the post-90 fall from this point.",
+				"Torque Cutoff Angle：主 Roll Torque を終了する角度です。通常の前方ロールは、この後に90度以降の倒れ込みへ移ります。");
+			description(
+				"Stabilization Torque and Damping: keep the completed result upright or inverted and remove residual roll speed. These do not add travel distance after landing.",
+				"Stabilization Torque と Damping：完了姿勢（表または裏）を保ち、残った回転を止めます。着地後に横移動距離を後追い補正するものではありません。");
 		}
 		ImGui::End();
 	}

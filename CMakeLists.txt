@@ -219,7 +219,7 @@ target_compile_definitions(TankSandbox
 )
 
 if(MSVC)
-    target_compile_options(TankSandbox PRIVATE /W4 /permissive)
+    target_compile_options(TankSandbox PRIVATE /W4 /permissive /utf-8)
 endif()
 
 # ── D3D12 Agility SDK ─────────────────────────────────────────
