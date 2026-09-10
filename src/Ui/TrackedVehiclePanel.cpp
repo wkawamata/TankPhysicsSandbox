@@ -378,6 +378,10 @@ namespace Ui
 		if (ImGui::CollapsingHeader(japanese ? "開始と折り返し判断" : "Start and return decision", ImGuiTreeNodeFlags_DefaultOpen))
 		{
 			description(
+				"Roll Speed Multiplier", IsPending(ctx.tankSettings->rollSpeedMultiplier, ctx.appliedTankSettings->rollSpeedMultiplier),
+				"Roll Speed Multiplier: scales the complete roll's time feel from 0.5 to 2.0. 1.0 preserves the current tuning; the return decision angle and travel distance stay unchanged.",
+				"Roll Speed Multiplier：ローリング全体の時間感を0.5〜2.0倍で調整します。1.0は現在の調整を維持し、復帰判断角と横移動距離は変わりません。");
+			description(
 				"Rolling Input", ctx.tankSettings->rollingInputEnabled != ctx.appliedTankSettings->rollingInputEnabled,
 				"Rolling Input: enables paired-lever rolling. A new roll always requires a fresh lever action after neutral.",
 				"Rolling Input：左右レバーを同方向へ倒したローリング入力を有効にします。次のロールには、必ず一度中立へ戻してから新たに入力します。");
