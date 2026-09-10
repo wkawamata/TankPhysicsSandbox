@@ -52,6 +52,9 @@ namespace Tank::Physics
         float recoilPointForwardM = 1.2f;
         float recoilPointHeightM = 0.8f;
         bool rollingInputEnabled = true;
+        // Time-feel multiplier for the complete roll. 1.0 preserves the
+        // authored tuning; torque and damping are scaled internally.
+        float rollSpeedMultiplier = 1.0f;
         float rollTorqueNm = 200000.0f;
         float rollReturnDecisionDegrees = 75.0f;
         float rollApproachStartDegrees = 80.0f;

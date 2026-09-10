@@ -923,6 +923,17 @@ namespace Ui
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
 		SliderFloatWithPendingColor(
+			"Roll Speed Multiplier",
+			&ctx.tankSettings->rollSpeedMultiplier,
+			0.5f,
+			2.0f,
+			0.05f,
+			1.0f,
+			"%.2f x",
+			IsPending(
+				ctx.tankSettings->rollSpeedMultiplier,
+				ctx.appliedTankSettings->rollSpeedMultiplier));
+		SliderFloatWithPendingColor(
 			"Roll Torque",
 			&ctx.tankSettings->rollTorqueNm,
 			20000.0f,

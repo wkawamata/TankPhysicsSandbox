@@ -140,6 +140,8 @@ namespace Tank::Physics
         m_mobilityStateMachine = MobilityStateMachine(m_settings);
         m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
         m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
+        m_settings.rollSpeedMultiplier = std::clamp(
+            m_settings.rollSpeedMultiplier, 0.5f, 2.0f);
         m_settings.rollReturnDecisionDegrees = std::clamp(
             m_settings.rollReturnDecisionDegrees, 1.0f, 89.0f);
         m_settings.rollApproachStartDegrees = std::clamp(
@@ -453,6 +455,8 @@ namespace Tank::Physics
         bodyInterface.ActivateBody(m_impl->bodyId);
 
         const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
+        const float rollSpeed = m_settings.rollSpeedMultiplier;
+        const float rollTorqueScale = rollSpeed * rollSpeed;
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
         if (std::abs(m_input.throttle) > 0.001f)
@@ -596,8 +600,9 @@ namespace Tank::Physics
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
                     bodyForward *
-                        (physicsRollSign * m_settings.rollTorqueNm -
-                            approachDamping));
+                        (physicsRollSign * m_settings.rollTorqueNm *
+                                rollTorqueScale -
+                            approachDamping * rollSpeed));
                 const bool sameDirectionLevers =
                     std::abs(m_input.leftLeverX) >= 0.70f &&
                     std::abs(m_input.rightLeverX) >= 0.70f &&
@@ -680,8 +685,9 @@ namespace Tank::Physics
                 m_impl->rollRotationSign);
             bodyInterface.AddTorque(
                 m_impl->bodyId,
-                bodyForward *
-                    (physicsRollSign * m_settings.rollCommitTorqueNm));
+                    bodyForward *
+                    (physicsRollSign * m_settings.rollCommitTorqueNm *
+                        rollTorqueScale));
             if (--m_impl->rollCommitFramesRemaining <= 0)
             {
                 m_impl->rollingPhase = RollingPhase::BallisticRoll;
@@ -726,7 +732,8 @@ namespace Tank::Physics
                     m_impl->bodyId,
                     bodyForward *
                         (-physicsRollSign *
-                            m_settings.rollAirBrakeTorqueNm));
+                            m_settings.rollAirBrakeTorqueNm *
+                            rollTorqueScale));
             }
             if (m_impl->rollReturningToStart &&
                 m_impl->rollingPhase == RollingPhase::BallisticRoll &&
@@ -737,8 +744,10 @@ namespace Tank::Physics
                 // original up direction until the normal settled gate takes
                 // over. This branch is unreachable for a forward roll.
                 const float returnTorque =
-                    physicsRollSign * (m_settings.rollTorqueNm * 0.35f) -
-                    rollAngularVelocity * m_settings.rollApproachDampingNms;
+                    physicsRollSign * (m_settings.rollTorqueNm * 0.35f *
+                        rollTorqueScale) -
+                    rollAngularVelocity * m_settings.rollApproachDampingNms *
+                        rollSpeed;
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
                     bodyForward * returnTorque);
@@ -773,9 +782,10 @@ namespace Tank::Physics
                 -2.0f,
                 2.0f);
             const float force = std::clamp(
-                distanceError * positionGain +
-                    m_impl->rollDistanceIntegral * integralGain -
-                    lateralVelocity * velocityGain,
+                distanceError * positionGain * rollTorqueScale +
+                    m_impl->rollDistanceIntegral * integralGain *
+                        rollTorqueScale * rollSpeed -
+                    lateralVelocity * velocityGain * rollSpeed,
                 -maximumForce,
                 maximumForce);
             bodyInterface.AddForce(m_impl->bodyId, m_impl->rollDirection * force);
@@ -873,8 +883,10 @@ namespace Tank::Physics
             bodyInterface.AddTorque(
                 m_impl->bodyId,
                 bodyForward *
-                    (rollError * m_settings.rollStabilizationTorqueNm -
-                        rollAngularVelocity * m_settings.rollStabilizationDampingNms));
+                    (rollError * m_settings.rollStabilizationTorqueNm *
+                            rollTorqueScale -
+                        rollAngularVelocity *
+                            m_settings.rollStabilizationDampingNms * rollSpeed));
         }
 
         if (rollingPhaseBefore == RollingPhase::None &&
