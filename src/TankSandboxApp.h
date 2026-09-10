@@ -9,6 +9,7 @@
 #include <d3d12sdklayers.h>
 
 #include "App/BoxDropMode.h"
+#include "App/MapEditorMode.h"
 #include "App/CameraController.h"
 #include "App/CameraSettingsStore.h"
 #include "App/TankSettingsStore.h"
@@ -20,6 +21,7 @@
 #include "Runtime/SceneRendererDebugUi.h"
 #include "Runtime/SceneRendererSettings.h"
 #include "Rendering/CameraSettings.h"
+#include "Rendering/MapEditorScenePresenter.h"
 #include "Ui/ImGuiSystem.h"
 #include "Ui/CameraPanel.h"
 #include "Ui/RendererSettingsPanel.h"
@@ -27,6 +29,7 @@
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/MapDefinition.h"
 #include "Physics/MapDefinitionJson.h"
+#include "Map/MapManifest.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Platform/Windows/WindowsGamepad.h"
 #include "Scene/SceneBuilder.h"
@@ -47,6 +50,7 @@ public:
 
     void OnInit() override;
     void OnDestroy() override;
+    bool OnCloseRequested() override;
     void OnKeyDown(UINT8 key) override;
     void OnKeyUp(UINT8 key) override;
     void OnMouseDown(UINT8 button, int x, int y) override;
@@ -66,6 +70,7 @@ private:
         TopMenu,
         PhysicsBoxDrop,
         PhysicsTrackedVehicle,
+        MapEditor,
     };
 
     void InitializeImGui();
@@ -82,6 +87,7 @@ private:
     bool LoadCameraSettings();
     void DrawTopMenuUi();
     void ReloadCustomMaps();
+    bool RegisterManifestMapFolder(const std::filesystem::path& folder);
     bool LoadAutoMap();
     void EnterTrackedVehicleMode();
     void EnterBoxDropMode();
@@ -116,10 +122,19 @@ private:
     };
     std::vector<CustomMapEntry> m_customMaps;
     std::optional<size_t> m_selectedCustomMap;
+    struct ManifestMapEntry
+    {
+        std::filesystem::path folder;
+        Tank::Map::Manifest document;
+    };
+    std::vector<ManifestMapEntry> m_manifestMaps;
+    std::optional<size_t> m_selectedManifestMap;
     std::string m_customMapStatus;
 
     // Mode state
     BoxDropMode m_boxDropMode;
+    MapEditorMode m_mapEditorMode;
+    Tank::Rendering::MapEditorScenePresenter m_mapEditorScenePresenter;
     TrackedVehicleMode m_trackedVehicleMode;
 
     // Platform input (owned here to avoid mixing platform input with physics mode)
@@ -174,6 +189,7 @@ private:
     UINT64 m_autoCaptureFrameCount = 0;
     UINT64 m_autoFramesElapsed = 0;
     bool m_quitAfterCapture = false;
+    bool m_windowCloseApproved = false;
 
     // Deterministic rendered rolling capture for GIF generation.
     bool m_rollCaptureEnabled = false;

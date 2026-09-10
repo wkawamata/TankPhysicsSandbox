@@ -5,17 +5,20 @@
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
 #include "Input/TankInputMapper.h"
+#include "Map/MapClearCondition.h"
 #include "Physics/PhysicsEnvironmentSettingsJson.h"
 #include "Physics/TankSettingsJson.h"
 #include "Rendering/TankVisualSettingsJson.h"
 #include "Rendering/TankModelExporter.h"
 #include "Rendering/MortarRangeGeometry.h"
+#include "Rendering/MapVisualLoader.h"
 #include "Runtime/SceneRenderer.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <DirectXMath.h>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -40,6 +43,14 @@ namespace
         default:
             return "None";
         }
+    Tank::Physics::MapSpawn ManifestSpawn(const Tank::Map::Manifest& manifest)
+    {
+        constexpr float degreesToRadians = 3.14159265358979323846f / 180.0f;
+        Tank::Physics::MapSpawn spawn;
+        spawn.position = { manifest.playerSpawn.position[0], manifest.playerSpawn.position[1],
+            manifest.playerSpawn.position[2] };
+        spawn.yawRadians = manifest.playerSpawn.rotationDegrees[1] * degreesToRadians;
+        return spawn;
     }
 }
 
@@ -74,6 +85,16 @@ bool TrackedVehicleMode::LoadTankModelAsset(const std::filesystem::path& path)
 void TrackedVehicleMode::SelectMap(Tank::Physics::MapId mapId)
 {
     m_customMap.reset();
+    m_manifestMap.reset();
+    m_manifestHitMeshes.clear();
+    m_mapHitMeshOverlayInstance.reset();
+    m_mapMarkerInstances.clear();
+    m_mapMarkerWorlds.clear();
+    m_mapClearBeaconInstances.clear();
+    m_mapClearBeaconWorlds.clear();
+    m_clearedAreaIndex.reset();
+    m_mapCleared = false;
+    m_clearedAreaName.clear();
     m_selectedMap = mapId;
     const Tank::Physics::MapDefinition& definition =
         Tank::Physics::GetMapDefinition(mapId);
@@ -85,8 +106,64 @@ void TrackedVehicleMode::SelectCustomMap(
     const Tank::Physics::MapDocument& document)
 {
     m_customMap = document;
+    m_manifestMap.reset();
+    m_manifestHitMeshes.clear();
+    m_mapHitMeshOverlayInstance.reset();
+    m_mapMarkerInstances.clear();
+    m_mapMarkerWorlds.clear();
+    m_mapClearBeaconInstances.clear();
+    m_mapClearBeaconWorlds.clear();
+    m_clearedAreaIndex.reset();
+    m_mapCleared = false;
+    m_clearedAreaName.clear();
     m_environmentSettings = document.environment;
     m_activeMapName = document.name;
+}
+
+bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
+    const Tank::Map::Manifest& manifest, std::string& error)
+{
+    std::vector<Tank::Map::HitTriangleMesh> meshes;
+    meshes.reserve(manifest.instances.size());
+    for (const Tank::Map::Instance& instance : manifest.instances)
+    {
+        const std::u8string assetUtf8(instance.asset.begin(), instance.asset.end());
+        Tank::Map::HitTriangleMesh local;
+        if (!Tank::Map::LoadGltfHitMesh(folder / std::filesystem::path(assetUtf8), local, error))
+        {
+            error = "Cannot load HitMesh '" + instance.asset + "': " + error;
+            return false;
+        }
+        Tank::Map::HitTriangleMesh world;
+        if (!Tank::Map::TransformHitMesh(local, instance.transform, world, error))
+        {
+            error = "Cannot place HitMesh '" + instance.asset + "': " + error;
+            return false;
+        }
+        meshes.push_back(std::move(world));
+    }
+    if (meshes.empty())
+    {
+        error = "Manifest contains no model instances.";
+        return false;
+    }
+    m_customMap.reset();
+    m_manifestMap = manifest;
+    m_manifestMapFolder = folder;
+    m_manifestHitMeshes = std::move(meshes);
+    m_mapHitMeshOverlayInstance.reset();
+    m_mapMarkerInstances.clear();
+    m_mapMarkerWorlds.clear();
+    m_mapClearBeaconInstances.clear();
+    m_mapClearBeaconWorlds.clear();
+    m_clearedAreaIndex.reset();
+    m_mapCleared = false;
+    m_clearedAreaName.clear();
+    m_environmentSettings = {};
+    m_activeMapName = folder.filename().string();
+    m_mapLoadStatus = "Loaded Manifest map: " + m_activeMapName;
+    error.clear();
+    return true;
 }
 
 float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)
@@ -102,8 +179,14 @@ float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)
     return std::copysign(std::min(magnitude, 1.0f), normalized);
 }
 
-void TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
+bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
 {
+    m_mapHitMeshOverlayInstance.reset();
+    m_mapMarkerInstances.clear();
+    m_mapMarkerWorlds.clear();
+    m_mapClearBeaconInstances.clear();
+    m_mapClearBeaconWorlds.clear();
+    m_clearedAreaIndex.reset();
     const std::vector<Tank::Physics::MapPrimitive> mapPrimitives = m_customMap ?
         m_customMap->primitives :
         Tank::Physics::BuildMapPrimitives(m_selectedMap, m_environmentSettings);
@@ -112,19 +195,67 @@ void TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
         mapPrimitives,
         m_visualSettings,
         m_settings,
-        m_tankModelAsset.IsValid() ? &m_tankModelAsset : nullptr);
+        m_tankModelAsset.IsValid() ? &m_tankModelAsset : nullptr,
+        !m_manifestMap.has_value());
     Engine::Scene& scene = m_presenter.GetScene();
 
-    m_test.Initialize(
-        m_settings,
-        m_environmentSettings,
-        mapPrimitives,
-        m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
+    if (m_manifestMap)
+    {
+        const uint32_t mapMaterial = m_presenter.SceneBuilder().AddSolidColorMaterial(210, 210, 210, 255);
+        const uint32_t hitMeshMaterial =
+            m_presenter.SceneBuilder().AddSolidColorMaterial(255, 45, 190, 255);
+        const uint32_t spawnMaterial =
+            m_presenter.SceneBuilder().AddSolidColorMaterial(255, 190, 35, 255);
+        const uint32_t clearAreaMaterial =
+            m_presenter.SceneBuilder().AddSolidColorMaterial(35, 225, 235, 255);
+        const uint32_t clearedAreaMaterial =
+            m_presenter.SceneBuilder().AddSolidColorMaterial(70, 255, 90, 255);
+        const Engine::SceneMeshId markerCube = m_presenter.SceneBuilder().AddCube(1.0f);
+        std::string error;
+        size_t hitMeshOverlayInstance = 0;
+        if (!Tank::Rendering::AppendMapVisuals(m_presenter.SceneBuilder(), m_manifestMapFolder,
+            *m_manifestMap, mapMaterial, error) ||
+            !Tank::Rendering::AppendMapHitMeshOverlay(m_presenter.SceneBuilder(),
+                m_manifestHitMeshes, hitMeshMaterial, hitMeshOverlayInstance, error) ||
+            !m_test.InitializeWithStaticMeshes(m_settings, m_environmentSettings,
+                m_manifestHitMeshes, ManifestSpawn(*m_manifestMap), error))
+        {
+            m_mapLoadStatus = "Manifest map start failed: " + error;
+            m_presenter.Clear();
+            m_active = false;
+            return false;
+        }
+        m_mapHitMeshOverlayInstance = hitMeshOverlayInstance;
+        Tank::Rendering::AppendMapMarkers(m_presenter.SceneBuilder(), markerCube,
+            *m_manifestMap, spawnMaterial, clearAreaMaterial, m_mapMarkerInstances);
+        Tank::Rendering::AppendMapClearBeacons(m_presenter.SceneBuilder(), markerCube,
+            *m_manifestMap, clearedAreaMaterial, m_mapClearBeaconInstances);
+        m_mapClearAreaMaterial = clearAreaMaterial;
+        m_mapClearedAreaMaterial = clearedAreaMaterial;
+        m_mapMarkerWorlds.reserve(m_mapMarkerInstances.size());
+        for (const size_t index : m_mapMarkerInstances)
+            m_mapMarkerWorlds.push_back(scene.instances[index].world);
+        m_mapClearBeaconWorlds.reserve(m_mapClearBeaconInstances.size());
+        for (const size_t index : m_mapClearBeaconInstances)
+            m_mapClearBeaconWorlds.push_back(scene.instances[index].world);
+    }
+    else
+    {
+        m_test.Initialize(
+            m_settings,
+            m_environmentSettings,
+            mapPrimitives,
+            m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
+    }
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_paused = false;
     m_singleStep = false;
     m_analogTracksArmed = false;
+    m_mapCleared = false;
+    m_clearedAreaName.clear();
+    m_clearedAreaIndex.reset();
+    UpdateClearCondition();
 
     UpdateSceneInternal(renderer);
     renderer.SetScene(scene);
@@ -132,11 +263,18 @@ void TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
     renderer.SetDisplayInstanceCount(static_cast<int>(scene.instances.size()));
 
     m_active = true;
+    return true;
 }
 
 void TrackedVehicleMode::Exit()
 {
     m_presenter.Clear();
+    m_mapHitMeshOverlayInstance.reset();
+    m_mapMarkerInstances.clear();
+    m_mapMarkerWorlds.clear();
+    m_mapClearBeaconInstances.clear();
+    m_mapClearBeaconWorlds.clear();
+    m_clearedAreaIndex.reset();
     m_active = false;
 }
 
@@ -177,6 +315,71 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
         m_showGltfBody,
         m_showGltfCannon,
         m_showGltfSide);
+    if (m_mapHitMeshOverlayInstance &&
+        *m_mapHitMeshOverlayInstance < m_presenter.GetScene().instances.size())
+    {
+        Engine::InstanceData& instance =
+            m_presenter.GetScene().instances[*m_mapHitMeshOverlayInstance];
+        instance.prevWorld = instance.world;
+        DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(
+            m_mapHitMeshOverlay
+                ? DirectX::XMMatrixIdentity()
+                : DirectX::XMMatrixScaling(0.0f, 0.0f, 0.0f)));
+    }
+    for (size_t marker = 0; marker < m_mapMarkerInstances.size(); ++marker)
+    {
+        const size_t instanceIndex = m_mapMarkerInstances[marker];
+        if (instanceIndex >= m_presenter.GetScene().instances.size()) continue;
+        Engine::InstanceData& instance = m_presenter.GetScene().instances[instanceIndex];
+        instance.prevWorld = instance.world;
+        if (marker >= Tank::Rendering::kPlayerStartMarkerPartCount)
+        {
+            const size_t clearAreaIndex =
+                (marker - Tank::Rendering::kPlayerStartMarkerPartCount) /
+                Tank::Rendering::kClearAreaMarkerPartCount;
+            instance.materialId = m_clearedAreaIndex == clearAreaIndex
+                ? m_mapClearedAreaMaterial
+                : m_mapClearAreaMaterial;
+        }
+        if (m_mapMarkersVisible)
+        {
+            instance.world = m_mapMarkerWorlds[marker];
+        }
+        else
+        {
+            DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(
+                DirectX::XMMatrixScaling(0.0f, 0.0f, 0.0f)));
+        }
+    }
+    for (size_t beacon = 0; beacon < m_mapClearBeaconInstances.size(); ++beacon)
+    {
+        const size_t instanceIndex = m_mapClearBeaconInstances[beacon];
+        if (instanceIndex >= m_presenter.GetScene().instances.size()) continue;
+        Engine::InstanceData& instance = m_presenter.GetScene().instances[instanceIndex];
+        instance.prevWorld = instance.world;
+        if (m_clearedAreaIndex == beacon)
+        {
+            instance.world = m_mapClearBeaconWorlds[beacon];
+        }
+        else
+        {
+            DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(
+                DirectX::XMMatrixScaling(0.0f, 0.0f, 0.0f)));
+        }
+    }
+}
+
+void TrackedVehicleMode::UpdateClearCondition()
+{
+    if (m_mapCleared || !m_manifestMap) return;
+    const Tank::Physics::Vec3& position = m_test.State().bodyPosition;
+    const Tank::Map::ClearArea* area = Tank::Map::FindContainingClearArea(
+        *m_manifestMap, { position.x, position.y, position.z });
+    if (area == nullptr) return;
+    m_mapCleared = true;
+    const Tank::Map::ClearArea* firstArea = m_manifestMap->clearAreas.data();
+    m_clearedAreaIndex = static_cast<size_t>(area - firstArea);
+    m_clearedAreaName = area->name.empty() ? area->id : area->name;
 }
 
 void TrackedVehicleMode::UpdateScene(RtPbrSurvey::SceneRenderer& renderer)
@@ -341,6 +544,7 @@ void TrackedVehicleMode::Step(
         m_physicsStepPeakTimeMs = (std::max)(
             m_physicsStepPeakTimeMs,
             m_physicsStepTimeMs);
+        UpdateClearCondition();
         UpdateSceneInternal(renderer);
         renderer.SetScene(m_presenter.GetScene());
         m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
@@ -382,16 +586,28 @@ void TrackedVehicleMode::Reset(
         Tank::Physics::BuildMapPrimitives(
             m_selectedMap,
             m_environmentSettings);
-    m_test.Initialize(
-        m_settings,
-        m_environmentSettings,
-        mapPrimitives,
-        m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
+    if (m_manifestMap)
+    {
+        std::string error;
+        if (!m_test.InitializeWithStaticMeshes(m_settings, m_environmentSettings,
+            m_manifestHitMeshes, ManifestSpawn(*m_manifestMap), error))
+            m_mapLoadStatus = "Manifest map reset failed: " + error;
+    }
+    else
+    {
+        m_test.Initialize(
+            m_settings, m_environmentSettings, mapPrimitives,
+            m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
+    }
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_singleStep = false;
     m_analogTracksArmed = false;
     m_loggedRollingTraceSequence = 0;
+    m_mapCleared = false;
+    m_clearedAreaName.clear();
+    m_clearedAreaIndex.reset();
+    UpdateClearCondition();
     if (camera != nullptr)
     {
         cameraController.OnTankTeleported(previousState, m_test.State(), *camera);

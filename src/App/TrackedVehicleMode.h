@@ -7,6 +7,8 @@
 #include "Physics/MapDefinitionJson.h"
 #include "Physics/TankTypes.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Map/MapManifest.h"
+#include "Map/GltfHitMesh.h"
 #include "Rendering/TankVisualSettings.h"
 #include "Rendering/TrackedVehicleScenePresenter.h"
 #include "Rendering/MortarRangeCue.h"
@@ -31,7 +33,7 @@ public:
 
     bool LoadTankModelAsset(const std::filesystem::path& path);
 
-    void Enter(RtPbrSurvey::SceneRenderer& renderer);
+    bool Enter(RtPbrSurvey::SceneRenderer& renderer);
     void Exit();
 
     void UpdateInput(
@@ -50,8 +52,14 @@ public:
     void UpdateScene(RtPbrSurvey::SceneRenderer& renderer);
     void SelectMap(Tank::Physics::MapId mapId);
     void SelectCustomMap(const Tank::Physics::MapDocument& document);
+    bool SelectManifestMap(const std::filesystem::path& folder,
+        const Tank::Map::Manifest& manifest, std::string& error);
     Tank::Physics::MapId SelectedMap() const { return m_selectedMap; }
     const std::string& ActiveMapName() const { return m_activeMapName; }
+    const std::string& MapLoadStatus() const { return m_mapLoadStatus; }
+    bool MapCleared() const { return m_mapCleared; }
+    bool HasClearAreas() const { return m_manifestMap && !m_manifestMap->clearAreas.empty(); }
+    const std::string& ClearedAreaName() const { return m_clearedAreaName; }
 
     Engine::CameraState* ActiveCamera();
     Engine::Scene& GetScene();
@@ -74,6 +82,9 @@ public:
     bool& RollingCheatWindowVisible() { return m_rollingCheatWindowVisible; }
     bool& RollingCheatWindowJapanese() { return m_rollingCheatWindowJapanese; }
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
+    bool& MapHitMeshOverlay() { return m_mapHitMeshOverlay; }
+    bool& MapMarkersVisible() { return m_mapMarkersVisible; }
+    bool HasManifestMap() const { return m_manifestMap.has_value(); }
     bool& TrackShoeDisplay() { return m_visualSettings.showDummyTrackShoes; }
     bool& ShowTrackProxies() { return m_showTrackProxies; }
     bool& ShowDummyModel() { return m_visualSettings.showDummyBody; }
@@ -124,6 +135,7 @@ private:
 
     float NormalizeRawGamepadAxis(float value);
     void UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer);
+    void UpdateClearCondition();
 
     TrackedVehicleScenePresenter m_presenter;
     Tank::Physics::TrackedVehicleTest m_test;
@@ -136,6 +148,17 @@ private:
     Tank::Physics::PhysicsEnvironmentSettings m_appliedEnvironmentSettings;
     Tank::Physics::MapId m_selectedMap = Tank::Physics::MapId::ObstacleField;
     std::optional<Tank::Physics::MapDocument> m_customMap;
+    std::optional<Tank::Map::Manifest> m_manifestMap;
+    std::filesystem::path m_manifestMapFolder;
+    std::vector<Tank::Map::HitTriangleMesh> m_manifestHitMeshes;
+    std::optional<size_t> m_mapHitMeshOverlayInstance;
+    std::vector<size_t> m_mapMarkerInstances;
+    std::vector<DirectX::XMFLOAT4X4> m_mapMarkerWorlds;
+    std::vector<size_t> m_mapClearBeaconInstances;
+    std::vector<DirectX::XMFLOAT4X4> m_mapClearBeaconWorlds;
+    std::optional<size_t> m_clearedAreaIndex;
+    uint32_t m_mapClearAreaMaterial = 0;
+    uint32_t m_mapClearedAreaMaterial = 0;
     Tank::Rendering::TankVisualSettings m_visualSettings;
 
     bool m_paused = false;
@@ -147,9 +170,12 @@ private:
     bool m_showGltfCannon = true;
     bool m_showGltfSide = true;
     bool m_physicsDebugOverlay = false;
+    bool m_mapHitMeshOverlay = false;
+    bool m_mapMarkersVisible = true;
     bool m_tankVisualMaterialApplyPending = false;
     bool m_active = false;
     std::array<RtPbrSurvey::DebugLineHandle, 32> m_mortarRangeLines = {};
+    bool m_mapCleared = false;
 
     int m_tankSettingsSlot = 0;
     bool m_tankSettingsAutoLoad = true;
@@ -158,6 +184,8 @@ private:
     std::string m_tankVisualSettingsStatus;
     std::string m_environmentSettingsStatus;
     std::string m_activeMapName = "Obstacle Field";
+    std::string m_mapLoadStatus;
+    std::string m_clearedAreaName;
     std::string m_tankModelExportPath = "Exports/Tank.gltf";
     std::string m_tankModelExportStatus;
     bool m_tankModelExportBinary = false;

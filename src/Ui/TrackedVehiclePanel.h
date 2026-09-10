@@ -42,6 +42,12 @@ namespace Ui
         bool analogTracksArmed = false;
 
         bool* physicsDebugOverlay = nullptr;
+        bool* mapHitMeshOverlay = nullptr;
+        bool* mapMarkersVisible = nullptr;
+        bool manifestMapActive = false;
+        bool manifestMapHasClearAreas = false;
+        bool mapCleared = false;
+        const std::string* clearedAreaName = nullptr;
         bool* trackShoeDisplay = nullptr;
         bool* showTrackProxies = nullptr;
         bool* showDummyModel = nullptr;

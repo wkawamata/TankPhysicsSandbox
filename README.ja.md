@@ -20,12 +20,23 @@ Tank Physics Sandbox は、リアルで説得力のある戦車車両挙動を�
 - `RtPbrSurvey` は `External/RtPbrSurvey` に Git submodule として追加済み。
 - Jolt 車両作業へ入る前に、renderer host integration を検討中。
 
+## 前提条件（Prerequisites）
+
+- Windows x64 と Git。
+- [Visual Studio 2022 Community（公式インストーラー）](https://aka.ms/vs/17/release/vs_community.exe)。**C++ によるデスクトップ開発**を選び、**MSVC v143 - VS 2022 C++ x64/x86 ビルドツール**、**Windows 11 SDK**、**Windows 用 C++ CMake ツール**を含めてください。CMake は 3.25 以上が必要です。
+- スクリプトは VS の既定のインストール先 C:\Program Files\Microsoft Visual Studio\2022\Community を参照します。別エディションや別の場所を使う場合は、scripts/configure.bat と scripts/build.bat 両方の CMAKE パスを変更してください。
+- C:\dev\vcpkg に vcpkg（scripts/buildsystems/vcpkg.cmake を含む）が必要です。依存ライブラリはプロジェクトの vcpkg.json に定義され、configure 時に復元されます。別の場所を使う場合は scripts/configure.bat の VCPKG_CHAIN を変更してください。
+- nuget.exe を PATH に追加するか、Restore-NuGet.ps1 -NuGetExe にフルパスを渡してください。RtPbrSurvey の Direct3D 12、DXC、PIX パッケージの復元に使用します。
+- Microsoft GameInput SDK は scripts/Restore-GameInput.ps1 で、この workspace の packages ディレクトリへ復元します。
+- 初回の submodule とパッケージの取得にはインターネット接続が必要です。
+
 ## ビルド
 
 submodule を取得した後、プロジェクト付属のスクリプトで configure/build します。
 
 ```powershell
 git submodule update --init --recursive
+.\External\RtPbrSurvey\Restore-NuGet.ps1 -PackagesDirectory C:\work\RtPbrSurvey-work\packages
 .\scripts\Restore-GameInput.ps1
 .\scripts\configure.bat
 .\scripts\build.bat TankSandbox
