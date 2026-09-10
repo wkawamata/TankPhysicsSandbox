@@ -40,12 +40,14 @@ int main()
         "right track ratio must default to one");
     passed &= Check(NearlyEqual(controller.Settings().chassisMassKg, 4000.0f),
         "chassis mass must default to 4000 kg");
-    passed &= Check(!controller.Settings().rollingInputEnabled,
-        "rolling input must be disabled by default");
-    passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 120000.0f),
-        "roll torque must default to 120000 N m");
+    passed &= Check(controller.Settings().rollingInputEnabled,
+        "rolling input must be enabled by default");
+    passed &= Check(NearlyEqual(controller.Settings().rollTorqueNm, 200000.0f),
+        "roll torque must default to 200000 N m");
     passed &= Check(NearlyEqual(controller.Settings().rollDistanceM, 2.4f),
         "roll distance must default to one vehicle width");
+    passed &= Check(controller.Settings().rollDistanceMatchesVehicleWidth,
+        "roll distance must default to matching physical vehicle width");
     passed &= Check(NearlyEqual(controller.Settings().rollTorqueCutoffDegrees, 90.0f),
         "roll torque cutoff must default to 90 degrees");
     passed &= Check(NearlyEqual(controller.Settings().rollStabilizationTorqueNm, 30000.0f),
@@ -76,6 +78,8 @@ int main()
         "stationary turn inner track ratio must default to zero");
     passed &= Check(NearlyEqual(controller.Settings().pivotTurnRightTraction, 1.0f),
         "pivot turn right traction must default to one");
+    passed &= Check(NearlyEqual(controller.Settings().neutralBrakeAmount, 0.30f),
+        "neutral brake strength must default to 0.30");
 
     Tank::Physics::TankInput input;
     input.throttle = 2.0f;
@@ -92,8 +96,8 @@ int main()
     passed &= Check(NearlyEqual(clampedInput.steering, -1.0f), "steering must be clamped");
     passed &= Check(NearlyEqual(clampedInput.leftTrack, 1.0f), "left track must be clamped");
     passed &= Check(NearlyEqual(clampedInput.rightTrack, -1.0f), "right track must be clamped");
-    passed &= Check(NearlyEqual(clampedInput.roll, 0.0f),
-        "roll must be suppressed by default");
+    passed &= Check(NearlyEqual(clampedInput.roll, 1.0f),
+        "roll must be enabled and clamped by default");
     passed &= Check(NearlyEqual(clampedInput.brakeAmount, 1.0f),
         "brake amount must be clamped");
     passed &= Check(clampedInput.brake, "brake must be preserved");
@@ -119,6 +123,12 @@ int main()
     controller.PostStep(1.0f / 60.0f);
     passed &= Check(controller.State().stepIndex == 1, "positive step must advance the index");
     passed &= Check(controller.State().timeSeconds > 0.0f, "positive step must advance time");
+
+    Tank::Physics::TankInput neutralInput;
+    controller.SetInput(neutralInput);
+    controller.PreStep();
+    passed &= Check(NearlyEqual(controller.DriverInput().brake, 0.30f),
+        "neutral input must apply the configured auto brake");
 
     controller.PostStep(0.0f);
     passed &= Check(controller.State().stepIndex == 1, "non-positive step must be ignored");

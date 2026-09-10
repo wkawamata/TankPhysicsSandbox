@@ -43,6 +43,29 @@ namespace Tank::Physics
                 value = entry->get<int>();
             }
         }
+
+        nlohmann::json SerializeColor(const ColorRgb& color)
+        {
+            return { color.r, color.g, color.b };
+        }
+
+        void ReadColor(
+            const nlohmann::json& object,
+            const char* name,
+            ColorRgb& color)
+        {
+            const auto entry = object.find(name);
+            if (entry == object.end() || !entry->is_array() || entry->size() != 3 ||
+                !(*entry)[0].is_number() || !(*entry)[1].is_number() ||
+                !(*entry)[2].is_number())
+            {
+                return;
+            }
+            color = {
+                (*entry)[0].get<float>(),
+                (*entry)[1].get<float>(),
+                (*entry)[2].get<float>() };
+        }
     }
 
     std::string SerializePhysicsEnvironmentSettings(
@@ -57,6 +80,8 @@ namespace Tank::Physics
         json["obstacleCount"] = settings.obstacleCount;
         json["obstacleSeed"] = settings.obstacleSeed;
         json["obstacleAreaSizeM"] = settings.obstacleAreaSizeM;
+        json["groundColor"] = SerializeColor(settings.groundColor);
+        json["gridLineColor"] = SerializeColor(settings.gridLineColor);
         return json.dump(2);
     }
 
@@ -107,6 +132,8 @@ namespace Tank::Physics
         ReadInt(json, "obstacleCount", loaded.obstacleCount);
         ReadInt(json, "obstacleSeed", loaded.obstacleSeed);
         ReadFloat(json, "obstacleAreaSizeM", loaded.obstacleAreaSizeM);
+        ReadColor(json, "groundColor", loaded.groundColor);
+        ReadColor(json, "gridLineColor", loaded.gridLineColor);
         settings = loaded;
         if (error != nullptr)
         {

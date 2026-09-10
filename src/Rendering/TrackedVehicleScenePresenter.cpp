@@ -121,14 +121,23 @@ namespace
         return static_cast<Engine::SceneMeshId>(mesh.ranges.size() - 1);
     }
 
-    std::vector<uint8_t> CreateGroundGridTexture(uint32_t size)
+    std::vector<uint8_t> CreateGroundGridTexture(
+        uint32_t size,
+        const Tank::Physics::ColorRgb& groundColor,
+        const Tank::Physics::ColorRgb& lineColor)
     {
-        constexpr uint8_t groundR = 98;
-        constexpr uint8_t groundG = 91;
-        constexpr uint8_t groundB = 72;
-        constexpr uint8_t lineR = 165;
-        constexpr uint8_t lineG = 158;
-        constexpr uint8_t lineB = 132;
+        const uint8_t groundR = static_cast<uint8_t>(
+            std::clamp(groundColor.r, 0.0f, 1.0f) * 255.0f);
+        const uint8_t groundG = static_cast<uint8_t>(
+            std::clamp(groundColor.g, 0.0f, 1.0f) * 255.0f);
+        const uint8_t groundB = static_cast<uint8_t>(
+            std::clamp(groundColor.b, 0.0f, 1.0f) * 255.0f);
+        const uint8_t lineR = static_cast<uint8_t>(
+            std::clamp(lineColor.r, 0.0f, 1.0f) * 255.0f);
+        const uint8_t lineG = static_cast<uint8_t>(
+            std::clamp(lineColor.g, 0.0f, 1.0f) * 255.0f);
+        const uint8_t lineB = static_cast<uint8_t>(
+            std::clamp(lineColor.b, 0.0f, 1.0f) * 255.0f);
         constexpr uint32_t lineWidth = 2;
 
         std::vector<uint8_t> pixels(static_cast<size_t>(size) * size * 4);
@@ -446,7 +455,10 @@ void TrackedVehicleScenePresenter::BuildScene(
     if (envSettings.gridEnabled)
     {
         constexpr uint32_t gridTextureSize = 128;
-        const std::vector<uint8_t> gridPixels = CreateGroundGridTexture(gridTextureSize);
+        const std::vector<uint8_t> gridPixels = CreateGroundGridTexture(
+            gridTextureSize,
+            envSettings.groundColor,
+            envSettings.gridLineColor);
         const uint32_t gridTexture = m_sceneBuilder.AddTextureRGBA8(
             gridTextureSize,
             gridTextureSize,
@@ -459,8 +471,16 @@ void TrackedVehicleScenePresenter::BuildScene(
     }
     else
     {
-        floorMaterial =
-            m_sceneBuilder.AddSolidColorMaterial(80, 80, 80, 255);
+        const auto toByte = [](float channel)
+        {
+            return static_cast<uint8_t>(
+                std::clamp(channel, 0.0f, 1.0f) * 255.0f);
+        };
+        floorMaterial = m_sceneBuilder.AddSolidColorMaterial(
+            toByte(envSettings.groundColor.r),
+            toByte(envSettings.groundColor.g),
+            toByte(envSettings.groundColor.b),
+            255);
     }
 
     auto addBodyMaterial = [this](const Tank::Rendering::BodyMaterialSettings& material)
@@ -565,29 +585,36 @@ void TrackedVehicleScenePresenter::BuildScene(
 
     if (tankModelAsset != nullptr)
     {
+        const std::vector<std::string> nodeNames =
+            Engine::GetGltfMeshNodeNames(*tankModelAsset);
+        const std::string bodyNodeName = nodeNames.size() == 1 ?
+            nodeNames.front() : "Body";
         const Engine::GltfNodeMeshAddResult body =
-            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Body");
-        const Engine::GltfNodeMeshAddResult cannon =
-            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Cannon");
-        const Engine::GltfNodeMeshAddResult side =
-            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Side");
+            m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, bodyNodeName);
         if (body)
         {
             m_model.gltfBody = m_sceneBuilder.GetScene().instances.size();
             m_sceneBuilder.AddInstance(*body.meshId, XMMatrixIdentity(), 0);
             m_model.hasGltfBody = true;
         }
-        if (cannon)
+        if (nodeNames.size() != 1)
         {
-            m_model.gltfCannon = m_sceneBuilder.GetScene().instances.size();
-            m_sceneBuilder.AddInstance(*cannon.meshId, XMMatrixIdentity(), 0);
-            m_model.hasGltfCannon = true;
-        }
-        if (side)
-        {
-            m_model.gltfSide = m_sceneBuilder.GetScene().instances.size();
-            m_sceneBuilder.AddInstance(*side.meshId, XMMatrixIdentity(), 0);
-            m_model.hasGltfSide = true;
+            const Engine::GltfNodeMeshAddResult cannon =
+                m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Cannon");
+            const Engine::GltfNodeMeshAddResult side =
+                m_sceneBuilder.AddGltfNodeMesh(*tankModelAsset, "Side");
+            if (cannon)
+            {
+                m_model.gltfCannon = m_sceneBuilder.GetScene().instances.size();
+                m_sceneBuilder.AddInstance(*cannon.meshId, XMMatrixIdentity(), 0);
+                m_model.hasGltfCannon = true;
+            }
+            if (side)
+            {
+                m_model.gltfSide = m_sceneBuilder.GetScene().instances.size();
+                m_sceneBuilder.AddInstance(*side.meshId, XMMatrixIdentity(), 0);
+                m_model.hasGltfSide = true;
+            }
         }
     }
 

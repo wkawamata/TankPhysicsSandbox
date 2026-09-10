@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 16;
+        constexpr int kSchemaVersion = 18;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -54,7 +54,18 @@ namespace Tank::Physics
         json["recoilPointForwardM"] = settings.recoilPointForwardM;
         json["recoilPointHeightM"] = settings.recoilPointHeightM;
         json["rollingInputEnabled"] = settings.rollingInputEnabled;
+        json["rollSpeedMultiplier"] = settings.rollSpeedMultiplier;
         json["rollTorqueNm"] = settings.rollTorqueNm;
+        json["rollReturnDecisionDegrees"] = settings.rollReturnDecisionDegrees;
+        json["rollApproachStartDegrees"] = settings.rollApproachStartDegrees;
+        json["rollApproachDampingNms"] = settings.rollApproachDampingNms;
+        json["rollCommitTorqueNm"] = settings.rollCommitTorqueNm;
+        json["rollAirBrakeTorqueNm"] = settings.rollAirBrakeTorqueNm;
+        json["rollAirBrakeReleaseDegrees"] =
+            settings.rollAirBrakeReleaseDegrees;
+        json["rollDistanceMatchesVehicleWidth"] =
+            settings.rollDistanceMatchesVehicleWidth;
+        json["rollTravelVehicleWidths"] = settings.rollTravelVehicleWidths;
         json["rollDistanceM"] = settings.rollDistanceM;
         json["rollTorqueCutoffDegrees"] = settings.rollTorqueCutoffDegrees;
         json["rollStabilizationTorqueNm"] = settings.rollStabilizationTorqueNm;
@@ -95,6 +106,16 @@ namespace Tank::Physics
         json["yawSpeedLimitDegrees"] = settings.yawSpeedLimitDegrees;
         json["yawDamping"] = settings.yawDamping;
         json["startUpsideDown"] = settings.startUpsideDown;
+        json["stoppedEnterLinearSpeedMetersPerSecond"] = settings.stoppedEnterLinearSpeedMetersPerSecond;
+        json["stoppedExitLinearSpeedMetersPerSecond"] = settings.stoppedExitLinearSpeedMetersPerSecond;
+        json["stoppedEnterAngularSpeedRadiansPerSecond"] = settings.stoppedEnterAngularSpeedRadiansPerSecond;
+        json["stoppedExitAngularSpeedRadiansPerSecond"] = settings.stoppedExitAngularSpeedRadiansPerSecond;
+        json["stoppedEnterTrackSlipMetersPerSecond"] = settings.stoppedEnterTrackSlipMetersPerSecond;
+        json["stoppedExitTrackSlipMetersPerSecond"] = settings.stoppedExitTrackSlipMetersPerSecond;
+        json["stoppedEnterSuspensionSpeedMetersPerSecond"] = settings.stoppedEnterSuspensionSpeedMetersPerSecond;
+        json["stoppedExitSuspensionSpeedMetersPerSecond"] = settings.stoppedExitSuspensionSpeedMetersPerSecond;
+        json["stoppedMinimumUpAlignment"] = settings.stoppedMinimumUpAlignment;
+        json["stoppedConfirmSeconds"] = settings.stoppedConfirmSeconds;
         return json.dump(2);
     }
 
@@ -143,7 +164,28 @@ namespace Tank::Physics
         ReadFloat(json, "recoilPointForwardM", loaded.recoilPointForwardM);
         ReadFloat(json, "recoilPointHeightM", loaded.recoilPointHeightM);
         ReadBool(json, "rollingInputEnabled", loaded.rollingInputEnabled);
+        ReadFloat(json, "rollSpeedMultiplier", loaded.rollSpeedMultiplier);
         ReadFloat(json, "rollTorqueNm", loaded.rollTorqueNm);
+        ReadFloat(
+            json,
+            "rollReturnDecisionDegrees",
+            loaded.rollReturnDecisionDegrees);
+        ReadFloat(json, "rollApproachStartDegrees", loaded.rollApproachStartDegrees);
+        ReadFloat(json, "rollApproachDampingNms", loaded.rollApproachDampingNms);
+        ReadFloat(json, "rollCommitTorqueNm", loaded.rollCommitTorqueNm);
+        ReadFloat(json, "rollAirBrakeTorqueNm", loaded.rollAirBrakeTorqueNm);
+        ReadFloat(
+            json,
+            "rollAirBrakeReleaseDegrees",
+            loaded.rollAirBrakeReleaseDegrees);
+        ReadBool(
+            json,
+            "rollDistanceMatchesVehicleWidth",
+            loaded.rollDistanceMatchesVehicleWidth);
+        ReadFloat(
+            json,
+            "rollTravelVehicleWidths",
+            loaded.rollTravelVehicleWidths);
         ReadFloat(json, "rollDistanceM", loaded.rollDistanceM);
         ReadFloat(json, "rollTorqueCutoffDegrees", loaded.rollTorqueCutoffDegrees);
         ReadFloat(json, "rollStabilizationTorqueNm", loaded.rollStabilizationTorqueNm);
@@ -238,6 +280,16 @@ namespace Tank::Physics
         ReadFloat(json, "yawSpeedLimitDegrees", loaded.yawSpeedLimitDegrees);
         ReadFloat(json, "yawDamping", loaded.yawDamping);
         ReadBool(json, "startUpsideDown", loaded.startUpsideDown);
+        ReadFloat(json, "stoppedEnterLinearSpeedMetersPerSecond", loaded.stoppedEnterLinearSpeedMetersPerSecond);
+        ReadFloat(json, "stoppedExitLinearSpeedMetersPerSecond", loaded.stoppedExitLinearSpeedMetersPerSecond);
+        ReadFloat(json, "stoppedEnterAngularSpeedRadiansPerSecond", loaded.stoppedEnterAngularSpeedRadiansPerSecond);
+        ReadFloat(json, "stoppedExitAngularSpeedRadiansPerSecond", loaded.stoppedExitAngularSpeedRadiansPerSecond);
+        ReadFloat(json, "stoppedEnterTrackSlipMetersPerSecond", loaded.stoppedEnterTrackSlipMetersPerSecond);
+        ReadFloat(json, "stoppedExitTrackSlipMetersPerSecond", loaded.stoppedExitTrackSlipMetersPerSecond);
+        ReadFloat(json, "stoppedEnterSuspensionSpeedMetersPerSecond", loaded.stoppedEnterSuspensionSpeedMetersPerSecond);
+        ReadFloat(json, "stoppedExitSuspensionSpeedMetersPerSecond", loaded.stoppedExitSuspensionSpeedMetersPerSecond);
+        ReadFloat(json, "stoppedMinimumUpAlignment", loaded.stoppedMinimumUpAlignment);
+        ReadFloat(json, "stoppedConfirmSeconds", loaded.stoppedConfirmSeconds);
         settings = loaded;
         if (error != nullptr)
         {

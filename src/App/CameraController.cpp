@@ -513,6 +513,10 @@ namespace Tank::App
         }
 
         using namespace DirectX;
+        const float cueAlpha = 1.0f - std::exp(-6.0f * dt);
+        m_mortarPitchOffsetDegrees +=
+            (m_mortarCameraCue.pitchOffsetDegrees -
+                m_mortarPitchOffsetDegrees) * cueAlpha;
 
         const XMVECTOR bodyRotation = XMQuaternionNormalize(XMVectorSet(
             state.bodyRotation.x,
@@ -595,7 +599,8 @@ namespace Tank::App
         }
         const float lookDownRadians =
             XMConvertToRadians(std::clamp(
-                m_lookDownDegrees + m_chaseOrbitPitchOffsetDegrees,
+                m_lookDownDegrees + m_chaseOrbitPitchOffsetDegrees +
+                    m_mortarPitchOffsetDegrees,
                 0.0f,
                 kMaximumLookDownDegrees));
         const float horizontalDistance =

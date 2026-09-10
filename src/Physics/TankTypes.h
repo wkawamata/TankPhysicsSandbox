@@ -1,6 +1,9 @@
 #pragma once
 
 #include "PhysicsTypes.h"
+#include "MobilityTypes.h"
+#include "SpecialMoveTypes.h"
+#include "MortarAimController.h"
 
 #include <array>
 
@@ -48,8 +51,19 @@ namespace Tank::Physics
         float recoilImpulseNewtonSeconds = 20000.0f;
         float recoilPointForwardM = 1.2f;
         float recoilPointHeightM = 0.8f;
-        bool rollingInputEnabled = false;
-        float rollTorqueNm = 120000.0f;
+        bool rollingInputEnabled = true;
+        // Time-feel multiplier for the complete roll. 1.0 preserves the
+        // authored tuning; torque and damping are scaled internally.
+        float rollSpeedMultiplier = 1.0f;
+        float rollTorqueNm = 200000.0f;
+        float rollReturnDecisionDegrees = 75.0f;
+        float rollApproachStartDegrees = 80.0f;
+        float rollApproachDampingNms = 30000.0f;
+        float rollCommitTorqueNm = 100000.0f;
+        float rollAirBrakeTorqueNm = 150000.0f;
+        float rollAirBrakeReleaseDegrees = 30.0f;
+        bool rollDistanceMatchesVehicleWidth = true;
+        float rollTravelVehicleWidths = 1.0f;
         float rollDistanceM = 2.4f;
         float rollTorqueCutoffDegrees = 90.0f;
         float rollStabilizationTorqueNm = 30000.0f;
@@ -75,7 +89,7 @@ namespace Tank::Physics
         std::array<float, kTankWheelCount> suspensionStrokeMeters =
             MakeDefaultSuspensionStrokes();
         bool neutralBrakeEnabled = true;
-        float neutralBrakeAmount = 0.15f;
+        float neutralBrakeAmount = 0.30f;
         float stationaryTurnInnerTrackRatio = 0.0f;
         float stationaryTurnLeftTraction = 1.0f;
         float stationaryTurnRightTraction = 1.0f;
@@ -91,6 +105,16 @@ namespace Tank::Physics
         float yawSpeedLimitDegrees = 720.0f;
         float yawDamping = 0.0f;
         bool startUpsideDown = false;
+        float stoppedEnterLinearSpeedMetersPerSecond = 0.20f;
+        float stoppedExitLinearSpeedMetersPerSecond = 0.35f;
+        float stoppedEnterAngularSpeedRadiansPerSecond = 0.20f;
+        float stoppedExitAngularSpeedRadiansPerSecond = 0.35f;
+        float stoppedEnterTrackSlipMetersPerSecond = 0.20f;
+        float stoppedExitTrackSlipMetersPerSecond = 0.40f;
+        float stoppedEnterSuspensionSpeedMetersPerSecond = 0.10f;
+        float stoppedExitSuspensionSpeedMetersPerSecond = 0.20f;
+        float stoppedMinimumUpAlignment = 0.90f;
+        float stoppedConfirmSeconds = 0.25f;
     };
 
     struct TankInput
@@ -100,6 +124,8 @@ namespace Tank::Physics
         float leftTrack = 1.0f;
         float rightTrack = 1.0f;
         float roll = 0.0f;
+        float leftLeverX = 0.0f;
+        float rightLeverX = 0.0f;
         float brakeAmount = 0.0f;
         bool brake = false;
     };
@@ -144,6 +170,41 @@ namespace Tank::Physics
         Vec3 contactLateral = {};
     };
 
+    struct TrackContactObservation
+    {
+        int contactCount = 0;
+        int lowerSurfaceContactCount = 0;
+        int upperSurfaceContactCount = 0;
+        Vec3 averageContactNormal = {};
+        float maximumAbsoluteLongitudinalSlipMetersPerSecond = 0.0f;
+        float averageAbsoluteLongitudinalSlipMetersPerSecond = 0.0f;
+        float maximumAbsoluteSuspensionVelocityMetersPerSecond = 0.0f;
+        bool hasSuspensionHardPoint = false;
+    };
+
+    struct TankMotionObservation
+    {
+        int stepIndex = 0;
+        float timeSeconds = 0.0f;
+        Vec3 bodyRight = {};
+        Vec3 bodyUp = {};
+        Vec3 bodyForward = {};
+        Vec3 localLinearVelocity = {};
+        Vec3 localAngularVelocity = {};
+        float linearSpeedMetersPerSecond = 0.0f;
+        float horizontalSpeedMetersPerSecond = 0.0f;
+        float angularSpeedRadiansPerSecond = 0.0f;
+        std::array<TrackContactObservation, kTankTrackCount> tracks = {};
+        int totalContactCount = 0;
+        int totalLowerSurfaceContactCount = 0;
+        int totalUpperSurfaceContactCount = 0;
+        Vec3 averageContactNormal = {};
+        bool hasLeftDriveContact = false;
+        bool hasRightDriveContact = false;
+        bool hasRequiredDriveContact = false;
+        bool allFinite = true;
+    };
+
     struct TankState
     {
         int stepIndex = 0;
@@ -162,5 +223,21 @@ namespace Tank::Physics
         std::array<TrackedWheelState, kTankWheelCount> wheels = {};
         int wheelCount = 0;
         bool sleeping = false;
+        TankMotionObservation motionObservation = {};
+        MobilityStateSnapshot mobility = {};
+        RollingPhase rollingPhase = RollingPhase::None;
+        RollingDecision lastRollingDecision = RollingDecision::None;
+        std::uint64_t rollingDecisionCount = 0;
+        float rollingDecisionCommandSign = 0.0f;
+        float rollingDecisionInputSign = 0.0f;
+        RollingTraceEvent lastRollingTraceEvent = RollingTraceEvent::None;
+        std::uint64_t rollingTraceSequence = 0;
+        float rollingTraceRequestSign = 0.0f;
+        float rollingTraceCommandSign = 0.0f;
+        float rollingTraceInputSign = 0.0f;
+        SpecialMoveStateSnapshot specialMove = {};
+        MortarAimSnapshot mortarAim = {};
+        bool trackInputSwapped = false;
+        bool rollChainAvailable = false;
     };
 }

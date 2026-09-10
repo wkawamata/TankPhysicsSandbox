@@ -10,6 +10,8 @@
 #include <ImGuiWidgets.h>
 
 #include <filesystem>
+#include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace Ui
@@ -66,6 +68,386 @@ namespace Ui
 			}
 			return changed;
 		}
+
+		bool IsPendingColor(
+			const Tank::Physics::ColorRgb& value,
+			const Tank::Physics::ColorRgb& appliedValue)
+		{
+			return
+				IsPending(value.r, appliedValue.r) ||
+				IsPending(value.g, appliedValue.g) ||
+				IsPending(value.b, appliedValue.b);
+		}
+
+		bool ColorEdit3WithPendingColor(
+			const char* label,
+			float color[3],
+			bool pending)
+		{
+			if (pending)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+			}
+			const bool changed = ImGui::ColorEdit3(
+				label,
+				color,
+				ImGuiColorEditFlags_NoInputs);
+			if (pending)
+			{
+				ImGui::PopStyleColor();
+			}
+			return changed;
+		}
+
+		const char* MobilityReasonName(
+			Tank::Physics::MobilityTransitionReason reason)
+		{
+			switch (reason)
+			{
+			case Tank::Physics::MobilityTransitionReason::StopConditionsEntered:
+				return "StopConditionsEntered";
+			case Tank::Physics::MobilityTransitionReason::StopConfirmed:
+				return "StopConfirmed";
+			case Tank::Physics::MobilityTransitionReason::DriveRequested:
+				return "DriveRequested";
+			case Tank::Physics::MobilityTransitionReason::LinearSpeedExceeded:
+				return "LinearSpeedExceeded";
+			case Tank::Physics::MobilityTransitionReason::AngularSpeedExceeded:
+				return "AngularSpeedExceeded";
+			case Tank::Physics::MobilityTransitionReason::TrackSlipExceeded:
+				return "TrackSlipExceeded";
+			case Tank::Physics::MobilityTransitionReason::SuspensionUnstable:
+				return "SuspensionUnstable";
+			case Tank::Physics::MobilityTransitionReason::RequiredContactLost:
+				return "RequiredContactLost";
+			case Tank::Physics::MobilityTransitionReason::PoseUnstable:
+				return "PoseUnstable";
+			case Tank::Physics::MobilityTransitionReason::InvalidObservation:
+				return "InvalidObservation";
+			default:
+				return "None";
+			}
+		}
+
+		const char* RollingPhaseName(Tank::Physics::RollingPhase phase)
+		{
+			switch (phase)
+			{
+			case Tank::Physics::RollingPhase::Windup: return "Windup";
+			case Tank::Physics::RollingPhase::PoweredRoll: return "PoweredRoll";
+			case Tank::Physics::RollingPhase::Evaluating: return "Evaluating";
+			case Tank::Physics::RollingPhase::CommitRoll: return "CommitRoll";
+			case Tank::Physics::RollingPhase::BallisticRoll: return "BallisticRoll";
+			case Tank::Physics::RollingPhase::Settling: return "Settling";
+			default: return "None";
+			}
+		}
+
+		const char* RollingDecisionName(Tank::Physics::RollingDecision decision)
+		{
+			switch (decision)
+			{
+			case Tank::Physics::RollingDecision::ContinueForward:
+				return "ContinueForward";
+			case Tank::Physics::RollingDecision::ReturnToStart:
+				return "ReturnToStart";
+			default:
+				return "None";
+			}
+		}
+
+		const char* SpecialMoveStateName(Tank::Physics::SpecialMoveState state)
+		{
+			switch (state)
+			{
+			case Tank::Physics::SpecialMoveState::RollStarting: return "RollStarting";
+			case Tank::Physics::SpecialMoveState::Rolling: return "Rolling";
+			case Tank::Physics::SpecialMoveState::MortarStarting: return "MortarStarting";
+			case Tank::Physics::SpecialMoveState::MortarAiming: return "MortarAiming";
+			case Tank::Physics::SpecialMoveState::Blocked: return "Blocked";
+			case Tank::Physics::SpecialMoveState::RecoveringToStart: return "Recovering";
+			default: return "Idle";
+			}
+		}
+
+		void DrawStateSummary(
+			const TrackedVehiclePanelContext& ctx,
+			const Tank::Physics::TrackedVehicleTestState& state)
+		{
+			const Tank::Physics::TankMotionObservation& motion =
+				state.motionObservation;
+			ImGui::SeparatorText("State Summary");
+			const char* mobilityName = "Moving";
+			switch (state.mobility.state)
+			{
+			case Tank::Physics::MobilityState::StopCandidate:
+				mobilityName = "StopCandidate";
+				break;
+			case Tank::Physics::MobilityState::Stopped:
+				mobilityName = "Stopped";
+				break;
+			default:
+				break;
+			}
+			ImGui::Text("Mobility: %s  Time: %.2f s  Stop: %.0f%%",
+				mobilityName,
+				state.mobility.stateTimeSeconds,
+				state.mobility.stopCandidateProgress * 100.0f);
+			ImGui::Text("Roll: %s  Special: %s (#%llu)",
+				RollingPhaseName(state.rollingPhase),
+				SpecialMoveStateName(state.specialMove.state),
+				static_cast<unsigned long long>(state.specialMove.transitionCount));
+			ImGui::Text("Roll Chain: %s",
+				state.rollChainAvailable ? "Ready while sliding" : "Stopped only");
+			const ImVec4 rollingDecisionColor =
+				state.lastRollingDecision == Tank::Physics::RollingDecision::ReturnToStart
+				? ImVec4(1.0f, 0.35f, 0.20f, 1.0f)
+				: state.lastRollingDecision == Tank::Physics::RollingDecision::ContinueForward
+				? ImVec4(0.35f, 1.0f, 0.45f, 1.0f)
+				: ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+			ImGui::TextColored(rollingDecisionColor,
+				"Roll Decision: %s (#%llu)  Command: %+.0f  Input: %+.0f",
+				RollingDecisionName(state.lastRollingDecision),
+				static_cast<unsigned long long>(state.rollingDecisionCount),
+				state.rollingDecisionCommandSign,
+				state.rollingDecisionInputSign);
+			ImGui::TextDisabled(
+				"Roll Trace: #%llu  Request: %+.0f  Command: %+.0f  Input: %+.0f",
+				static_cast<unsigned long long>(state.rollingTraceSequence),
+				state.rollingTraceRequestSign,
+				state.rollingTraceCommandSign,
+				state.rollingTraceInputSign);
+			ImGui::Text("Mortar: %s%s  %.1f deg / %.1f m",
+				state.mortarAim.canFire ? "Ready" : "Charging",
+				state.mortarAim.atMaximum ? " (Max)" : "",
+				state.mortarAim.angleDegrees,
+				state.mortarAim.rangeMeters);
+			ImGui::Text("Track: %s  Obstruction: %s%s",
+				state.trackInputSwapped
+					? "Swapped (Inverted)"
+					: "Normal (Upright)",
+				state.rollingObstructionSuspected ? "Detected" : "None",
+				state.rollingRecoveryActive ? " / Recovery" : "");
+			ImGui::Text("Lever X: L %+.2f  R %+.2f  Roll: %+.2f",
+				ctx.leftLeverX,
+				ctx.rightLeverX,
+				ctx.analogRoll);
+			if (ctx.appliedTankSettings != nullptr)
+			{
+				ImGui::Text("Rolling Input Applied: %s",
+					ctx.appliedTankSettings->rollingInputEnabled ? "ON" : "OFF");
+			}
+			if (ImGui::CollapsingHeader("Motion / Stop Diagnostics"))
+			{
+				ImGui::Text("Mobility Reason: %s",
+					MobilityReasonName(state.mobility.lastTransitionReason));
+				ImGui::Text("Motion Data: %s",
+					motion.allFinite ? "Valid" : "INVALID");
+				ImGui::Text(
+					"Speed: %.2f m/s  Angular: %.2f rad/s",
+					motion.linearSpeedMetersPerSecond,
+					motion.angularSpeedRadiansPerSecond);
+				ImGui::Text(
+					"Contacts: L %d (%d lower)  R %d (%d lower)",
+					motion.tracks[0].contactCount,
+					motion.tracks[0].lowerSurfaceContactCount,
+					motion.tracks[1].contactCount,
+					motion.tracks[1].lowerSurfaceContactCount);
+				ImGui::Text(
+					"Max Slip: L %.2f  R %.2f m/s",
+					motion.tracks[0]
+						.maximumAbsoluteLongitudinalSlipMetersPerSecond,
+					motion.tracks[1]
+						.maximumAbsoluteLongitudinalSlipMetersPerSecond);
+				if (ctx.tankSettings != nullptr)
+				{
+					const Tank::Physics::TankSettings& settings = *ctx.tankSettings;
+					ImGui::Text("Stop In: Speed %.2f  Angular %.2f  Slip %.2f",
+						settings.stoppedEnterLinearSpeedMetersPerSecond,
+						settings.stoppedEnterAngularSpeedRadiansPerSecond,
+						settings.stoppedEnterTrackSlipMetersPerSecond);
+					ImGui::Text("Stop Out: Speed %.2f  Angular %.2f  Slip %.2f",
+						settings.stoppedExitLinearSpeedMetersPerSecond,
+						settings.stoppedExitAngularSpeedRadiansPerSecond,
+						settings.stoppedExitTrackSlipMetersPerSecond);
+				}
+			}
+		}
+
+		void DrawLeverInputMapping(
+			TrackedVehiclePanelContext& ctx)
+		{
+			if (!ImGui::CollapsingHeader("Lever Input Mapping"))
+			{
+				return;
+			}
+
+			ImGui::TextUnformatted("Maps gamepad axes to the left and right levers.");
+			ImGui::TextUnformatted("File: Config/input_mapping.json");
+			if (ctx.inputMappingSettings != nullptr)
+			{
+				int leftAxis = static_cast<int>(ctx.inputMappingSettings->leftLeverAxis);
+				int rightAxis = static_cast<int>(ctx.inputMappingSettings->rightLeverAxis);
+				if (ImGui::InputInt("Left Lever Axis", &leftAxis))
+				{
+					ctx.inputMappingSettings->leftLeverAxis =
+						static_cast<std::size_t>(std::clamp(leftAxis, 0, 15));
+				}
+				if (ImGui::InputInt("Right Lever Axis", &rightAxis))
+				{
+					ctx.inputMappingSettings->rightLeverAxis =
+						static_cast<std::size_t>(std::clamp(rightAxis, 0, 15));
+				}
+			}
+			if (ImGui::Button("Save Mapping") && ctx.saveInputMappingSettings)
+			{
+				ctx.saveInputMappingSettings();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Load Mapping") && ctx.loadInputMappingSettings)
+			{
+				ctx.loadInputMappingSettings();
+			}
+			if (ctx.inputMappingStatus != nullptr &&
+				!ctx.inputMappingStatus->empty())
+			{
+				ImGui::TextWrapped("%s", ctx.inputMappingStatus->c_str());
+			}
+		}
+	}
+
+	void DrawRollingCheatWindow(TrackedVehiclePanelContext& ctx)
+	{
+		if (ctx.rollingCheatWindowVisible == nullptr ||
+			!*ctx.rollingCheatWindowVisible)
+		{
+			return;
+		}
+
+		ImGui::SetNextWindowSize(ImVec2(520.0f, 620.0f), ImGuiCond_FirstUseEver);
+		if (!ImGui::Begin("CheatWindow: Rolling", ctx.rollingCheatWindowVisible))
+		{
+			ImGui::End();
+			return;
+		}
+		bool japanese = ctx.rollingCheatWindowJapanese != nullptr &&
+			*ctx.rollingCheatWindowJapanese;
+		if (ImGui::Button("日本語##RollingCheatLanguage"))
+		{
+			japanese = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("English##RollingCheatLanguage"))
+		{
+			japanese = false;
+		}
+		if (ctx.rollingCheatWindowJapanese != nullptr)
+		{
+			*ctx.rollingCheatWindowJapanese = japanese;
+		}
+
+		ImGui::TextWrapped("%s", japanese
+			? "ローリング挙動の調整値です。値を変更した後は Reset Tank / Apply を押してください。"
+			: "Rolling behavior tuning. Press Reset Tank / Apply after changing a value.");
+		ImGui::TextUnformatted(japanese ? "設定値の色" : "Setting value colors");
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+		ImGui::TextUnformatted(japanese ? "白: 現在値はSave済みの値と同じ。" : "White: current value matches the saved value.");
+		ImGui::PopStyleColor();
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.25f, 0.80f, 1.0f, 1.0f));
+		ImGui::TextUnformatted(japanese ? "水色: 現在適用済みだが未保存。Saveしない場合は揮発する。" : "Cyan: applied now but not saved; it is volatile until saved.");
+		ImGui::PopStyleColor();
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+		ImGui::TextUnformatted(japanese ? "オレンジ: 編集中で、Reset Tank / Applyが必要。" : "Orange: edited and awaiting Reset Tank / Apply.");
+		ImGui::PopStyleColor();
+		if (ImGui::Button("Reset Tank / Apply##RollingCheat"))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
+		ImGui::Separator();
+
+		auto description = [japanese](
+			const char* label,
+			bool pending,
+			const char* english,
+			const char* japaneseText)
+		{
+			if (pending)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+			}
+			ImGui::TextUnformatted(label);
+			if (pending)
+			{
+				ImGui::PopStyleColor();
+			}
+			ImGui::Indent();
+			ImGui::TextWrapped("%s", japanese ? japaneseText : english);
+			ImGui::Unindent();
+		};
+
+		if (ImGui::CollapsingHeader(japanese ? "開始と折り返し判断" : "Start and return decision", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			description(
+				"Roll Speed Multiplier", IsPending(ctx.tankSettings->rollSpeedMultiplier, ctx.appliedTankSettings->rollSpeedMultiplier),
+				"Roll Speed Multiplier: scales the complete roll's time feel from 0.5 to 2.0. 1.0 preserves the current tuning; the return decision angle and travel distance stay unchanged.",
+				"Roll Speed Multiplier：ローリング全体の時間感を0.5〜2.0倍で調整します。1.0は現在の調整を維持し、復帰判断角と横移動距離は変わりません。");
+			description(
+				"Rolling Input", ctx.tankSettings->rollingInputEnabled != ctx.appliedTankSettings->rollingInputEnabled,
+				"Rolling Input: enables paired-lever rolling. A new roll always requires a fresh lever action after neutral.",
+				"Rolling Input：左右レバーを同方向へ倒したローリング入力を有効にします。次のロールには、必ず一度中立へ戻してから新たに入力します。");
+			description(
+				"Roll Torque", IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm),
+				"Roll Torque: primary torque from the start through the approach angle. Higher values make the initial rise faster.",
+				"Roll Torque：開始から Approach Start Angle までの主トルクです。高くすると初動から立ち上がりまでが速くなります。");
+			description(
+				"Return Decision Angle", IsPending(ctx.tankSettings->rollReturnDecisionDegrees, ctx.appliedTankSettings->rollReturnDecisionDegrees),
+				"Return Decision Angle: reverse paired levers are accepted at this angle or later and select ReturnToStart. Default: 75 deg.",
+				"Return Decision Angle：この角度以降で逆向きの両レバーを受け付け、ReturnToStart を選択します。既定値は75度です。");
+		}
+		if (ImGui::CollapsingHeader(japanese ? "90度へ近づく区間" : "Approach to 90 degrees", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			description(
+				"Approach Start Angle", IsPending(ctx.tankSettings->rollApproachStartDegrees, ctx.appliedTankSettings->rollApproachStartDegrees),
+				"Approach Start Angle: begins approach damping. Use it to choose where the rise starts to soften before the decision point.",
+				"Approach Start Angle：この角度から減衰を開始します。判断点の前で立ち上がりをどこから穏やかにするかを決めます。");
+			description(
+				"Approach Damping", IsPending(ctx.tankSettings->rollApproachDampingNms, ctx.appliedTankSettings->rollApproachDampingNms),
+				"Approach Damping: opposes roll angular velocity from the approach angle to 90 degrees. Higher values reduce overshoot.",
+				"Approach Damping：開始角から90度まで、ロール角速度へ逆らう減衰です。高くすると行き過ぎを抑えます。");
+			description(
+				"Commit Torque", IsPending(ctx.tankSettings->rollCommitTorqueNm, ctx.appliedTankSettings->rollCommitTorqueNm),
+				"Commit Torque: short extra torque after the 90-degree decision. It makes the selected forward fall or return decisive.",
+				"Commit Torque：90度で判断した直後に短時間だけ加えるトルクです。前方への倒れ込み、または復帰を明確にします。");
+		}
+		if (ImGui::CollapsingHeader(japanese ? "横移動と着地" : "Travel and landing", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			description(
+				"Roll Travel", IsPending(ctx.tankSettings->rollTravelVehicleWidths, ctx.appliedTankSettings->rollTravelVehicleWidths),
+				"Match Physical Vehicle Width and Roll Travel: target travel is the physical hull/track width multiplied by this value (1.0 to 2.0).",
+				"Match Physical Vehicle Width と Roll Travel：車体・履帯から求めた物理幅に倍率（1.0〜2.0）を掛け、横移動の目標距離にします。");
+			description(
+				"Manual Roll Distance", IsPending(ctx.tankSettings->rollDistanceM, ctx.appliedTankSettings->rollDistanceM),
+				"Manual Roll Distance: used only when matching the physical vehicle width is disabled.",
+				"Manual Roll Distance：物理車幅への追従をOFFにした場合だけ使う、横移動の直接指定距離です。");
+			description(
+				"Post-90 Air Brake Torque", IsPending(ctx.tankSettings->rollAirBrakeTorqueNm, ctx.appliedTankSettings->rollAirBrakeTorqueNm),
+				"Post-90 Air Brake Torque and Air Brake Release Angle: brake rotational speed during the fall, then release near landing. Higher brake torque reduces airborne spin.",
+				"Post-90 Air Brake Torque と Air Brake Release Angle：倒れ込み中の回転を制動し、着地前に解除します。制動トルクを高くすると空中での回り過ぎを抑えます。");
+		}
+		if (ImGui::CollapsingHeader(japanese ? "最終姿勢の安定" : "Final attitude stabilization", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			description(
+				"Torque Cutoff Angle", IsPending(ctx.tankSettings->rollTorqueCutoffDegrees, ctx.appliedTankSettings->rollTorqueCutoffDegrees),
+				"Torque Cutoff Angle: ends the primary Roll Torque. Normal forward rolling proceeds into the post-90 fall from this point.",
+				"Torque Cutoff Angle：主 Roll Torque を終了する角度です。通常の前方ロールは、この後に90度以降の倒れ込みへ移ります。");
+			description(
+				"Stabilization Torque / Damping",
+				IsPending(ctx.tankSettings->rollStabilizationTorqueNm, ctx.appliedTankSettings->rollStabilizationTorqueNm) ||
+				IsPending(ctx.tankSettings->rollStabilizationDampingNms, ctx.appliedTankSettings->rollStabilizationDampingNms),
+				"Stabilization Torque and Damping: keep the completed result upright or inverted and remove residual roll speed. These do not add travel distance after landing.",
+				"Stabilization Torque と Damping：完了姿勢（表または裏）を保ち、残った回転を止めます。着地後に横移動距離を後追い補正するものではありません。");
+		}
+		ImGui::End();
 	}
 
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
@@ -74,6 +456,11 @@ namespace Ui
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
+		DrawStateSummary(ctx, state);
+		ImGui::BeginChild(
+			"TrackedVehicleControls",
+			ImVec2(0.0f, 0.0f),
+			ImGuiChildFlags_None);
 		if (ImGui::Button("Reset GUI"))
 		{
 			ImGui::SetWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
@@ -118,14 +505,16 @@ namespace Ui
 		{
 			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
 		}
+		DrawLeverInputMapping(ctx);
 		ImGui::SeparatorText("Simulation");
-		if (ImGui::Button(*ctx.trackedVehiclePaused ? "Resume" : "Pause"))
+		if (ImGui::Button(
+			*ctx.trackedVehiclePaused ? "Resume [Space]" : "Pause [Space]"))
 		{
 			*ctx.trackedVehiclePaused = !*ctx.trackedVehiclePaused;
 		}
 		ImGui::SameLine();
 		ImGui::BeginDisabled(!*ctx.trackedVehiclePaused);
-		if (ImGui::Button("Step Fwd"))
+		if (ImGui::Button("Step Fwd [F]"))
 		{
 			*ctx.trackedVehicleSingleStep = true;
 		}
@@ -141,6 +530,26 @@ namespace Ui
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
 		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
+		if (ImGui::CollapsingHeader("Frame Timing"))
+		{
+			ImGui::Text("Total CPU: %.2f ms  peak %.2f ms",
+				ctx.cpuFrameTimeMs,
+				ctx.peakCpuFrameTimeMs);
+			ImGui::Text("Rolling 300: avg %.2f  p95 %.2f  p99 %.2f ms",
+				ctx.averageCpuFrameTimeMs,
+				ctx.p95CpuFrameTimeMs,
+				ctx.p99CpuFrameTimeMs);
+			ImGui::Text("Physics: %.2f ms  peak %.2f ms",
+				ctx.physicsStepTimeMs,
+				ctx.physicsStepPeakTimeMs);
+			ImGui::Text("Scene Update: %.2f ms  peak %.2f ms",
+				ctx.sceneUpdateTimeMs,
+				ctx.sceneUpdatePeakTimeMs);
+			if (ImGui::Button("Reset Timing Peaks") && ctx.resetFrameTimingPeaks)
+			{
+				ctx.resetFrameTimingPeaks();
+			}
+		}
 		ImGui::Text("Step: %d", state.stepIndex);
 		ImGui::Text("Time: %.2f s", state.timeSeconds);
 		ImGui::Text("Position: %.2f, %.2f, %.2f",
@@ -339,7 +748,7 @@ namespace Ui
 			ImGui::TextUnformatted("Cyan: suspension  Green/Orange: contact  Yellow: normal");
 		}
 		ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
-		ImGui::Text("Q/E roll, Space brake");
+		ImGui::Text("Q/E roll, B brake, Space pause, F step fwd");
 		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
 		if (ImGui::CollapsingHeader("Gamepad"))
 		{
@@ -445,6 +854,14 @@ namespace Ui
 				5.0f,
 				"%.1f m",
 				IsPending(ctx.envSettings->gridSpacingM, ctx.appliedEnvSettings->gridSpacingM));
+			ColorEdit3WithPendingColor(
+				"Ground Color",
+				&ctx.envSettings->groundColor.r,
+				IsPendingColor(ctx.envSettings->groundColor, ctx.appliedEnvSettings->groundColor));
+			ColorEdit3WithPendingColor(
+				"Grid Line Color",
+				&ctx.envSettings->gridLineColor.r,
+				IsPendingColor(ctx.envSettings->gridLineColor, ctx.appliedEnvSettings->gridLineColor));
 			SliderIntWithPendingColor(
 				"Obstacle Count",
 				&ctx.envSettings->obstacleCount,
@@ -546,33 +963,152 @@ namespace Ui
 			0.0f,
 			1.0f,
 			0.05f,
-			0.15f,
+			0.30f,
 			"%.2f",
 			false);
 
 		}
 		if (ImGui::CollapsingHeader("Rolling Parameters"))
 		{
+		if (ImGui::Button("Reset Tank##RollingParameters"))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
+		ImGui::SameLine();
+		if (ctx.rollingCheatWindowVisible != nullptr &&
+			ImGui::Button("Open Rolling CheatWindow##RollingParameters"))
+		{
+			*ctx.rollingCheatWindowVisible = true;
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("Apply rolling parameter changes");
+		ImGui::Separator();
 
-		ImGui::Checkbox("Rolling Input", &ctx.tankSettings->rollingInputEnabled);
+		if (ImGui::Checkbox("Rolling Input", &ctx.tankSettings->rollingInputEnabled))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
+		SliderFloatWithPendingColor(
+			"Roll Speed Multiplier",
+			&ctx.tankSettings->rollSpeedMultiplier,
+			0.5f,
+			2.0f,
+			0.05f,
+			1.0f,
+			"%.2f x",
+			IsPending(
+				ctx.tankSettings->rollSpeedMultiplier,
+				ctx.appliedTankSettings->rollSpeedMultiplier));
 		SliderFloatWithPendingColor(
 			"Roll Torque",
 			&ctx.tankSettings->rollTorqueNm,
 			20000.0f,
 			300000.0f,
 			5000.0f,
-			120000.0f,
+			200000.0f,
 			"%.0f N m",
 			IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm));
 		SliderFloatWithPendingColor(
-			"Roll Distance",
-			&ctx.tankSettings->rollDistanceM,
-			0.5f,
+			"Return Decision Angle",
+			&ctx.tankSettings->rollReturnDecisionDegrees,
+			45.0f,
+			89.0f,
+			1.0f,
+			75.0f,
+			"%.0f deg",
+			IsPending(
+				ctx.tankSettings->rollReturnDecisionDegrees,
+				ctx.appliedTankSettings->rollReturnDecisionDegrees));
+		SliderFloatWithPendingColor(
+			"Approach Start Angle",
+			&ctx.tankSettings->rollApproachStartDegrees,
+			1.0f,
+			89.0f,
+			1.0f,
+			80.0f,
+			"%.0f deg",
+			IsPending(ctx.tankSettings->rollApproachStartDegrees, ctx.appliedTankSettings->rollApproachStartDegrees));
+		SliderFloatWithPendingColor(
+			"Approach Damping (Start-90 deg)",
+			&ctx.tankSettings->rollApproachDampingNms,
+			0.0f,
+			100000.0f,
+			1000.0f,
+			30000.0f,
+			"%.0f N m s",
+			IsPending(ctx.tankSettings->rollApproachDampingNms, ctx.appliedTankSettings->rollApproachDampingNms));
+		SliderFloatWithPendingColor(
+			"Commit Torque (90 deg)",
+			&ctx.tankSettings->rollCommitTorqueNm,
+			0.0f,
+			250000.0f,
+			5000.0f,
+			100000.0f,
+			"%.0f N m",
+			IsPending(ctx.tankSettings->rollCommitTorqueNm, ctx.appliedTankSettings->rollCommitTorqueNm));
+		ImGui::Checkbox(
+			"Match Physical Vehicle Width",
+			&ctx.tankSettings->rollDistanceMatchesVehicleWidth);
+		const float physicalVehicleWidth = (std::max)(
+			ctx.tankSettings->chassisWidthM,
+			ctx.tankSettings->trackSpacingM + ctx.tankSettings->trackWidthM);
+		ImGui::Text(
+			"Physical Vehicle Width: %.2f m",
+			physicalVehicleWidth);
+		if (ctx.tankSettings->rollDistanceMatchesVehicleWidth)
+		{
+			SliderFloatWithPendingColor(
+				"Roll Travel (Vehicle Widths)",
+				&ctx.tankSettings->rollTravelVehicleWidths,
+				1.0f,
+				2.0f,
+				0.05f,
+				1.0f,
+				"%.2f x",
+				IsPending(
+					ctx.tankSettings->rollTravelVehicleWidths,
+					ctx.appliedTankSettings->rollTravelVehicleWidths));
+			ImGui::Text(
+				"Target Roll Travel: %.2f m",
+				physicalVehicleWidth *
+					ctx.tankSettings->rollTravelVehicleWidths);
+		}
+		if (!ctx.tankSettings->rollDistanceMatchesVehicleWidth)
+		{
+			SliderFloatWithPendingColor(
+				"Manual Roll Distance",
+				&ctx.tankSettings->rollDistanceM,
+				0.5f,
+				7.0f,
+				0.1f,
+				2.4f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->rollDistanceM,
+					ctx.appliedTankSettings->rollDistanceM));
+		}
+		SliderFloatWithPendingColor(
+			"Post-90 Air Brake Torque",
+			&ctx.tankSettings->rollAirBrakeTorqueNm,
+			0.0f,
+			300000.0f,
+			5000.0f,
+			150000.0f,
+			"%.0f N m",
+			IsPending(
+				ctx.tankSettings->rollAirBrakeTorqueNm,
+				ctx.appliedTankSettings->rollAirBrakeTorqueNm));
+		SliderFloatWithPendingColor(
+			"Air Brake Release Angle",
+			&ctx.tankSettings->rollAirBrakeReleaseDegrees,
+			0.0f,
+			60.0f,
 			5.0f,
-			0.1f,
-			2.4f,
-			"%.2f m",
-			IsPending(ctx.tankSettings->rollDistanceM, ctx.appliedTankSettings->rollDistanceM));
+			30.0f,
+			"%.0f deg before landing",
+			IsPending(
+				ctx.tankSettings->rollAirBrakeReleaseDegrees,
+				ctx.appliedTankSettings->rollAirBrakeReleaseDegrees));
 		SliderFloatWithPendingColor(
 			"Torque Cutoff Angle",
 			&ctx.tankSettings->rollTorqueCutoffDegrees,
@@ -1160,6 +1696,8 @@ namespace Ui
 			driverInput.rightRatio,
 			driverInput.brake);
 		}
+		ImGui::EndChild();
 		ImGui::End();
+		DrawRollingCheatWindow(ctx);
 	}
 }

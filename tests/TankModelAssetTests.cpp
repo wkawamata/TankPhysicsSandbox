@@ -1,7 +1,6 @@
 #include <GltfLoader.h>
 #include <Scene/SceneBuilder.h>
 
-#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -24,23 +23,18 @@ int main(int argc, char* argv[])
     }
 
     std::vector<std::string> names = Engine::GetGltfMeshNodeNames(loaded.asset);
-    for (const char* expected : { "Body", "Cannon", "Side" })
+    if (names.size() != 1)
     {
-        if (std::find(names.begin(), names.end(), expected) == names.end())
-        {
-            std::cerr << "Missing node: " << expected << '\n';
-            return 1;
-        }
+        std::cerr << "Expected one merged tank mesh node\n";
+        return 1;
     }
 
     Engine::SceneBuilder builder;
-    const Engine::GltfNodeMeshAddResult cannon =
-        builder.AddGltfNodeMesh(loaded.asset, "Cannon");
-    const Engine::GltfNodeMeshAddResult side =
-        builder.AddGltfNodeMesh(loaded.asset, "Side");
-    if (!cannon || !side || cannon.meshId == side.meshId)
+    const Engine::GltfNodeMeshAddResult body =
+        builder.AddGltfNodeMesh(loaded.asset, names.front());
+    if (!body)
     {
-        std::cerr << "Tank parts were not converted to distinct meshes\n";
+        std::cerr << "Merged tank node was not converted as the body mesh\n";
         return 1;
     }
 

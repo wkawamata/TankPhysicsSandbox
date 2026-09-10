@@ -2,6 +2,7 @@
 
 #include "Physics/TankTypes.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "MortarRangeCue.h"
 
 #include <array>
 #include <cstddef>
@@ -23,6 +24,15 @@ public:
         bool visible);
 
     void Clear();
+    void SetMortarRangeCue(const Tank::Rendering::MortarRangeCue& cue)
+    {
+        m_mortarRangeCue = cue;
+        m_mortarRangeCue.Sanitize();
+    }
+    const Tank::Rendering::MortarRangeCue& MortarRangeCue() const
+    {
+        return m_mortarRangeCue;
+    }
 
 private:
     Engine::SceneBuilder& m_sceneBuilder;
@@ -36,4 +46,5 @@ private:
     uint32_t m_trackProxyMaterial = 0;
     uint32_t m_debugContactMaterial = 0;
     uint32_t m_debugAirborneMaterial = 0;
+    Tank::Rendering::MortarRangeCue m_mortarRangeCue = {};
 };

@@ -221,6 +221,12 @@ namespace Tank::Physics
         return m_impl != nullptr ? m_impl->controller.Settings() : defaultSettings;
     }
 
+    const TankInput& TrackedVehicleTest::Input() const
+    {
+        static const TankInput defaultInput;
+        return m_impl != nullptr ? m_impl->controller.Input() : defaultInput;
+    }
+
     const TrackedDriverInput& TrackedVehicleTest::DriverInput() const
     {
         static const TrackedDriverInput defaultInput;
@@ -293,6 +299,34 @@ namespace Tank::Physics
         m_state.wheels = m_impl->controller.State().wheels;
         m_state.wheelCount = m_impl->controller.State().wheelCount;
         m_state.sleeping = m_impl->controller.State().sleeping;
+        m_state.motionObservation =
+            m_impl->controller.State().motionObservation;
+        m_state.mobility = m_impl->controller.State().mobility;
+        m_state.rollingPhase = m_impl->controller.State().rollingPhase;
+        m_state.lastRollingDecision =
+            m_impl->controller.State().lastRollingDecision;
+        m_state.rollingDecisionCount =
+            m_impl->controller.State().rollingDecisionCount;
+        m_state.rollingDecisionCommandSign =
+            m_impl->controller.State().rollingDecisionCommandSign;
+        m_state.rollingDecisionInputSign =
+            m_impl->controller.State().rollingDecisionInputSign;
+        m_state.lastRollingTraceEvent =
+            m_impl->controller.State().lastRollingTraceEvent;
+        m_state.rollingTraceSequence =
+            m_impl->controller.State().rollingTraceSequence;
+        m_state.rollingTraceRequestSign =
+            m_impl->controller.State().rollingTraceRequestSign;
+        m_state.rollingTraceCommandSign =
+            m_impl->controller.State().rollingTraceCommandSign;
+        m_state.rollingTraceInputSign =
+            m_impl->controller.State().rollingTraceInputSign;
+        m_state.specialMove = m_impl->controller.State().specialMove;
+        m_state.mortarAim = m_impl->controller.State().mortarAim;
+        m_state.trackInputSwapped =
+            m_impl->controller.State().trackInputSwapped;
+        m_state.rollChainAvailable =
+            m_impl->controller.State().rollChainAvailable;
 
         return m_state;
     }

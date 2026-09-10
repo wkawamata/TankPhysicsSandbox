@@ -11,7 +11,9 @@ Map fileは`Config/Maps/`に置き、version付きJSONを使用する。現在�
 ## 座標系
 
 - 単位はmeter。
-- Y正方向が上。
+- DirectX 12左手系を使用する。
+- X正方向が右、Y正方向が上、Z正方向が前。
+- モデルローカル座標系、Physics、RtPbrSurvey上位レイヤ、描画、カメラ追従はこの同じ軸規約を使用し、境界で軸入替え、符号反転、手系変換を行わない。
 - spawn yawが0のとき、戦車はZ正方向を向く。
 - `position`はboxまたはtriangular prismの中心位置。
 - `yawRadians`はprimitiveまたはspawn poseをY正軸の周りに回転する。

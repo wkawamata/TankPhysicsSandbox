@@ -4,6 +4,7 @@
 #include "PhysicsEnvironmentSettings.h"
 #include "MapDefinition.h"
 #include "TankTypes.h"
+#include "MortarAimController.h"
 #include "Map/GltfHitMesh.h"
 
 #include <array>
@@ -30,6 +31,24 @@ namespace Tank::Physics
         std::array<TrackedWheelState, kTankWheelCount> wheels = {};
         int wheelCount = 0;
         bool sleeping = false;
+        TankMotionObservation motionObservation = {};
+        MobilityStateSnapshot mobility = {};
+        RollingPhase rollingPhase = RollingPhase::None;
+        RollingDecision lastRollingDecision = RollingDecision::None;
+        std::uint64_t rollingDecisionCount = 0;
+        float rollingDecisionCommandSign = 0.0f;
+        float rollingDecisionInputSign = 0.0f;
+        RollingTraceEvent lastRollingTraceEvent = RollingTraceEvent::None;
+        std::uint64_t rollingTraceSequence = 0;
+        float rollingTraceRequestSign = 0.0f;
+        float rollingTraceCommandSign = 0.0f;
+        float rollingTraceInputSign = 0.0f;
+        MortarAimSnapshot mortarAim = {};
+        SpecialMoveStateSnapshot specialMove = {};
+        bool rollingObstructionSuspected = false;
+        bool rollingRecoveryActive = false;
+        bool trackInputSwapped = false;
+        bool rollChainAvailable = false;
     };
 
     class TrackedVehicleTest
@@ -59,6 +78,7 @@ namespace Tank::Physics
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
         const TrackedVehicleTestState& State() const { return m_state; }
+        const TankInput& Input() const;
         const TrackedDriverInput& DriverInput() const;
         const TankSettings& Settings() const;
 

@@ -67,12 +67,38 @@ add_library(TankPhysicsCore STATIC
     src/Physics/MapDefinition.h
     src/Physics/MapDefinitionJson.cpp
     src/Physics/MapDefinitionJson.h
+    src/Physics/MobilityTypes.h
+    src/Physics/MobilityStateMachine.cpp
+    src/Physics/MobilityStateMachine.h
     src/Physics/PhysicsWorld.cpp
     src/Physics/PhysicsWorld.h
+    src/Physics/SpecialActionRecognizer.cpp
+    src/Physics/SpecialActionRecognizer.h
+    src/Physics/SpecialMoveTypes.h
+    src/Physics/SpecialMoveStateMachine.cpp
+    src/Physics/SpecialMoveStateMachine.h
+    src/Physics/RollingObstructionDetector.cpp
+    src/Physics/RollingObstructionDetector.h
+    src/Physics/RollingRecoveryController.cpp
+    src/Physics/RollingRecoveryController.h
+    src/Physics/RollingSafetyCoordinator.cpp
+    src/Physics/RollingSafetyCoordinator.h
+    src/Physics/MortarAimController.cpp
+    src/Physics/MortarAimController.h
+    src/Physics/MortarAimIntegration.cpp
+    src/Physics/MortarAimIntegration.h
+    src/Physics/SpecialActionInputAdapter.h
+    src/Physics/SpecialMoveInputProcessor.h
+    src/Physics/MortarCameraCue.h
+    src/Physics/RollingSafetyStateMapper.h
+    src/Rendering/MortarRangeCue.h
+    src/Rendering/MortarRangeGeometry.h
     src/Physics/StaticMeshShape.cpp
     src/Physics/StaticMeshShape.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
+    src/Physics/TankMotionObservation.cpp
+    src/Physics/TankMotionObservation.h
     src/Physics/TankSettingsJson.cpp
     src/Physics/TankSettingsJson.h
     src/Physics/TankTypes.h
@@ -105,6 +131,13 @@ target_include_directories(TankInputCore
     PUBLIC
         src
 )
+
+add_library(TankInputMappingJson STATIC
+    src/Input/TankInputMappingJson.cpp
+    src/Input/TankInputMappingJson.h
+)
+target_include_directories(TankInputMappingJson PUBLIC src)
+target_link_libraries(TankInputMappingJson PUBLIC TankInputCore nlohmann_json::nlohmann_json)
 
 set(TANK_GAMEINPUT_VERSION "3.5.262" CACHE STRING "Microsoft.GameInput NuGet version.")
 set(TANK_GAMEINPUT_PACKAGE_DIR
@@ -216,6 +249,7 @@ target_link_libraries(TankSandbox
         uuid
         TankPhysicsCore
         TankInputCore
+        TankInputMappingJson
         TankWindowsInput
         Jolt
         RtPbrSurvey::SceneRenderer
@@ -227,7 +261,7 @@ target_compile_definitions(TankSandbox
 )
 
 if(MSVC)
-    target_compile_options(TankSandbox PRIVATE /W4 /permissive)
+    target_compile_options(TankSandbox PRIVATE /W4 /permissive /utf-8)
 endif()
 
 # ── D3D12 Agility SDK ─────────────────────────────────────────
@@ -253,6 +287,10 @@ add_executable(TankPhysicsCli
 
 target_link_libraries(TankPhysicsCli
     PRIVATE
+        TankMapCore
+        ole32
+        shell32
+        uuid
         TankPhysicsCore
 )
 
@@ -420,6 +458,137 @@ if(BUILD_TESTING)
         target_compile_options(TankControllerTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TankMotionObservationTests
+        tests/TankMotionObservationTests.cpp
+    )
+    target_link_libraries(TankMotionObservationTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TankMotionObservationTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(MobilityStateMachineTests
+        tests/MobilityStateMachineTests.cpp
+    )
+    target_link_libraries(MobilityStateMachineTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(MobilityStateMachineTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(SpecialActionRecognizerTests
+        tests/SpecialActionRecognizerTests.cpp
+    )
+    target_link_libraries(SpecialActionRecognizerTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(SpecialActionRecognizerTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(SpecialMoveTypesTests
+        tests/SpecialMoveTypesTests.cpp
+    )
+    target_link_libraries(SpecialMoveTypesTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(SpecialMoveTypesTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(SpecialMoveStateMachineTests
+        tests/SpecialMoveStateMachineTests.cpp
+    )
+    target_link_libraries(SpecialMoveStateMachineTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(SpecialMoveStateMachineTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(SpecialMoveIntegrationTests
+        tests/SpecialMoveIntegrationTests.cpp
+    )
+    target_link_libraries(SpecialMoveIntegrationTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(SpecialMoveIntegrationTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(RollingObstructionDetectorTests
+        tests/RollingObstructionDetectorTests.cpp
+    )
+    target_link_libraries(RollingObstructionDetectorTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(RollingObstructionDetectorTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(RollingRecoveryControllerTests
+        tests/RollingRecoveryControllerTests.cpp
+    )
+    target_link_libraries(RollingRecoveryControllerTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(RollingRecoveryControllerTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(RollingSafetyCoordinatorTests
+        tests/RollingSafetyCoordinatorTests.cpp
+    )
+    target_link_libraries(RollingSafetyCoordinatorTests PRIVATE TankPhysicsCore)
+    if (MSVC)
+        target_compile_options(RollingSafetyCoordinatorTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(MortarAimControllerTests
+        tests/MortarAimControllerTests.cpp
+    )
+    target_link_libraries(MortarAimControllerTests PRIVATE TankPhysicsCore)
+    if (MSVC)
+        target_compile_options(MortarAimControllerTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(MortarAimIntegrationTests
+        tests/MortarAimIntegrationTests.cpp
+    )
+    target_link_libraries(MortarAimIntegrationTests PRIVATE TankPhysicsCore)
+    if (MSVC)
+        target_compile_options(MortarAimIntegrationTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(SpecialActionInputAdapterTests
+        tests/SpecialActionInputAdapterTests.cpp
+    )
+    target_link_libraries(SpecialActionInputAdapterTests PRIVATE TankPhysicsCore)
+    if (MSVC)
+        target_compile_options(SpecialActionInputAdapterTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(SpecialMoveInputProcessorTests
+        tests/SpecialMoveInputProcessorTests.cpp
+    )
+    target_link_libraries(SpecialMoveInputProcessorTests PRIVATE TankPhysicsCore)
+    if (MSVC)
+        target_compile_options(SpecialMoveInputProcessorTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(MortarCameraCueTests tests/MortarCameraCueTests.cpp)
+    target_link_libraries(MortarCameraCueTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(MortarCameraCueTests PRIVATE /W4 /permissive-)
+    endif()
+    add_executable(MortarRangeCueTests tests/MortarRangeCueTests.cpp)
+    target_link_libraries(MortarRangeCueTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(MortarRangeCueTests PRIVATE /W4 /permissive-)
+    endif()
+    add_executable(MortarRangeGeometryTests tests/MortarRangeGeometryTests.cpp)
+    target_link_libraries(MortarRangeGeometryTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(MortarRangeGeometryTests PRIVATE /W4 /permissive-)
+    endif()
+    add_executable(RollingSafetyStateMapperTests tests/RollingSafetyStateMapperTests.cpp)
+    target_link_libraries(RollingSafetyStateMapperTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(RollingSafetyStateMapperTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(PhysicsWorldTests
         tests/PhysicsWorldTests.cpp
     )
@@ -440,6 +609,14 @@ if(BUILD_TESTING)
     )
     if(MSVC)
         target_compile_options(TankSettingsJsonTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(TankInputMappingJsonTests
+        tests/TankInputMappingJsonTests.cpp
+    )
+    target_link_libraries(TankInputMappingJsonTests PRIVATE TankInputMappingJson)
+    if(MSVC)
+        target_compile_options(TankInputMappingJsonTests PRIVATE /W4 /permissive-)
     endif()
 
     add_test(
@@ -556,6 +733,70 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.TankMotionObservation
+        COMMAND TankMotionObservationTests
+    )
+
+    add_test(
+        NAME TankPhysics.MobilityStateMachine
+        COMMAND MobilityStateMachineTests
+    )
+
+    add_test(
+        NAME TankPhysics.SpecialActionRecognizer
+        COMMAND SpecialActionRecognizerTests
+    )
+
+    add_test(
+        NAME TankPhysics.SpecialMoveTypes
+        COMMAND SpecialMoveTypesTests
+    )
+
+    add_test(
+        NAME TankPhysics.SpecialMoveStateMachine
+        COMMAND SpecialMoveStateMachineTests
+    )
+
+    add_test(
+        NAME TankPhysics.SpecialMoveIntegration
+        COMMAND SpecialMoveIntegrationTests
+    )
+
+    add_test(
+        NAME TankPhysics.RollingObstructionDetector
+        COMMAND RollingObstructionDetectorTests
+    )
+
+    add_test(
+        NAME TankPhysics.RollingRecoveryController
+        COMMAND RollingRecoveryControllerTests
+    )
+    add_test(
+        NAME TankPhysics.RollingSafetyCoordinator
+        COMMAND RollingSafetyCoordinatorTests
+    )
+    add_test(
+        NAME TankPhysics.MortarAimController
+        COMMAND MortarAimControllerTests
+    )
+    add_test(
+        NAME TankPhysics.MortarAimIntegration
+        COMMAND MortarAimIntegrationTests
+    )
+    add_test(
+        NAME TankPhysics.SpecialActionInputAdapter
+        COMMAND SpecialActionInputAdapterTests
+    )
+    add_test(
+        NAME TankPhysics.SpecialMoveInputProcessor
+        COMMAND SpecialMoveInputProcessorTests
+    )
+    add_test(NAME TankPhysics.MortarCameraCue COMMAND MortarCameraCueTests)
+    add_test(NAME TankPhysics.MortarRangeCue COMMAND MortarRangeCueTests)
+    add_test(NAME TankPhysics.MortarRangeGeometry COMMAND MortarRangeGeometryTests)
+    add_test(NAME TankPhysics.RollingSafetyStateMapper COMMAND RollingSafetyStateMapperTests)
+
+    add_test(
         NAME TankPhysics.PhysicsWorld
         COMMAND PhysicsWorldTests
     )
@@ -563,6 +804,10 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TankSettingsJson
         COMMAND TankSettingsJsonTests
+    )
+    add_test(
+        NAME TankPhysics.TankInputMappingJson
+        COMMAND TankInputMappingJsonTests
     )
 
     add_executable(PhysicsEnvironmentSettingsJsonTests
@@ -656,7 +901,7 @@ if(BUILD_TESTING)
     add_test(
         NAME TankRendering.ModelAsset
         COMMAND TankModelAssetTests
-            "${CMAKE_CURRENT_SOURCE_DIR}/Assets/TankModels/TankModel-2026-08-14-v001.glb"
+            "${CMAKE_CURRENT_SOURCE_DIR}/Assets/TankModels/TankModel-2026-08-27-v001.glb"
     )
 
     add_executable(TestObstacleLayoutTests
@@ -721,6 +966,28 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehiclePowerTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehicleCoastingTests
+        tests/TrackedVehicleCoastingTests.cpp
+    )
+    target_link_libraries(TrackedVehicleCoastingTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleCoastingTests PRIVATE /W4 /permissive-)
+    endif()
+
+    add_executable(MobilityObservationCharacterizationTests
+        tests/MobilityObservationCharacterizationTests.cpp
+    )
+    target_link_libraries(MobilityObservationCharacterizationTests
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(MobilityObservationCharacterizationTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(TrackedVehicleSteeringTests
         tests/TrackedVehicleSteeringTests.cpp
     )
@@ -776,6 +1043,17 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehicleRollTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(TrackedVehicleRollGifTrace
+        tests/TrackedVehicleRollGifTrace.cpp
+    )
+    target_link_libraries(TrackedVehicleRollGifTrace
+        PRIVATE
+            TankPhysicsCore
+    )
+    if(MSVC)
+        target_compile_options(TrackedVehicleRollGifTrace PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(TrackedVehicleRideHeightTests
         tests/TrackedVehicleRideHeightTests.cpp
     )
@@ -811,6 +1089,16 @@ if(BUILD_TESTING)
     )
 
     add_test(
+        NAME TankPhysics.TrackedVehicleCoasting
+        COMMAND TrackedVehicleCoastingTests
+    )
+
+    add_test(
+        NAME TankPhysics.MobilityObservationCharacterization
+        COMMAND MobilityObservationCharacterizationTests
+    )
+
+    add_test(
         NAME TankPhysics.TrackedVehicleSteering
         COMMAND TrackedVehicleSteeringTests
     )
@@ -833,6 +1121,11 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.TrackedVehicleRoll
         COMMAND TrackedVehicleRollTests
+    )
+
+    add_test(
+        NAME TankPhysics.TrackedVehicleRollGifTrace
+        COMMAND TrackedVehicleRollGifTrace
     )
 
     add_test(

@@ -1,4 +1,6 @@
 #include "App/TrackedVehicleMode.h"
+#include "Input/TankInputMappingJson.h"
+#include <fstream>
 #include "App/CameraController.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
@@ -8,20 +10,39 @@
 #include "Physics/TankSettingsJson.h"
 #include "Rendering/TankVisualSettingsJson.h"
 #include "Rendering/TankModelExporter.h"
+#include "Rendering/MortarRangeGeometry.h"
 #include "Rendering/MapVisualLoader.h"
 #include "Runtime/SceneRenderer.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <DirectXMath.h>
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <vector>
 
 namespace
 {
     constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
 
+    const char* RollingTraceEventName(Tank::Physics::RollingTraceEvent event)
+    {
+        switch (event)
+        {
+        case Tank::Physics::RollingTraceEvent::StartLatched:
+            return "StartLatched";
+        case Tank::Physics::RollingTraceEvent::ContinueForward:
+            return "ContinueForward";
+        case Tank::Physics::RollingTraceEvent::ReturnToStart:
+            return "ReturnToStart";
+        case Tank::Physics::RollingTraceEvent::Finished:
+            return "Finished";
+        default:
+            return "None";
+        }
     Tank::Physics::MapSpawn ManifestSpawn(const Tank::Map::Manifest& manifest)
     {
         constexpr float degreesToRadians = 3.14159265358979323846f / 180.0f;
@@ -49,6 +70,14 @@ bool TrackedVehicleMode::LoadTankModelAsset(const std::filesystem::path& path)
     }
 
     m_tankModelAsset = std::move(result.asset);
+    const std::vector<std::string> nodeNames =
+        Engine::GetGltfMeshNodeNames(m_tankModelAsset);
+    if (nodeNames.size() == 1)
+    {
+        m_showGltfBody = true;
+        m_showGltfCannon = false;
+        m_showGltfSide = false;
+    }
     m_tankModelLoadStatus = "Loaded: " + path.filename().string();
     return true;
 }
@@ -249,8 +278,31 @@ void TrackedVehicleMode::Exit()
     m_active = false;
 }
 
-void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer&)
+void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer)
 {
+    const auto cue = MortarRangeCue();
+    m_presenter.SetMortarRangeCue(cue);
+    const auto vertices = Tank::Rendering::MortarRangeGeometry::BuildCircle(
+        cue.center, cue.radiusMeters, 32);
+    for (size_t i = 0; i < m_mortarRangeLines.size(); ++i)
+    {
+        const size_t next = (i + 1) % m_mortarRangeLines.size();
+        RtPbrSurvey::DebugLineDesc line;
+        if (vertices.size() == m_mortarRangeLines.size())
+        {
+            line.start = {vertices[i].x, vertices[i].y, vertices[i].z};
+            line.end = {vertices[next].x, vertices[next].y, vertices[next].z};
+        }
+        line.visible = cue.visible;
+        line.color = cue.canFire
+            ? DirectX::XMFLOAT4(1.0f, 0.2f, 0.1f, 1.0f)
+            : DirectX::XMFLOAT4(1.0f, 0.8f, 0.1f, 1.0f);
+        line.depthMode = RtPbrSurvey::DebugLineDepthMode::DepthTested;
+        if (m_mortarRangeLines[i] == RtPbrSurvey::kInvalidDebugLineHandle)
+            m_mortarRangeLines[i] = renderer.AddDebugLine(line);
+        else
+            renderer.UpdateDebugLine(m_mortarRangeLines[i], line);
+    }
     m_presenter.UpdateScene(
         m_test.State(),
         m_settings,
@@ -367,6 +419,16 @@ void TrackedVehicleMode::UpdateInput(
     const float analogRollAxis2 =
         useAnalogTracks ? NormalizeRawGamepadAxis(gamepadState.rawAxes[2]) : 0.0f;
 
+    input.leftLeverX = analogRollAxis2;
+    input.rightLeverX = analogRollAxis0;
+
+    if (!useAnalogTracks && rollLeft != rollRight)
+    {
+        const float keyboardLeverX = rollLeft ? -1.0f : 1.0f;
+        input.leftLeverX = keyboardLeverX;
+        input.rightLeverX = keyboardLeverX;
+    }
+
     m_analogRoll = std::clamp((analogRollAxis0 + analogRollAxis2) * 0.5f, -1.0f, 1.0f);
 
     if (m_analogLeftTrack != 0.0f || m_analogRightTrack != 0.0f)
@@ -432,7 +494,7 @@ void TrackedVehicleMode::UpdateInput(
     {
         const bool keyboardBrake = input.brake;
         const float keyboardRoll = input.roll;
-        input = Tank::Input::MapGamepadToTankInput(gamepadState);
+        input = Tank::Input::MapGamepadToTankInput(gamepadState, m_inputMappingSettings);
         input.brake = input.brake || keyboardBrake;
         input.roll = keyboardRoll;
     }
@@ -456,20 +518,61 @@ void TrackedVehicleMode::Step(
 {
     if (!m_paused || m_singleStep)
     {
+        const auto physicsStart = std::chrono::steady_clock::now();
         m_test.Step(kPhysicsFixedDt);
+        const Tank::Physics::TrackedVehicleTestState& state = m_test.State();
+        if (state.rollingTraceSequence != m_loggedRollingTraceSequence)
+        {
+            char message[192] = {};
+            std::snprintf(
+                message,
+                sizeof(message),
+                "[Tank Rolling] seq=%llu event=%s phase=%d request=%+.0f command=%+.0f input=%+.0f angularZ=%+.3f\n",
+                static_cast<unsigned long long>(state.rollingTraceSequence),
+                RollingTraceEventName(state.lastRollingTraceEvent),
+                static_cast<int>(state.rollingPhase),
+                state.rollingTraceRequestSign,
+                state.rollingTraceCommandSign,
+                state.rollingTraceInputSign,
+                state.angularVelocity.z);
+            OutputDebugStringA(message);
+            m_loggedRollingTraceSequence = state.rollingTraceSequence;
+        }
+        const auto sceneStart = std::chrono::steady_clock::now();
+        m_physicsStepTimeMs = std::chrono::duration<float, std::milli>(
+            sceneStart - physicsStart).count();
+        m_physicsStepPeakTimeMs = (std::max)(
+            m_physicsStepPeakTimeMs,
+            m_physicsStepTimeMs);
         UpdateClearCondition();
         UpdateSceneInternal(renderer);
         renderer.SetScene(m_presenter.GetScene());
+        m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - sceneStart).count();
+        m_sceneUpdatePeakTimeMs = (std::max)(
+            m_sceneUpdatePeakTimeMs,
+            m_sceneUpdateTimeMs);
         m_singleStep = false;
     }
 
     if (Engine::CameraState* camera = ActiveCamera())
     {
+        const auto& aim = m_test.State().mortarAim;
+        const float progress = aim.atMaximum ? 1.0f :
+            (aim.canFire ? 0.5f : 0.0f);
+        cameraController.SetMortarCameraCue(
+            Tank::Physics::MortarCameraCue::FromWheelieProgress(progress));
         cameraController.UpdateFollowCamera(
             m_test.State(),
             kPhysicsFixedDt,
             *camera);
     }
+}
+
+void TrackedVehicleMode::ResetFrameTimingPeaks()
+{
+    m_physicsStepPeakTimeMs = m_physicsStepTimeMs;
+    m_sceneUpdatePeakTimeMs = m_sceneUpdateTimeMs;
 }
 
 void TrackedVehicleMode::Reset(
@@ -500,6 +603,7 @@ void TrackedVehicleMode::Reset(
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_singleStep = false;
     m_analogTracksArmed = false;
+    m_loggedRollingTraceSequence = 0;
     m_mapCleared = false;
     m_clearedAreaName.clear();
     m_clearedAreaIndex.reset();
@@ -542,10 +646,54 @@ Engine::Scene& TrackedVehicleMode::GetScene()
     return m_presenter.GetScene();
 }
 
+Tank::Rendering::MortarRangeCue TrackedVehicleMode::MortarRangeCue() const
+{
+    const auto& state = m_test.State();
+    Tank::Rendering::MortarRangeCue cue;
+    cue.center = state.bodyPosition;
+    cue.radiusMeters = state.mortarAim.rangeMeters;
+    cue.visible = state.specialMove.state == Tank::Physics::SpecialMoveState::MortarAiming;
+    cue.canFire = state.mortarAim.canFire;
+    return cue;
+}
+
 bool TrackedVehicleMode::SaveTankSettings()
 {
     Tank::App::TankSettingsStore store(m_tankSettingsSlot);
     return store.Write(m_settings, m_tankSettingsStatus);
+}
+
+bool TrackedVehicleMode::SaveInputMappingSettings()
+{
+    std::ofstream file("Config/input_mapping.json");
+    if (!file)
+    {
+        m_inputMappingStatus = "Save failed: Config/input_mapping.json";
+        return false;
+    }
+    file << Tank::Input::SaveTankInputMappingSettings(m_inputMappingSettings).dump(4);
+    if (!file)
+    {
+        m_inputMappingStatus = "Save failed: Config/input_mapping.json";
+        return false;
+    }
+    m_inputMappingStatus = "Saved: Config/input_mapping.json";
+    return true;
+}
+
+bool TrackedVehicleMode::LoadInputMappingSettings()
+{
+    std::ifstream file("Config/input_mapping.json");
+    if (!file)
+    {
+        m_inputMappingStatus = "Load failed: Config/input_mapping.json";
+        return false;
+    }
+    nlohmann::json json;
+    file >> json;
+    m_inputMappingSettings = Tank::Input::LoadTankInputMappingSettings(json);
+    m_inputMappingStatus = "Loaded: Config/input_mapping.json";
+    return true;
 }
 
 bool TrackedVehicleMode::LoadTankSettings(

@@ -77,7 +77,9 @@ private:
     void UpdateUiFrame();
     void DrawToolUi();
     void RequestScreenshot();
+    void RequestScreenshot(const std::filesystem::path& path);
     void UpdateScreenshotResult();
+    void CaptureRollTestFrame();
     bool SaveRendererSettings();
     bool LoadRendererSettings();
     void ResetRendererSettings();
@@ -98,6 +100,7 @@ private:
     void ClearVehicleInputState();
     void FlushD3d12DebugLog();
     void LogFps(float cpuFrameTimeMs);
+    void FinishFrameBenchmark();
 
     static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
     static constexpr UINT kImGuiDescriptorCount = 100;
@@ -144,6 +147,8 @@ private:
     bool m_rollLeft = false;
     bool m_rollRight = false;
     bool m_brake = false;
+    bool m_pauseShortcutHeld = false;
+    bool m_stepForwardShortcutHeld = false;
     // Camera
     Tank::App::CameraController m_cameraController;
 
@@ -151,6 +156,25 @@ private:
     Ui::CameraPanelContext m_cameraPanelCtx;
     Ui::RendererSettingsPanelContext m_rendererPanelCtx;
     Ui::TrackedVehiclePanelContext m_trackedVehiclePanelCtx;
+    float m_peakCpuFrameTimeMs = 0.0f;
+    static constexpr size_t kFrameTimingSampleCount = 300;
+    std::array<float, kFrameTimingSampleCount> m_cpuFrameTimeSamples = {};
+    size_t m_cpuFrameTimeSampleIndex = 0;
+    size_t m_cpuFrameTimeSamplesRecorded = 0;
+    float m_averageCpuFrameTimeMs = 0.0f;
+    float m_p95CpuFrameTimeMs = 0.0f;
+    float m_p99CpuFrameTimeMs = 0.0f;
+    UINT64 m_benchmarkWarmupFrames = 120;
+    UINT64 m_benchmarkMeasureFrames = 0;
+    UINT64 m_benchmarkElapsedFrames = 0;
+    std::filesystem::path m_benchmarkOutputPath;
+    std::vector<float> m_benchmarkCpuFrameTimes;
+    bool m_benchmarkTrackShoesOff = false;
+    bool m_benchmarkTrackShoesOn = false;
+    bool m_benchmarkShadowsOff = false;
+    bool m_benchmarkShadowsOn = false;
+    bool m_benchmarkReflectionsOff = false;
+    bool m_benchmarkReflectionsOn = false;
 
     // Renderer state
     bool m_rendererDebugOpen = true;
@@ -166,6 +190,22 @@ private:
     UINT64 m_autoFramesElapsed = 0;
     bool m_quitAfterCapture = false;
     bool m_windowCloseApproved = false;
+
+    // Deterministic rendered rolling capture for GIF generation.
+    bool m_rollCaptureEnabled = false;
+    bool m_rollCaptureInitialized = false;
+    float m_rollCaptureSign = 1.0f;
+    UINT64 m_rollCaptureRollCount = 1;
+    UINT64 m_rollCaptureIssuedRollCount = 0;
+    bool m_rollCaptureReturnAtDecisionAngle = false;
+    bool m_rollCaptureReturnIssued = false;
+    UINT64 m_rollCaptureWarmupFrames = 180;
+    UINT64 m_rollCaptureFrameCount = 90;
+    UINT64 m_rollCaptureIntervalFrames = 2;
+    UINT64 m_rollCaptureSimulationFrames = 0;
+    UINT64 m_rollCaptureRequestedFrames = 0;
+    UINT64 m_rollCaptureCompletedFrames = 0;
+    std::filesystem::path m_rollCaptureDirectory;
 
     // Debug logging to file (-LogToFile).
     ComPtr<ID3D12InfoQueue> m_d3d12InfoQueue;

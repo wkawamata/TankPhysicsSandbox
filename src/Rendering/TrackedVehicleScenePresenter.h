@@ -67,6 +67,10 @@ public:
         bool showGltfBody,
         bool showGltfCannon,
         bool showGltfSide);
+    void SetMortarRangeCue(const Tank::Rendering::MortarRangeCue& cue)
+    {
+        m_physicsDebugOverlay.SetMortarRangeCue(cue);
+    }
 
     void ApplyMaterials(
         const Tank::Rendering::TankVisualSettings& visualSettings);
