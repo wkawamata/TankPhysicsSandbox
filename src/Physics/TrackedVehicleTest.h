@@ -4,6 +4,7 @@
 #include "PhysicsEnvironmentSettings.h"
 #include "MapDefinition.h"
 #include "TankTypes.h"
+#include "Map/GltfHitMesh.h"
 
 #include <array>
 #include <memory>
@@ -47,6 +48,12 @@ namespace Tank::Physics
             const PhysicsEnvironmentSettings& environmentSettings,
             const std::vector<MapPrimitive>& mapPrimitives = {},
             const MapSpawn& spawn = {});
+        bool InitializeWithStaticMeshes(
+            const TankSettings& settings,
+            const PhysicsEnvironmentSettings& environmentSettings,
+            const std::vector<Map::HitTriangleMesh>& staticMeshes,
+            const MapSpawn& spawn,
+            std::string& error);
         void SetInput(const TankInput& input);
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
@@ -56,6 +63,14 @@ namespace Tank::Physics
         const TankSettings& Settings() const;
 
     private:
+        bool InitializeInternal(
+            const TankSettings& settings,
+            const PhysicsEnvironmentSettings& environmentSettings,
+            const std::vector<MapPrimitive>& mapPrimitives,
+            const MapSpawn& spawn,
+            const std::vector<Map::HitTriangleMesh>* staticMeshes,
+            bool createDefaultFloor,
+            std::string* error);
         struct Impl;
 
         TrackedVehicleTestState m_state = {};

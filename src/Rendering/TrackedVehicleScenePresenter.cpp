@@ -436,7 +436,8 @@ void TrackedVehicleScenePresenter::BuildScene(
     const std::vector<Tank::Physics::MapPrimitive>& mapPrimitives,
     const Tank::Rendering::TankVisualSettings& visualSettings,
     const Tank::Physics::TankSettings&,
-    const Engine::GltfSceneAsset* tankModelAsset)
+    const Engine::GltfSceneAsset* tankModelAsset,
+    bool showDefaultFloor)
 {
     m_sceneBuilder.Clear();
     m_model = {};
@@ -508,13 +509,16 @@ void TrackedVehicleScenePresenter::BuildScene(
     const Engine::SceneMeshId triangularPrismMesh =
         AddTriangularPrismMesh(m_sceneBuilder);
 
-    m_sceneBuilder.AddInstance(
-        XMMatrixScaling(
-            envSettings.floorSizeM,
-            0.2f,
-            envSettings.floorSizeM) *
-            XMMatrixTranslation(0.0f, -0.1f, 0.0f),
-        floorMaterial);
+    if (showDefaultFloor)
+    {
+        m_sceneBuilder.AddInstance(
+            XMMatrixScaling(
+                envSettings.floorSizeM,
+                0.2f,
+                envSettings.floorSizeM) *
+                XMMatrixTranslation(0.0f, -0.1f, 0.0f),
+            floorMaterial);
+    }
 
     m_model.hullUpper =
         m_sceneBuilder.GetScene().instances.size();

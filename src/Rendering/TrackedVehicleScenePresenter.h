@@ -52,7 +52,8 @@ public:
         const std::vector<Tank::Physics::MapPrimitive>& mapPrimitives,
         const Tank::Rendering::TankVisualSettings& visualSettings,
         const Tank::Physics::TankSettings& tankSettings,
-        const Engine::GltfSceneAsset* tankModelAsset);
+        const Engine::GltfSceneAsset* tankModelAsset,
+        bool showDefaultFloor = true);
 
     void UpdateScene(
         const Tank::Physics::TrackedVehicleTestState& state,

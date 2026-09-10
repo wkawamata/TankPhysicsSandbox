@@ -1,6 +1,7 @@
 #include "TrackedVehicleTest.h"
 #include "PhysicsWorld.h"
 #include "TankController.h"
+#include "StaticMeshShape.h"
 
 #include <Jolt/Jolt.h>
 
@@ -66,6 +67,28 @@ namespace Tank::Physics
         const std::vector<MapPrimitive>& mapPrimitives,
         const MapSpawn& spawn)
     {
+        InitializeInternal(settings, environmentSettings, mapPrimitives, spawn, nullptr, true, nullptr);
+    }
+
+    bool TrackedVehicleTest::InitializeWithStaticMeshes(
+        const TankSettings& settings,
+        const PhysicsEnvironmentSettings& environmentSettings,
+        const std::vector<Map::HitTriangleMesh>& staticMeshes,
+        const MapSpawn& spawn,
+        std::string& error)
+    {
+        return InitializeInternal(settings, environmentSettings, {}, spawn, &staticMeshes, false, &error);
+    }
+
+    bool TrackedVehicleTest::InitializeInternal(
+        const TankSettings& settings,
+        const PhysicsEnvironmentSettings& environmentSettings,
+        const std::vector<MapPrimitive>& mapPrimitives,
+        const MapSpawn& spawn,
+        const std::vector<Map::HitTriangleMesh>* staticMeshes,
+        bool createDefaultFloor,
+        std::string* error)
+    {
         m_state = {};
 
         m_impl = std::make_unique<Impl>();
@@ -73,23 +96,26 @@ namespace Tank::Physics
 
         JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
 
-        const float floorSizeM =
-            std::clamp(environmentSettings.floorSizeM, 20.0f, 1000.0f);
-        const float floorFriction =
-            std::clamp(environmentSettings.floorFriction, 0.0f, 2.0f);
-        const float floorHalfExtent = 0.5f * floorSizeM;
-        JPH::BodyCreationSettings floorSettings(
-            new JPH::BoxShape(JPH::Vec3(floorHalfExtent, 1.0f, floorHalfExtent)),
-            JPH::RVec3(0.0, -1.0, 0.0),
-            JPH::Quat::sIdentity(),
-            JPH::EMotionType::Static,
-            Layers::NonMoving);
-        floorSettings.mFriction = floorFriction;
+        if (createDefaultFloor)
+        {
+            const float floorSizeM =
+                std::clamp(environmentSettings.floorSizeM, 20.0f, 1000.0f);
+            const float floorFriction =
+                std::clamp(environmentSettings.floorFriction, 0.0f, 2.0f);
+            const float floorHalfExtent = 0.5f * floorSizeM;
+            JPH::BodyCreationSettings floorSettings(
+                new JPH::BoxShape(JPH::Vec3(floorHalfExtent, 1.0f, floorHalfExtent)),
+                JPH::RVec3(0.0, -1.0, 0.0),
+                JPH::Quat::sIdentity(),
+                JPH::EMotionType::Static,
+                Layers::NonMoving);
+            floorSettings.mFriction = floorFriction;
 
-        JPH::Body* floorBody = bodyInterface.CreateBody(floorSettings);
-        m_impl->floorBodyId = floorBody->GetID();
-        m_impl->hasFloorBody = true;
-        bodyInterface.AddBody(m_impl->floorBodyId, JPH::EActivation::DontActivate);
+            JPH::Body* floorBody = bodyInterface.CreateBody(floorSettings);
+            m_impl->floorBodyId = floorBody->GetID();
+            m_impl->hasFloorBody = true;
+            bodyInterface.AddBody(m_impl->floorBodyId, JPH::EActivation::DontActivate);
+        }
 
         m_impl->obstacleBodyIds.reserve(mapPrimitives.size());
         for (const MapPrimitive& primitive : mapPrimitives)
@@ -168,7 +194,25 @@ namespace Tank::Physics
             }
         }
 
+        if (staticMeshes != nullptr)
+        {
+            m_impl->obstacleBodyIds.reserve(m_impl->obstacleBodyIds.size() + staticMeshes->size());
+            for (const Map::HitTriangleMesh& mesh : *staticMeshes)
+            {
+                JPH::BodyID bodyId;
+                std::string shapeError;
+                if (!AddStaticMeshBody(m_impl->world, mesh, bodyId, shapeError))
+                {
+                    if (error != nullptr) *error = shapeError;
+                    return false;
+                }
+                m_impl->obstacleBodyIds.push_back(bodyId);
+            }
+        }
+
         m_impl->controller.Initialize(m_impl->world, settings, spawn);
+        if (error != nullptr) error->clear();
+        return true;
     }
 
     const TankSettings& TrackedVehicleTest::Settings() const

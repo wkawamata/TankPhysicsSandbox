@@ -305,6 +305,30 @@ namespace Ui
 				ImVec2(18.0f, 18.0f));
 			ImGui::SameLine();
 			ImGui::TextUnformatted("High: >= 0.80");
+			if (ctx.manifestMapActive && ctx.mapHitMeshOverlay != nullptr)
+			{
+				if (ctx.mapMarkersVisible != nullptr &&
+					ImGui::Checkbox("Show Start / Goal Markers", ctx.mapMarkersVisible))
+				{
+					if (ctx.updateScene) ctx.updateScene();
+				}
+				ImGui::TextUnformatted("Orange: start  Cyan: clear-area AABB");
+				if (ImGui::Checkbox("Show HitMesh Overlay", ctx.mapHitMeshOverlay))
+				{
+					if (ctx.updateScene) ctx.updateScene();
+				}
+				ImGui::TextUnformatted("Magenta: collision mesh used by physics");
+				if (ctx.mapCleared && ctx.clearedAreaName != nullptr)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.4f, 1.0f));
+					ImGui::Text("MAP CLEAR: %s", ctx.clearedAreaName->c_str());
+					ImGui::PopStyleColor();
+				}
+				else if (ctx.manifestMapHasClearAreas)
+				{
+					ImGui::TextUnformatted("Drive the tank center into a clear-area AABB.");
+				}
+			}
 		}
 		if (ImGui::Checkbox("Physics Debug Overlay", ctx.physicsDebugOverlay))
 		{
