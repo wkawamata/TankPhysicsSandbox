@@ -33,6 +33,15 @@ namespace Tank::Physics
         TankMotionObservation motionObservation = {};
         MobilityStateSnapshot mobility = {};
         RollingPhase rollingPhase = RollingPhase::None;
+        RollingDecision lastRollingDecision = RollingDecision::None;
+        std::uint64_t rollingDecisionCount = 0;
+        float rollingDecisionCommandSign = 0.0f;
+        float rollingDecisionInputSign = 0.0f;
+        RollingTraceEvent lastRollingTraceEvent = RollingTraceEvent::None;
+        std::uint64_t rollingTraceSequence = 0;
+        float rollingTraceRequestSign = 0.0f;
+        float rollingTraceCommandSign = 0.0f;
+        float rollingTraceInputSign = 0.0f;
         MortarAimSnapshot mortarAim = {};
         SpecialMoveStateSnapshot specialMove = {};
         bool rollingObstructionSuspected = false;

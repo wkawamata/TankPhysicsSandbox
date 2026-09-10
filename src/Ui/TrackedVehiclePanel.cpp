@@ -143,6 +143,19 @@ namespace Ui
 			}
 		}
 
+		const char* RollingDecisionName(Tank::Physics::RollingDecision decision)
+		{
+			switch (decision)
+			{
+			case Tank::Physics::RollingDecision::ContinueForward:
+				return "ContinueForward";
+			case Tank::Physics::RollingDecision::ReturnToStart:
+				return "ReturnToStart";
+			default:
+				return "None";
+			}
+		}
+
 		const char* SpecialMoveStateName(Tank::Physics::SpecialMoveState state)
 		{
 			switch (state)
@@ -186,6 +199,24 @@ namespace Ui
 				static_cast<unsigned long long>(state.specialMove.transitionCount));
 			ImGui::Text("Roll Chain: %s",
 				state.rollChainAvailable ? "Ready while sliding" : "Stopped only");
+			const ImVec4 rollingDecisionColor =
+				state.lastRollingDecision == Tank::Physics::RollingDecision::ReturnToStart
+				? ImVec4(1.0f, 0.35f, 0.20f, 1.0f)
+				: state.lastRollingDecision == Tank::Physics::RollingDecision::ContinueForward
+				? ImVec4(0.35f, 1.0f, 0.45f, 1.0f)
+				: ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+			ImGui::TextColored(rollingDecisionColor,
+				"Roll Decision: %s (#%llu)  Command: %+.0f  Input: %+.0f",
+				RollingDecisionName(state.lastRollingDecision),
+				static_cast<unsigned long long>(state.rollingDecisionCount),
+				state.rollingDecisionCommandSign,
+				state.rollingDecisionInputSign);
+			ImGui::TextDisabled(
+				"Roll Trace: #%llu  Request: %+.0f  Command: %+.0f  Input: %+.0f",
+				static_cast<unsigned long long>(state.rollingTraceSequence),
+				state.rollingTraceRequestSign,
+				state.rollingTraceCommandSign,
+				state.rollingTraceInputSign);
 			ImGui::Text("Mortar: %s%s  %.1f deg / %.1f m",
 				state.mortarAim.canFire ? "Ready" : "Charging",
 				state.mortarAim.atMaximum ? " (Max)" : "",
@@ -283,6 +314,36 @@ namespace Ui
 				ImGui::TextWrapped("%s", ctx.inputMappingStatus->c_str());
 			}
 		}
+	}
+
+	void DrawRollingCheatWindow(TrackedVehiclePanelContext& ctx)
+	{
+		if (ctx.rollingCheatWindowVisible == nullptr ||
+			!*ctx.rollingCheatWindowVisible)
+		{
+			return;
+		}
+
+		ImGui::SetNextWindowSize(ImVec2(420.0f, 330.0f), ImGuiCond_FirstUseEver);
+		if (!ImGui::Begin("CheatWindow: Rolling", ctx.rollingCheatWindowVisible))
+		{
+			ImGui::End();
+			return;
+		}
+		ImGui::TextUnformatted("Development-only post-90 degree roll tuning.");
+		if (ImGui::Button("Reset Tank / Apply##RollingCheat"))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
+		ImGui::Separator();
+		if (ctx.rollingCheatWindowVisible != nullptr &&
+			ImGui::Button(*ctx.rollingCheatWindowVisible
+				? "Rolling CheatWindow: ON"
+				: "Rolling CheatWindow: OFF"))
+		{
+			*ctx.rollingCheatWindowVisible = !*ctx.rollingCheatWindowVisible;
+		}
+		ImGui::End();
 	}
 
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
@@ -803,7 +864,27 @@ namespace Ui
 			"%.0f N m",
 			IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm));
 		SliderFloatWithPendingColor(
-			"Approach Damping (80-90 deg)",
+			"Return Decision Angle",
+			&ctx.tankSettings->rollReturnDecisionDegrees,
+			45.0f,
+			89.0f,
+			1.0f,
+			75.0f,
+			"%.0f deg",
+			IsPending(
+				ctx.tankSettings->rollReturnDecisionDegrees,
+				ctx.appliedTankSettings->rollReturnDecisionDegrees));
+		SliderFloatWithPendingColor(
+			"Approach Start Angle",
+			&ctx.tankSettings->rollApproachStartDegrees,
+			1.0f,
+			89.0f,
+			1.0f,
+			80.0f,
+			"%.0f deg",
+			IsPending(ctx.tankSettings->rollApproachStartDegrees, ctx.appliedTankSettings->rollApproachStartDegrees));
+		SliderFloatWithPendingColor(
+			"Approach Damping (Start-90 deg)",
 			&ctx.tankSettings->rollApproachDampingNms,
 			0.0f,
 			100000.0f,
@@ -862,12 +943,12 @@ namespace Ui
 					ctx.appliedTankSettings->rollDistanceM));
 		}
 		SliderFloatWithPendingColor(
-			"Air Brake Torque",
+			"Post-90 Air Brake Torque",
 			&ctx.tankSettings->rollAirBrakeTorqueNm,
 			0.0f,
 			300000.0f,
 			5000.0f,
-			90000.0f,
+			150000.0f,
 			"%.0f N m",
 			IsPending(
 				ctx.tankSettings->rollAirBrakeTorqueNm,
@@ -1472,5 +1553,6 @@ namespace Ui
 		}
 		ImGui::EndChild();
 		ImGui::End();
+		DrawRollingCheatWindow(ctx);
 	}
 }

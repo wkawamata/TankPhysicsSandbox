@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -23,6 +24,23 @@
 namespace
 {
     constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
+
+    const char* RollingTraceEventName(Tank::Physics::RollingTraceEvent event)
+    {
+        switch (event)
+        {
+        case Tank::Physics::RollingTraceEvent::StartLatched:
+            return "StartLatched";
+        case Tank::Physics::RollingTraceEvent::ContinueForward:
+            return "ContinueForward";
+        case Tank::Physics::RollingTraceEvent::ReturnToStart:
+            return "ReturnToStart";
+        case Tank::Physics::RollingTraceEvent::Finished:
+            return "Finished";
+        default:
+            return "None";
+        }
+    }
 }
 
 TrackedVehicleMode::TrackedVehicleMode()
@@ -299,6 +317,24 @@ void TrackedVehicleMode::Step(
     {
         const auto physicsStart = std::chrono::steady_clock::now();
         m_test.Step(kPhysicsFixedDt);
+        const Tank::Physics::TrackedVehicleTestState& state = m_test.State();
+        if (state.rollingTraceSequence != m_loggedRollingTraceSequence)
+        {
+            char message[192] = {};
+            std::snprintf(
+                message,
+                sizeof(message),
+                "[Tank Rolling] seq=%llu event=%s phase=%d request=%+.0f command=%+.0f input=%+.0f angularZ=%+.3f\n",
+                static_cast<unsigned long long>(state.rollingTraceSequence),
+                RollingTraceEventName(state.lastRollingTraceEvent),
+                static_cast<int>(state.rollingPhase),
+                state.rollingTraceRequestSign,
+                state.rollingTraceCommandSign,
+                state.rollingTraceInputSign,
+                state.angularVelocity.z);
+            OutputDebugStringA(message);
+            m_loggedRollingTraceSequence = state.rollingTraceSequence;
+        }
         const auto sceneStart = std::chrono::steady_clock::now();
         m_physicsStepTimeMs = std::chrono::duration<float, std::milli>(
             sceneStart - physicsStart).count();
@@ -355,6 +391,7 @@ void TrackedVehicleMode::Reset(
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_singleStep = false;
     m_analogTracksArmed = false;
+    m_loggedRollingTraceSequence = 0;
     if (camera != nullptr)
     {
         cameraController.OnTankTeleported(previousState, m_test.State(), *camera);

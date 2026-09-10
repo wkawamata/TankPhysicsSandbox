@@ -17,6 +17,22 @@ namespace Tank::Physics
         Settling
     };
 
+    enum class RollingDecision
+    {
+        None,
+        ContinueForward,
+        ReturnToStart
+    };
+
+    enum class RollingTraceEvent
+    {
+        None,
+        StartLatched,
+        ContinueForward,
+        ReturnToStart,
+        Finished
+    };
+
     enum class SpecialMoveState
     {
         Idle,
@@ -53,6 +69,9 @@ namespace Tank::Physics
     {
         SpecialMoveState state = SpecialMoveState::Idle;
         SpecialMoveEvent lastEvent = SpecialMoveEvent::None;
+        // Preserved through MoveCompleted so a delayed physical start cannot
+        // mistake a left roll for the default right roll.
+        float requestedRollSign = 0.0f;
         SpecialMoveRejectReason lastRejectReason =
             SpecialMoveRejectReason::None;
         std::uint64_t transitionCount = 0;

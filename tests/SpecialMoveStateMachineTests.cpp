@@ -36,6 +36,8 @@ int main()
         "stopped mobility must accept roll request");
     passed &= Check(rollStart.transitionCount == 1,
         "accepted request must count one transition");
+    passed &= Check(rollStart.requestedRollSign < 0.0f,
+        "left roll must preserve a negative request sign");
 
     const SpecialMoveStateSnapshot& activeReject = machine.Update(
         SpecialMoveEvent::MortarRequested, true);
@@ -48,6 +50,8 @@ int main()
     machine.Update(SpecialMoveEvent::MoveCompleted, true);
     passed &= Check(machine.Snapshot().state == SpecialMoveState::Rolling,
         "roll starting completion must enter Rolling");
+    passed &= Check(machine.Snapshot().requestedRollSign < 0.0f,
+        "MoveCompleted must not erase the pending roll direction");
     machine.Update(SpecialMoveEvent::MoveBlocked, true);
     passed &= Check(machine.Snapshot().state == SpecialMoveState::Blocked,
         "active move must enter Blocked on obstruction");
@@ -75,7 +79,8 @@ int main()
         "blocked event while idle must be rejected");
     machine.Reset();
     passed &= Check(machine.Snapshot().transitionCount == 0 &&
-        machine.Snapshot().state == SpecialMoveState::Idle,
+        machine.Snapshot().state == SpecialMoveState::Idle &&
+        machine.Snapshot().requestedRollSign == 0.0f,
         "reset must restore initial state");
 
     if (!passed)

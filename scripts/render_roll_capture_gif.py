@@ -42,22 +42,40 @@ def overlay(frame, row, label, scale):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--negative-dir", required=True, type=Path)
-    parser.add_argument("--positive-dir", required=True, type=Path)
+    parser.add_argument("--negative-dir", type=Path)
+    parser.add_argument("--positive-dir", type=Path)
+    parser.add_argument("--single-dir", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--roi-scale", type=float, default=1.5)
+    parser.add_argument("--duration-ms", type=int, default=66)
     args = parser.parse_args()
     if args.roi_scale < 1.0:
         raise ValueError("roi-scale must be at least 1.0")
+    if args.duration_ms <= 0:
+        raise ValueError("duration-ms must be positive")
 
-    negative_trace = load_trace(args.negative_dir / "trace.csv")
-    positive_trace = load_trace(args.positive_dir / "trace.csv")
-    count = min(len(negative_trace), len(positive_trace))
+    if args.single_dir:
+        trace = load_trace(args.single_dir / "trace.csv")
+        count = len(trace)
+    elif args.negative_dir and args.positive_dir:
+        negative_trace = load_trace(args.negative_dir / "trace.csv")
+        positive_trace = load_trace(args.positive_dir / "trace.csv")
+        count = min(len(negative_trace), len(positive_trace))
+    else:
+        parser.error("provide --single-dir or both --negative-dir and --positive-dir")
     if count == 0:
         raise RuntimeError("no captured frames")
 
     frames = []
     for index in range(count):
+        if args.single_dir:
+            frame = roi(
+                Image.open(args.single_dir / f"roll_{index:03d}.png").convert("RGB"),
+                args.roi_scale,
+            )
+            overlay(frame, trace[index], "Return input accepted at 75 degrees", args.roi_scale)
+            frames.append(frame)
+            continue
         negative = roi(Image.open(args.negative_dir / f"roll_{index:03d}.png").convert("RGB"), args.roi_scale)
         positive = roi(Image.open(args.positive_dir / f"roll_{index:03d}.png").convert("RGB"), args.roi_scale)
         overlay(negative, negative_trace[index], "Levers (-1, -1) / Roll -1", args.roi_scale)
@@ -68,7 +86,13 @@ def main():
         frames.append(composed)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    frames[0].save(args.output, save_all=True, append_images=frames[1:], duration=66, loop=0)
+    frames[0].save(
+        args.output,
+        save_all=True,
+        append_images=frames[1:],
+        duration=args.duration_ms,
+        loop=0,
+    )
     print(f"Saved rendered roll GIF: {args.output}")
 
 

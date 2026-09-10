@@ -167,6 +167,15 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
         {
             m_rollCaptureSign = _wtof(argv[++i]) < 0.0f ? -1.0f : 1.0f;
         }
+        else if (arg == L"--roll-capture-roll-count" && i + 1 < argc)
+        {
+            m_rollCaptureRollCount = (std::max)(
+                UINT64{1}, static_cast<UINT64>(_wtoi64(argv[++i])));
+        }
+        else if (arg == L"--roll-capture-return-at-decision-angle")
+        {
+            m_rollCaptureReturnAtDecisionAngle = true;
+        }
         else if (arg == L"--roll-capture-frames" && i + 1 < argc)
         {
             m_rollCaptureFrameCount = _wtoi64(argv[++i]);
@@ -248,6 +257,14 @@ void TankSandboxApp::OnInit()
         if (m_logFile)
         {
             fprintf(m_logFile, "[STATUS] Log file opened at %ls\n", m_commandLineOptions.logFilePath.c_str());
+            fprintf(m_logFile,
+                "[ROLL_CAPTURE] enabled=%d directory=%ls sign=%.0f count=%llu frames=%llu interval=%llu\n",
+                m_rollCaptureEnabled ? 1 : 0,
+                m_rollCaptureDirectory.c_str(),
+                m_rollCaptureSign,
+                static_cast<unsigned long long>(m_rollCaptureRollCount),
+                static_cast<unsigned long long>(m_rollCaptureFrameCount),
+                static_cast<unsigned long long>(m_rollCaptureIntervalFrames));
             fflush(m_logFile);
             m_graphicsDevice.Device()->QueryInterface(IID_PPV_ARGS(&m_d3d12InfoQueue));
             if (m_d3d12InfoQueue)
@@ -264,10 +281,25 @@ void TankSandboxApp::OnInit()
     }
 
     InitializeImGui();
+    if (m_logFile)
+    {
+        fprintf(m_logFile, "[ROLL_CAPTURE] InitializeImGui complete\n");
+        fflush(m_logFile);
+    }
 
     m_sceneRenderer.Initialize(GetWidth(), GetHeight());
+    if (m_logFile)
+    {
+        fprintf(m_logFile, "[ROLL_CAPTURE] SceneRenderer initialization complete\n");
+        fflush(m_logFile);
+    }
     m_trackedVehicleMode.LoadTankModelAsset(
         ResolveRuntimePath(kTankModelAssetPath));
+    if (m_logFile)
+    {
+        fprintf(m_logFile, "[ROLL_CAPTURE] Tank model asset loaded\n");
+        fflush(m_logFile);
+    }
 
     m_sceneRenderer.SetToolUiHandler([this]() { DrawToolUi(); });
 
@@ -366,6 +398,8 @@ void TankSandboxApp::OnInit()
         &m_trackedVehicleMode.TankModelLoadStatus();
     m_trackedVehiclePanelCtx.trackedVehiclePaused = &m_trackedVehicleMode.Paused();
     m_trackedVehiclePanelCtx.trackedVehicleSingleStep = &m_trackedVehicleMode.SingleStep();
+    m_trackedVehiclePanelCtx.rollingCheatWindowVisible =
+        &m_trackedVehicleMode.RollingCheatWindowVisible();
     m_trackedVehiclePanelCtx.tankSettingsSlot = &m_trackedVehicleMode.TankSettingsSlot();
     m_trackedVehiclePanelCtx.tankSettingsAutoLoad = &m_trackedVehicleMode.TankSettingsAutoLoad();
     m_trackedVehiclePanelCtx.tankVisualSettingsAutoLoad = &m_trackedVehicleMode.TankVisualSettingsAutoLoad();
@@ -470,6 +504,11 @@ void TankSandboxApp::OnInit()
             break;
         case AppMode::PhysicsTrackedVehicle:
             EnterTrackedVehicleMode();
+            if (m_logFile)
+            {
+                fprintf(m_logFile, "[ROLL_CAPTURE] Tracked vehicle mode entered\n");
+                fflush(m_logFile);
+            }
             break;
         }
     }
@@ -715,8 +754,33 @@ void TankSandboxApp::OnIdle()
         const Tank::Input::GamepadState& vehicleGamepadState =
             hasInputFocus && !m_rollCaptureEnabled
             ? m_gamepad.State() : neutralGamepadState;
-        const bool scriptedRoll = m_rollCaptureEnabled &&
+        const bool firstCaptureRoll = m_rollCaptureIssuedRollCount == 0 &&
             m_rollCaptureSimulationFrames == m_rollCaptureWarmupFrames;
+        // Subsequent inputs are intentionally not scheduled by elapsed time.
+        // They wait for the first roll to land and expose its one-shot input
+        // latch again, reproducing two distinct player lever actions.
+        const Tank::Physics::TrackedVehicleTestState& captureState =
+            m_trackedVehicleMode.TestState();
+        const bool recoveredForNextCaptureRoll =
+            m_rollCaptureIssuedRollCount > 0 &&
+            captureState.rollChainAvailable &&
+            captureState.rollingPhase == Tank::Physics::RollingPhase::Settling &&
+            captureState.motionObservation.totalUpperSurfaceContactCount > 0;
+        // The test capture begins upright.  The local-up vector's world Y
+        // component therefore directly yields the current roll angle.
+        const float bodyUpY = 1.0f - 2.0f *
+            (captureState.bodyRotation.x * captureState.bodyRotation.x +
+             captureState.bodyRotation.z * captureState.bodyRotation.z);
+        constexpr float returnDecisionUpY = 0.258819f; // cos(75 degrees)
+        const bool scriptedReturn = m_rollCaptureEnabled &&
+            m_rollCaptureReturnAtDecisionAngle &&
+            !m_rollCaptureReturnIssued &&
+            captureState.rollingPhase == Tank::Physics::RollingPhase::PoweredRoll &&
+            bodyUpY <= returnDecisionUpY;
+        const bool scriptedRoll = m_rollCaptureEnabled &&
+            (scriptedReturn ||
+                (m_rollCaptureIssuedRollCount < m_rollCaptureRollCount &&
+                    (firstCaptureRoll || recoveredForNextCaptureRoll)));
         {
             const Tank::Input::GamepadState& gp = vehicleGamepadState;
             if (m_cameraController.UpdateButtonStates(
@@ -738,12 +802,29 @@ void TankSandboxApp::OnIdle()
             vehicleGamepadState,
             m_moveForward, m_moveBackward,
             m_turnLeft, m_turnRight, m_pivotTurnModifier,
-            scriptedRoll ? m_rollCaptureSign < 0.0f : m_rollLeft,
-            scriptedRoll ? m_rollCaptureSign > 0.0f : m_rollRight,
+            scriptedRoll
+                ? (scriptedReturn ? m_rollCaptureSign > 0.0f
+                                  : m_rollCaptureSign < 0.0f)
+                : m_rollLeft,
+            scriptedRoll
+                ? (scriptedReturn ? m_rollCaptureSign < 0.0f
+                                  : m_rollCaptureSign > 0.0f)
+                : m_rollRight,
             m_rollCaptureEnabled ? false : m_brake);
         m_trackedVehicleMode.Step(m_sceneRenderer, m_cameraController);
         if (m_rollCaptureEnabled)
         {
+            if (scriptedRoll)
+            {
+                if (scriptedReturn)
+                {
+                    m_rollCaptureReturnIssued = true;
+                }
+                else
+                {
+                    ++m_rollCaptureIssuedRollCount;
+                }
+            }
             ++m_rollCaptureSimulationFrames;
         }
         if (m_cameraController.IsDebugSlot() &&

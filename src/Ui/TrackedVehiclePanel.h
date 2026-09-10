@@ -52,6 +52,7 @@ namespace Ui
         const std::string* tankModelLoadStatus = nullptr;
         bool* trackedVehiclePaused = nullptr;
         bool* trackedVehicleSingleStep = nullptr;
+        bool* rollingCheatWindowVisible = nullptr;
         int* tankSettingsSlot = nullptr;
         bool* tankSettingsAutoLoad = nullptr;
         bool* tankVisualSettingsAutoLoad = nullptr;

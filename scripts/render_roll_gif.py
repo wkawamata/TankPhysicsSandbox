@@ -86,7 +86,7 @@ def render_frame(row, frame_index, total_frames, roi_scale):
 
         draw.rectangle((panel_left + 8, 55, panel_left + panel_width - 8, HEIGHT - 12),
                        outline=(57, 73, 91), width=2)
-        draw.line((panel_left + 20, ground_y, panel_left + PANEL_WIDTH - 20, ground_y),
+        draw.line((panel_left + 20, ground_y, panel_left + panel_width - 20, ground_y),
                   fill=GROUND, width=3)
         draw.line((center_x, 82, center_x, HEIGHT - 25), fill=(54, 70, 87), width=1)
         draw.text((panel_left + 24, 75),

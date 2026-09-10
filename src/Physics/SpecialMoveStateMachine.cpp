@@ -101,6 +101,8 @@ namespace Tank::Physics
             event == SpecialMoveEvent::RollRightRequested)
         {
             m_snapshot.state = SpecialMoveState::RollStarting;
+            m_snapshot.requestedRollSign =
+                event == SpecialMoveEvent::RollLeftRequested ? -1.0f : 1.0f;
             ++m_snapshot.transitionCount;
         }
         else

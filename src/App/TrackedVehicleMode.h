@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <array>
+#include <cstdint>
 #include <string>
 #include <optional>
 #include <windows.h>
@@ -70,6 +71,7 @@ public:
 
     bool& Paused() { return m_paused; }
     bool& SingleStep() { return m_singleStep; }
+    bool& RollingCheatWindowVisible() { return m_rollingCheatWindowVisible; }
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
     bool& TrackShoeDisplay() { return m_visualSettings.showDummyTrackShoes; }
     bool& ShowTrackProxies() { return m_showTrackProxies; }
@@ -137,6 +139,7 @@ private:
 
     bool m_paused = false;
     bool m_singleStep = false;
+    bool m_rollingCheatWindowVisible = false;
     bool m_showTrackProxies = false;
     bool m_showGltfBody = true;
     bool m_showGltfCannon = true;
@@ -168,4 +171,5 @@ private:
     float m_physicsStepPeakTimeMs = 0.0f;
     float m_sceneUpdateTimeMs = 0.0f;
     float m_sceneUpdatePeakTimeMs = 0.0f;
+    std::uint64_t m_loggedRollingTraceSequence = 0;
 };

@@ -29,6 +29,8 @@ int main()
     source.recoilPointHeightM = 0.9f;
     source.rollingInputEnabled = false;
     source.rollTorqueNm = 175000.0f;
+    source.rollReturnDecisionDegrees = 68.0f;
+    source.rollApproachStartDegrees = 72.0f;
     source.rollAirBrakeTorqueNm = 135000.0f;
     source.rollAirBrakeReleaseDegrees = 35.0f;
     source.rollDistanceMatchesVehicleWidth = false;
@@ -108,6 +110,14 @@ int main()
         "rolling input enabled must round trip");
     passed &= Check(NearlyEqual(loaded.rollTorqueNm, source.rollTorqueNm),
         "roll torque must round trip");
+    passed &= Check(
+        NearlyEqual(
+            loaded.rollReturnDecisionDegrees,
+            source.rollReturnDecisionDegrees),
+        "roll return decision angle must round trip");
+    passed &= Check(
+        NearlyEqual(loaded.rollApproachStartDegrees, source.rollApproachStartDegrees),
+        "roll approach start angle must round trip");
     passed &= Check(
         NearlyEqual(loaded.rollAirBrakeTorqueNm, source.rollAirBrakeTorqueNm),
         "roll air brake torque must round trip");

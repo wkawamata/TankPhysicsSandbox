@@ -84,3 +84,4 @@ GameInput SDK used by the Windows input layer.
 
 - [Project and agent rules](AGENTS.md)
 - [Feature documents](Docs/feature/)
+- [Rolling animation GIF gallery](Docs/rolling-animation-gallery.md) — published runtime-capture experiments

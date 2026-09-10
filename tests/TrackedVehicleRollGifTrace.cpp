@@ -84,7 +84,11 @@ namespace
             static_cast<int>(sample.phase);
     }
 
-    bool ParseOutputPath(int argc, char** argv, std::filesystem::path& outputPath)
+    bool ParseOptions(
+        int argc,
+        char** argv,
+        std::filesystem::path& outputPath,
+        bool& twoRolls)
     {
         for (int index = 1; index < argc; ++index)
         {
@@ -92,9 +96,13 @@ namespace
             {
                 outputPath = argv[++index];
             }
+            else if (std::string(argv[index]) == "--two-rolls")
+            {
+                twoRolls = true;
+            }
             else
             {
-                std::cerr << "Usage: TrackedVehicleRollGifTrace [--output trace.csv]\n";
+                std::cerr << "Usage: TrackedVehicleRollGifTrace [--output trace.csv] [--two-rolls]\n";
                 return false;
             }
         }
@@ -105,7 +113,8 @@ namespace
 int main(int argc, char** argv)
 {
     std::filesystem::path outputPath;
-    if (!ParseOutputPath(argc, argv, outputPath))
+    bool twoRolls = false;
+    if (!ParseOptions(argc, argv, outputPath, twoRolls))
     {
         return 2;
     }
@@ -129,10 +138,39 @@ int main(int argc, char** argv)
     Initialize(positive, 1.0f);
 
     bool passed = true;
+    bool secondRollIssued = false;
+    int secondRollFrame = -1;
     for (int frame = 0; frame < kTraceSteps; ++frame)
     {
+        // The next one-shot lever input is not tied to an arbitrary frame.
+        // It is injected only after the first roll landed and made its input
+        // latch available again, reproducing two distinct player actions.
+        const bool injectSecondRoll = twoRolls &&
+            !secondRollIssued &&
+            negative.vehicle.State().rollChainAvailable &&
+            positive.vehicle.State().rollChainAvailable;
+        if (injectSecondRoll)
+        {
+            negative.input.leftLeverX = -1.0f;
+            negative.input.rightLeverX = -1.0f;
+            negative.vehicle.SetInput(negative.input);
+            positive.input.leftLeverX = 1.0f;
+            positive.input.rightLeverX = 1.0f;
+            positive.vehicle.SetInput(positive.input);
+            secondRollIssued = true;
+            secondRollFrame = frame;
+        }
         negative.sample = StepAndCapture(negative);
         positive.sample = StepAndCapture(positive);
+        if (injectSecondRoll)
+        {
+            negative.input.leftLeverX = 0.0f;
+            negative.input.rightLeverX = 0.0f;
+            negative.vehicle.SetInput(negative.input);
+            positive.input.leftLeverX = 0.0f;
+            positive.input.rightLeverX = 0.0f;
+            positive.vehicle.SetInput(positive.input);
+        }
         passed &= IsFinite(negative.sample) && IsFinite(positive.sample);
         if (output)
         {
@@ -150,7 +188,12 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    std::cout << "PASS Roll GIF trace frames=" << kTraceSteps;
+    std::cout << "PASS Roll GIF trace frames=" << kTraceSteps
+        << " two_rolls=" << (twoRolls ? "true" : "false");
+    if (twoRolls)
+    {
+        std::cout << " second_roll_frame=" << secondRollFrame;
+    }
     if (!outputPath.empty())
     {
         std::cout << " output=" << outputPath.string();

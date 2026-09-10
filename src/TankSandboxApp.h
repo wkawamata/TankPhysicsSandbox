@@ -179,6 +179,10 @@ private:
     bool m_rollCaptureEnabled = false;
     bool m_rollCaptureInitialized = false;
     float m_rollCaptureSign = 1.0f;
+    UINT64 m_rollCaptureRollCount = 1;
+    UINT64 m_rollCaptureIssuedRollCount = 0;
+    bool m_rollCaptureReturnAtDecisionAngle = false;
+    bool m_rollCaptureReturnIssued = false;
     UINT64 m_rollCaptureWarmupFrames = 180;
     UINT64 m_rollCaptureFrameCount = 90;
     UINT64 m_rollCaptureIntervalFrames = 2;

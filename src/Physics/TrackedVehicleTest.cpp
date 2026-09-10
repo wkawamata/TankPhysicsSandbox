@@ -259,6 +259,24 @@ namespace Tank::Physics
             m_impl->controller.State().motionObservation;
         m_state.mobility = m_impl->controller.State().mobility;
         m_state.rollingPhase = m_impl->controller.State().rollingPhase;
+        m_state.lastRollingDecision =
+            m_impl->controller.State().lastRollingDecision;
+        m_state.rollingDecisionCount =
+            m_impl->controller.State().rollingDecisionCount;
+        m_state.rollingDecisionCommandSign =
+            m_impl->controller.State().rollingDecisionCommandSign;
+        m_state.rollingDecisionInputSign =
+            m_impl->controller.State().rollingDecisionInputSign;
+        m_state.lastRollingTraceEvent =
+            m_impl->controller.State().lastRollingTraceEvent;
+        m_state.rollingTraceSequence =
+            m_impl->controller.State().rollingTraceSequence;
+        m_state.rollingTraceRequestSign =
+            m_impl->controller.State().rollingTraceRequestSign;
+        m_state.rollingTraceCommandSign =
+            m_impl->controller.State().rollingTraceCommandSign;
+        m_state.rollingTraceInputSign =
+            m_impl->controller.State().rollingTraceInputSign;
         m_state.specialMove = m_impl->controller.State().specialMove;
         m_state.mortarAim = m_impl->controller.State().mortarAim;
         m_state.trackInputSwapped =
