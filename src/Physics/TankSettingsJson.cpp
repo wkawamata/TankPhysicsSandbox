@@ -53,23 +53,6 @@ namespace Tank::Physics
         json["recoilImpulseNewtonSeconds"] = settings.recoilImpulseNewtonSeconds;
         json["recoilPointForwardM"] = settings.recoilPointForwardM;
         json["recoilPointHeightM"] = settings.recoilPointHeightM;
-        json["rollingInputEnabled"] = settings.rollingInputEnabled;
-        json["rollSpeedMultiplier"] = settings.rollSpeedMultiplier;
-        json["rollTorqueNm"] = settings.rollTorqueNm;
-        json["rollReturnDecisionDegrees"] = settings.rollReturnDecisionDegrees;
-        json["rollApproachStartDegrees"] = settings.rollApproachStartDegrees;
-        json["rollApproachDampingNms"] = settings.rollApproachDampingNms;
-        json["rollCommitTorqueNm"] = settings.rollCommitTorqueNm;
-        json["rollAirBrakeTorqueNm"] = settings.rollAirBrakeTorqueNm;
-        json["rollAirBrakeReleaseDegrees"] =
-            settings.rollAirBrakeReleaseDegrees;
-        json["rollDistanceMatchesVehicleWidth"] =
-            settings.rollDistanceMatchesVehicleWidth;
-        json["rollTravelVehicleWidths"] = settings.rollTravelVehicleWidths;
-        json["rollDistanceM"] = settings.rollDistanceM;
-        json["rollTorqueCutoffDegrees"] = settings.rollTorqueCutoffDegrees;
-        json["rollStabilizationTorqueNm"] = settings.rollStabilizationTorqueNm;
-        json["rollStabilizationDampingNms"] = settings.rollStabilizationDampingNms;
         json["trackWidthM"] = settings.trackWidthM;
         json["trackSpacingM"] = settings.trackSpacingM;
         json["trackLongitudinalFriction"] = settings.trackLongitudinalFriction;
@@ -163,33 +146,6 @@ namespace Tank::Physics
         ReadFloat(json, "recoilImpulseNewtonSeconds", loaded.recoilImpulseNewtonSeconds);
         ReadFloat(json, "recoilPointForwardM", loaded.recoilPointForwardM);
         ReadFloat(json, "recoilPointHeightM", loaded.recoilPointHeightM);
-        ReadBool(json, "rollingInputEnabled", loaded.rollingInputEnabled);
-        ReadFloat(json, "rollSpeedMultiplier", loaded.rollSpeedMultiplier);
-        ReadFloat(json, "rollTorqueNm", loaded.rollTorqueNm);
-        ReadFloat(
-            json,
-            "rollReturnDecisionDegrees",
-            loaded.rollReturnDecisionDegrees);
-        ReadFloat(json, "rollApproachStartDegrees", loaded.rollApproachStartDegrees);
-        ReadFloat(json, "rollApproachDampingNms", loaded.rollApproachDampingNms);
-        ReadFloat(json, "rollCommitTorqueNm", loaded.rollCommitTorqueNm);
-        ReadFloat(json, "rollAirBrakeTorqueNm", loaded.rollAirBrakeTorqueNm);
-        ReadFloat(
-            json,
-            "rollAirBrakeReleaseDegrees",
-            loaded.rollAirBrakeReleaseDegrees);
-        ReadBool(
-            json,
-            "rollDistanceMatchesVehicleWidth",
-            loaded.rollDistanceMatchesVehicleWidth);
-        ReadFloat(
-            json,
-            "rollTravelVehicleWidths",
-            loaded.rollTravelVehicleWidths);
-        ReadFloat(json, "rollDistanceM", loaded.rollDistanceM);
-        ReadFloat(json, "rollTorqueCutoffDegrees", loaded.rollTorqueCutoffDegrees);
-        ReadFloat(json, "rollStabilizationTorqueNm", loaded.rollStabilizationTorqueNm);
-        ReadFloat(json, "rollStabilizationDampingNms", loaded.rollStabilizationDampingNms);
         ReadFloat(json, "trackWidthM", loaded.trackWidthM);
         ReadFloat(json, "trackSpacingM", loaded.trackSpacingM);
         ReadFloat(

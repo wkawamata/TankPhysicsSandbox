@@ -106,41 +106,10 @@ int main()
     passed &= Check(
         NearlyEqual(loaded.recoilPointHeightM, source.recoilPointHeightM),
         "recoil point height must round trip");
-    passed &= Check(loaded.rollingInputEnabled == source.rollingInputEnabled,
-        "rolling input enabled must round trip");
-    passed &= Check(NearlyEqual(loaded.rollTorqueNm, source.rollTorqueNm),
-        "roll torque must round trip");
     passed &= Check(
-        NearlyEqual(
-            loaded.rollReturnDecisionDegrees,
-            source.rollReturnDecisionDegrees),
-        "roll return decision angle must round trip");
-    passed &= Check(
-        NearlyEqual(loaded.rollApproachStartDegrees, source.rollApproachStartDegrees),
-        "roll approach start angle must round trip");
-    passed &= Check(
-        NearlyEqual(loaded.rollAirBrakeTorqueNm, source.rollAirBrakeTorqueNm),
-        "roll air brake torque must round trip");
-    passed &= Check(
-        NearlyEqual(
-            loaded.rollAirBrakeReleaseDegrees,
-            source.rollAirBrakeReleaseDegrees),
-        "roll air brake release angle must round trip");
-    passed &= Check(
-        loaded.rollDistanceMatchesVehicleWidth ==
-            source.rollDistanceMatchesVehicleWidth,
-        "roll distance width matching must round trip");
-    passed &= Check(NearlyEqual(loaded.rollDistanceM, source.rollDistanceM),
-        "roll distance must round trip");
-    passed &= Check(
-        NearlyEqual(loaded.rollTorqueCutoffDegrees, source.rollTorqueCutoffDegrees),
-        "roll torque cutoff must round trip");
-    passed &= Check(
-        NearlyEqual(loaded.rollStabilizationTorqueNm, source.rollStabilizationTorqueNm),
-        "roll stabilization torque must round trip");
-    passed &= Check(
-        NearlyEqual(loaded.rollStabilizationDampingNms, source.rollStabilizationDampingNms),
-        "roll stabilization damping must round trip");
+        Tank::Physics::SerializeTankSettings(source).find("rollTorqueNm") ==
+            std::string::npos,
+        "tank settings must not serialize rolling parameters");
     passed &= Check(NearlyEqual(loaded.trackWidthM, source.trackWidthM),
         "track width must round trip");
     passed &= Check(NearlyEqual(loaded.trackSpacingM, source.trackSpacingM),
