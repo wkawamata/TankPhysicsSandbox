@@ -2,6 +2,7 @@
 #include "Input/TankInputMappingJson.h"
 #include <fstream>
 #include "App/CameraController.h"
+#include "App/RollingProfileStore.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
 #include "Input/TankInputMapper.h"
@@ -27,6 +28,7 @@
 namespace
 {
     constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
+    constexpr const char* kRollingProfileDirectory = TANK_SOURCE_CONFIG_DIR;
 
     const char* RollingTraceEventName(Tank::Physics::RollingTraceEvent event)
     {
@@ -665,6 +667,16 @@ bool TrackedVehicleMode::SaveTankSettings()
     return store.Write(m_settings, m_tankSettingsStatus);
 }
 
+bool TrackedVehicleMode::SaveRollingProfile()
+{
+    Tank::App::RollingProfileStore store(
+        m_rollingProfileSlot,
+        kRollingProfileDirectory);
+    return store.Write(
+        Tank::Physics::ExtractRollingProfile(m_settings),
+        m_rollingProfileStatus);
+}
+
 bool TrackedVehicleMode::SaveInputMappingSettings()
 {
     std::ofstream file("Config/input_mapping.json");
@@ -710,6 +722,28 @@ bool TrackedVehicleMode::LoadTankSettings(
         return false;
     }
     m_settings = loaded;
+    if (apply)
+    {
+        Reset(renderer, cameraController);
+    }
+    return true;
+}
+
+bool TrackedVehicleMode::LoadRollingProfile(
+    bool apply,
+    RtPbrSurvey::SceneRenderer& renderer,
+    Tank::App::CameraController& cameraController)
+{
+    Tank::App::RollingProfileStore store(
+        m_rollingProfileSlot,
+        kRollingProfileDirectory);
+    Tank::Physics::RollingProfile profile =
+        Tank::Physics::ExtractRollingProfile(m_settings);
+    if (!store.Read(profile, m_rollingProfileStatus))
+    {
+        return false;
+    }
+    Tank::Physics::ApplyRollingProfile(profile, m_settings);
     if (apply)
     {
         Reset(renderer, cameraController);

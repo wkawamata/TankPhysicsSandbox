@@ -426,10 +426,12 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.rollingCheatWindowJapanese =
         &m_trackedVehicleMode.RollingCheatWindowJapanese();
     m_trackedVehiclePanelCtx.tankSettingsSlot = &m_trackedVehicleMode.TankSettingsSlot();
+    m_trackedVehiclePanelCtx.rollingProfileSlot = &m_trackedVehicleMode.RollingProfileSlot();
     m_trackedVehiclePanelCtx.tankSettingsAutoLoad = &m_trackedVehicleMode.TankSettingsAutoLoad();
     m_trackedVehiclePanelCtx.tankVisualSettingsAutoLoad = &m_trackedVehicleMode.TankVisualSettingsAutoLoad();
     m_trackedVehiclePanelCtx.tankVisualMaterialApplyPending = &m_trackedVehicleMode.TankVisualMaterialApplyPending();
     m_trackedVehiclePanelCtx.tankSettingsStatus = &m_trackedVehicleMode.TankSettingsStatus();
+    m_trackedVehiclePanelCtx.rollingProfileStatus = &m_trackedVehicleMode.RollingProfileStatus();
     m_trackedVehiclePanelCtx.tankVisualSettingsStatus = &m_trackedVehicleMode.TankVisualSettingsStatus();
     m_trackedVehiclePanelCtx.envSettingsStatus = &m_trackedVehicleMode.EnvSettingsStatus();
     m_trackedVehiclePanelCtx.tankModelExportPath =
@@ -467,6 +469,10 @@ void TankSandboxApp::OnInit()
     {
         m_trackedVehicleMode.SaveTankSettings();
     };
+    m_trackedVehiclePanelCtx.saveRollingProfile = [this]()
+    {
+        m_trackedVehicleMode.SaveRollingProfile();
+    };
     m_trackedVehiclePanelCtx.saveInputMappingSettings = [this]()
     {
         m_trackedVehicleMode.SaveInputMappingSettings();
@@ -478,6 +484,20 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.loadTankSettings = [this]()
     {
         m_trackedVehicleMode.LoadTankSettings(true, m_sceneRenderer, m_cameraController);
+    };
+    m_trackedVehiclePanelCtx.loadRollingProfile = [this]()
+    {
+        m_trackedVehicleMode.LoadRollingProfile(
+            false,
+            m_sceneRenderer,
+            m_cameraController);
+    };
+    m_trackedVehiclePanelCtx.loadAndApplyRollingProfile = [this]()
+    {
+        m_trackedVehicleMode.LoadRollingProfile(
+            true,
+            m_sceneRenderer,
+            m_cameraController);
     };
     m_trackedVehiclePanelCtx.saveTankVisualSettings = [this]()
     {
