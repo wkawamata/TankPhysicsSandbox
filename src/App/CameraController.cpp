@@ -14,6 +14,11 @@
 
 namespace Tank::App
 {
+    namespace
+    {
+        constexpr const char* kCameraSettingsDirectory = TANK_SOURCE_CONFIG_DIR;
+    }
+
 
     CameraController::CameraController()
     {
@@ -163,7 +168,9 @@ namespace Tank::App
             return true;
         }
         Tank::Rendering::CameraSettings settings;
-        CameraSettingsStore store(static_cast<int>(slotIndex));
+        CameraSettingsStore store(
+            static_cast<int>(slotIndex),
+            kCameraSettingsDirectory);
         if (!store.Read(settings, m_status))
         {
             return false;

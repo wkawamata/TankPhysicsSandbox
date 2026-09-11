@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "projection": 1,
+  "followTank": true,
+  "followDistance": 187.81900024414063,
+  "followYawOffsetDegrees": 0.0,
+  "fovDegrees": 14.300000190734863,
+  "lookDownDegrees": 80.2140884399414,
+  "orthographicHeight": 52.21353530883789,
+  "position": [-1.868032455444336, 186.5261993408203, 82.78990173339844],
+  "gazePoint": [-1.1380600929260254, 1.4399992227554321, 50.87516784667969],
+  "up": [0.02253388613462448, 0.16996699571609497, -0.985192060470581],
+  "positionSpeed": 20.0,
+  "rotationSpeed": 20.0,
+  "damping": 1.0,
+  "yawSpeedLimitDegrees": 720.0,
+  "yawDamping": 8.0
+}

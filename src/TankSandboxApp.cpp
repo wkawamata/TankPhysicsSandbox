@@ -1371,7 +1371,9 @@ bool TankSandboxApp::SaveCameraSettings()
     const Tank::Rendering::CameraSettings settings =
         m_cameraController.CaptureSettings(*camera, m_cameraController.FollowEnabled());
 
-    Tank::App::CameraSettingsStore store(m_cameraController.SelectedSlot());
+    Tank::App::CameraSettingsStore store(
+        m_cameraController.SelectedSlot(),
+        TANK_SOURCE_CONFIG_DIR);
     std::string writeStatus;
     if (!store.Write(settings, writeStatus))
     {
