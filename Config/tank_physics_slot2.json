@@ -1,0 +1,16 @@
+{
+  "version": 18,
+  "chassisMassKg": 4000.0,
+  "chassisWidthM": 2.74,
+  "chassisLengthM": 3.92,
+  "trackWidthM": 0.6,
+  "trackSpacingM": 2.8,
+  "roadWheelCount": 3,
+  "endWheelRadiusM": 0.25,
+  "roadWheelRadiusM": 0.41,
+  "rideHeightScale": 0.66,
+  "threeRoadWheelOffsetM": 1.25,
+  "stationaryTurnInnerTrackRatio": 0.81,
+  "yawSpeedLimitDegrees": 100.0,
+  "clutchReleaseTimeSeconds": 0.08
+}

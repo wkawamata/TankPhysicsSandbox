@@ -28,6 +28,7 @@
 namespace
 {
     constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
+    constexpr const char* kTankSettingsDirectory = TANK_SOURCE_CONFIG_DIR;
     constexpr const char* kRollingProfileDirectory = TANK_SOURCE_CONFIG_DIR;
 
     const char* RollingTraceEventName(Tank::Physics::RollingTraceEvent event)
@@ -663,7 +664,9 @@ Tank::Rendering::MortarRangeCue TrackedVehicleMode::MortarRangeCue() const
 
 bool TrackedVehicleMode::SaveTankSettings()
 {
-    Tank::App::TankSettingsStore store(m_tankSettingsSlot);
+    Tank::App::TankSettingsStore store(
+        m_tankSettingsSlot,
+        kTankSettingsDirectory);
     return store.Write(m_settings, m_tankSettingsStatus);
 }
 
@@ -715,7 +718,9 @@ bool TrackedVehicleMode::LoadTankSettings(
     RtPbrSurvey::SceneRenderer& renderer,
     Tank::App::CameraController& cameraController)
 {
-    Tank::App::TankSettingsStore store(m_tankSettingsSlot);
+    Tank::App::TankSettingsStore store(
+        m_tankSettingsSlot,
+        kTankSettingsDirectory);
     Tank::Physics::TankSettings loaded = m_settings;
     if (!store.Read(loaded, m_tankSettingsStatus))
     {
