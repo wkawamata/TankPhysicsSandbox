@@ -1,0 +1,22 @@
+{
+  "version": 18,
+  "chassisMassKg": 4000.0,
+  "chassisWidthM": 2.4,
+  "chassisLengthM": 3.92,
+  "trackWidthM": 0.63,
+  "trackSpacingM": 4.63,
+  "trackLongitudinalFriction": 4.0,
+  "trackLateralFriction": 2.0,
+  "roadWheelCount": 4,
+  "endWheelRadiusM": 0.23,
+  "roadWheelRadiusM": 0.38,
+  "endWheelOffsetM": 0.2,
+  "endWheelVerticalOffsetM": 0.1,
+  "roadWheelVerticalOffsetM": 0.15,
+  "wheelHorizontalOffsetM": -0.02,
+  "rideHeightScale": 1.1,
+  "stationaryTurnInnerTrackRatio": 0.81,
+  "yawSpeedLimitDegrees": 100.0,
+  "clutchReleaseTimeSeconds": 0.08,
+  "recoilImpulseNewtonSeconds": 7000.0
+}
