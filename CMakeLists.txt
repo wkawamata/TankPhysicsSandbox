@@ -268,6 +268,7 @@ target_compile_definitions(TankSandbox
     PRIVATE
         WIN32 _WINDOWS _UNICODE UNICODE
         TANK_SOURCE_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Config"
+        TANK_SOURCE_ASSETS_MAP_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Assets/Map"
 )
 
 if(MSVC)

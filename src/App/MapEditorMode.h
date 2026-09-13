@@ -30,11 +30,14 @@ public:
     void SetPreviewError(const std::string& error) { m_status = "Preview failed: " + error; }
 
 private:
-    enum class Action { None, Open, Exit, ExitApplication };
+    enum class Action { None, Open, OpenSelected, Create, Exit, ExitApplication };
     void Request(Action action);
     bool Execute(HWND__* owner);
     bool Save();
     void RefreshAssets();
+    void RefreshAvailableMaps();
+    bool OpenMapFolder(const std::filesystem::path& folder, std::string& error);
+    std::filesystem::path MapAssetsRoot() const;
     bool AddSelectedModel();
     bool UpdateSelectedInstance(const Tank::Map::Transform& transform);
     bool DuplicateSelectedInstance();
@@ -47,9 +50,13 @@ private:
 
     Tank::Map::MapFolder m_map;
     Action m_pending = Action::None;
+    std::filesystem::path m_pendingFolder;
     bool m_confirm = false;
     std::string m_status;
     std::vector<std::string> m_assets;
+    std::vector<std::filesystem::path> m_availableMaps;
+    std::filesystem::path m_selectedAvailableMap;
+    bool m_availableMapsScanned = false;
     std::string m_selectedAsset;
     std::string m_assetError;
     Tank::Map::GltfRoles m_roles;

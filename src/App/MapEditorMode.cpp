@@ -4,8 +4,54 @@
 #include "Map/MapEditing.h"
 #include "Platform/Windows/MapFolderPicker.h"
 #include <algorithm>
+#include <system_error>
 #include <imgui.h>
 #include <imgui_stdlib.h>
+
+std::filesystem::path MapEditorMode::MapAssetsRoot() const
+{
+    const std::filesystem::path sourceRoot = TANK_SOURCE_ASSETS_MAP_DIR;
+    std::error_code error;
+    if (std::filesystem::is_directory(sourceRoot, error)) return sourceRoot;
+    return std::filesystem::current_path() / "Assets" / "Map";
+}
+
+void MapEditorMode::RefreshAvailableMaps()
+{
+    m_availableMapsScanned = true;
+    m_availableMaps.clear();
+    std::error_code error;
+    const std::filesystem::path root = MapAssetsRoot();
+    if (!std::filesystem::is_directory(root, error)) return;
+
+    for (const std::filesystem::directory_entry& entry :
+         std::filesystem::directory_iterator(root, error))
+    {
+        if (error || !entry.is_directory()) continue;
+        if (std::filesystem::is_regular_file(entry.path() / "Manifest.json", error))
+            m_availableMaps.push_back(entry.path());
+    }
+    std::sort(m_availableMaps.begin(), m_availableMaps.end(),
+        [](const std::filesystem::path& left, const std::filesystem::path& right)
+        { return left.filename().wstring() < right.filename().wstring(); });
+    if (std::find(m_availableMaps.begin(), m_availableMaps.end(), m_selectedAvailableMap) ==
+        m_availableMaps.end())
+        m_selectedAvailableMap.clear();
+}
+
+bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::string& error)
+{
+    if (!m_map.Open(folder, error)) return false;
+    m_status = "Opened Manifest.json";
+    m_selectedAsset.clear();
+    m_selectedInstanceId.clear();
+    m_selectedClearAreaId.clear();
+    RefreshAssets();
+    RefreshAvailableMaps();
+    m_selectedAvailableMap = m_map.Folder();
+    m_sceneReloadRequested = true;
+    return true;
+}
 
 void MapEditorMode::RefreshAssets()
 {
@@ -291,6 +337,9 @@ bool MapEditorMode::Execute(HWND__* owner)
         m_map = {};
         m_status.clear();
         m_assets.clear();
+        m_availableMaps.clear();
+        m_selectedAvailableMap.clear();
+        m_availableMapsScanned = false;
         m_selectedAsset.clear();
         m_assetError.clear();
         m_roles = {};
@@ -301,22 +350,22 @@ bool MapEditorMode::Execute(HWND__* owner)
         m_sceneReloadRequested = true;
         return true;
     }
-    if (action == Action::Open)
+    if (action == Action::OpenSelected)
+    {
+        std::string error;
+        if (!OpenMapFolder(m_pendingFolder, error)) m_status = "Open failed: " + error;
+        m_pendingFolder.clear();
+    }
+    if (action == Action::Open || action == Action::Create)
     {
         std::filesystem::path selected;
         std::string error;
-        const auto result = Tank::Platform::Windows::PickMapFolder(owner, m_map.Folder(), selected, error);
+        const auto result = Tank::Platform::Windows::PickMapFolder(owner, MapAssetsRoot(), selected, error,
+            action == Action::Create ? L"Create New Map Folder" : L"Open Map Folder");
         if (result == Tank::Platform::Windows::FolderPickerResult::Selected)
         {
-            if (m_map.Open(selected, error))
-            {
-                m_status = "Opened Manifest.json";
-                m_selectedAsset.clear();
-                m_selectedInstanceId.clear();
-                m_selectedClearAreaId.clear();
-                RefreshAssets();
-                m_sceneReloadRequested = true;
-            }
+            if (OpenMapFolder(selected, error))
+                m_status = action == Action::Create ? "Created or opened Manifest.json" : m_status;
             else m_status = "Open failed: " + error;
         }
         else if (result == Tank::Platform::Windows::FolderPickerResult::Failed)
@@ -331,7 +380,10 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 10, viewport->WorkPos.y + 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(520, 700), ImGuiCond_FirstUseEver);
     ImGui::Begin("Map Editor", nullptr, ImGuiWindowFlags_NoCollapse);
-    if (ImGui::Button("Open")) Request(Action::Open);
+    if (!m_availableMapsScanned) RefreshAvailableMaps();
+    if (ImGui::Button("Open Folder...")) Request(Action::Open);
+    ImGui::SameLine();
+    if (ImGui::Button("Create New...")) Request(Action::Create);
     ImGui::SameLine();
     ImGui::BeginDisabled(!m_map.IsOpen());
     if (ImGui::Button("Save")) Save();
@@ -341,9 +393,32 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::SameLine();
     if (ImGui::Button("Cheat Sheet")) m_showCheatSheet = true;
     ImGui::Separator();
+    ImGui::SeparatorText("Maps in Assets/Map");
+    if (ImGui::Button("Refresh Map List")) RefreshAvailableMaps();
+    ImGui::SameLine();
+    ImGui::TextUnformatted("Create New... starts in Assets/Map.");
+    if (ImGui::BeginListBox("##AvailableMaps", ImVec2(-1, 92)))
+    {
+        for (size_t index = 0; index < m_availableMaps.size(); ++index)
+        {
+            const std::string label = m_availableMaps[index].filename().string();
+            if (ImGui::Selectable(label.c_str(), m_availableMaps[index] == m_selectedAvailableMap))
+                m_selectedAvailableMap = m_availableMaps[index];
+        }
+        ImGui::EndListBox();
+    }
+    ImGui::BeginDisabled(m_selectedAvailableMap.empty());
+    if (ImGui::Button("Open Selected"))
+    {
+        m_pendingFolder = m_selectedAvailableMap;
+        Request(Action::OpenSelected);
+    }
+    ImGui::EndDisabled();
+    if (m_availableMaps.empty()) ImGui::TextUnformatted("No map folders with Manifest.json found in Assets/Map.");
+    ImGui::Separator();
     if (!m_map.IsOpen())
     {
-        ImGui::TextWrapped("Open a map folder to begin. A missing Manifest.json will be created automatically.");
+        ImGui::TextWrapped("Choose a map above, or use Create New... to create a folder and Manifest.json.");
     }
     else
     {

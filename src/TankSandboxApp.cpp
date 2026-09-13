@@ -1,7 +1,6 @@
 #include "TankSandboxApp.h"
 #include "Input/TankInputMapper.h"
 #include "Map/MapManifest.h"
-#include "App/MapFolderRegistryStore.h"
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
@@ -81,6 +80,13 @@ namespace
 
     std::filesystem::path ResolveMapAssetsDirectory()
     {
+        const std::filesystem::path sourceAssetsDirectory =
+            TANK_SOURCE_ASSETS_MAP_DIR;
+        std::error_code errorCode;
+        if (std::filesystem::exists(sourceAssetsDirectory, errorCode))
+        {
+            return sourceAssetsDirectory;
+        }
         return ResolveRuntimePath("Assets/Map");
     }
 
@@ -1415,11 +1421,8 @@ void TankSandboxApp::DrawToolUi()
             { return m_mapEditorScenePresenter.ValidateVisualAsset(path, roles, error); });
         if (m_mapEditorMode.DrawUi(Win32Application::GetHwnd()))
         {
-            if (const std::optional<std::filesystem::path> folder =
-                    m_mapEditorMode.ConsumeClosedMapFolder())
-            {
-                RegisterManifestMapFolder(*folder);
-            }
+            m_mapEditorMode.ConsumeClosedMapFolder();
+            ReloadCustomMaps();
             m_mapEditorScenePresenter.Clear();
             m_sceneRenderer.SetScene(Engine::Scene{});
             m_appMode = AppMode::TopMenu;
@@ -1641,32 +1644,6 @@ void TankSandboxApp::ReloadCustomMaps()
         m_manifestMaps.push_back({ entry.path(), std::move(document) });
     }
 
-    size_t registeredCount = 0;
-    std::vector<std::filesystem::path> registeredFolders;
-    std::string registryStatus;
-    Tank::App::MapFolderRegistryStore registry(ResolveRuntimePath("Config"));
-    if (registry.Read(registeredFolders, registryStatus))
-    {
-        for (const std::filesystem::path& registeredFolder : registeredFolders)
-        {
-            const std::filesystem::path normalized =
-                std::filesystem::absolute(registeredFolder).lexically_normal();
-            Tank::Map::Manifest document;
-            std::string error;
-            if (!LoadManifestDocument(normalized, document, error))
-            {
-                ++rejectedCount;
-                continue;
-            }
-            const std::wstring folderName = normalized.filename().wstring();
-            m_manifestMaps.erase(std::remove_if(m_manifestMaps.begin(), m_manifestMaps.end(),
-                [&folderName](const ManifestMapEntry& entry)
-                { return _wcsicmp(entry.folder.filename().c_str(), folderName.c_str()) == 0; }),
-                m_manifestMaps.end());
-            m_manifestMaps.push_back({ normalized, std::move(document) });
-            ++registeredCount;
-        }
-    }
     std::sort(
         m_customMaps.begin(),
         m_customMaps.end(),
@@ -1678,57 +1655,11 @@ void TankSandboxApp::ReloadCustomMaps()
         [](const ManifestMapEntry& left, const ManifestMapEntry& right)
         { return left.folder.filename().wstring() < right.folder.filename().wstring(); });
     m_customMapStatus = std::to_string(m_customMaps.size()) + " physics map file(s), " +
-        std::to_string(m_manifestMaps.size()) + " Manifest map(s) loaded, " +
-        std::to_string(registeredCount) + " registered folder(s)";
+        std::to_string(m_manifestMaps.size()) + " Manifest map(s) loaded from Assets/Map";
     if (rejectedCount > 0)
     {
         m_customMapStatus += ", " + std::to_string(rejectedCount) + " rejected";
     }
-}
-
-bool TankSandboxApp::RegisterManifestMapFolder(const std::filesystem::path& folder)
-{
-    const std::filesystem::path normalized = std::filesystem::absolute(folder).lexically_normal();
-    Tank::Map::Manifest document;
-    std::string error;
-    if (!LoadManifestDocument(normalized, document, error))
-    {
-        m_customMapStatus = "Cannot register map folder: " + error;
-        return false;
-    }
-
-    const std::wstring folderName = normalized.filename().wstring();
-    m_manifestMaps.erase(std::remove_if(m_manifestMaps.begin(), m_manifestMaps.end(),
-        [&folderName](const ManifestMapEntry& entry)
-        { return _wcsicmp(entry.folder.filename().c_str(), folderName.c_str()) == 0; }),
-        m_manifestMaps.end());
-    m_manifestMaps.push_back({ normalized, std::move(document) });
-    std::sort(m_manifestMaps.begin(), m_manifestMaps.end(),
-        [](const ManifestMapEntry& left, const ManifestMapEntry& right)
-        { return left.folder.filename().wstring() < right.folder.filename().wstring(); });
-    const auto selected = std::find_if(m_manifestMaps.begin(), m_manifestMaps.end(),
-        [&normalized](const ManifestMapEntry& entry)
-        { return entry.folder == normalized; });
-    m_selectedManifestMap = static_cast<size_t>(std::distance(m_manifestMaps.begin(), selected));
-    m_selectedCustomMap.reset();
-
-    Tank::App::MapFolderRegistryStore registry(ResolveRuntimePath("Config"));
-    std::vector<std::filesystem::path> registeredFolders;
-    std::string registryStatus;
-    if (!registry.Read(registeredFolders, registryStatus)) registeredFolders.clear();
-    const auto alreadyRegistered = std::find_if(registeredFolders.begin(), registeredFolders.end(),
-        [&normalized](const std::filesystem::path& value)
-        {
-            const std::filesystem::path candidate =
-                std::filesystem::absolute(value).lexically_normal();
-            return _wcsicmp(candidate.c_str(), normalized.c_str()) == 0;
-        });
-    if (alreadyRegistered == registeredFolders.end()) registeredFolders.push_back(normalized);
-    if (registry.Write(registeredFolders, registryStatus))
-        m_customMapStatus = "Selected and registered Manifest map: " + normalized.string();
-    else
-        m_customMapStatus = "Selected Manifest map, but registration was not saved: " + registryStatus;
-    return true;
 }
 
 bool TankSandboxApp::LoadAutoMap()

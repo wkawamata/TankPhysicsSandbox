@@ -87,7 +87,6 @@ private:
     bool LoadCameraSettings();
     void DrawTopMenuUi();
     void ReloadCustomMaps();
-    bool RegisterManifestMapFolder(const std::filesystem::path& folder);
     bool LoadAutoMap();
     void EnterTrackedVehicleMode();
     void EnterBoxDropMode();

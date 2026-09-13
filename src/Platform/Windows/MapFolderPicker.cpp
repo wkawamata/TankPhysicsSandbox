@@ -7,7 +7,7 @@
 namespace Tank::Platform::Windows
 {
     FolderPickerResult PickMapFolder(HWND__* owner, const std::filesystem::path& initialFolder,
-        std::filesystem::path& selectedFolder, std::string& error)
+        std::filesystem::path& selectedFolder, std::string& error, const wchar_t* title)
     {
         const HRESULT initialized = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
         if (FAILED(initialized) && initialized != RPC_E_CHANGED_MODE)
@@ -24,7 +24,7 @@ namespace Tank::Platform::Windows
                 DWORD options = 0;
                 result = dialog->GetOptions(&options);
                 if (SUCCEEDED(result)) result = dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR);
-                if (SUCCEEDED(result)) result = dialog->SetTitle(L"Open Map Folder");
+                if (SUCCEEDED(result)) result = dialog->SetTitle(title);
                 if (!initialFolder.empty())
                 {
                     Microsoft::WRL::ComPtr<IShellItem> initial;

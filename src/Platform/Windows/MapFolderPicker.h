@@ -9,5 +9,6 @@ namespace Tank::Platform::Windows
 {
     enum class FolderPickerResult { Selected, Cancelled, Failed };
     FolderPickerResult PickMapFolder(HWND__* owner, const std::filesystem::path& initialFolder,
-        std::filesystem::path& selectedFolder, std::string& error);
+        std::filesystem::path& selectedFolder, std::string& error,
+        const wchar_t* title = L"Open Map Folder");
 }
