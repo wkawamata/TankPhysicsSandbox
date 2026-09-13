@@ -287,7 +287,7 @@ add_custom_command(TARGET TankSandbox POST_BUILD
 add_custom_command(TARGET TankSandbox POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/Assets/Map"
-        "$<TARGET_FILE_DIR:TankSandbox>/Config/Maps"
+        "$<TARGET_FILE_DIR:TankSandbox>/Assets/Map"
     COMMENT "Copying Map editor assets"
 )
 
