@@ -79,12 +79,9 @@ namespace
             relativePath;
     }
 
-    std::vector<std::filesystem::path> ResolveMapDirectories()
+    std::filesystem::path ResolveMapAssetsDirectory()
     {
-        return {
-            ResolveRuntimePath("Config/Maps"),
-            ResolveRuntimePath("Assets/Map"),
-        };
+        return ResolveRuntimePath("Assets/Map");
     }
 
     bool LoadMapDocument(
@@ -1563,7 +1560,7 @@ void TankSandboxApp::DrawTopMenuUi()
         const std::string folder = m_manifestMaps[*m_selectedManifestMap].folder.string();
         ImGui::TextWrapped("Map folder: %s", folder.c_str());
     }
-    if (ImGui::Button("Reload Map Files"))
+    if (ImGui::Button("Reload Map Files (Assets/Map)"))
     {
         ReloadCustomMaps();
     }
@@ -1605,18 +1602,16 @@ void TankSandboxApp::ReloadCustomMaps()
     m_selectedCustomMap.reset();
     m_selectedManifestMap.reset();
     std::error_code errorCode;
-    const std::vector<std::filesystem::path> mapDirectories =
-        ResolveMapDirectories();
-    const std::filesystem::path& physicsMapsDirectory = mapDirectories.front();
-    if (!std::filesystem::exists(physicsMapsDirectory, errorCode))
+    const std::filesystem::path mapsDirectory = ResolveMapAssetsDirectory();
+    if (!std::filesystem::exists(mapsDirectory, errorCode))
     {
-        m_customMapStatus = "No Config/Maps directory";
+        m_customMapStatus = "No Assets/Map directory";
         return;
     }
 
     size_t rejectedCount = 0;
     for (const std::filesystem::directory_entry& entry :
-         std::filesystem::directory_iterator(physicsMapsDirectory, errorCode))
+         std::filesystem::directory_iterator(mapsDirectory, errorCode))
     {
         if (errorCode || !entry.is_regular_file() || entry.path().extension() != ".json")
         {
@@ -1631,23 +1626,19 @@ void TankSandboxApp::ReloadCustomMaps()
         }
         m_customMaps.push_back({ entry.path().filename().string(), std::move(document) });
     }
-    for (const std::filesystem::path& mapsDirectory : mapDirectories)
+    errorCode.clear();
+    for (const std::filesystem::directory_entry& entry :
+         std::filesystem::directory_iterator(mapsDirectory, errorCode))
     {
-        errorCode.clear();
-        if (!std::filesystem::exists(mapsDirectory, errorCode)) continue;
-        for (const std::filesystem::directory_entry& entry :
-             std::filesystem::directory_iterator(mapsDirectory, errorCode))
+        if (errorCode || !entry.is_directory()) continue;
+        Tank::Map::Manifest document;
+        std::string error;
+        if (!LoadManifestDocument(entry.path(), document, error))
         {
-            if (errorCode || !entry.is_directory()) continue;
-            Tank::Map::Manifest document;
-            std::string error;
-            if (!LoadManifestDocument(entry.path(), document, error))
-            {
-                if (std::filesystem::exists(entry.path() / "Manifest.json")) ++rejectedCount;
-                continue;
-            }
-            m_manifestMaps.push_back({ entry.path(), std::move(document) });
+            if (std::filesystem::exists(entry.path() / "Manifest.json")) ++rejectedCount;
+            continue;
         }
+        m_manifestMaps.push_back({ entry.path(), std::move(document) });
     }
 
     size_t registeredCount = 0;
