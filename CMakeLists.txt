@@ -83,6 +83,9 @@ add_library(TankPhysicsCore STATIC
     src/Physics/RollingRecoveryController.h
     src/Physics/RollingSafetyCoordinator.cpp
     src/Physics/RollingSafetyCoordinator.h
+    src/Physics/RollingSpeedOptimizer.cpp
+    src/Physics/RollingSpeedOptimizer.h
+    src/Physics/RollingSpeedTuning.h
     src/Physics/RollingProfile.cpp
     src/Physics/RollingProfile.h
     src/Physics/MortarAimController.cpp
@@ -192,6 +195,8 @@ add_executable(TankSandbox
     src/App/CameraSettingsStore.h
     src/App/TankSettingsStore.cpp
     src/App/TankSettingsStore.h
+    src/App/RollingSpeedOptimizationSession.cpp
+    src/App/RollingSpeedOptimizationSession.h
     src/App/RollingProfileStore.cpp
     src/App/RollingProfileStore.h
     src/App/TankVisualSettingsStore.cpp
@@ -1058,6 +1063,14 @@ if(BUILD_TESTING)
     if(MSVC)
         target_compile_options(TrackedVehicleRollTests PRIVATE /W4 /permissive-)
     endif()
+
+    add_executable(TrackedVehicleRollSpeedTests tests/TrackedVehicleRollSpeedTests.cpp
+        src/App/RollingSpeedOptimizationSession.cpp)
+    target_link_libraries(TrackedVehicleRollSpeedTests PRIVATE TankPhysicsCore nlohmann_json::nlohmann_json)
+    target_compile_definitions(TrackedVehicleRollSpeedTests PRIVATE ROLL_SPEED_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+    add_test(NAME TankPhysics.RollingSpeedOptimization COMMAND TrackedVehicleRollSpeedTests)
+    set_tests_properties(TankPhysics.RollingSpeedOptimization PROPERTIES TIMEOUT 180)
 
     add_executable(TrackedVehicleRollGifTrace
         tests/TrackedVehicleRollGifTrace.cpp

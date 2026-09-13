@@ -68,7 +68,9 @@ namespace Tank::Physics
         float maximumRollProgress = 0.0f;
         float rollTargetDistanceM = 0.0f;
         bool rollReturningToStart = false;
-        int rollCommitFramesRemaining = 0;
+        float rollCommitFramesRemaining = 0.0f;
+        float rollingEnvironmentScale = 1.0f;
+        std::vector<JPH::Ref<JPH::WheelSettingsTV>> rollingWheelSettings;
         RollingDecision lastRollingDecision = RollingDecision::None;
         std::uint64_t rollingDecisionCount = 0;
         float rollingDecisionCommandSign = 0.0f;
@@ -140,8 +142,9 @@ namespace Tank::Physics
         m_mobilityStateMachine = MobilityStateMachine(m_settings);
         m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
         m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
-        m_settings.rollSpeedMultiplier = std::clamp(
-            m_settings.rollSpeedMultiplier, 0.5f, 2.0f);
+        m_settings.rollSpeedMultiplier = std::isfinite(m_settings.rollSpeedMultiplier)
+            ? std::clamp(m_settings.rollSpeedMultiplier, 0.5f, 2.0f) : 1.0f;
+        m_settings.rollSpeedTuning = SanitizeRollingSpeedTuning(m_settings.rollSpeedTuning);
         m_settings.rollReturnDecisionDegrees = std::clamp(
             m_settings.rollReturnDecisionDegrees, 1.0f, 89.0f);
         m_settings.rollApproachStartDegrees = std::clamp(
@@ -374,6 +377,7 @@ namespace Tank::Physics
 
                     track.mWheels.push_back(static_cast<JPH::uint>(vehicle.mWheels.size()));
                     vehicle.mWheels.push_back(wheel);
+                    m_impl->rollingWheelSettings.push_back(wheel);
                 }
             }
         }
@@ -456,7 +460,8 @@ namespace Tank::Physics
 
         const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
         const float rollSpeed = m_settings.rollSpeedMultiplier;
-        const float rollTorqueScale = rollSpeed * rollSpeed;
+        const auto& tuning = m_settings.rollSpeedTuning;
+        const auto scale = [rollSpeed](float atTwo) { return RollingSpeedScale(atTwo, rollSpeed); };
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
         if (std::abs(m_input.throttle) > 0.001f)
@@ -601,8 +606,8 @@ namespace Tank::Physics
                     m_impl->bodyId,
                     bodyForward *
                         (physicsRollSign * m_settings.rollTorqueNm *
-                                rollTorqueScale -
-                            approachDamping * rollSpeed));
+                                scale(tuning.driveTorque) -
+                            approachDamping * scale(tuning.approachDamping)));
                 const bool sameDirectionLevers =
                     std::abs(m_input.leftLeverX) >= 0.70f &&
                     std::abs(m_input.rightLeverX) >= 0.70f &&
@@ -634,7 +639,7 @@ namespace Tank::Physics
                     m_impl->rollTargetDistanceM = 0.0f;
                     m_impl->rollDistanceIntegral = 0.0f;
                     m_impl->rollingPhase = RollingPhase::CommitRoll;
-                    m_impl->rollCommitFramesRemaining = 4;
+                    m_impl->rollCommitFramesRemaining = 4.0f * scale(tuning.commitDuration);
                 }
             }
             else
@@ -676,7 +681,7 @@ namespace Tank::Physics
                 m_impl->rollDistanceIntegral = 0.0f;
             }
             m_impl->rollingPhase = RollingPhase::CommitRoll;
-            m_impl->rollCommitFramesRemaining = 4;
+            m_impl->rollCommitFramesRemaining = 4.0f * scale(tuning.commitDuration);
         }
 
         if (m_impl->rollingPhase == RollingPhase::CommitRoll)
@@ -687,7 +692,8 @@ namespace Tank::Physics
                 m_impl->bodyId,
                     bodyForward *
                     (physicsRollSign * m_settings.rollCommitTorqueNm *
-                        rollTorqueScale));
+                        scale(tuning.commitTorque) *
+                        (std::min)(m_impl->rollCommitFramesRemaining, 1.0f)));
             if (--m_impl->rollCommitFramesRemaining <= 0)
             {
                 m_impl->rollingPhase = RollingPhase::BallisticRoll;
@@ -733,7 +739,7 @@ namespace Tank::Physics
                     bodyForward *
                         (-physicsRollSign *
                             m_settings.rollAirBrakeTorqueNm *
-                            rollTorqueScale));
+                            scale(tuning.airBrakeTorque)));
             }
             if (m_impl->rollReturningToStart &&
                 m_impl->rollingPhase == RollingPhase::BallisticRoll &&
@@ -745,9 +751,9 @@ namespace Tank::Physics
                 // over. This branch is unreachable for a forward roll.
                 const float returnTorque =
                     physicsRollSign * (m_settings.rollTorqueNm * 0.35f *
-                        rollTorqueScale) -
+                        scale(tuning.driveTorque)) -
                     rollAngularVelocity * m_settings.rollApproachDampingNms *
-                        rollSpeed;
+                        scale(tuning.approachDamping);
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
                     bodyForward * returnTorque);
@@ -782,12 +788,12 @@ namespace Tank::Physics
                 -2.0f,
                 2.0f);
             const float force = std::clamp(
-                distanceError * positionGain * rollTorqueScale +
+                distanceError * positionGain * scale(tuning.travelForce) +
                     m_impl->rollDistanceIntegral * integralGain *
-                        rollTorqueScale * rollSpeed -
-                    lateralVelocity * velocityGain * rollSpeed,
-                -maximumForce,
-                maximumForce);
+                        scale(tuning.travelForce) * rollSpeed -
+                    lateralVelocity * velocityGain * scale(tuning.travelDamping),
+                -maximumForce * scale(tuning.forceLimit),
+                maximumForce * scale(tuning.forceLimit));
             bodyInterface.AddForce(m_impl->bodyId, m_impl->rollDirection * force);
 
             const bool forwardRollLanded =
@@ -830,12 +836,12 @@ namespace Tank::Physics
             const float settledUpAlignment = m_impl->rollReturningToStart
                 ? bodyUp.Dot(m_impl->rollStartUp)
                 : std::abs(bodyUp.Dot(JPH::Vec3::sAxisY()));
-            if (std::abs(lateralVelocity) < 0.1f &&
+            if (std::abs(lateralVelocity) < 0.1f * rollSpeed &&
                 settledUpAlignment > 0.95f &&
-                std::abs(rollAngularVelocity) < 0.1f)
+                std::abs(rollAngularVelocity) < 0.1f * rollSpeed)
             {
                 ++m_impl->rollSettledFrames;
-                if (m_impl->rollSettledFrames >= 15)
+                if (m_impl->rollSettledFrames >= static_cast<int>(std::ceil(15.0f / rollSpeed)))
                 {
                     m_impl->rollingPhase = RollingPhase::None;
                     m_impl->rollInputLatched = false;
@@ -884,9 +890,22 @@ namespace Tank::Physics
                 m_impl->bodyId,
                 bodyForward *
                     (rollError * m_settings.rollStabilizationTorqueNm *
-                            rollTorqueScale -
+                            (m_impl->rollingPhase == RollingPhase::None ? 1.0f : scale(tuning.stabilizationTorque)) -
                         rollAngularVelocity *
-                            m_settings.rollStabilizationDampingNms * rollSpeed));
+                            m_settings.rollStabilizationDampingNms *
+                            (m_impl->rollingPhase == RollingPhase::None ? 1.0f : scale(tuning.stabilizationDamping))));
+        }
+
+        // Scale only this vehicle's gravity/suspension during a roll.
+        // No world time or other body's gravity is changed. Restore at completion.
+        const float environmentSpeed = m_impl->rollingPhase == RollingPhase::None ? 1.0f : rollSpeed;
+        if (environmentSpeed != m_impl->rollingEnvironmentScale)
+        {
+            bodyInterface.SetGravityFactor(m_impl->bodyId, RollingSpeedScale(tuning.gravity, environmentSpeed));
+            for (auto& wheel : m_impl->rollingWheelSettings)
+                wheel->mSuspensionSpring.mFrequency = m_settings.suspensionFrequencyHz *
+                    RollingSpeedScale(tuning.suspensionFrequency, environmentSpeed);
+            m_impl->rollingEnvironmentScale = environmentSpeed;
         }
 
         if (rollingPhaseBefore == RollingPhase::None &&

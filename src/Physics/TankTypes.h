@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhysicsTypes.h"
+#include "RollingSpeedTuning.h"
 #include "MobilityTypes.h"
 #include "SpecialMoveTypes.h"
 #include "MortarAimController.h"
@@ -55,6 +56,7 @@ namespace Tank::Physics
         // Time-feel multiplier for the complete roll. 1.0 preserves the
         // authored tuning; torque and damping are scaled internally.
         float rollSpeedMultiplier = 1.0f;
+        RollingSpeedTuning rollSpeedTuning;
         float rollTorqueNm = 200000.0f;
         float rollReturnDecisionDegrees = 75.0f;
         float rollApproachStartDegrees = 80.0f;

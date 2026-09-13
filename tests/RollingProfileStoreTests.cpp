@@ -32,6 +32,8 @@ int main()
     Tank::Physics::TankSettings sourceSettings;
     sourceSettings.chassisWidthM = 8.0f;
     sourceSettings.rollTorqueNm = 123456.0f;
+    for (const auto& coefficient : Tank::Physics::kRollingSpeedCoefficients)
+        sourceSettings.rollSpeedTuning.*(coefficient.member) = coefficient.minimum + 0.1f;
     sourceSettings.rollTravelVehicleWidths = 1.75f;
     const Tank::Physics::RollingProfile source =
         Tank::Physics::ExtractRollingProfile(sourceSettings);
@@ -51,6 +53,13 @@ int main()
     targetSettings.chassisWidthM = 2.6f;
     targetSettings.trackWidthM = 0.45f;
     Tank::Physics::ApplyRollingProfile(loaded, targetSettings);
+    passed &= Check(targetSettings.rollSpeedTuning == sourceSettings.rollSpeedTuning,
+        "all internal speed coefficients must survive extract/save/load/apply");
+    Tank::Physics::RollingProfile legacy = loaded;
+    passed &= Check(Tank::Physics::DeserializeRollingProfile("{\"version\":1,\"torqueNm\":113000}", legacy),
+        "existing version 1 profiles must remain readable");
+    passed &= Check(legacy.speedTuning == Tank::Physics::RollingSpeedTuning{},
+        "loading a legacy profile must reset previously optimized coefficients");
     passed &= Check(NearlyEqual(targetSettings.rollTorqueNm, 123456.0f),
         "apply must update rolling torque");
     passed &= Check(NearlyEqual(targetSettings.chassisWidthM, 2.6f),
