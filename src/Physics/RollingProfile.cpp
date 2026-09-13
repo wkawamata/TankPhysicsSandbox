@@ -45,6 +45,7 @@ namespace Tank::Physics
             settings.rollTorqueCutoffDegrees,
             settings.rollStabilizationTorqueNm,
             settings.rollStabilizationDampingNms,
+            settings.rollSpeedTuning,
         };
     }
 
@@ -52,6 +53,7 @@ namespace Tank::Physics
     {
         settings.rollingInputEnabled = profile.inputEnabled;
         settings.rollSpeedMultiplier = profile.speedMultiplier;
+        settings.rollSpeedTuning = SanitizeRollingSpeedTuning(profile.speedTuning);
         settings.rollTorqueNm = profile.torqueNm;
         settings.rollReturnDecisionDegrees = profile.returnDecisionDegrees;
         settings.rollApproachStartDegrees = profile.approachStartDegrees;
@@ -86,6 +88,9 @@ namespace Tank::Physics
         json["torqueCutoffDegrees"] = profile.torqueCutoffDegrees;
         json["stabilizationTorqueNm"] = profile.stabilizationTorqueNm;
         json["stabilizationDampingNms"] = profile.stabilizationDampingNms;
+        const auto tuning = SanitizeRollingSpeedTuning(profile.speedTuning);
+        for (const auto& coefficient : kRollingSpeedCoefficients)
+            json["speedTuning"][coefficient.key] = tuning.*(coefficient.member);
         return json.dump(2);
     }
 
@@ -124,6 +129,14 @@ namespace Tank::Physics
         ReadFloat(json, "torqueCutoffDegrees", loaded.torqueCutoffDegrees);
         ReadFloat(json, "stabilizationTorqueNm", loaded.stabilizationTorqueNm);
         ReadFloat(json, "stabilizationDampingNms", loaded.stabilizationDampingNms);
+        // Old profiles must restore the historical coefficients, even if a
+        // different optimized profile was previously loaded.
+        loaded.speedTuning = {};
+        const auto tuning = json.find("speedTuning");
+        if (tuning != json.end() && tuning->is_object())
+            for (const auto& coefficient : kRollingSpeedCoefficients)
+                ReadFloat(*tuning, coefficient.key, loaded.speedTuning.*(coefficient.member));
+        loaded.speedTuning = SanitizeRollingSpeedTuning(loaded.speedTuning);
         profile = loaded;
         if (error != nullptr) error->clear();
         return true;

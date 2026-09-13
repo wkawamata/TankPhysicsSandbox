@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Input/GamepadState.h"
+#include "App/RollingSpeedOptimizationSession.h"
 #include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/MapDefinition.h"
@@ -111,6 +112,7 @@ public:
 
     bool SaveTankSettings();
     bool SaveRollingProfile();
+    Tank::App::RollingSpeedOptimizationSession& RollingOptimizer() { return m_rollingOptimizer; }
     bool LoadTankSettings(bool apply, RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
     bool LoadRollingProfile(bool apply, RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
     bool SaveInputMappingSettings();
@@ -141,6 +143,7 @@ private:
     void UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer);
     void UpdateClearCondition();
 
+    Tank::App::RollingSpeedOptimizationSession m_rollingOptimizer;
     TrackedVehicleScenePresenter m_presenter;
     Tank::Physics::TrackedVehicleTest m_test;
 

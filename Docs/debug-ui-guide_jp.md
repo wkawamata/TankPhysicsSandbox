@@ -394,3 +394,13 @@ build\Debug\TankPhysicsCli.exe `
   --steps 480 `
   --throttle 1
 ```
+
+## 10. Rolling速度の最適化と比較グラフ
+
+`Rolling Parameters`で`最適化 (x0.5 <- x1 -> x2)`を押すと、現在のx1 Motionを基準に、x0.5からx2までのMotionが一致するよう内部パラメータを最適化し、完了後に内部係数の編集値へ反映します。`Roll Speed Multiplier`は変更せず、戦車もリセットしません。平坦な床で1倍速のRollingを記録し、観測対象は物理車体のLocal Bounding Box 8頂点です。位置と回転はRolling開始姿勢からの相対値としてメモリに保持します。
+
+完了後に`x0.5 / x1.0 / x1.5 / x2.0 motion comparison`を展開すると、相対Local Z Roll角と相対移動X/Y/Zを表示します。緑がx0.5、青がx1.0、黄がx1.5、赤がx2.0です。縦軸の名称と単位、横軸の1倍速換算時間を各グラフに表示します。横軸は`実時間 × 倍率`なので、速度だけが変わり軌跡が保たれていれば4本の線が重なります。グラフ上にマウスを置くと、カーソル位置の1倍速換算時間と各倍率の実時間・縦軸値を確認できます。
+
+`Save x0.5 / x1.0 / x1.5 / x2.0 CSV`はメモリ上の同じ計測値を`Reports/RollingSpeed`へ保存します。各CSVには実時間、1倍速換算時間、相対移動、相対Quaternion、相対Roll角、Rolling Phase、Local BB 8頂点の相対座標が含まれます。
+
+探索中に基準パラメータまたは床摩擦を変更した場合は内部係数を反映せず、再最適化を求めます。完了後、ユーザーが倍率を選択して`Reset Tank`を押します。最適化結果を保存する場合は`Save Rolling Profile`を使用します。

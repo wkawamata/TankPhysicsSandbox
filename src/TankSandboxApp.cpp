@@ -426,6 +426,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.rollingCheatWindowJapanese =
         &m_trackedVehicleMode.RollingCheatWindowJapanese();
     m_trackedVehiclePanelCtx.tankSettingsSlot = &m_trackedVehicleMode.TankSettingsSlot();
+    m_trackedVehiclePanelCtx.rollingOptimizer = &m_trackedVehicleMode.RollingOptimizer();
     m_trackedVehiclePanelCtx.rollingProfileSlot = &m_trackedVehicleMode.RollingProfileSlot();
     m_trackedVehiclePanelCtx.tankSettingsAutoLoad = &m_trackedVehicleMode.TankSettingsAutoLoad();
     m_trackedVehiclePanelCtx.tankVisualSettingsAutoLoad = &m_trackedVehicleMode.TankVisualSettingsAutoLoad();

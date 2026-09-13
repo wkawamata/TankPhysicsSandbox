@@ -1,4 +1,5 @@
 #include "Ui/TrackedVehiclePanel.h"
+#include "App/RollingSpeedOptimizationSession.h"
 
 #include "Input/GamepadState.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
@@ -11,7 +12,9 @@
 
 #include <filesystem>
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdio>
 #include <string>
 
 namespace Ui
@@ -450,8 +453,176 @@ namespace Ui
 		ImGui::End();
 	}
 
+	enum class RollingPlotMetric
+	{
+		RollDegrees,
+		MoveX,
+		MoveY,
+		MoveZ,
+	};
+
+	float RollingPlotValue(
+		const Tank::Physics::RollingTrajectorySample& sample,
+		RollingPlotMetric metric)
+	{
+		switch (metric)
+		{
+		case RollingPlotMetric::RollDegrees:
+			return 2.0f * std::atan2(sample.rotation.z, sample.rotation.w) *
+				180.0f / 3.14159265358979323846f;
+		case RollingPlotMetric::MoveX: return sample.movement.x;
+		case RollingPlotMetric::MoveY: return sample.movement.y;
+		case RollingPlotMetric::MoveZ: return sample.movement.z;
+		default: return 0.0f;
+		}
+	}
+
+	void DrawRollingComparisonPlot(
+		const char* label,
+		const Tank::Physics::RollingSpeedOptimizationResult& result,
+		RollingPlotMetric metric,
+		const char* unit)
+	{
+		const std::array<const Tank::Physics::RollingTrajectory*, 4> trajectories = {
+			&result.slow, &result.reference, &result.intermediate, &result.optimized };
+		constexpr std::array<float, 4> speeds = { 0.5f, 1.0f, 1.5f, 2.0f };
+		constexpr std::array<ImU32, 4> colors = {
+			IM_COL32(125, 235, 155, 255),
+			IM_COL32(90, 190, 255, 255),
+			IM_COL32(255, 205, 70, 255),
+			IM_COL32(255, 105, 125, 255) };
+		if (result.slow.samples.empty() || result.reference.samples.empty() ||
+			result.intermediate.samples.empty() ||
+			result.optimized.samples.empty())
+		{
+			return;
+		}
+
+		constexpr float dt = 1.0f / 60.0f;
+		const float maximumReferenceTime =
+			(result.reference.samples.size() - 1) * dt;
+		float minimumValue = 0.0f;
+		float maximumValue = 0.0f;
+		for (size_t series = 0; series < trajectories.size(); ++series)
+		{
+			const auto& samples = trajectories[series]->samples;
+			for (size_t frame = 0; frame < samples.size(); ++frame)
+			{
+				if (frame * dt * speeds[series] > maximumReferenceTime) break;
+				const float value = RollingPlotValue(samples[frame], metric);
+				minimumValue = (std::min)(minimumValue, value);
+				maximumValue = (std::max)(maximumValue, value);
+			}
+		}
+		if (maximumValue - minimumValue < 0.001f)
+		{
+			minimumValue -= 0.5f;
+			maximumValue += 0.5f;
+		}
+		const float padding = (maximumValue - minimumValue) * 0.08f;
+		minimumValue -= padding;
+		maximumValue += padding;
+
+		ImGui::Text("Y axis: %s (%s)", label, unit);
+		const ImVec2 size((std::max)(ImGui::GetContentRegionAvail().x, 200.0f), 145.0f);
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		ImGui::InvisibleButton(label, size);
+		const bool plotHovered = ImGui::IsItemHovered();
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		drawList->AddRectFilled(origin,
+			{ origin.x + size.x, origin.y + size.y },
+			IM_COL32(20, 23, 28, 255));
+		for (int grid = 0; grid <= 4; ++grid)
+		{
+			const float x = origin.x + size.x * grid / 4.0f;
+			const float y = origin.y + size.y * grid / 4.0f;
+			drawList->AddLine({ x, origin.y }, { x, origin.y + size.y }, IM_COL32(70, 75, 82, 120));
+			drawList->AddLine({ origin.x, y }, { origin.x + size.x, y }, IM_COL32(70, 75, 82, 120));
+		}
+		if (minimumValue <= 0.0f && maximumValue >= 0.0f)
+		{
+			const float zeroY = origin.y + size.y * maximumValue /
+				(maximumValue - minimumValue);
+			drawList->AddLine({ origin.x, zeroY }, { origin.x + size.x, zeroY },
+				IM_COL32(155, 160, 170, 180));
+		}
+		for (size_t series = 0; series < trajectories.size(); ++series)
+		{
+			const auto& samples = trajectories[series]->samples;
+			bool hasPrevious = false;
+			ImVec2 previous;
+			for (size_t frame = 0; frame < samples.size(); ++frame)
+			{
+				const float referenceTime = frame * dt * speeds[series];
+				if (referenceTime > maximumReferenceTime) break;
+				const float value = RollingPlotValue(samples[frame], metric);
+				const ImVec2 point = {
+					origin.x + size.x * referenceTime / maximumReferenceTime,
+					origin.y + size.y * (maximumValue - value) /
+						(maximumValue - minimumValue) };
+				if (hasPrevious) drawList->AddLine(previous, point, colors[series], 2.0f);
+				previous = point;
+				hasPrevious = true;
+			}
+		}
+		char valueLabel[32] = {};
+		std::snprintf(valueLabel, sizeof(valueLabel), "%.2f", maximumValue);
+		drawList->AddText({ origin.x + 4.0f, origin.y + 3.0f },
+			IM_COL32(195, 200, 210, 255), valueLabel);
+		std::snprintf(valueLabel, sizeof(valueLabel), "%.2f", minimumValue);
+		drawList->AddText({ origin.x + 4.0f, origin.y + size.y - ImGui::GetTextLineHeight() - 3.0f },
+			IM_COL32(195, 200, 210, 255), valueLabel);
+		std::snprintf(valueLabel, sizeof(valueLabel), "%.2f s", maximumReferenceTime);
+		drawList->AddText({ origin.x + size.x - ImGui::CalcTextSize(valueLabel).x - 4.0f,
+			origin.y + size.y - ImGui::GetTextLineHeight() - 3.0f },
+			IM_COL32(195, 200, 210, 255), valueLabel);
+
+		if (plotHovered)
+		{
+			const float mouseX = ImGui::GetMousePos().x;
+			const float normalizedX = std::clamp(
+				(mouseX - origin.x) / size.x, 0.0f, 1.0f);
+			const float referenceTime = normalizedX * maximumReferenceTime;
+			const float cursorX = origin.x + normalizedX * size.x;
+			drawList->AddLine({ cursorX, origin.y },
+				{ cursorX, origin.y + size.y }, IM_COL32(235, 235, 235, 190));
+			ImGui::BeginTooltip();
+			ImGui::Text("X: %.3f s (x1-equivalent)", referenceTime);
+			for (size_t series = 0; series < trajectories.size(); ++series)
+			{
+				const auto& samples = trajectories[series]->samples;
+				const size_t frame = (std::min)(
+					static_cast<size_t>(std::round(
+						referenceTime / (dt * speeds[series]))),
+					samples.size() - 1);
+				const float actualTime = frame * dt;
+				const float value = RollingPlotValue(samples[frame], metric);
+				ImGui::TextColored(ImColor(colors[series]),
+					"x%.1f: actual %.3f s, Y %.4f %s",
+					speeds[series], actualTime, value, unit);
+			}
+			ImGui::EndTooltip();
+		}
+		ImGui::TextColored(ImColor(colors[0]), "x0.5"); ImGui::SameLine();
+		ImGui::TextColored(ImColor(colors[1]), "x1.0"); ImGui::SameLine();
+		ImGui::TextColored(ImColor(colors[2]), "x1.5"); ImGui::SameLine();
+		ImGui::TextColored(ImColor(colors[3]), "x2.0"); ImGui::SameLine();
+		ImGui::TextDisabled("X axis: x1-equivalent seconds = actual seconds x multiplier");
+	}
+
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
 	{
+		if (ctx.rollingOptimizer)
+		{
+			ctx.rollingOptimizer->Poll();
+			if (ctx.tankSettings && ctx.envSettings)
+			{
+				// This updates editable internal coefficients only. Speed selection
+				// and Reset Tank remain explicit user actions.
+				ctx.rollingOptimizer->Apply(
+					*ctx.tankSettings, *ctx.envSettings);
+			}
+		}
 		const Tank::Physics::TrackedVehicleTestState& state = *ctx.state;
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
@@ -1031,6 +1202,86 @@ namespace Ui
 			IsPending(
 				ctx.tankSettings->rollSpeedMultiplier,
 				ctx.appliedTankSettings->rollSpeedMultiplier));
+        if (ctx.rollingOptimizer && ctx.envSettings)
+        {
+            auto& optimizer = *ctx.rollingOptimizer;
+            ImGui::BeginDisabled(optimizer.Running());
+            if (ImGui::Button(reinterpret_cast<const char*>(u8"最適化 (x0.5 <- x1 -> x2)")))
+                optimizer.Start(*ctx.tankSettings, *ctx.envSettings);
+            ImGui::EndDisabled();
+            ImGui::TextWrapped(reinterpret_cast<const char*>(
+                u8"現在のx1 Motionを基準に、x0.5からx2までのMotionが一致するよう内部パラメータを最適化します。完了後、倍率の選択とReset Tankは手動で行います。"));
+            if (optimizer.Running())
+            {
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel Optimization")) optimizer.Cancel();
+            }
+            ImGui::TextWrapped("%s", optimizer.Status().c_str());
+            ImGui::TextDisabled("Flat floor / current settings / rigid chassis Local BB (8 corners)");
+            const auto& result = optimizer.Result();
+            if (result && !result->cancelled && result->error.empty())
+            {
+                ImGui::Text("BB RMS x0.5: %.3f -> %.3f m | Maximum %.3f m",
+                    result->slowBefore.rmsMeters, result->slowAfter.rmsMeters,
+                    result->slowAfter.maximumMeters);
+                ImGui::Text("BB RMS x2.0: %.3f -> %.3f m | Maximum: %.3f -> %.3f m",
+                    result->before.rmsMeters, result->after.rmsMeters,
+                    result->before.maximumMeters, result->after.maximumMeters);
+                ImGui::Text("Interpolated x1.5 BB RMS: %.3f m",
+                    result->intermediateError.rmsMeters);
+                ImGui::Text("Landing: target %.3f s / result %.3f s",
+                    result->reference.landingSeconds * 0.5f, result->optimized.landingSeconds);
+                ImGui::Text("Finished: target %.3f s / result %.3f s",
+                    result->reference.finishedSeconds * 0.5f, result->optimized.finishedSeconds);
+                const bool matches = optimizer.Matches(*ctx.tankSettings, *ctx.envSettings);
+                if (!matches) ImGui::TextWrapped("Settings changed since calibration. Optimize again before applying.");
+                if (ImGui::TreeNode("x0.5 / x1.0 / x1.5 / x2.0 motion comparison"))
+                {
+                    ImGui::TextWrapped("All values are relative to the pose at Roll start. Curves should overlap when speed scaling preserves motion.");
+                    DrawRollingComparisonPlot("Relative Local Z Roll", *result,
+                        RollingPlotMetric::RollDegrees, "degrees");
+                    DrawRollingComparisonPlot("Relative move X", *result,
+                        RollingPlotMetric::MoveX, "m");
+                    DrawRollingComparisonPlot("Relative move Y", *result,
+                        RollingPlotMetric::MoveY, "m");
+                    DrawRollingComparisonPlot("Relative move Z", *result,
+                        RollingPlotMetric::MoveZ, "m");
+                    if (ImGui::Button("Save x0.5 / x1.0 / x1.5 / x2.0 CSV"))
+                        optimizer.ExportCsv("Reports/RollingSpeed");
+                    ImGui::TreePop();
+                }
+                if (ImGui::TreeNode("Local BB trajectory error"))
+                {
+                    ImGui::TextUnformatted("Compare x0.5(t) with x1(0.5t), and x2(t) with x1(2t), in the starting tank frame.");
+                    const auto& slowSamples = result->slowAfter.sampleRmsMeters;
+                    if (!slowSamples.empty()) ImGui::PlotLines("x0.5 Error (m)", slowSamples.data(),
+                        static_cast<int>(slowSamples.size()), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0, 100));
+                    const auto& fastSamples = result->after.sampleRmsMeters;
+                    if (!fastSamples.empty()) ImGui::PlotLines("x2.0 Error (m)", fastSamples.data(),
+                        static_cast<int>(fastSamples.size()), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0, 100));
+                    for (int corner = 0; corner < 8; ++corner)
+                        ImGui::Text("Corner %d (%cX %cY %cZ): x0.5 %.3f / x2 %.3f m RMS", corner,
+                            corner & 1 ? '+' : '-', corner & 2 ? '+' : '-', corner & 4 ? '+' : '-',
+                            result->slowAfter.cornerRmsMeters[corner],
+                            result->after.cornerRmsMeters[corner]);
+                    ImGui::TreePop();
+                }
+            }
+        }
+        if (ImGui::TreeNode("Speed Multiplier Internal Coefficients"))
+        {
+            ImGui::TextWrapped("Multipliers at x2. At x1 all coefficients are 1, preserving the reference motion.");
+            const Tank::Physics::RollingSpeedTuning defaults;
+            for (const auto& coefficient : Tank::Physics::kRollingSpeedCoefficients)
+            {
+                float& value = ctx.tankSettings->rollSpeedTuning.*(coefficient.member);
+                const float applied = ctx.appliedTankSettings->rollSpeedTuning.*(coefficient.member);
+                SliderFloatWithPendingColor(coefficient.label, &value,
+                    coefficient.minimum, coefficient.maximum, 0.05f,
+                    defaults.*(coefficient.member), "%.3f x", IsPending(value, applied));
+            }
+            ImGui::TreePop();
+        }
 		SliderFloatWithPendingColor(
 			"Roll Torque",
 			&ctx.tankSettings->rollTorqueNm,
