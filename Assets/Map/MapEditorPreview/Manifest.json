@@ -1,0 +1,47 @@
+{
+  "clearAreas": [
+    {
+      "center": [
+        6.25,
+        2.549999952316284,
+        0.0
+      ],
+      "id": "clear-area-1",
+      "name": "Clear Area",
+      "size": [
+        4.550000190734863,
+        5.0,
+        19.399999618530273
+      ]
+    }
+  ],
+  "instances": [
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "ground-001",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "playerSpawn": {
+    "position": [
+      -5.449999809265137,
+      2.0,
+      -3.25
+    ],
+    "rotationDegrees": [
+      0.0,
+      73.0,
+      0.0
+    ]
+  },
+  "version": 1
+}
