@@ -98,6 +98,31 @@ namespace
             NearlyEqual(spawnPost.world._34, 4.0f);
     }
 
+    bool TestEditorSelectionHighlightAndVisibility()
+    {
+        Tank::Map::Manifest manifest;
+        manifest.instances = {
+            { "selected", "triangle-visual-hit.gltf", {} },
+            { "hidden", "triangle-visual-hit.gltf", {} }
+        };
+        Tank::Rendering::MapEditorScenePresenter presenter;
+        const Tank::Rendering::MapEditorGridSettings grid = { 1.0f, 1, 0.02f };
+        const Tank::Rendering::MapEditorPreviewSettings preview = {
+            "selected", { "hidden" }
+        };
+        std::string error;
+        const std::filesystem::path fixtureFolder =
+            std::filesystem::path(TANK_SOURCE_DIR) / "tests/Fixtures/MapEditor";
+        if (!presenter.Rebuild(fixtureFolder, manifest, grid, preview, error))
+        {
+            std::cerr << error << '\n';
+            return false;
+        }
+
+        // 6 grid lines, 1 visible model, 12 selection-box edges, and 3 player-start parts.
+        return presenter.GetScene().instances.size() == 22u;
+    }
+
     bool TestClearBeacons()
     {
         Engine::SceneBuilder builder;
@@ -127,7 +152,7 @@ namespace
 int main()
 {
     if (!TestHitMeshOverlayGeometry() || !TestFailureDoesNotMutateScene() ||
-        !TestEditorMarkers() || !TestClearBeacons())
+        !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() || !TestClearBeacons())
     {
         std::cerr << "Map visual loader tests failed.\n";
         return 1;

@@ -29,6 +29,34 @@
         0.0,
         0.0
       ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-1",
+      "position": [
+        0.0,
+        0.0,
+        20.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-2",
+      "position": [
+        -20.0,
+        0.0,
+        20.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
     }
   ],
   "playerSpawn": {

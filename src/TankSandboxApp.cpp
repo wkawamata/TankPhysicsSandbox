@@ -1458,7 +1458,10 @@ void TankSandboxApp::DrawToolUi()
                     m_mapEditorMode.GridSpacingMeters(),
                     m_mapEditorMode.GridHalfCellCount(),
                     m_mapEditorMode.GridLineWidthMeters() };
-                if (m_mapEditorScenePresenter.Rebuild(map.Folder(), map.Document(), grid, error))
+                const Tank::Rendering::MapEditorPreviewSettings preview = {
+                    m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds() };
+                if (m_mapEditorScenePresenter.Rebuild(
+                    map.Folder(), map.Document(), grid, preview, error))
                 {
                     m_sceneRenderer.SetScene(m_mapEditorScenePresenter.GetScene());
                     m_sceneRenderer.ReloadSceneResources(m_mapEditorScenePresenter.GetScene());

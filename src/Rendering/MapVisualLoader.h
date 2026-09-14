@@ -3,6 +3,7 @@
 #include "Map/MapManifest.h"
 #include "Map/GltfHitMesh.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -16,9 +17,17 @@ namespace Tank::Rendering
     inline constexpr size_t kPlayerStartMarkerPartCount = 3u;
     inline constexpr size_t kClearAreaMarkerPartCount = 12u;
 
+    struct MapVisualBounds
+    {
+        std::string instanceId;
+        std::array<float, 3> minimum = {};
+        std::array<float, 3> maximum = {};
+    };
+
     bool AppendMapVisuals(Engine::SceneBuilder& builder,
         const std::filesystem::path& mapFolder, const Map::Manifest& manifest,
-        uint32_t materialId, std::string& error);
+        uint32_t materialId, std::string& error,
+        std::vector<MapVisualBounds>* instanceBounds = nullptr);
 
     bool AppendMapHitMeshOverlay(Engine::SceneBuilder& builder,
         const std::vector<Map::HitTriangleMesh>& hitMeshes, uint32_t materialId,
