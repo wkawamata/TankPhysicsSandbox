@@ -65,6 +65,7 @@ namespace Ui
         bool* rollingCheatWindowJapanese = nullptr;
         int* tankSettingsSlot = nullptr;
         int* rollingProfileSlot = nullptr;
+        bool* rollingProfileAutoLoadAndReset = nullptr;
         bool* tankSettingsAutoLoad = nullptr;
         bool* tankVisualSettingsAutoLoad = nullptr;
         bool* tankVisualMaterialApplyPending = nullptr;
@@ -88,6 +89,7 @@ namespace Ui
         std::function<void()> enterTrackedVehicleMode;
         std::function<void()> resetTrackedVehicle;
         std::function<void()> fireRecoil;
+        std::function<void()> fireAssault;
         std::function<void()> applyMaterials;
         std::function<void()> saveTankSettings;
         std::function<void()> saveRollingProfile;

@@ -57,6 +57,8 @@ if(MSVC)
 endif()
 
 add_library(TankPhysicsCore STATIC
+    src/Physics/AssaultWeapon.cpp
+    src/Physics/AssaultWeapon.h
     src/Physics/BoxDropTest.cpp
     src/Physics/BoxDropTest.h
     src/Physics/PhysicsTypes.h
@@ -197,6 +199,7 @@ add_executable(TankSandbox
     src/App/TankSettingsStore.h
     src/App/RollingSpeedOptimizationSession.cpp
     src/App/RollingSpeedOptimizationSession.h
+    src/App/RollingProfileSlotSelection.h
     src/App/RollingProfileStore.cpp
     src/App/RollingProfileStore.h
     src/App/TankVisualSettingsStore.cpp
@@ -1110,6 +1113,12 @@ if(BUILD_TESTING)
         target_compile_options(TrackedVehicleRecoilTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(AssaultWeaponTests tests/AssaultWeaponTests.cpp)
+    target_link_libraries(AssaultWeaponTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(AssaultWeaponTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_test(
         NAME TankPhysics.TrackedVehicleNeutral
         COMMAND TrackedVehicleTests
@@ -1174,6 +1183,8 @@ if(BUILD_TESTING)
         NAME TankPhysics.TrackedVehicleRecoil
         COMMAND TrackedVehicleRecoilTests
     )
+
+    add_test(NAME TankPhysics.AssaultWeapon COMMAND AssaultWeaponTests)
 
     add_executable(TrackedVehicleFrictionTests
         tests/TrackedVehicleFrictionTests.cpp

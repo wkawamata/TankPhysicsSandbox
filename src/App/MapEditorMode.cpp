@@ -45,6 +45,7 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     m_status = "Opened Manifest.json";
     m_selectedAsset.clear();
     m_selectedInstanceId.clear();
+    m_hiddenInstanceIds.clear();
     m_selectedClearAreaId.clear();
     RefreshAssets();
     RefreshAvailableMaps();
@@ -163,6 +164,16 @@ bool MapEditorMode::UpdateSelectedInstance(const Tank::Map::Transform& transform
     return true;
 }
 
+void MapEditorMode::SetSelectedInstanceVisible(bool visible)
+{
+    if (m_selectedInstanceId.empty()) return;
+    if (visible)
+        m_hiddenInstanceIds.erase(m_selectedInstanceId);
+    else
+        m_hiddenInstanceIds.insert(m_selectedInstanceId);
+    m_sceneReloadRequested = true;
+}
+
 bool MapEditorMode::RemoveSelectedInstance()
 {
     Tank::Map::Manifest updated = m_map.Document();
@@ -177,6 +188,7 @@ bool MapEditorMode::RemoveSelectedInstance()
         m_status = "Could not remove model: " + error;
         return false;
     }
+    m_hiddenInstanceIds.erase(m_selectedInstanceId);
     m_selectedInstanceId.clear();
     m_sceneReloadRequested = true;
     m_status = "Removed " + removedAsset + ". Save to write Manifest.json.";
@@ -306,6 +318,8 @@ void MapEditorMode::DrawCheatSheet()
 
         ImGui::SeparatorText("Edit the Map");
         ImGui::BulletText("Placed Models: position and rotation");
+        ImGui::BulletText("Selected model: yellow highlight box");
+        ImGui::BulletText("Visible in editor: preview-only visibility");
         ImGui::BulletText("Player Start: chassis-center position and rotation");
         ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
         ImGui::BulletText("Clear Areas: goal AABB center and size");
@@ -346,6 +360,7 @@ bool MapEditorMode::Execute(HWND__* owner)
         m_inspectedAsset.clear();
         m_roleError.clear();
         m_selectedInstanceId.clear();
+        m_hiddenInstanceIds.clear();
         m_selectedClearAreaId.clear();
         m_sceneReloadRequested = true;
         return true;
@@ -503,9 +518,14 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 {
                     const Tank::Map::Instance& instance = document.instances[index];
                     ImGui::PushID(static_cast<int>(index));
-                    const std::string label = instance.id + "  (" + instance.asset + ")";
+                    const bool visible = !m_hiddenInstanceIds.contains(instance.id);
+                    const std::string label = instance.id + (visible ? "  " : "  [Hidden]  ") +
+                        "(" + instance.asset + ")";
                     if (ImGui::Selectable(label.c_str(), instance.id == m_selectedInstanceId))
+                    {
                         m_selectedInstanceId = instance.id;
+                        m_sceneReloadRequested = true;
+                    }
                     ImGui::PopID();
                 }
                 ImGui::EndListBox();
@@ -516,6 +536,11 @@ bool MapEditorMode::DrawUi(HWND__* owner)
             {
                 Tank::Map::Transform transform = selected->transform;
                 ImGui::TextWrapped("Selected: %s", selected->asset.c_str());
+                bool visible = !m_hiddenInstanceIds.contains(selected->id);
+                if (ImGui::Checkbox("Visible in editor", &visible))
+                    SetSelectedInstanceVisible(visible);
+                ImGui::SameLine();
+                ImGui::TextDisabled("(preview only)");
                 if (ImGui::Button("Remove Selected"))
                 {
                     RemoveSelectedInstance();

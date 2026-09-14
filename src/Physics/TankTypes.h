@@ -5,6 +5,7 @@
 #include "MobilityTypes.h"
 #include "SpecialMoveTypes.h"
 #include "MortarAimController.h"
+#include "AssaultWeapon.h"
 
 #include <array>
 
@@ -126,6 +127,7 @@ namespace Tank::Physics
         float leftTrack = 1.0f;
         float rightTrack = 1.0f;
         float roll = 0.0f;
+        bool fireAssault = false;
         float leftLeverX = 0.0f;
         float rightLeverX = 0.0f;
         float brakeAmount = 0.0f;
@@ -239,6 +241,7 @@ namespace Tank::Physics
         float rollingTraceInputSign = 0.0f;
         SpecialMoveStateSnapshot specialMove = {};
         MortarAimSnapshot mortarAim = {};
+        AssaultWeaponSnapshot assaultWeapon = {};
         bool trackInputSwapped = false;
         bool rollChainAvailable = false;
     };

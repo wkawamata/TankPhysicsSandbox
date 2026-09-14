@@ -44,6 +44,7 @@ namespace Tank::Physics
         float rollingTraceCommandSign = 0.0f;
         float rollingTraceInputSign = 0.0f;
         MortarAimSnapshot mortarAim = {};
+        AssaultWeaponSnapshot assaultWeapon = {};
         SpecialMoveStateSnapshot specialMove = {};
         bool rollingObstructionSuspected = false;
         bool rollingRecoveryActive = false;
@@ -74,6 +75,7 @@ namespace Tank::Physics
             const MapSpawn& spawn,
             std::string& error);
         void SetInput(const TankInput& input);
+        bool FireAssault();
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         TrackedVehicleTestState Step(float deltaTimeSeconds);

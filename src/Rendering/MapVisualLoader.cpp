@@ -6,6 +6,7 @@
 #include <DirectXMath.h>
 #include <GltfLoader.h>
 
+#include <iterator>
 #include <limits>
 #include <vector>
 
@@ -73,8 +74,10 @@ namespace
 
 bool Tank::Rendering::AppendMapVisuals(Engine::SceneBuilder& builder,
     const std::filesystem::path& mapFolder, const Map::Manifest& manifest,
-    uint32_t materialId, std::string& error)
+    uint32_t materialId, std::string& error,
+    std::vector<MapVisualBounds>* instanceBounds)
 {
+    if (instanceBounds) instanceBounds->clear();
     for (const Map::Instance& instance : manifest.instances)
     {
         const std::u8string assetUtf8(instance.asset.begin(), instance.asset.end());
@@ -101,6 +104,33 @@ bool Tank::Rendering::AppendMapVisuals(Engine::SceneBuilder& builder,
             {
                 error = "Cannot load Visual node from '" + instance.asset + "': " + add.message;
                 return false;
+            }
+            if (instanceBounds)
+            {
+                const Engine::SceneMesh& mesh = builder.GetMesh();
+                const Engine::SceneMesh::Range& range = mesh.ranges[*add.meshId];
+                auto bounds = std::find_if(instanceBounds->begin(), instanceBounds->end(),
+                    [&instance](const MapVisualBounds& value) { return value.instanceId == instance.id; });
+                if (bounds == instanceBounds->end())
+                {
+                    MapVisualBounds value;
+                    value.instanceId = instance.id;
+                    value.minimum.fill((std::numeric_limits<float>::max)());
+                    value.maximum.fill((std::numeric_limits<float>::lowest)());
+                    instanceBounds->push_back(value);
+                    bounds = std::prev(instanceBounds->end());
+                }
+                for (uint32_t vertexIndex = range.firstVertex;
+                    vertexIndex < range.firstVertex + range.vertexCount; ++vertexIndex)
+                {
+                    const DirectX::XMFLOAT3& position = mesh.vertices[vertexIndex].position;
+                    const float components[] = { position.x, position.y, position.z };
+                    for (size_t axis = 0; axis < 3; ++axis)
+                    {
+                        bounds->minimum[axis] = (std::min)(bounds->minimum[axis], components[axis]);
+                        bounds->maximum[axis] = (std::max)(bounds->maximum[axis], components[axis]);
+                    }
+                }
             }
             builder.AddInstance(*add.meshId, ToWorld(instance.transform), materialId);
         }

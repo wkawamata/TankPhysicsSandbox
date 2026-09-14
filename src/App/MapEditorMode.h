@@ -5,6 +5,8 @@
 
 #include <functional>
 #include <optional>
+#include <string>
+#include <unordered_set>
 #include <utility>
 
 struct HWND__;
@@ -27,6 +29,8 @@ public:
     float GridSpacingMeters() const { return m_gridSpacingMeters; }
     int GridHalfCellCount() const { return m_gridHalfCellCount; }
     float GridLineWidthMeters() const { return m_gridLineWidthMeters; }
+    const std::string& SelectedInstanceId() const { return m_selectedInstanceId; }
+    const std::unordered_set<std::string>& HiddenInstanceIds() const { return m_hiddenInstanceIds; }
     void SetPreviewError(const std::string& error) { m_status = "Preview failed: " + error; }
 
 private:
@@ -40,6 +44,7 @@ private:
     std::filesystem::path MapAssetsRoot() const;
     bool AddSelectedModel();
     bool UpdateSelectedInstance(const Tank::Map::Transform& transform);
+    void SetSelectedInstanceVisible(bool visible);
     bool DuplicateSelectedInstance();
     bool RemoveSelectedInstance();
     bool UpdatePlayerSpawn(const Tank::Map::Transform& transform);
@@ -63,6 +68,7 @@ private:
     std::string m_inspectedAsset;
     std::string m_roleError;
     std::string m_selectedInstanceId;
+    std::unordered_set<std::string> m_hiddenInstanceIds;
     std::string m_selectedClearAreaId;
     bool m_sceneReloadRequested = false;
     bool m_applicationExitApproved = false;

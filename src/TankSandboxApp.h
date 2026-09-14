@@ -146,6 +146,9 @@ private:
     bool m_rollLeft = false;
     bool m_rollRight = false;
     bool m_brake = false;
+    bool m_assaultFire = false;
+    bool m_mortar = false;
+    bool m_debugAssaultFire = false;
     bool m_pauseShortcutHeld = false;
     bool m_stepForwardShortcutHeld = false;
     // Camera
