@@ -253,6 +253,16 @@ namespace Tank::Physics
         return m_impl->controller.ApplyConfiguredRecoil();
     }
 
+    bool TrackedVehicleTest::FireAssault()
+    {
+        if (m_impl == nullptr)
+        {
+            Initialize();
+        }
+
+        return m_impl->controller.FireAssault();
+    }
+
     bool TrackedVehicleTest::ApplyRecoilImpulse(float impulseNewtonSeconds)
     {
         if (m_impl == nullptr)
@@ -323,6 +333,7 @@ namespace Tank::Physics
             m_impl->controller.State().rollingTraceInputSign;
         m_state.specialMove = m_impl->controller.State().specialMove;
         m_state.mortarAim = m_impl->controller.State().mortarAim;
+        m_state.assaultWeapon = m_impl->controller.State().assaultWeapon;
         m_state.trackInputSwapped =
             m_impl->controller.State().trackInputSwapped;
         m_state.rollChainAvailable =

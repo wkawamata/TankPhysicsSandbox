@@ -129,6 +129,7 @@ namespace Tank::Platform::Windows
         {
             state.leftStickX = gamepadState.leftThumbstickX;
             state.leftStickY = gamepadState.leftThumbstickY;
+            state.rightTrigger = gamepadState.rightTrigger;
             state.dpadUp = (gamepadState.buttons & GameInputGamepadDPadUp) != 0;
             state.dpadDown = (gamepadState.buttons & GameInputGamepadDPadDown) != 0;
             state.dpadLeft = (gamepadState.buttons & GameInputGamepadDPadLeft) != 0;

@@ -218,6 +218,10 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
         {
             m_trackedVehicleMode.SetPhysicsDebugOverlayDefault(true);
         }
+        else if (arg == L"--debug-assault-fire")
+        {
+            m_debugAssaultFire = true;
+        }
         else if (arg == L"--benchmark-frames" && i + 1 < argc)
         {
             m_benchmarkMeasureFrames = _wtoi64(argv[++i]);
@@ -464,6 +468,10 @@ void TankSandboxApp::OnInit()
     {
         m_trackedVehicleMode.FireRecoil();
     };
+    m_trackedVehiclePanelCtx.fireAssault = [this]()
+    {
+        m_trackedVehicleMode.FireAssault();
+    };
     m_trackedVehiclePanelCtx.applyMaterials = [this]()
     {
         m_trackedVehicleMode.ApplyMaterials(m_sceneRenderer);
@@ -588,6 +596,16 @@ bool TankSandboxApp::OnCloseRequested()
 
 void TankSandboxApp::OnKeyDown(UINT8 key)
 {
+    if (m_appMode != AppMode::TopMenu && key >= '1' && key <= '4')
+    {
+        const int slot = static_cast<int>(key - '1');
+        if (m_cameraController.SelectSlot(slot, true))
+        {
+            LoadCameraSettings();
+        }
+        return;
+    }
+
     if (key == VK_F12)
     {
         RequestScreenshot();
@@ -639,6 +657,15 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
         }
         m_stepForwardShortcutHeld = true;
     }
+    else if (m_appMode == AppMode::PhysicsTrackedVehicle &&
+        (key == VK_CONTROL || key == VK_LCONTROL))
+    {
+        m_assaultFire = true;
+    }
+    else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'X')
+    {
+        m_mortar = true;
+    }
     else if (key == 'W') m_moveForward = true;
     else if (key == 'S') m_moveBackward = true;
     else if (key == 'A') m_turnRight = true;
@@ -661,6 +688,8 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
     else if (key == 'B') m_brake = false;
     else if (key == VK_SPACE) m_pauseShortcutHeld = false;
     else if (key == 'F') m_stepForwardShortcutHeld = false;
+    else if (key == VK_CONTROL || key == VK_LCONTROL) m_assaultFire = false;
+    else if (key == 'X') m_mortar = false;
 }
 
 bool TankSandboxApp::EnsureDebugCameraForMouse()
@@ -744,6 +773,8 @@ void TankSandboxApp::ClearVehicleInputState()
     m_rollLeft = false;
     m_rollRight = false;
     m_brake = false;
+    m_assaultFire = false;
+    m_mortar = false;
     m_pauseShortcutHeld = false;
     m_stepForwardShortcutHeld = false;
 }
@@ -879,7 +910,9 @@ void TankSandboxApp::OnIdle()
                 ? (scriptedReturn ? m_rollCaptureSign < 0.0f
                                   : m_rollCaptureSign > 0.0f)
                 : m_rollRight,
-            m_rollCaptureEnabled ? false : m_brake);
+            m_rollCaptureEnabled ? false : m_brake,
+            m_assaultFire || m_debugAssaultFire,
+            m_mortar);
         m_trackedVehicleMode.Step(m_sceneRenderer, m_cameraController);
         if (m_rollCaptureEnabled)
         {

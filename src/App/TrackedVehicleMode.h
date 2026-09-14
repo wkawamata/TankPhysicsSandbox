@@ -41,7 +41,8 @@ public:
         const Tank::Input::GamepadState& gamepadState,
         bool moveForward, bool moveBackward,
         bool turnLeft, bool turnRight, bool pivotTurnModifier,
-        bool rollLeft, bool rollRight, bool brake);
+        bool rollLeft, bool rollRight, bool brake, bool fireAssault,
+        bool mortar);
 
     void Step(
         RtPbrSurvey::SceneRenderer& renderer,
@@ -49,6 +50,7 @@ public:
 
     void Reset(RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
     bool FireRecoil();
+    bool FireAssault();
     void ApplyMaterials(RtPbrSurvey::SceneRenderer& renderer);
     void UpdateScene(RtPbrSurvey::SceneRenderer& renderer);
     void SelectMap(Tank::Physics::MapId mapId);
@@ -183,6 +185,10 @@ private:
     bool m_tankVisualMaterialApplyPending = false;
     bool m_active = false;
     std::array<RtPbrSurvey::DebugLineHandle, 32> m_mortarRangeLines = {};
+    RtPbrSurvey::DebugLineHandle m_assaultTracerLine = RtPbrSurvey::kInvalidDebugLineHandle;
+    std::uint64_t m_lastAssaultRoundsFired = 0;
+    float m_assaultTracerSeconds = 0.0f;
+    bool m_lastLoggedMortarVisible = false;
     bool m_mapCleared = false;
 
     int m_tankSettingsSlot = 0;

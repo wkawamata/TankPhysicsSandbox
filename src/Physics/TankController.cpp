@@ -399,10 +399,16 @@ namespace Tank::Physics
         m_input.rightTrack = ClampNormalized(input.rightTrack);
         m_input.roll =
             m_settings.rollingInputEnabled ? ClampNormalized(input.roll) : 0.0f;
+        m_input.fireAssault = input.fireAssault;
         m_input.leftLeverX = ClampNormalized(input.leftLeverX);
         m_input.rightLeverX = ClampNormalized(input.rightLeverX);
         m_input.brakeAmount = std::clamp(input.brakeAmount, 0.0f, 1.0f);
         m_input.brake = input.brake;
+    }
+
+    bool TankController::FireAssault()
+    {
+        return m_assaultWeapon.TryFire();
     }
 
     bool TankController::ApplyConfiguredRecoil()
@@ -983,6 +989,12 @@ namespace Tank::Physics
 
         m_state.stepIndex++;
         m_state.timeSeconds += deltaTimeSeconds;
+        m_assaultWeapon.Update(deltaTimeSeconds);
+        if (m_input.fireAssault)
+        {
+            m_assaultWeapon.TryFire();
+        }
+        m_state.assaultWeapon = m_assaultWeapon.Snapshot();
 
         if (m_state.specialMove.state == SpecialMoveState::MortarStarting ||
             m_state.specialMove.state == SpecialMoveState::MortarAiming)

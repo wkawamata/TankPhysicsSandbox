@@ -226,6 +226,8 @@ namespace Ui
 				state.mortarAim.atMaximum ? " (Max)" : "",
 				state.mortarAim.angleDegrees,
 				state.mortarAim.rangeMeters);
+			ImGui::Text("Assault rounds fired: %llu",
+				static_cast<unsigned long long>(state.assaultWeapon.roundsFired));
 			ImGui::Text("Track: %s  Obstruction: %s%s",
 				state.trackInputSwapped
 					? "Swapped (Inverted)"
@@ -692,7 +694,12 @@ namespace Ui
 		}
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		if (ImGui::Button("Fire / Recoil"))
+		if (ImGui::Button("Fire Assault [Left Ctrl / RT]"))
+		{
+			if (ctx.fireAssault) ctx.fireAssault();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Apply Recoil"))
 		{
 			if (ctx.fireRecoil) ctx.fireRecoil();
 		}
@@ -920,7 +927,7 @@ namespace Ui
 			ImGui::TextUnformatted("Cyan: suspension  Green/Orange: contact  Yellow: normal");
 		}
 		ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
-		ImGui::Text("Q/E roll, B brake, Space pause, F step fwd");
+		ImGui::Text("Q/E roll, X mortar, Left Ctrl fire, B brake, Space pause, F step fwd");
 		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
 		if (ImGui::CollapsingHeader("Gamepad"))
 		{

@@ -28,6 +28,7 @@ namespace Tank::Physics
             const TankSettings& settings,
             const MapSpawn& spawn);
         void SetInput(const TankInput& input);
+        bool FireAssault();
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         void PreStep();
@@ -50,6 +51,7 @@ namespace Tank::Physics
         SpecialMoveStateMachine m_specialMoveStateMachine;
         SpecialMoveInputProcessor m_specialMoveInputProcessor;
         MortarAimController m_mortarAimController;
+        AssaultWeapon m_assaultWeapon;
         std::unique_ptr<Impl> m_impl;
     };
 }

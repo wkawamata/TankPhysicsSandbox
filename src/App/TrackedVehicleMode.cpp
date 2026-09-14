@@ -57,6 +57,14 @@ namespace
         spawn.yawRadians = manifest.playerSpawn.rotationDegrees[1] * degreesToRadians;
         return spawn;
     }
+
+    Tank::Physics::Vec3 ForwardFromRotation(const Tank::Physics::Quat& rotation)
+    {
+        return {
+            2.0f * (rotation.x * rotation.z + rotation.y * rotation.w),
+            2.0f * (rotation.y * rotation.z - rotation.x * rotation.w),
+            1.0f - 2.0f * (rotation.x * rotation.x + rotation.y * rotation.y) };
+    }
 }
 
 TrackedVehicleMode::TrackedVehicleMode()
@@ -285,7 +293,86 @@ void TrackedVehicleMode::Exit()
 
 void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer)
 {
+    const Tank::Physics::TrackedVehicleTestState& state = m_test.State();
+    if (state.assaultWeapon.roundsFired != m_lastAssaultRoundsFired)
+    {
+        m_lastAssaultRoundsFired = state.assaultWeapon.roundsFired;
+        m_assaultTracerSeconds = 0.12f;
+        char message[256] = {};
+        std::snprintf(
+            message,
+            sizeof(message),
+            "[Tank DebugLine] Assault fired: round=%llu body=(%.2f, %.2f, %.2f)\n",
+            static_cast<unsigned long long>(m_lastAssaultRoundsFired),
+            state.bodyPosition.x,
+            state.bodyPosition.y,
+            state.bodyPosition.z);
+        OutputDebugStringA(message);
+    }
+    const Tank::Physics::Vec3 forward = ForwardFromRotation(state.bodyRotation);
+    const Tank::Physics::Vec3 muzzle = {
+        state.bodyPosition.x + forward.x * 1.8f,
+        state.bodyPosition.y + 0.85f + forward.y * 1.8f,
+        state.bodyPosition.z + forward.z * 1.8f };
+    RtPbrSurvey::DebugLineDesc assaultTracer;
+    assaultTracer.start = {muzzle.x, muzzle.y, muzzle.z};
+    assaultTracer.end = {
+        muzzle.x + forward.x * 16.0f,
+        muzzle.y + forward.y * 16.0f,
+        muzzle.z + forward.z * 16.0f};
+    assaultTracer.color = {1.0f, 0.8f, 0.15f, 1.0f};
+    assaultTracer.visible = m_assaultTracerSeconds > 0.0f;
+    assaultTracer.depthMode = RtPbrSurvey::DebugLineDepthMode::Overlay;
+    if (m_assaultTracerLine == RtPbrSurvey::kInvalidDebugLineHandle)
+    {
+        m_assaultTracerLine = renderer.AddDebugLine(assaultTracer);
+        char message[320] = {};
+        std::snprintf(
+            message,
+            sizeof(message),
+            "[Tank DebugLine] Assault line added: handle=%u visible=%d start=(%.2f, %.2f, %.2f) end=(%.2f, %.2f, %.2f)\n",
+            m_assaultTracerLine,
+            assaultTracer.visible ? 1 : 0,
+            assaultTracer.start.x,
+            assaultTracer.start.y,
+            assaultTracer.start.z,
+            assaultTracer.end.x,
+            assaultTracer.end.y,
+            assaultTracer.end.z);
+        OutputDebugStringA(message);
+    }
+    else
+    {
+        const bool updated = renderer.UpdateDebugLine(m_assaultTracerLine, assaultTracer);
+        if (!updated || assaultTracer.visible)
+        {
+            char message[192] = {};
+            std::snprintf(
+                message,
+                sizeof(message),
+                "[Tank DebugLine] Assault line update: handle=%u updated=%d visible=%d timer=%.3f\n",
+                m_assaultTracerLine,
+                updated ? 1 : 0,
+                assaultTracer.visible ? 1 : 0,
+                m_assaultTracerSeconds);
+            OutputDebugStringA(message);
+        }
+    }
+
     const auto cue = MortarRangeCue();
+    if (cue.visible != m_lastLoggedMortarVisible)
+    {
+        char message[192] = {};
+        std::snprintf(
+            message,
+            sizeof(message),
+            "[Tank DebugLine] Mortar visibility changed: visible=%d canFire=%d radius=%.2f\n",
+            cue.visible ? 1 : 0,
+            cue.canFire ? 1 : 0,
+            cue.radiusMeters);
+        OutputDebugStringA(message);
+        m_lastLoggedMortarVisible = cue.visible;
+    }
     m_presenter.SetMortarRangeCue(cue);
     const auto vertices = Tank::Rendering::MortarRangeGeometry::BuildCircle(
         cue.center, cue.radiusMeters, 32);
@@ -302,14 +389,23 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
         line.color = cue.canFire
             ? DirectX::XMFLOAT4(1.0f, 0.2f, 0.1f, 1.0f)
             : DirectX::XMFLOAT4(1.0f, 0.8f, 0.1f, 1.0f);
-        line.depthMode = RtPbrSurvey::DebugLineDepthMode::DepthTested;
+        line.depthMode = RtPbrSurvey::DebugLineDepthMode::Overlay;
         if (m_mortarRangeLines[i] == RtPbrSurvey::kInvalidDebugLineHandle)
             m_mortarRangeLines[i] = renderer.AddDebugLine(line);
-        else
-            renderer.UpdateDebugLine(m_mortarRangeLines[i], line);
+        else if (!renderer.UpdateDebugLine(m_mortarRangeLines[i], line))
+        {
+            char message[160] = {};
+            std::snprintf(
+                message,
+                sizeof(message),
+                "[Tank DebugLine] Mortar line update failed: index=%zu handle=%u\n",
+                i,
+                m_mortarRangeLines[i]);
+            OutputDebugStringA(message);
+        }
     }
     m_presenter.UpdateScene(
-        m_test.State(),
+        state,
         m_settings,
         m_visualSettings,
         m_visualSettings.showDummyTrackShoes,
@@ -397,7 +493,8 @@ void TrackedVehicleMode::UpdateInput(
     const Tank::Input::GamepadState& gamepadState,
     bool moveForward, bool moveBackward,
     bool turnLeft, bool turnRight, bool pivotTurnModifier,
-    bool rollLeft, bool rollRight, bool brake)
+    bool rollLeft, bool rollRight, bool brake, bool fireAssault,
+    bool mortar)
 {
     Tank::Physics::TankInput input;
     m_analogTracksConnected = gamepadState.connected && gamepadState.axisCount >= 4;
@@ -414,6 +511,8 @@ void TrackedVehicleMode::UpdateInput(
     }
     const bool useAnalogTracks = m_analogTracksConnected && m_analogTracksArmed;
     const bool brakePressed = brake || gamepadState.brakePressed;
+    input.fireAssault = fireAssault ||
+        (gamepadState.hasGamepadMapping && gamepadState.rightTrigger >= 0.5f);
 
     m_analogLeftTrack =
         useAnalogTracks ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[3]) : 0.0f;
@@ -432,6 +531,12 @@ void TrackedVehicleMode::UpdateInput(
         const float keyboardLeverX = rollLeft ? -1.0f : 1.0f;
         input.leftLeverX = keyboardLeverX;
         input.rightLeverX = keyboardLeverX;
+    }
+
+    if (mortar)
+    {
+        input.leftLeverX = -1.0f;
+        input.rightLeverX = 1.0f;
     }
 
     m_analogRoll = std::clamp((analogRollAxis0 + analogRollAxis2) * 0.5f, -1.0f, 1.0f);
@@ -551,6 +656,8 @@ void TrackedVehicleMode::Step(
             m_physicsStepTimeMs);
         UpdateClearCondition();
         UpdateSceneInternal(renderer);
+        m_assaultTracerSeconds = std::max(
+            0.0f, m_assaultTracerSeconds - kPhysicsFixedDt);
         renderer.SetScene(m_presenter.GetScene());
         m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - sceneStart).count();
@@ -609,6 +716,8 @@ void TrackedVehicleMode::Reset(
     m_singleStep = false;
     m_analogTracksArmed = false;
     m_loggedRollingTraceSequence = 0;
+    m_lastAssaultRoundsFired = 0;
+    m_assaultTracerSeconds = 0.0f;
     m_mapCleared = false;
     m_clearedAreaName.clear();
     m_clearedAreaIndex.reset();
@@ -633,6 +742,16 @@ bool TrackedVehicleMode::FireRecoil()
         m_singleStep = true;
     }
     return applied;
+}
+
+bool TrackedVehicleMode::FireAssault()
+{
+    const bool fired = m_test.FireAssault();
+    if (fired && m_paused)
+    {
+        m_singleStep = true;
+    }
+    return fired;
 }
 
 void TrackedVehicleMode::ApplyMaterials(RtPbrSurvey::SceneRenderer& renderer)
