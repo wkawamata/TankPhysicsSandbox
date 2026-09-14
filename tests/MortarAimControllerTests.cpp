@@ -15,8 +15,12 @@ int main()
     passed &= first.canFire;
     passed &= first.rangeMeters > 8.0f && first.rangeMeters < 40.0f;
     const auto maximum = controller.Update(10.0f);
-    passed &= maximum.atMaximum && maximum.angleDegrees == 65.0f;
+    passed &= maximum.atMaximum && maximum.angleDegrees == 40.0f;
     passed &= std::fabs(maximum.rangeMeters - 40.0f) < 0.001f;
+    passed &= std::fabs(maximum.attackRadiusMeters - 6.0f) < 0.001f;
+    const auto lowered = controller.Update(4.0f, false);
+    passed &= lowered.angleDegrees == 0.0f && !lowered.canFire;
+    passed &= std::fabs(lowered.attackRadiusMeters - 2.0f) < 0.001f;
     controller.Reset();
     passed &= controller.Snapshot().angleDegrees == 0.0f;
 

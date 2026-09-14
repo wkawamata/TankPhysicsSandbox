@@ -99,11 +99,14 @@ public:
     bool& TankVisualMaterialApplyPending() { return m_tankVisualMaterialApplyPending; }
     int& TankSettingsSlot() { return m_tankSettingsSlot; }
     int& RollingProfileSlot() { return m_rollingProfileSlot; }
+    int& MortarProfileSlot() { return m_mortarProfileSlot; }
+    bool& MortarProfileAutoLoadAndReset() { return m_mortarProfileAutoLoadAndReset; }
     bool& RollingProfileAutoLoadAndReset() { return m_rollingProfileAutoLoadAndReset; }
     bool& TankSettingsAutoLoad() { return m_tankSettingsAutoLoad; }
     bool& TankVisualSettingsAutoLoad() { return m_tankVisualSettingsAutoLoad; }
     std::string& TankSettingsStatus() { return m_tankSettingsStatus; }
     std::string& RollingProfileStatus() { return m_rollingProfileStatus; }
+    std::string& MortarProfileStatus() { return m_mortarProfileStatus; }
     std::string& TankVisualSettingsStatus() { return m_tankVisualSettingsStatus; }
     std::string& EnvSettingsStatus() { return m_environmentSettingsStatus; }
 
@@ -115,9 +118,11 @@ public:
 
     bool SaveTankSettings();
     bool SaveRollingProfile();
+    bool SaveMortarProfile();
     Tank::App::RollingSpeedOptimizationSession& RollingOptimizer() { return m_rollingOptimizer; }
     bool LoadTankSettings(bool apply, RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
     bool LoadRollingProfile(bool apply, RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
+    bool LoadMortarProfile(bool apply, RtPbrSurvey::SceneRenderer& renderer, Tank::App::CameraController& cameraController);
     bool SaveInputMappingSettings();
     bool LoadInputMappingSettings();
     bool SaveTankVisualSettings();
@@ -193,11 +198,14 @@ private:
 
     int m_tankSettingsSlot = 0;
     int m_rollingProfileSlot = 0;
+    int m_mortarProfileSlot = 0;
     bool m_rollingProfileAutoLoadAndReset = true;
+    bool m_mortarProfileAutoLoadAndReset = true;
     bool m_tankSettingsAutoLoad = true;
     bool m_tankVisualSettingsAutoLoad = true;
     std::string m_tankSettingsStatus;
     std::string m_rollingProfileStatus;
+    std::string m_mortarProfileStatus;
     std::string m_tankVisualSettingsStatus;
     std::string m_environmentSettingsStatus;
     std::string m_activeMapName = "Obstacle Field";

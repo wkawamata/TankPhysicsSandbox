@@ -32,6 +32,13 @@ namespace Tank::Physics
             return std::clamp(value, -1.0f, 1.0f);
         }
 
+        bool IsMortarHeld(const TankInput& input)
+        {
+            constexpr float threshold = 0.70f;
+            return input.leftLeverX <= -threshold &&
+                input.rightLeverX >= threshold;
+        }
+
         float ToJoltTrackRatio(float value)
         {
             constexpr float minimumMagnitude = 0.001f;
@@ -228,6 +235,39 @@ namespace Tank::Physics
             std::clamp(m_settings.suspensionFrequencyHz, 0.1f, 10.0f);
         m_settings.suspensionDamping =
             std::clamp(m_settings.suspensionDamping, 0.0f, 2.0f);
+        m_settings.mortarMinimumFireAngleDegrees = std::clamp(
+            m_settings.mortarMinimumFireAngleDegrees, 1.0f, 35.0f);
+        m_settings.mortarMaximumAngleDegrees = std::clamp(
+            m_settings.mortarMaximumAngleDegrees,
+            m_settings.mortarMinimumFireAngleDegrees,
+            60.0f);
+        m_settings.mortarRaiseRateDegreesPerSecond = std::clamp(
+            m_settings.mortarRaiseRateDegreesPerSecond, 1.0f, 60.0f);
+        m_settings.mortarReturnRateDegreesPerSecond = std::clamp(
+            m_settings.mortarReturnRateDegreesPerSecond, 1.0f, 60.0f);
+        m_settings.mortarMinimumRangeMeters = std::clamp(
+            m_settings.mortarMinimumRangeMeters, 0.0f, 100.0f);
+        m_settings.mortarMaximumRangeMeters = std::clamp(
+            m_settings.mortarMaximumRangeMeters,
+            m_settings.mortarMinimumRangeMeters, 200.0f);
+        m_settings.mortarMinimumAttackRadiusMeters = std::clamp(
+            m_settings.mortarMinimumAttackRadiusMeters, 0.1f, 25.0f);
+        m_settings.mortarMaximumAttackRadiusMeters = std::clamp(
+            m_settings.mortarMaximumAttackRadiusMeters,
+            m_settings.mortarMinimumAttackRadiusMeters, 50.0f);
+        m_settings.mortarStanceTorqueNm = std::clamp(
+            m_settings.mortarStanceTorqueNm, 10000.0f, 1000000.0f);
+        m_settings.mortarStanceDampingNms = std::clamp(
+            m_settings.mortarStanceDampingNms, 1000.0f, 250000.0f);
+        m_mortarAimController.Configure({
+            m_settings.mortarMinimumFireAngleDegrees,
+            m_settings.mortarMaximumAngleDegrees,
+            m_settings.mortarRaiseRateDegreesPerSecond,
+            m_settings.mortarReturnRateDegreesPerSecond,
+            m_settings.mortarMinimumRangeMeters,
+            m_settings.mortarMaximumRangeMeters,
+            m_settings.mortarMinimumAttackRadiusMeters,
+            m_settings.mortarMaximumAttackRadiusMeters});
         for (float& stroke : m_settings.suspensionStrokeMeters)
         {
             stroke = std::clamp(stroke, 0.0f, 0.5f);
@@ -470,6 +510,33 @@ namespace Tank::Physics
         const auto scale = [rollSpeed](float atTwo) { return RollingSpeedScale(atTwo, rollSpeed); };
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+        const bool mortarActive =
+            m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+            m_state.specialMove.state == SpecialMoveState::MortarAiming;
+        if (mortarActive)
+        {
+            // Mortar stance is a physical pitch target, never a pose override.
+            // Holding X raises the forward end; releasing X lowers it smoothly.
+            JPH::Vec3 flatForward = bodyForward;
+            flatForward.SetY(0.0f);
+            if (flatForward.LengthSq() > 0.0001f)
+            {
+                flatForward = flatForward.Normalized();
+                const float pitchRadians = JPH::DegreesToRadians(
+                    m_state.mortarAim.angleDegrees);
+                const JPH::Vec3 targetUp =
+                    JPH::Vec3::sAxisY() * std::cos(pitchRadians) -
+                    flatForward * std::sin(pitchRadians);
+                const JPH::Vec3 bodyRight = bodyUp.Cross(bodyForward).Normalized();
+                const float pitchError = bodyUp.Cross(targetUp).Dot(bodyRight);
+                const float pitchVelocity = bodyInterface.GetAngularVelocity(
+                    m_impl->bodyId).Dot(bodyRight);
+                bodyInterface.AddTorque(
+                    m_impl->bodyId,
+                    bodyRight * (pitchError * m_settings.mortarStanceTorqueNm -
+                        pitchVelocity * m_settings.mortarStanceDampingNms));
+            }
+        }
         if (std::abs(m_input.throttle) > 0.001f)
         {
             m_impl->rollChainAvailable = false;
@@ -1000,12 +1067,22 @@ namespace Tank::Physics
             m_state.specialMove.state == SpecialMoveState::MortarAiming)
         {
             m_state.mortarAim =
-                m_mortarAimController.Update(deltaTimeSeconds);
+                m_mortarAimController.Update(
+                    deltaTimeSeconds,
+                    IsMortarHeld(m_input));
             if (m_state.specialMove.state == SpecialMoveState::MortarStarting &&
                 m_state.mortarAim.canFire)
             {
                 m_state.specialMove = m_specialMoveStateMachine.Update(
                     SpecialMoveEvent::MoveCompleted, true);
+            }
+            else if (m_state.specialMove.state == SpecialMoveState::MortarAiming &&
+                !IsMortarHeld(m_input) &&
+                m_state.mortarAim.angleDegrees <= 0.0f)
+            {
+                m_state.specialMove = m_specialMoveStateMachine.Update(
+                    SpecialMoveEvent::MoveCompleted, true);
+                m_specialMoveInputProcessor.Reset();
             }
         }
 

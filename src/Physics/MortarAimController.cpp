@@ -12,14 +12,25 @@ namespace Tank::Physics
         Reset();
     }
 
-    MortarAimSnapshot MortarAimController::Update(float deltaTimeSeconds)
+    void MortarAimController::Configure(const MortarAimSettings& settings)
+    {
+        m_settings = settings;
+        Reset();
+    }
+
+    MortarAimSnapshot MortarAimController::Update(
+        float deltaTimeSeconds,
+        bool held)
     {
         if (std::isfinite(deltaTimeSeconds) && deltaTimeSeconds > 0.0f)
         {
-            m_snapshot.angleDegrees = std::min(
-                m_settings.maximumAngleDegrees,
-                m_snapshot.angleDegrees +
-                    m_settings.angleRateDegreesPerSecond * deltaTimeSeconds);
+            const float rate = held
+                ? m_settings.angleRateDegreesPerSecond
+                : -m_settings.returnRateDegreesPerSecond;
+            m_snapshot.angleDegrees = std::clamp(
+                m_snapshot.angleDegrees + rate * deltaTimeSeconds,
+                0.0f,
+                m_settings.maximumAngleDegrees);
         }
 
         const float span = m_settings.maximumAngleDegrees -
@@ -31,6 +42,10 @@ namespace Tank::Physics
         m_snapshot.rangeMeters = m_settings.minimumRangeMeters +
             (m_settings.maximumRangeMeters - m_settings.minimumRangeMeters) *
             normalized;
+        m_snapshot.attackRadiusMeters =
+            m_settings.minimumAttackRadiusMeters +
+            (m_settings.maximumAttackRadiusMeters -
+                m_settings.minimumAttackRadiusMeters) * normalized;
         m_snapshot.canFire = m_snapshot.angleDegrees >=
             m_settings.minimumFireAngleDegrees;
         m_snapshot.atMaximum = m_snapshot.angleDegrees >=
@@ -42,5 +57,6 @@ namespace Tank::Physics
     {
         m_snapshot = {};
         m_snapshot.rangeMeters = m_settings.minimumRangeMeters;
+        m_snapshot.attackRadiusMeters = m_settings.minimumAttackRadiusMeters;
     }
 }
