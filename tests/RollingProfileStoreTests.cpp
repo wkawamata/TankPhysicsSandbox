@@ -1,4 +1,5 @@
 #include "App/RollingProfileStore.h"
+#include "App/RollingProfileSlotSelection.h"
 
 #include <cmath>
 #include <filesystem>
@@ -25,6 +26,12 @@ namespace
 int main()
 {
     bool passed = true;
+    passed &= Check(Tank::App::ShouldLoadAndResetRollingProfile(0, 1, true),
+        "changing slots with auto-load enabled must load and reset");
+    passed &= Check(!Tank::App::ShouldLoadAndResetRollingProfile(0, 1, false),
+        "changing slots with auto-load disabled must only select the slot");
+    passed &= Check(!Tank::App::ShouldLoadAndResetRollingProfile(1, 1, true),
+        "selecting the active slot must not load and reset again");
     const std::filesystem::path testRoot =
         std::filesystem::current_path() / "RollingProfileStoreTestsTemp";
     std::filesystem::remove_all(testRoot);

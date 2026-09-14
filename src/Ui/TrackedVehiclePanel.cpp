@@ -1,5 +1,6 @@
 #include "Ui/TrackedVehiclePanel.h"
 #include "App/RollingSpeedOptimizationSession.h"
+#include "App/RollingProfileSlotSelection.h"
 
 #include "Input/GamepadState.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
@@ -1150,8 +1151,23 @@ namespace Ui
 				if (slot != 0) ImGui::SameLine();
 				if (ImGui::RadioButton(label.c_str(), *ctx.rollingProfileSlot == slot))
 				{
+					const bool loadAndReset = ctx.rollingProfileAutoLoadAndReset != nullptr &&
+						Tank::App::ShouldLoadAndResetRollingProfile(
+							*ctx.rollingProfileSlot,
+							slot,
+							*ctx.rollingProfileAutoLoadAndReset);
 					*ctx.rollingProfileSlot = slot;
+					if (loadAndReset && ctx.loadAndApplyRollingProfile)
+					{
+						ctx.loadAndApplyRollingProfile();
+					}
 				}
+			}
+			if (ctx.rollingProfileAutoLoadAndReset != nullptr)
+			{
+				ImGui::Checkbox(
+					"Auto load & Reset when changed##RollingProfile",
+					ctx.rollingProfileAutoLoadAndReset);
 			}
 		}
 		if (ctx.saveRollingProfile != nullptr && ImGui::Button("Save Rolling Profile"))

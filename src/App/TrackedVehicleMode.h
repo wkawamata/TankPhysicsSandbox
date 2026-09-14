@@ -97,6 +97,7 @@ public:
     bool& TankVisualMaterialApplyPending() { return m_tankVisualMaterialApplyPending; }
     int& TankSettingsSlot() { return m_tankSettingsSlot; }
     int& RollingProfileSlot() { return m_rollingProfileSlot; }
+    bool& RollingProfileAutoLoadAndReset() { return m_rollingProfileAutoLoadAndReset; }
     bool& TankSettingsAutoLoad() { return m_tankSettingsAutoLoad; }
     bool& TankVisualSettingsAutoLoad() { return m_tankVisualSettingsAutoLoad; }
     std::string& TankSettingsStatus() { return m_tankSettingsStatus; }
@@ -186,6 +187,7 @@ private:
 
     int m_tankSettingsSlot = 0;
     int m_rollingProfileSlot = 0;
+    bool m_rollingProfileAutoLoadAndReset = true;
     bool m_tankSettingsAutoLoad = true;
     bool m_tankVisualSettingsAutoLoad = true;
     std::string m_tankSettingsStatus;

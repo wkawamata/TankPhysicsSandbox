@@ -197,6 +197,7 @@ add_executable(TankSandbox
     src/App/TankSettingsStore.h
     src/App/RollingSpeedOptimizationSession.cpp
     src/App/RollingSpeedOptimizationSession.h
+    src/App/RollingProfileSlotSelection.h
     src/App/RollingProfileStore.cpp
     src/App/RollingProfileStore.h
     src/App/TankVisualSettingsStore.cpp

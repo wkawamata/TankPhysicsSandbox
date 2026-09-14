@@ -65,6 +65,7 @@ namespace Ui
         bool* rollingCheatWindowJapanese = nullptr;
         int* tankSettingsSlot = nullptr;
         int* rollingProfileSlot = nullptr;
+        bool* rollingProfileAutoLoadAndReset = nullptr;
         bool* tankSettingsAutoLoad = nullptr;
         bool* tankVisualSettingsAutoLoad = nullptr;
         bool* tankVisualMaterialApplyPending = nullptr;
