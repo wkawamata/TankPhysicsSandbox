@@ -513,7 +513,10 @@ void TrackedVehicleMode::UpdateInput(
     }
     const bool useAnalogTracks = m_analogTracksConnected && m_analogTracksArmed;
     const bool brakePressed = brake || gamepadState.brakePressed;
-    input.fireAssault = fireAssault ||
+    const bool gamepadAssaultButton =
+        gamepadState.buttonCount > Tank::Input::GamepadState::AssaultFireButtonIndex &&
+        gamepadState.rawButtons[Tank::Input::GamepadState::AssaultFireButtonIndex];
+    input.fireAssault = fireAssault || gamepadAssaultButton ||
         (gamepadState.hasGamepadMapping && gamepadState.rightTrigger >= 0.5f);
 
     m_analogLeftTrack =
@@ -606,9 +609,11 @@ void TrackedVehicleMode::UpdateInput(
     {
         const bool keyboardBrake = input.brake;
         const float keyboardRoll = input.roll;
+        const bool keyboardOrTriggerFire = input.fireAssault;
         input = Tank::Input::MapGamepadToTankInput(gamepadState, m_inputMappingSettings);
         input.brake = input.brake || keyboardBrake;
         input.roll = keyboardRoll;
+        input.fireAssault = input.fireAssault || keyboardOrTriggerFire;
     }
 
     if (m_analogTracksConnected &&

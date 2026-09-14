@@ -75,6 +75,14 @@ int main()
         Tank::Input::MapGamepadToTankInput(braking);
     passed &= Check(brakingInput.brake, "brake button must be preserved");
 
+    Tank::Input::GamepadState assaultTrigger;
+    assaultTrigger.connected = true;
+    assaultTrigger.buttonCount = Tank::Input::GamepadState::AssaultFireButtonIndex + 1;
+    assaultTrigger.rawButtons[Tank::Input::GamepadState::AssaultFireButtonIndex] = true;
+    const Tank::Physics::TankInput assaultInput =
+        Tank::Input::MapGamepadToTankInput(assaultTrigger);
+    passed &= Check(assaultInput.fireAssault, "raw R Trigger button 13 must fire assault weapon");
+
     Tank::Input::GamepadState specialLevers;
     specialLevers.connected = true;
     specialLevers.rawAxes[2] = -1.0f;

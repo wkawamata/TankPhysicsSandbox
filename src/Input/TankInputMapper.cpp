@@ -47,6 +47,9 @@ namespace Tank::Input
         input.throttle = stick.y;
         input.steering = stick.x;
         input.brake = state.brakePressed;
+        input.fireAssault =
+            state.buttonCount > GamepadState::AssaultFireButtonIndex &&
+            state.rawButtons[GamepadState::AssaultFireButtonIndex];
         if (settings.leftLeverAxis < state.rawAxes.size())
             input.leftLeverX = std::clamp(state.rawAxes[settings.leftLeverAxis], -1.0f, 1.0f);
         if (settings.rightLeverAxis < state.rawAxes.size())
