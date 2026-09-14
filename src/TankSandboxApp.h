@@ -135,6 +135,7 @@ private:
     MapEditorMode m_mapEditorMode;
     Tank::Rendering::MapEditorScenePresenter m_mapEditorScenePresenter;
     TrackedVehicleMode m_trackedVehicleMode;
+    bool m_initialRollingProfileApplied = false;
 
     // Platform input (owned here to avoid mixing platform input with physics mode)
     Tank::Platform::Windows::WindowsGamepad m_gamepad;
