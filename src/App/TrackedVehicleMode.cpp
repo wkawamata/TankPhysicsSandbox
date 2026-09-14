@@ -3,6 +3,7 @@
 #include <fstream>
 #include "App/CameraController.h"
 #include "App/RollingProfileStore.h"
+#include "App/MortarProfileStore.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
 #include "Input/TankInputMapper.h"
@@ -30,6 +31,7 @@ namespace
     constexpr const char* kEnvironmentSettingsPath = "Config/physics_environment.json";
     constexpr const char* kTankSettingsDirectory = TANK_SOURCE_CONFIG_DIR;
     constexpr const char* kRollingProfileDirectory = TANK_SOURCE_CONFIG_DIR;
+    constexpr const char* kMortarProfileDirectory = TANK_SOURCE_CONFIG_DIR;
 
     const char* RollingTraceEventName(Tank::Physics::RollingTraceEvent event)
     {
@@ -774,9 +776,17 @@ Tank::Rendering::MortarRangeCue TrackedVehicleMode::MortarRangeCue() const
 {
     const auto& state = m_test.State();
     Tank::Rendering::MortarRangeCue cue;
-    cue.center = state.bodyPosition;
-    cue.radiusMeters = state.mortarAim.rangeMeters;
-    cue.visible = state.specialMove.state == Tank::Physics::SpecialMoveState::MortarAiming;
+    const Tank::Physics::Vec3 forward = ForwardFromRotation(state.bodyRotation);
+    cue.center = {
+        state.bodyPosition.x + forward.x * state.mortarAim.rangeMeters,
+        0.02f,
+        state.bodyPosition.z + forward.z * state.mortarAim.rangeMeters};
+    cue.radiusMeters = state.mortarAim.attackRadiusMeters;
+    const auto& input = m_test.Input();
+    const bool held = input.leftLeverX <= -0.70f && input.rightLeverX >= 0.70f;
+    cue.visible = held &&
+        (state.specialMove.state == Tank::Physics::SpecialMoveState::MortarStarting ||
+            state.specialMove.state == Tank::Physics::SpecialMoveState::MortarAiming);
     cue.canFire = state.mortarAim.canFire;
     return cue;
 }
@@ -797,6 +807,12 @@ bool TrackedVehicleMode::SaveRollingProfile()
     return store.Write(
         Tank::Physics::ExtractRollingProfile(m_settings),
         m_rollingProfileStatus);
+}
+
+bool TrackedVehicleMode::SaveMortarProfile()
+{
+    Tank::App::MortarProfileStore store(m_mortarProfileSlot, kMortarProfileDirectory);
+    return store.Write(Tank::Physics::ExtractMortarProfile(m_settings), m_mortarProfileStatus);
 }
 
 bool TrackedVehicleMode::SaveInputMappingSettings()
@@ -872,6 +888,19 @@ bool TrackedVehicleMode::LoadRollingProfile(
     {
         Reset(renderer, cameraController);
     }
+    return true;
+}
+
+bool TrackedVehicleMode::LoadMortarProfile(
+    bool apply,
+    RtPbrSurvey::SceneRenderer& renderer,
+    Tank::App::CameraController& cameraController)
+{
+    Tank::App::MortarProfileStore store(m_mortarProfileSlot, kMortarProfileDirectory);
+    Tank::Physics::MortarProfile profile = Tank::Physics::ExtractMortarProfile(m_settings);
+    if (!store.Read(profile, m_mortarProfileStatus)) return false;
+    Tank::Physics::ApplyMortarProfile(profile, m_settings);
+    if (apply) Reset(renderer, cameraController);
     return true;
 }
 

@@ -421,13 +421,17 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.tankSettingsSlot = &m_trackedVehicleMode.TankSettingsSlot();
     m_trackedVehiclePanelCtx.rollingOptimizer = &m_trackedVehicleMode.RollingOptimizer();
     m_trackedVehiclePanelCtx.rollingProfileSlot = &m_trackedVehicleMode.RollingProfileSlot();
+    m_trackedVehiclePanelCtx.mortarProfileSlot = &m_trackedVehicleMode.MortarProfileSlot();
     m_trackedVehiclePanelCtx.rollingProfileAutoLoadAndReset =
         &m_trackedVehicleMode.RollingProfileAutoLoadAndReset();
+    m_trackedVehiclePanelCtx.mortarProfileAutoLoadAndReset =
+        &m_trackedVehicleMode.MortarProfileAutoLoadAndReset();
     m_trackedVehiclePanelCtx.tankSettingsAutoLoad = &m_trackedVehicleMode.TankSettingsAutoLoad();
     m_trackedVehiclePanelCtx.tankVisualSettingsAutoLoad = &m_trackedVehicleMode.TankVisualSettingsAutoLoad();
     m_trackedVehiclePanelCtx.tankVisualMaterialApplyPending = &m_trackedVehicleMode.TankVisualMaterialApplyPending();
     m_trackedVehiclePanelCtx.tankSettingsStatus = &m_trackedVehicleMode.TankSettingsStatus();
     m_trackedVehiclePanelCtx.rollingProfileStatus = &m_trackedVehicleMode.RollingProfileStatus();
+    m_trackedVehiclePanelCtx.mortarProfileStatus = &m_trackedVehicleMode.MortarProfileStatus();
     m_trackedVehiclePanelCtx.tankVisualSettingsStatus = &m_trackedVehicleMode.TankVisualSettingsStatus();
     m_trackedVehiclePanelCtx.envSettingsStatus = &m_trackedVehicleMode.EnvSettingsStatus();
     m_trackedVehiclePanelCtx.tankModelExportPath =
@@ -473,6 +477,10 @@ void TankSandboxApp::OnInit()
     {
         m_trackedVehicleMode.SaveRollingProfile();
     };
+    m_trackedVehiclePanelCtx.saveMortarProfile = [this]()
+    {
+        m_trackedVehicleMode.SaveMortarProfile();
+    };
     m_trackedVehiclePanelCtx.saveInputMappingSettings = [this]()
     {
         m_trackedVehicleMode.SaveInputMappingSettings();
@@ -498,6 +506,14 @@ void TankSandboxApp::OnInit()
             true,
             m_sceneRenderer,
             m_cameraController);
+    };
+    m_trackedVehiclePanelCtx.loadMortarProfile = [this]()
+    {
+        m_trackedVehicleMode.LoadMortarProfile(false, m_sceneRenderer, m_cameraController);
+    };
+    m_trackedVehiclePanelCtx.loadAndApplyMortarProfile = [this]()
+    {
+        m_trackedVehicleMode.LoadMortarProfile(true, m_sceneRenderer, m_cameraController);
     };
     m_trackedVehiclePanelCtx.saveTankVisualSettings = [this]()
     {

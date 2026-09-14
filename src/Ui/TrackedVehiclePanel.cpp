@@ -1933,6 +1933,43 @@ namespace Ui
 		}
 		ImGui::Checkbox("Start Upside Down", &ctx.tankSettings->startUpsideDown);
 		}
+		if (ImGui::CollapsingHeader("Mortar Parameters"))
+		{
+			if (ctx.mortarProfileSlot)
+			{
+				ImGui::TextUnformatted("Mortar Profile Slot");
+				for (int slot = 0; slot < 3; ++slot)
+				{
+					const std::string label = "Slot " + std::to_string(slot + 1) + "##MortarProfile";
+					if (slot) ImGui::SameLine();
+					if (ImGui::RadioButton(label.c_str(), *ctx.mortarProfileSlot == slot))
+					{
+						const bool apply = ctx.mortarProfileAutoLoadAndReset &&
+							*ctx.mortarProfileAutoLoadAndReset && *ctx.mortarProfileSlot != slot;
+						*ctx.mortarProfileSlot = slot;
+						if (apply && ctx.loadAndApplyMortarProfile) ctx.loadAndApplyMortarProfile();
+					}
+				}
+				if (ctx.mortarProfileAutoLoadAndReset)
+					ImGui::Checkbox("Auto load & Reset when changed##MortarProfile", ctx.mortarProfileAutoLoadAndReset);
+			}
+			if (ctx.saveMortarProfile && ImGui::Button("Save Mortar Profile")) ctx.saveMortarProfile();
+			ImGui::SameLine();
+			if (ctx.loadMortarProfile && ImGui::Button("Load Mortar Profile")) ctx.loadMortarProfile();
+			ImGui::SameLine();
+			if (ctx.loadAndApplyMortarProfile && ImGui::Button("Load && Apply Mortar Profile")) ctx.loadAndApplyMortarProfile();
+			if (ctx.mortarProfileStatus && !ctx.mortarProfileStatus->empty()) ImGui::TextWrapped("%s", ctx.mortarProfileStatus->c_str());
+			ImGui::Separator();
+			SliderFloatWithPendingColor("Min Fire Angle", &ctx.tankSettings->mortarMinimumFireAngleDegrees, 1.0f, 35.0f, 1.0f, 18.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMinimumFireAngleDegrees, ctx.appliedTankSettings->mortarMinimumFireAngleDegrees));
+			SliderFloatWithPendingColor("Max Wheelie Angle", &ctx.tankSettings->mortarMaximumAngleDegrees, 10.0f, 60.0f, 1.0f, 40.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMaximumAngleDegrees, ctx.appliedTankSettings->mortarMaximumAngleDegrees));
+			SliderFloatWithPendingColor("Raise Rate", &ctx.tankSettings->mortarRaiseRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 12.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarRaiseRateDegreesPerSecond, ctx.appliedTankSettings->mortarRaiseRateDegreesPerSecond));
+			SliderFloatWithPendingColor("Return Rate", &ctx.tankSettings->mortarReturnRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 10.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarReturnRateDegreesPerSecond, ctx.appliedTankSettings->mortarReturnRateDegreesPerSecond));
+			SliderFloatWithPendingColor("Maximum Range", &ctx.tankSettings->mortarMaximumRangeMeters, 1.0f, 200.0f, 1.0f, 40.0f, "%.0f m", IsPending(ctx.tankSettings->mortarMaximumRangeMeters, ctx.appliedTankSettings->mortarMaximumRangeMeters));
+			SliderFloatWithPendingColor("Maximum Attack Radius", &ctx.tankSettings->mortarMaximumAttackRadiusMeters, 0.5f, 50.0f, 0.5f, 6.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMaximumAttackRadiusMeters, ctx.appliedTankSettings->mortarMaximumAttackRadiusMeters));
+			SliderFloatWithPendingColor("Stance Torque", &ctx.tankSettings->mortarStanceTorqueNm, 10000.0f, 1000000.0f, 10000.0f, 500000.0f, "%.0f Nm", IsPending(ctx.tankSettings->mortarStanceTorqueNm, ctx.appliedTankSettings->mortarStanceTorqueNm));
+			SliderFloatWithPendingColor("Stance Damping", &ctx.tankSettings->mortarStanceDampingNms, 1000.0f, 250000.0f, 1000.0f, 80000.0f, "%.0f Nms", IsPending(ctx.tankSettings->mortarStanceDampingNms, ctx.appliedTankSettings->mortarStanceDampingNms));
+			ImGui::TextDisabled("Load && Apply / Reset applies pending mortar changes.");
+		}
 		if (ImGui::CollapsingHeader("Export glTF"))
 		{
         if (ctx.tankModelExportBinary)

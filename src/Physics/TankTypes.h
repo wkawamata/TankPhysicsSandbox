@@ -53,6 +53,16 @@ namespace Tank::Physics
         float recoilImpulseNewtonSeconds = 20000.0f;
         float recoilPointForwardM = 1.2f;
         float recoilPointHeightM = 0.8f;
+        float mortarMinimumFireAngleDegrees = 18.0f;
+        float mortarMaximumAngleDegrees = 40.0f;
+        float mortarRaiseRateDegreesPerSecond = 12.0f;
+        float mortarReturnRateDegreesPerSecond = 10.0f;
+        float mortarMinimumRangeMeters = 8.0f;
+        float mortarMaximumRangeMeters = 40.0f;
+        float mortarMinimumAttackRadiusMeters = 2.0f;
+        float mortarMaximumAttackRadiusMeters = 6.0f;
+        float mortarStanceTorqueNm = 500000.0f;
+        float mortarStanceDampingNms = 80000.0f;
         bool rollingInputEnabled = true;
         // Time-feel multiplier for the complete roll. 1.0 preserves the
         // authored tuning; torque and damping are scaled internally.

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "minimumFireAngleDegrees": 18.0,
+  "maximumAngleDegrees": 40.0,
+  "raiseRateDegreesPerSecond": 12.0,
+  "returnRateDegreesPerSecond": 10.0,
+  "minimumRangeMeters": 8.0,
+  "maximumRangeMeters": 40.0,
+  "minimumAttackRadiusMeters": 2.0,
+  "maximumAttackRadiusMeters": 6.0,
+  "stanceTorqueNm": 500000.0,
+  "stanceDampingNms": 80000.0
+}

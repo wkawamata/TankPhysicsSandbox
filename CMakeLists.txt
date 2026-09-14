@@ -90,6 +90,8 @@ add_library(TankPhysicsCore STATIC
     src/Physics/RollingSpeedTuning.h
     src/Physics/RollingProfile.cpp
     src/Physics/RollingProfile.h
+    src/Physics/MortarProfile.cpp
+    src/Physics/MortarProfile.h
     src/Physics/MortarAimController.cpp
     src/Physics/MortarAimController.h
     src/Physics/MortarAimIntegration.cpp
@@ -202,6 +204,8 @@ add_executable(TankSandbox
     src/App/RollingProfileSlotSelection.h
     src/App/RollingProfileStore.cpp
     src/App/RollingProfileStore.h
+    src/App/MortarProfileStore.cpp
+    src/App/MortarProfileStore.h
     src/App/TankVisualSettingsStore.cpp
     src/App/TankVisualSettingsStore.h
     src/App/TrackedVehicleMode.cpp
@@ -450,6 +454,13 @@ if(BUILD_TESTING)
     target_include_directories(RollingProfileStoreTests PRIVATE src)
     target_link_libraries(RollingProfileStoreTests PRIVATE TankPhysicsCore nlohmann_json::nlohmann_json)
 
+    add_executable(MortarProfileStoreTests
+        src/App/MortarProfileStore.cpp
+        tests/MortarProfileStoreTests.cpp
+    )
+    target_include_directories(MortarProfileStoreTests PRIVATE src)
+    target_link_libraries(MortarProfileStoreTests PRIVATE TankPhysicsCore nlohmann_json::nlohmann_json)
+
     add_executable(TankVisualSettingsStoreTests
         src/App/TankVisualSettingsStore.cpp
         src/Rendering/TankVisualSettingsJson.cpp
@@ -474,6 +485,7 @@ if(BUILD_TESTING)
         NAME TankApp.RollingProfileStore
         COMMAND RollingProfileStoreTests
     )
+    add_test(NAME TankApp.MortarProfileStore COMMAND MortarProfileStoreTests)
     add_test(
         NAME TankApp.TankVisualSettingsStore
         COMMAND TankVisualSettingsStoreTests

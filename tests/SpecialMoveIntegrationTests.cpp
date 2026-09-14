@@ -58,6 +58,37 @@ int main()
         vehicle.State().specialMove.state == SpecialMoveState::MortarAiming &&
             vehicle.State().mortarAim.canFire,
         "mortar elevation must reach MortarAiming");
+    const auto& raisedRotation = vehicle.State().bodyRotation;
+    const float raisedForwardY = 2.0f * (
+        raisedRotation.y * raisedRotation.z -
+        raisedRotation.w * raisedRotation.x);
+    passed &= Check(raisedForwardY > 0.20f,
+        "held mortar input must physically raise the tank forward end");
+
+    for (int step = 0; step < 120; ++step)
+    {
+        vehicle.Step(deltaTimeSeconds);
+    }
+    passed &= Check(
+        vehicle.State().mortarAim.atMaximum &&
+            vehicle.State().mortarAim.angleDegrees == 40.0f,
+        "held mortar input must stop at its 40 degree maximum");
+
+    vehicle.SetInput({});
+    for (int step = 0; step < 240; ++step)
+    {
+        vehicle.Step(deltaTimeSeconds);
+    }
+    passed &= Check(
+        vehicle.State().specialMove.state == SpecialMoveState::Idle &&
+            vehicle.State().mortarAim.angleDegrees == 0.0f,
+        "releasing mortar input must lower the stance and return to Idle");
+    const auto& loweredRotation = vehicle.State().bodyRotation;
+    const float loweredForwardY = 2.0f * (
+        loweredRotation.y * loweredRotation.z -
+        loweredRotation.w * loweredRotation.x);
+    passed &= Check(std::abs(loweredForwardY) < 0.08f,
+        "released mortar input must physically lower the tank");
 
     TankInput driveInput;
     driveInput.throttle = 1.0f;
