@@ -6,12 +6,14 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <atomic>
 
 namespace Tank::App
 {
     class RollingSpeedOptimizationSession
     {
     public:
+        static constexpr int kExpectedEvaluationCount = 98;
         ~RollingSpeedOptimizationSession();
         void Start(const Physics::TankSettings& settings, const Physics::PhysicsEnvironmentSettings& environment);
         void Cancel();
@@ -20,6 +22,8 @@ namespace Tank::App
         bool Matches(const Physics::TankSettings& settings, const Physics::PhysicsEnvironmentSettings& environment) const;
         bool Apply(Physics::TankSettings& settings, const Physics::PhysicsEnvironmentSettings& environment);
         bool ExportCsv(const std::filesystem::path& directory);
+        float ProgressFraction() const;
+        int CompletedEvaluations() const;
         const std::string& Status() const { return m_status; }
         const std::optional<Physics::RollingSpeedOptimizationResult>& Result() const { return m_result; }
     private:

@@ -4,11 +4,11 @@
 #include "PhysicsWorld.h"
 
 #include <Jolt/Jolt.h>
-
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
+#include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Vehicle/TrackedVehicleController.h>
 #include <Jolt/Physics/Vehicle/VehicleCollisionTester.h>
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -17,6 +17,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstdlib>
+#include <memory>
+#include "MapDefinition.h"
+#include "MobilityStateMachine.h"
+#include "RollingSpeedTuning.h"
+#include "SpecialMoveTypes.h"
+#include "TankTypes.h"
 
 JPH_SUPPRESS_WARNINGS
 
@@ -1353,4 +1361,5 @@ namespace Tank::Physics
             mobilityDriveRequested,
             deltaTimeSeconds);
     }
+
 }

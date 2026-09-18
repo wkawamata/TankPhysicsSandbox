@@ -518,8 +518,11 @@ void TrackedVehicleMode::UpdateInput(
     const float analogRollAxis2 =
         useAnalogTracks ? NormalizeRawGamepadAxis(gamepadState.rawAxes[2]) : 0.0f;
 
-    input.leftLeverX = analogRollAxis2;
-    input.rightLeverX = analogRollAxis0;
+    // axis 0 is the physical left lever X axis and axis 2 is the physical
+    // right lever X axis. Keep this mapping in lever-local coordinates:
+    // left outward = negative, right outward = positive.
+    input.leftLeverX = analogRollAxis0;
+    input.rightLeverX = analogRollAxis2;
 
     if (!useAnalogTracks && rollLeft != rollRight)
     {

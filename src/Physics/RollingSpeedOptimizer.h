@@ -40,9 +40,13 @@ namespace Tank::Physics
     struct RollingSpeedOptimizationResult
     {
         RollingSpeedTuning tuning;
+        // Trajectories measured with the current tuning before optimization.
+        RollingTrajectory slowBeforeTrajectory;
         RollingTrajectory slow;
         RollingTrajectory reference;
+        RollingTrajectory intermediateBeforeTrajectory;
         RollingTrajectory intermediate;
+        RollingTrajectory fastBeforeTrajectory;
         RollingTrajectory optimized;
         RollingTrajectoryError slowBefore;
         RollingTrajectoryError slowAfter;

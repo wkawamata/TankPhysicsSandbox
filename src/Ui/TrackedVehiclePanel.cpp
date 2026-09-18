@@ -17,6 +17,15 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <vector>
+#include <cfloat>
+#include <cstdint>
+#include <cstdlib>
+#include <iterator>
+#include <Physics/MobilityTypes.h>
+#include <Physics/RollingSpeedOptimizer.h>
+#include <Physics/RollingSpeedTuning.h>
+#include <Physics/SpecialMoveTypes.h>
 
 namespace Ui
 {
@@ -180,7 +189,11 @@ namespace Ui
 		{
 			const Tank::Physics::TankMotionObservation& motion =
 				state.motionObservation;
-			ImGui::SeparatorText("State Summary");
+			if (!ImGui::CollapsingHeader(
+				"State Summary", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				return;
+			}
 			const char* mobilityName = "Moving";
 			switch (state.mobility.state)
 			{
@@ -236,8 +249,8 @@ namespace Ui
 			}
 			ImGui::Text("Track: %s  Obstruction: %s%s",
 				state.trackInputSwapped
-					? "Swapped (Inverted)"
-					: "Normal (Upright)",
+				? "Swapped (Inverted)"
+				: "Normal (Upright)",
 				state.rollingObstructionSuspected ? "Detected" : "None",
 				state.rollingRecoveryActive ? " / Recovery" : "");
 			ImGui::Text("Lever X: L %+.2f  R %+.2f  Roll: %+.2f",
@@ -268,9 +281,9 @@ namespace Ui
 				ImGui::Text(
 					"Max Slip: L %.2f  R %.2f m/s",
 					motion.tracks[0]
-						.maximumAbsoluteLongitudinalSlipMetersPerSecond,
+					.maximumAbsoluteLongitudinalSlipMetersPerSecond,
 					motion.tracks[1]
-						.maximumAbsoluteLongitudinalSlipMetersPerSecond);
+					.maximumAbsoluteLongitudinalSlipMetersPerSecond);
 				if (ctx.tankSettings != nullptr)
 				{
 					const Tank::Physics::TankSettings& settings = *ctx.tankSettings;
@@ -382,20 +395,20 @@ namespace Ui
 			bool pending,
 			const char* english,
 			const char* japaneseText)
-		{
-			if (pending)
 			{
-				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
-			}
-			ImGui::TextUnformatted(label);
-			if (pending)
-			{
-				ImGui::PopStyleColor();
-			}
-			ImGui::Indent();
-			ImGui::TextWrapped("%s", japanese ? japaneseText : english);
-			ImGui::Unindent();
-		};
+				if (pending)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.1f, 1.0f));
+				}
+				ImGui::TextUnformatted(label);
+				if (pending)
+				{
+					ImGui::PopStyleColor();
+				}
+				ImGui::Indent();
+				ImGui::TextWrapped("%s", japanese ? japaneseText : english);
+				ImGui::Unindent();
+			};
 
 		if (ImGui::CollapsingHeader(japanese ? "開始と折り返し判断" : "Start and return decision", ImGuiTreeNodeFlags_DefaultOpen))
 		{
@@ -490,19 +503,24 @@ namespace Ui
 		const char* label,
 		const Tank::Physics::RollingSpeedOptimizationResult& result,
 		RollingPlotMetric metric,
-		const char* unit)
+		const char* unit,
+		bool beforeOptimization)
 	{
-		const std::array<const Tank::Physics::RollingTrajectory*, 4> trajectories = {
-			&result.slow, &result.reference, &result.intermediate, &result.optimized };
+		const std::array<const Tank::Physics::RollingTrajectory*, 4> trajectories =
+			beforeOptimization
+			? std::array<const Tank::Physics::RollingTrajectory*, 4> {
+				&result.slowBeforeTrajectory, &result.reference,
+				&result.intermediateBeforeTrajectory, &result.fastBeforeTrajectory }
+			: std::array<const Tank::Physics::RollingTrajectory*, 4> {
+				&result.slow, &result.reference, &result.intermediate, &result.optimized };
 		constexpr std::array<float, 4> speeds = { 0.5f, 1.0f, 1.5f, 2.0f };
 		constexpr std::array<ImU32, 4> colors = {
 			IM_COL32(125, 235, 155, 255),
 			IM_COL32(90, 190, 255, 255),
 			IM_COL32(255, 205, 70, 255),
 			IM_COL32(255, 105, 125, 255) };
-		if (result.slow.samples.empty() || result.reference.samples.empty() ||
-			result.intermediate.samples.empty() ||
-			result.optimized.samples.empty())
+		if (trajectories[0]->samples.empty() || trajectories[1]->samples.empty() ||
+			trajectories[2]->samples.empty() || trajectories[3]->samples.empty())
 		{
 			return;
 		}
@@ -619,6 +637,71 @@ namespace Ui
 		ImGui::TextDisabled("X axis: x1-equivalent seconds = actual seconds x multiplier");
 	}
 
+	struct RollingTravelTelemetry
+	{
+		Tank::Physics::Vec3 startPosition = {};
+		Tank::Physics::RollingPhase previousPhase = Tank::Physics::RollingPhase::None;
+		int previousStepIndex = 0;
+		float targetMeters = 0.0f;
+		float actualMeters = 0.0f;
+		std::vector<float> actualHistory;
+	};
+
+	void UpdateAndDrawRollingTravelTelemetry(
+		const TrackedVehiclePanelContext& ctx,
+		const Tank::Physics::TrackedVehicleTestState& state)
+	{
+		static RollingTravelTelemetry telemetry;
+		if (state.stepIndex < telemetry.previousStepIndex)
+		{
+			telemetry = {};
+		}
+		const bool rolling = state.rollingPhase != Tank::Physics::RollingPhase::None;
+		if (rolling && telemetry.previousPhase == Tank::Physics::RollingPhase::None)
+		{
+			telemetry.startPosition = state.bodyPosition;
+			telemetry.actualMeters = 0.0f;
+			telemetry.actualHistory.clear();
+			if (ctx.appliedTankSettings != nullptr)
+			{
+				const Tank::Physics::TankSettings& settings = *ctx.appliedTankSettings;
+				const float vehicleWidth = (std::max)(settings.chassisWidthM,
+					settings.trackSpacingM + settings.trackWidthM);
+				telemetry.targetMeters = settings.rollDistanceMatchesVehicleWidth
+					? vehicleWidth * settings.rollTravelVehicleWidths
+					: settings.rollDistanceM;
+			}
+		}
+		if (rolling || !telemetry.actualHistory.empty())
+		{
+			const float deltaX = state.bodyPosition.x - telemetry.startPosition.x;
+			const float deltaZ = state.bodyPosition.z - telemetry.startPosition.z;
+			telemetry.actualMeters = std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
+			if (rolling)
+			{
+				telemetry.actualHistory.push_back(telemetry.actualMeters);
+				if (telemetry.actualHistory.size() > 600)
+					telemetry.actualHistory.erase(telemetry.actualHistory.begin());
+			}
+		}
+		telemetry.previousPhase = state.rollingPhase;
+		telemetry.previousStepIndex = state.stepIndex;
+
+		if (!ImGui::CollapsingHeader("Rolling Travel", ImGuiTreeNodeFlags_DefaultOpen)) return;
+		ImGui::Text("Actual / target: %.2f / %.2f m  (%.0f%%)",
+			telemetry.actualMeters, telemetry.targetMeters,
+			telemetry.targetMeters > 0.001f
+				? telemetry.actualMeters / telemetry.targetMeters * 100.0f : 0.0f);
+		ImGui::TextDisabled("Actual is horizontal chassis displacement from the roll start.");
+		if (!telemetry.actualHistory.empty())
+		{
+			ImGui::PlotLines("Actual travel (m)", telemetry.actualHistory.data(),
+				static_cast<int>(telemetry.actualHistory.size()), 0, nullptr, 0.0f,
+				(std::max)(telemetry.targetMeters * 1.25f, telemetry.actualMeters * 1.1f),
+				ImVec2(-1.0f, 80.0f));
+		}
+	}
+
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
 	{
 		if (ctx.rollingOptimizer)
@@ -637,6 +720,7 @@ namespace Ui
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
 		DrawStateSummary(ctx, state);
+		UpdateAndDrawRollingTravelTelemetry(ctx, state);
 		ImGui::BeginChild(
 			"TrackedVehicleControls",
 			ImVec2(0.0f, 0.0f),
@@ -828,7 +912,7 @@ namespace Ui
 					"SuspensionTelemetry",
 					8,
 					ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-						ImGuiTableFlags_SizingFixedFit))
+					ImGuiTableFlags_SizingFixedFit))
 				{
 					ImGui::TableSetupColumn("Wheel");
 					ImGui::TableSetupColumn("Contact");
@@ -1118,369 +1202,393 @@ namespace Ui
 		}
 		if (ImGui::CollapsingHeader("Physics Settings"))
 		{
-		SliderFloatWithPendingColor(
-			"Chassis Mass",
-			&ctx.tankSettings->chassisMassKg,
-			1000.0f,
-			8000.0f,
-			100.0f,
-			4000.0f,
-			"%.0f kg",
-			IsPending(
-				ctx.tankSettings->chassisMassKg,
-				ctx.appliedTankSettings->chassisMassKg));
-		SliderFloatWithPendingColor(
-			"Recoil Impulse",
-			&ctx.tankSettings->recoilImpulseNewtonSeconds,
-			1000.0f,
-			100000.0f,
-			1000.0f,
-			20000.0f,
-			"%.0f N s",
-			IsPending(
-				ctx.tankSettings->recoilImpulseNewtonSeconds,
-				ctx.appliedTankSettings->recoilImpulseNewtonSeconds));
-		SliderFloatWithPendingColor(
-			"Recoil Point Forward",
-			&ctx.tankSettings->recoilPointForwardM,
-			0.0f,
-			3.0f,
-			0.1f,
-			1.2f,
-			"%.2f m",
-			IsPending(
-				ctx.tankSettings->recoilPointForwardM,
-				ctx.appliedTankSettings->recoilPointForwardM));
-		SliderFloatWithPendingColor(
-			"Recoil Point Height",
-			&ctx.tankSettings->recoilPointHeightM,
-			0.0f,
-			2.0f,
-			0.1f,
-			0.8f,
-			"%.2f m",
-			IsPending(
-				ctx.tankSettings->recoilPointHeightM,
-				ctx.appliedTankSettings->recoilPointHeightM));
-		ImGui::Checkbox("Neutral Brake", &ctx.tankSettings->neutralBrakeEnabled);
-		SliderFloatWithPendingColor(
-			"Neutral Brake Strength",
-			&ctx.tankSettings->neutralBrakeAmount,
-			0.0f,
-			1.0f,
-			0.05f,
-			0.30f,
-			"%.2f",
-			false);
+			SliderFloatWithPendingColor(
+				"Chassis Mass",
+				&ctx.tankSettings->chassisMassKg,
+				1000.0f,
+				8000.0f,
+				100.0f,
+				4000.0f,
+				"%.0f kg",
+				IsPending(
+					ctx.tankSettings->chassisMassKg,
+					ctx.appliedTankSettings->chassisMassKg));
+			SliderFloatWithPendingColor(
+				"Recoil Impulse",
+				&ctx.tankSettings->recoilImpulseNewtonSeconds,
+				1000.0f,
+				100000.0f,
+				1000.0f,
+				20000.0f,
+				"%.0f N s",
+				IsPending(
+					ctx.tankSettings->recoilImpulseNewtonSeconds,
+					ctx.appliedTankSettings->recoilImpulseNewtonSeconds));
+			SliderFloatWithPendingColor(
+				"Recoil Point Forward",
+				&ctx.tankSettings->recoilPointForwardM,
+				0.0f,
+				3.0f,
+				0.1f,
+				1.2f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->recoilPointForwardM,
+					ctx.appliedTankSettings->recoilPointForwardM));
+			SliderFloatWithPendingColor(
+				"Recoil Point Height",
+				&ctx.tankSettings->recoilPointHeightM,
+				0.0f,
+				2.0f,
+				0.1f,
+				0.8f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->recoilPointHeightM,
+					ctx.appliedTankSettings->recoilPointHeightM));
+			ImGui::Checkbox("Neutral Brake", &ctx.tankSettings->neutralBrakeEnabled);
+			SliderFloatWithPendingColor(
+				"Neutral Brake Strength",
+				&ctx.tankSettings->neutralBrakeAmount,
+				0.0f,
+				1.0f,
+				0.05f,
+				0.30f,
+				"%.2f",
+				false);
 
 		}
 		if (ImGui::CollapsingHeader("Rolling Parameters"))
 		{
-		if (ctx.rollingProfileSlot != nullptr)
-		{
-			ImGui::TextUnformatted("Rolling Profile Slot");
-			for (int slot = 0; slot < 3; ++slot)
+			if (ctx.rollingProfileSlot != nullptr)
 			{
-				const std::string label = "Slot " + std::to_string(slot + 1) + "##RollingProfile";
-				if (slot != 0) ImGui::SameLine();
-				if (ImGui::RadioButton(label.c_str(), *ctx.rollingProfileSlot == slot))
+				ImGui::TextUnformatted("Rolling Profile Slot");
+				for (int slot = 0; slot < 3; ++slot)
 				{
-					const bool loadAndReset = ctx.rollingProfileAutoLoadAndReset != nullptr &&
-						Tank::App::ShouldLoadAndResetRollingProfile(
-							*ctx.rollingProfileSlot,
-							slot,
-							*ctx.rollingProfileAutoLoadAndReset);
-					*ctx.rollingProfileSlot = slot;
-					if (loadAndReset && ctx.loadAndApplyRollingProfile)
+					const std::string label = "Slot " + std::to_string(slot + 1) + "##RollingProfile";
+					if (slot != 0) ImGui::SameLine();
+					if (ImGui::RadioButton(label.c_str(), *ctx.rollingProfileSlot == slot))
 					{
-						ctx.loadAndApplyRollingProfile();
+						const bool loadAndReset = ctx.rollingProfileAutoLoadAndReset != nullptr &&
+							Tank::App::ShouldLoadAndResetRollingProfile(
+								*ctx.rollingProfileSlot,
+								slot,
+								*ctx.rollingProfileAutoLoadAndReset);
+						*ctx.rollingProfileSlot = slot;
+						if (loadAndReset && ctx.loadAndApplyRollingProfile)
+						{
+							ctx.loadAndApplyRollingProfile();
+						}
 					}
 				}
+				if (ctx.rollingProfileAutoLoadAndReset != nullptr)
+				{
+					ImGui::Checkbox(
+						"Auto load & Reset when changed##RollingProfile",
+						ctx.rollingProfileAutoLoadAndReset);
+				}
 			}
-			if (ctx.rollingProfileAutoLoadAndReset != nullptr)
+			if (ctx.saveRollingProfile != nullptr && ImGui::Button("Save Rolling Profile"))
 			{
-				ImGui::Checkbox(
-					"Auto load & Reset when changed##RollingProfile",
-					ctx.rollingProfileAutoLoadAndReset);
+				ctx.saveRollingProfile();
 			}
-		}
-		if (ctx.saveRollingProfile != nullptr && ImGui::Button("Save Rolling Profile"))
-		{
-			ctx.saveRollingProfile();
-		}
-		ImGui::SameLine();
-		if (ctx.loadRollingProfile != nullptr && ImGui::Button("Load Rolling Profile"))
-		{
-			ctx.loadRollingProfile();
-		}
-		ImGui::SameLine();
-		if (ctx.loadAndApplyRollingProfile != nullptr && ImGui::Button("Load && Apply Rolling Profile"))
-		{
-			ctx.loadAndApplyRollingProfile();
-		}
-		if (ctx.rollingProfileStatus != nullptr && !ctx.rollingProfileStatus->empty())
-		{
-			ImGui::TextWrapped("%s", ctx.rollingProfileStatus->c_str());
-		}
-		ImGui::Separator();
-		if (ImGui::Button("Reset Tank##RollingParameters"))
-		{
-			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
-		}
-		ImGui::SameLine();
-		if (ctx.rollingCheatWindowVisible != nullptr &&
-			ImGui::Button("Open Rolling CheatWindow##RollingParameters"))
-		{
-			*ctx.rollingCheatWindowVisible = true;
-		}
-		ImGui::SameLine();
-		ImGui::TextDisabled("Apply rolling parameter changes");
-		ImGui::Separator();
+			ImGui::SameLine();
+			if (ctx.loadRollingProfile != nullptr && ImGui::Button("Load Rolling Profile"))
+			{
+				ctx.loadRollingProfile();
+			}
+			ImGui::SameLine();
+			if (ctx.loadAndApplyRollingProfile != nullptr && ImGui::Button("Load && Apply Rolling Profile"))
+			{
+				ctx.loadAndApplyRollingProfile();
+			}
+			if (ctx.rollingProfileStatus != nullptr && !ctx.rollingProfileStatus->empty())
+			{
+				ImGui::TextWrapped("%s", ctx.rollingProfileStatus->c_str());
+			}
+			ImGui::Separator();
+			if (ImGui::Button("Reset Tank##RollingParameters"))
+			{
+				if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+			}
+			ImGui::SameLine();
+			if (ctx.rollingCheatWindowVisible != nullptr &&
+				ImGui::Button("Open Rolling CheatWindow##RollingParameters"))
+			{
+				*ctx.rollingCheatWindowVisible = true;
+			}
+			ImGui::SameLine();
+			ImGui::TextDisabled("Apply rolling parameter changes");
+			ImGui::Separator();
 
-		if (ImGui::Checkbox("Rolling Input", &ctx.tankSettings->rollingInputEnabled))
-		{
-			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
-		}
-		SliderFloatWithPendingColor(
-			"Roll Speed Multiplier",
-			&ctx.tankSettings->rollSpeedMultiplier,
-			0.5f,
-			2.0f,
-			0.05f,
-			1.0f,
-			"%.2f x",
-			IsPending(
-				ctx.tankSettings->rollSpeedMultiplier,
-				ctx.appliedTankSettings->rollSpeedMultiplier));
-        if (ctx.rollingOptimizer && ctx.envSettings)
-        {
-            auto& optimizer = *ctx.rollingOptimizer;
-            ImGui::BeginDisabled(optimizer.Running());
-            if (ImGui::Button(reinterpret_cast<const char*>(u8"最適化 (x0.5 <- x1 -> x2)")))
-                optimizer.Start(*ctx.tankSettings, *ctx.envSettings);
-            ImGui::EndDisabled();
-            ImGui::TextWrapped(reinterpret_cast<const char*>(
-                u8"現在のx1 Motionを基準に、x0.5からx2までのMotionが一致するよう内部パラメータを最適化します。完了後、倍率の選択とReset Tankは手動で行います。"));
-            if (optimizer.Running())
-            {
-                ImGui::SameLine();
-                if (ImGui::Button("Cancel Optimization")) optimizer.Cancel();
-            }
-            ImGui::TextWrapped("%s", optimizer.Status().c_str());
-            ImGui::TextDisabled("Flat floor / current settings / rigid chassis Local BB (8 corners)");
-            const auto& result = optimizer.Result();
-            if (result && !result->cancelled && result->error.empty())
-            {
-                ImGui::Text("BB RMS x0.5: %.3f -> %.3f m | Maximum %.3f m",
-                    result->slowBefore.rmsMeters, result->slowAfter.rmsMeters,
-                    result->slowAfter.maximumMeters);
-                ImGui::Text("BB RMS x2.0: %.3f -> %.3f m | Maximum: %.3f -> %.3f m",
-                    result->before.rmsMeters, result->after.rmsMeters,
-                    result->before.maximumMeters, result->after.maximumMeters);
-                ImGui::Text("Interpolated x1.5 BB RMS: %.3f m",
-                    result->intermediateError.rmsMeters);
-                ImGui::Text("Landing: target %.3f s / result %.3f s",
-                    result->reference.landingSeconds * 0.5f, result->optimized.landingSeconds);
-                ImGui::Text("Finished: target %.3f s / result %.3f s",
-                    result->reference.finishedSeconds * 0.5f, result->optimized.finishedSeconds);
-                const bool matches = optimizer.Matches(*ctx.tankSettings, *ctx.envSettings);
-                if (!matches) ImGui::TextWrapped("Settings changed since calibration. Optimize again before applying.");
-                if (ImGui::TreeNode("x0.5 / x1.0 / x1.5 / x2.0 motion comparison"))
-                {
-                    ImGui::TextWrapped("All values are relative to the pose at Roll start. Curves should overlap when speed scaling preserves motion.");
-                    DrawRollingComparisonPlot("Relative Local Z Roll", *result,
-                        RollingPlotMetric::RollDegrees, "degrees");
-                    DrawRollingComparisonPlot("Relative move X", *result,
-                        RollingPlotMetric::MoveX, "m");
-                    DrawRollingComparisonPlot("Relative move Y", *result,
-                        RollingPlotMetric::MoveY, "m");
-                    DrawRollingComparisonPlot("Relative move Z", *result,
-                        RollingPlotMetric::MoveZ, "m");
-                    if (ImGui::Button("Save x0.5 / x1.0 / x1.5 / x2.0 CSV"))
-                        optimizer.ExportCsv("Reports/RollingSpeed");
-                    ImGui::TreePop();
-                }
-                if (ImGui::TreeNode("Local BB trajectory error"))
-                {
-                    ImGui::TextUnformatted("Compare x0.5(t) with x1(0.5t), and x2(t) with x1(2t), in the starting tank frame.");
-                    const auto& slowSamples = result->slowAfter.sampleRmsMeters;
-                    if (!slowSamples.empty()) ImGui::PlotLines("x0.5 Error (m)", slowSamples.data(),
-                        static_cast<int>(slowSamples.size()), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0, 100));
-                    const auto& fastSamples = result->after.sampleRmsMeters;
-                    if (!fastSamples.empty()) ImGui::PlotLines("x2.0 Error (m)", fastSamples.data(),
-                        static_cast<int>(fastSamples.size()), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0, 100));
-                    for (int corner = 0; corner < 8; ++corner)
-                        ImGui::Text("Corner %d (%cX %cY %cZ): x0.5 %.3f / x2 %.3f m RMS", corner,
-                            corner & 1 ? '+' : '-', corner & 2 ? '+' : '-', corner & 4 ? '+' : '-',
-                            result->slowAfter.cornerRmsMeters[corner],
-                            result->after.cornerRmsMeters[corner]);
-                    ImGui::TreePop();
-                }
-            }
-        }
-        if (ImGui::TreeNode("Speed Multiplier Internal Coefficients"))
-        {
-            ImGui::TextWrapped("Multipliers at x2. At x1 all coefficients are 1, preserving the reference motion.");
-            const Tank::Physics::RollingSpeedTuning defaults;
-            for (const auto& coefficient : Tank::Physics::kRollingSpeedCoefficients)
-            {
-                float& value = ctx.tankSettings->rollSpeedTuning.*(coefficient.member);
-                const float applied = ctx.appliedTankSettings->rollSpeedTuning.*(coefficient.member);
-                SliderFloatWithPendingColor(coefficient.label, &value,
-                    coefficient.minimum, coefficient.maximum, 0.05f,
-                    defaults.*(coefficient.member), "%.3f x", IsPending(value, applied));
-            }
-            ImGui::TreePop();
-        }
-		SliderFloatWithPendingColor(
-			"Roll Torque",
-			&ctx.tankSettings->rollTorqueNm,
-			20000.0f,
-			300000.0f,
-			5000.0f,
-			200000.0f,
-			"%.0f N m",
-			IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm));
-		SliderFloatWithPendingColor(
-			"Return Decision Angle",
-			&ctx.tankSettings->rollReturnDecisionDegrees,
-			45.0f,
-			89.0f,
-			1.0f,
-			75.0f,
-			"%.0f deg",
-			IsPending(
-				ctx.tankSettings->rollReturnDecisionDegrees,
-				ctx.appliedTankSettings->rollReturnDecisionDegrees));
-		SliderFloatWithPendingColor(
-			"Approach Start Angle",
-			&ctx.tankSettings->rollApproachStartDegrees,
-			1.0f,
-			89.0f,
-			1.0f,
-			80.0f,
-			"%.0f deg",
-			IsPending(ctx.tankSettings->rollApproachStartDegrees, ctx.appliedTankSettings->rollApproachStartDegrees));
-		SliderFloatWithPendingColor(
-			"Approach Damping (Start-90 deg)",
-			&ctx.tankSettings->rollApproachDampingNms,
-			0.0f,
-			100000.0f,
-			1000.0f,
-			30000.0f,
-			"%.0f N m s",
-			IsPending(ctx.tankSettings->rollApproachDampingNms, ctx.appliedTankSettings->rollApproachDampingNms));
-		SliderFloatWithPendingColor(
-			"Commit Torque (90 deg)",
-			&ctx.tankSettings->rollCommitTorqueNm,
-			0.0f,
-			250000.0f,
-			5000.0f,
-			100000.0f,
-			"%.0f N m",
-			IsPending(ctx.tankSettings->rollCommitTorqueNm, ctx.appliedTankSettings->rollCommitTorqueNm));
-		ImGui::Checkbox(
-			"Match Physical Vehicle Width",
-			&ctx.tankSettings->rollDistanceMatchesVehicleWidth);
-		const float physicalVehicleWidth = (std::max)(
-			ctx.tankSettings->chassisWidthM,
-			ctx.tankSettings->trackSpacingM + ctx.tankSettings->trackWidthM);
-		ImGui::Text(
-			"Physical Vehicle Width: %.2f m",
-			physicalVehicleWidth);
-		if (ctx.tankSettings->rollDistanceMatchesVehicleWidth)
-		{
+			if (ImGui::Checkbox("Rolling Input", &ctx.tankSettings->rollingInputEnabled))
+			{
+				if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+			}
 			SliderFloatWithPendingColor(
-				"Roll Travel (Vehicle Widths)",
-				&ctx.tankSettings->rollTravelVehicleWidths,
-				1.0f,
+				"Roll Speed Multiplier",
+				&ctx.tankSettings->rollSpeedMultiplier,
+				0.5f,
 				2.0f,
 				0.05f,
 				1.0f,
 				"%.2f x",
 				IsPending(
-					ctx.tankSettings->rollTravelVehicleWidths,
-					ctx.appliedTankSettings->rollTravelVehicleWidths));
-			ImGui::Text(
-				"Target Roll Travel: %.2f m",
-				physicalVehicleWidth *
-					ctx.tankSettings->rollTravelVehicleWidths);
-		}
-		if (!ctx.tankSettings->rollDistanceMatchesVehicleWidth)
-		{
+					ctx.tankSettings->rollSpeedMultiplier,
+					ctx.appliedTankSettings->rollSpeedMultiplier));
+			if (ctx.rollingOptimizer && ctx.envSettings)
+			{
+				auto& optimizer = *ctx.rollingOptimizer;
+				ImGui::BeginDisabled(optimizer.Running());
+				if (ImGui::Button(reinterpret_cast<const char*>(u8"最適化 (x0.5 <- x1 -> x2)")))
+					optimizer.Start(*ctx.tankSettings, *ctx.envSettings);
+				ImGui::EndDisabled();
+				if (optimizer.Running())
+				{
+					ImGui::SameLine();
+					if (ImGui::Button("Cancel Optimization")) optimizer.Cancel();
+					const int completed = optimizer.CompletedEvaluations();
+					const float progress = optimizer.ProgressFraction();
+					char label[64] = {};
+					std::snprintf(label, sizeof(label), "Optimizing %.0f%% (%d/%d)",
+						progress * 100.0f, completed,
+						Tank::App::RollingSpeedOptimizationSession::kExpectedEvaluationCount);
+					ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), label);
+				}
+				ImGui::TextWrapped(reinterpret_cast<const char*>(
+					u8"現在のx1 Motionを基準に、x0.5からx2までのMotionが一致するよう内部パラメータを最適化します。完了後、倍率の選択とReset Tankは手動で行います。"));
+				ImGui::TextWrapped("%s", optimizer.Status().c_str());
+				ImGui::TextDisabled("Flat floor / current settings / rigid chassis Local BB (8 corners)");
+				const auto& result = optimizer.Result();
+				if (result && !result->cancelled && result->error.empty())
+				{
+					ImGui::Text("BB RMS x0.5: %.3f -> %.3f m | Maximum %.3f m",
+						result->slowBefore.rmsMeters, result->slowAfter.rmsMeters,
+						result->slowAfter.maximumMeters);
+					ImGui::Text("BB RMS x2.0: %.3f -> %.3f m | Maximum: %.3f -> %.3f m",
+						result->before.rmsMeters, result->after.rmsMeters,
+						result->before.maximumMeters, result->after.maximumMeters);
+					ImGui::Text("Interpolated x1.5 BB RMS: %.3f m",
+						result->intermediateError.rmsMeters);
+					ImGui::Text("Landing: target %.3f s / result %.3f s",
+						result->reference.landingSeconds * 0.5f, result->optimized.landingSeconds);
+					ImGui::Text("Finished: target %.3f s / result %.3f s",
+						result->reference.finishedSeconds * 0.5f, result->optimized.finishedSeconds);
+					const bool matches = optimizer.Matches(*ctx.tankSettings, *ctx.envSettings);
+					if (!matches) ImGui::TextWrapped("Settings changed since calibration. Optimize again before applying.");
+					if (ImGui::TreeNodeEx(
+							"Before Optimization: Position / Rotation Graphs",
+							ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						ImGui::TextWrapped("Current tuning before optimization. All values are relative to the pose at Roll start.");
+						DrawRollingComparisonPlot("Before Relative Local Z Roll", *result,
+							RollingPlotMetric::RollDegrees, "degrees", true);
+						DrawRollingComparisonPlot("Before Relative move X", *result,
+							RollingPlotMetric::MoveX, "m", true);
+						DrawRollingComparisonPlot("Before Relative move Y", *result,
+							RollingPlotMetric::MoveY, "m", true);
+						DrawRollingComparisonPlot("Before Relative move Z", *result,
+							RollingPlotMetric::MoveZ, "m", true);
+						ImGui::TreePop();
+					}
+					if (result->improved && ImGui::TreeNodeEx(
+							"After Optimization: Position / Rotation Graphs",
+							ImGuiTreeNodeFlags_DefaultOpen))
+					{
+						ImGui::TextWrapped("Optimized tuning. Curves should overlap when speed scaling preserves motion.");
+						DrawRollingComparisonPlot("After Relative Local Z Roll", *result,
+							RollingPlotMetric::RollDegrees, "degrees", false);
+						DrawRollingComparisonPlot("After Relative move X", *result,
+							RollingPlotMetric::MoveX, "m", false);
+						DrawRollingComparisonPlot("After Relative move Y", *result,
+							RollingPlotMetric::MoveY, "m", false);
+						DrawRollingComparisonPlot("After Relative move Z", *result,
+							RollingPlotMetric::MoveZ, "m", false);
+						if (ImGui::Button("Save x0.5 / x1.0 / x1.5 / x2.0 CSV"))
+							optimizer.ExportCsv("Reports/RollingSpeed");
+						ImGui::TreePop();
+					}
+					if (ImGui::TreeNode("Local BB trajectory error"))
+					{
+						ImGui::TextUnformatted("Compare x0.5(t) with x1(0.5t), and x2(t) with x1(2t), in the starting tank frame.");
+						const auto& slowSamples = result->slowAfter.sampleRmsMeters;
+						if (!slowSamples.empty()) ImGui::PlotLines("x0.5 Error (m)", slowSamples.data(),
+							static_cast<int>(slowSamples.size()), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0, 100));
+						const auto& fastSamples = result->after.sampleRmsMeters;
+						if (!fastSamples.empty()) ImGui::PlotLines("x2.0 Error (m)", fastSamples.data(),
+							static_cast<int>(fastSamples.size()), 0, nullptr, 0.0f, FLT_MAX, ImVec2(0, 100));
+						for (int corner = 0; corner < 8; ++corner)
+							ImGui::Text("Corner %d (%cX %cY %cZ): x0.5 %.3f / x2 %.3f m RMS", corner,
+								corner & 1 ? '+' : '-', corner & 2 ? '+' : '-', corner & 4 ? '+' : '-',
+								result->slowAfter.cornerRmsMeters[corner],
+								result->after.cornerRmsMeters[corner]);
+						ImGui::TreePop();
+					}
+				}
+			}
+			if (ImGui::TreeNode("Speed Multiplier Internal Coefficients"))
+			{
+				ImGui::TextWrapped("Multipliers at x2. At x1 all coefficients are 1, preserving the reference motion.");
+				const Tank::Physics::RollingSpeedTuning defaults;
+				for (const auto& coefficient : Tank::Physics::kRollingSpeedCoefficients)
+				{
+					float& value = ctx.tankSettings->rollSpeedTuning.*(coefficient.member);
+					const float applied = ctx.appliedTankSettings->rollSpeedTuning.*(coefficient.member);
+					SliderFloatWithPendingColor(coefficient.label, &value,
+						coefficient.minimum, coefficient.maximum, 0.05f,
+						defaults.*(coefficient.member), "%.3f x", IsPending(value, applied));
+				}
+				ImGui::TreePop();
+			}
 			SliderFloatWithPendingColor(
-				"Manual Roll Distance",
-				&ctx.tankSettings->rollDistanceM,
-				0.5f,
-				7.0f,
-				0.1f,
-				2.4f,
-				"%.2f m",
+				"Roll Torque",
+				&ctx.tankSettings->rollTorqueNm,
+				20000.0f,
+				300000.0f,
+				5000.0f,
+				200000.0f,
+				"%.0f N m",
+				IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm));
+			SliderFloatWithPendingColor(
+				"Return Decision Angle",
+				&ctx.tankSettings->rollReturnDecisionDegrees,
+				45.0f,
+				89.0f,
+				1.0f,
+				75.0f,
+				"%.0f deg",
 				IsPending(
-					ctx.tankSettings->rollDistanceM,
-					ctx.appliedTankSettings->rollDistanceM));
-		}
-		SliderFloatWithPendingColor(
-			"Post-90 Air Brake Torque",
-			&ctx.tankSettings->rollAirBrakeTorqueNm,
-			0.0f,
-			300000.0f,
-			5000.0f,
-			150000.0f,
-			"%.0f N m",
-			IsPending(
-				ctx.tankSettings->rollAirBrakeTorqueNm,
-				ctx.appliedTankSettings->rollAirBrakeTorqueNm));
-		SliderFloatWithPendingColor(
-			"Air Brake Release Angle",
-			&ctx.tankSettings->rollAirBrakeReleaseDegrees,
-			0.0f,
-			60.0f,
-			5.0f,
-			30.0f,
-			"%.0f deg before landing",
-			IsPending(
-				ctx.tankSettings->rollAirBrakeReleaseDegrees,
-				ctx.appliedTankSettings->rollAirBrakeReleaseDegrees));
-		SliderFloatWithPendingColor(
-			"Torque Cutoff Angle",
-			&ctx.tankSettings->rollTorqueCutoffDegrees,
-			45.0f,
-			120.0f,
-			5.0f,
-			90.0f,
-			"%.0f deg",
-			IsPending(
-				ctx.tankSettings->rollTorqueCutoffDegrees,
-				ctx.appliedTankSettings->rollTorqueCutoffDegrees));
-		SliderFloatWithPendingColor(
-			"Stabilization Torque",
-			&ctx.tankSettings->rollStabilizationTorqueNm,
-			0.0f,
-			100000.0f,
-			5000.0f,
-			30000.0f,
-			"%.0f N m",
-			IsPending(
-				ctx.tankSettings->rollStabilizationTorqueNm,
-				ctx.appliedTankSettings->rollStabilizationTorqueNm));
-		SliderFloatWithPendingColor(
-			"Stabilization Damping",
-			&ctx.tankSettings->rollStabilizationDampingNms,
-			0.0f,
-			50000.0f,
-			1000.0f,
-			10000.0f,
-			"%.0f N m s",
-			IsPending(
-				ctx.tankSettings->rollStabilizationDampingNms,
-				ctx.appliedTankSettings->rollStabilizationDampingNms));
+					ctx.tankSettings->rollReturnDecisionDegrees,
+					ctx.appliedTankSettings->rollReturnDecisionDegrees));
+			SliderFloatWithPendingColor(
+				"Approach Start Angle",
+				&ctx.tankSettings->rollApproachStartDegrees,
+				1.0f,
+				89.0f,
+				1.0f,
+				80.0f,
+				"%.0f deg",
+				IsPending(ctx.tankSettings->rollApproachStartDegrees, ctx.appliedTankSettings->rollApproachStartDegrees));
+			SliderFloatWithPendingColor(
+				"Approach Damping (Start-90 deg)",
+				&ctx.tankSettings->rollApproachDampingNms,
+				0.0f,
+				100000.0f,
+				1000.0f,
+				30000.0f,
+				"%.0f N m s",
+				IsPending(ctx.tankSettings->rollApproachDampingNms, ctx.appliedTankSettings->rollApproachDampingNms));
+			SliderFloatWithPendingColor(
+				"Commit Torque (90 deg)",
+				&ctx.tankSettings->rollCommitTorqueNm,
+				0.0f,
+				250000.0f,
+				5000.0f,
+				100000.0f,
+				"%.0f N m",
+				IsPending(ctx.tankSettings->rollCommitTorqueNm, ctx.appliedTankSettings->rollCommitTorqueNm));
+			ImGui::Checkbox(
+				"Match Physical Vehicle Width",
+				&ctx.tankSettings->rollDistanceMatchesVehicleWidth);
+			const float physicalVehicleWidth = (std::max)(
+				ctx.tankSettings->chassisWidthM,
+				ctx.tankSettings->trackSpacingM + ctx.tankSettings->trackWidthM);
+			ImGui::Text(
+				"Physical Vehicle Width: %.2f m",
+				physicalVehicleWidth);
+			if (ctx.tankSettings->rollDistanceMatchesVehicleWidth)
+			{
+				SliderFloatWithPendingColor(
+					"Roll Travel",
+					&ctx.tankSettings->rollTravelVehicleWidths,
+					0.5f,
+					10.0f,
+					0.05f,
+					1.0f,
+					"%.2f x",
+					IsPending(
+						ctx.tankSettings->rollTravelVehicleWidths,
+						ctx.appliedTankSettings->rollTravelVehicleWidths));
+				ImGui::Text(
+					"Target Roll Travel: %.2f m",
+					physicalVehicleWidth *
+					ctx.tankSettings->rollTravelVehicleWidths);
+			}
+			if (!ctx.tankSettings->rollDistanceMatchesVehicleWidth)
+			{
+				SliderFloatWithPendingColor(
+					"Manual Roll Distance",
+					&ctx.tankSettings->rollDistanceM,
+					0.5f,
+					7.0f,
+					0.1f,
+					2.4f,
+					"%.2f m",
+					IsPending(
+						ctx.tankSettings->rollDistanceM,
+						ctx.appliedTankSettings->rollDistanceM));
+			}
+			SliderFloatWithPendingColor(
+				"Post-90 Air Brake Torque",
+				&ctx.tankSettings->rollAirBrakeTorqueNm,
+				0.0f,
+				300000.0f,
+				5000.0f,
+				150000.0f,
+				"%.0f N m",
+				IsPending(
+					ctx.tankSettings->rollAirBrakeTorqueNm,
+					ctx.appliedTankSettings->rollAirBrakeTorqueNm));
+			SliderFloatWithPendingColor(
+				"Air Brake Release Angle",
+				&ctx.tankSettings->rollAirBrakeReleaseDegrees,
+				0.0f,
+				60.0f,
+				5.0f,
+				30.0f,
+				"%.0f deg before landing",
+				IsPending(
+					ctx.tankSettings->rollAirBrakeReleaseDegrees,
+					ctx.appliedTankSettings->rollAirBrakeReleaseDegrees));
+			SliderFloatWithPendingColor(
+				"Torque Cutoff Angle",
+				&ctx.tankSettings->rollTorqueCutoffDegrees,
+				45.0f,
+				120.0f,
+				5.0f,
+				90.0f,
+				"%.0f deg",
+				IsPending(
+					ctx.tankSettings->rollTorqueCutoffDegrees,
+					ctx.appliedTankSettings->rollTorqueCutoffDegrees));
+			SliderFloatWithPendingColor(
+				"Stabilization Torque",
+				&ctx.tankSettings->rollStabilizationTorqueNm,
+				0.0f,
+				100000.0f,
+				5000.0f,
+				30000.0f,
+				"%.0f N m",
+				IsPending(
+					ctx.tankSettings->rollStabilizationTorqueNm,
+					ctx.appliedTankSettings->rollStabilizationTorqueNm));
+			SliderFloatWithPendingColor(
+				"Stabilization Damping",
+				&ctx.tankSettings->rollStabilizationDampingNms,
+				0.0f,
+				50000.0f,
+				1000.0f,
+				10000.0f,
+				"%.0f N m s",
+				IsPending(
+					ctx.tankSettings->rollStabilizationDampingNms,
+					ctx.appliedTankSettings->rollStabilizationDampingNms));
 
 		}
 		if (ImGui::CollapsingHeader("Tank Design"))
 		{
 
-		ImGui::SeparatorText("Body Material");
+			ImGui::SeparatorText("Body Material");
 			auto drawMaterial = [](const char* label, Tank::Rendering::BodyMaterialSettings& material)
 				{
 					bool changed = false;
@@ -1543,16 +1651,16 @@ namespace Ui
 			{
 				ImGui::TextWrapped("%s", ctx.tankVisualSettingsStatus->c_str());
 			}
-		if (ImGui::Checkbox(
-			"Color Wheels by Contact",
-			&ctx.visualSettings->colorWheelsByContact))
-		{
-			if (ctx.applyMaterials) ctx.applyMaterials();
-		}
-		if (ImGui::Checkbox("Show Track Proxies", ctx.showTrackProxies))
-		{
-			if (ctx.updateScene) ctx.updateScene();
-		}
+			if (ImGui::Checkbox(
+				"Color Wheels by Contact",
+				&ctx.visualSettings->colorWheelsByContact))
+			{
+				if (ctx.applyMaterials) ctx.applyMaterials();
+			}
+			if (ImGui::Checkbox("Show Track Proxies", ctx.showTrackProxies))
+			{
+				if (ctx.updateScene) ctx.updateScene();
+			}
 		}
 		if (ImGui::CollapsingHeader("Tank Model Display"))
 		{
@@ -1582,383 +1690,383 @@ namespace Ui
 		}
 		if (ImGui::CollapsingHeader("Turn Traction"))
 		{
-		SliderFloatWithPendingColor(
-			"Longitudinal Friction",
-			&ctx.tankSettings->trackLongitudinalFriction,
-			0.0f,
-			10.0f,
-			0.1f,
-			4.0f,
-			"%.2f",
-			IsPending(
-				ctx.tankSettings->trackLongitudinalFriction,
-				ctx.appliedTankSettings->trackLongitudinalFriction));
-		SliderFloatWithPendingColor(
-			"Lateral Friction",
-			&ctx.tankSettings->trackLateralFriction,
-			0.0f,
-			10.0f,
-			0.1f,
-			2.0f,
-			"%.2f",
-			IsPending(
-				ctx.tankSettings->trackLateralFriction,
-				ctx.appliedTankSettings->trackLateralFriction));
-		SliderFloatWithPendingColor(
-			"Stationary Inner Track Ratio",
-			&ctx.tankSettings->stationaryTurnInnerTrackRatio,
-			0.0f,
-			1.0f,
-			0.05f,
-			0.0f,
-			"%.2f x",
-			IsPending(
-				ctx.tankSettings->stationaryTurnInnerTrackRatio,
-				ctx.appliedTankSettings->stationaryTurnInnerTrackRatio));
-		SliderFloatWithPendingColor(
-			"Stationary Left Track",
-			&ctx.tankSettings->stationaryTurnLeftTraction,
-			0.0f,
-			1.0f,
-			0.05f,
-			1.0f,
-			"%.2f x",
-			IsPending(
-				ctx.tankSettings->stationaryTurnLeftTraction,
-				ctx.appliedTankSettings->stationaryTurnLeftTraction));
-		SliderFloatWithPendingColor(
-			"Stationary Right Track",
-			&ctx.tankSettings->stationaryTurnRightTraction,
-			0.0f,
-			1.0f,
-			0.05f,
-			1.0f,
-			"%.2f x",
-			IsPending(
-				ctx.tankSettings->stationaryTurnRightTraction,
-				ctx.appliedTankSettings->stationaryTurnRightTraction));
-		SliderFloatWithPendingColor(
-			"Pivot Left Track",
-			&ctx.tankSettings->pivotTurnLeftTraction,
-			0.0f,
-			1.0f,
-			0.05f,
-			1.0f,
-			"%.2f x",
-			IsPending(
-				ctx.tankSettings->pivotTurnLeftTraction,
-				ctx.appliedTankSettings->pivotTurnLeftTraction));
-		SliderFloatWithPendingColor(
-			"Pivot Right Track",
-			&ctx.tankSettings->pivotTurnRightTraction,
-			0.0f,
-			1.0f,
-			0.05f,
-			1.0f,
-			"%.2f x",
-			IsPending(
-				ctx.tankSettings->pivotTurnRightTraction,
-				ctx.appliedTankSettings->pivotTurnRightTraction));
+			SliderFloatWithPendingColor(
+				"Longitudinal Friction",
+				&ctx.tankSettings->trackLongitudinalFriction,
+				0.0f,
+				10.0f,
+				0.1f,
+				4.0f,
+				"%.2f",
+				IsPending(
+					ctx.tankSettings->trackLongitudinalFriction,
+					ctx.appliedTankSettings->trackLongitudinalFriction));
+			SliderFloatWithPendingColor(
+				"Lateral Friction",
+				&ctx.tankSettings->trackLateralFriction,
+				0.0f,
+				10.0f,
+				0.1f,
+				2.0f,
+				"%.2f",
+				IsPending(
+					ctx.tankSettings->trackLateralFriction,
+					ctx.appliedTankSettings->trackLateralFriction));
+			SliderFloatWithPendingColor(
+				"Stationary Inner Track Ratio",
+				&ctx.tankSettings->stationaryTurnInnerTrackRatio,
+				0.0f,
+				1.0f,
+				0.05f,
+				0.0f,
+				"%.2f x",
+				IsPending(
+					ctx.tankSettings->stationaryTurnInnerTrackRatio,
+					ctx.appliedTankSettings->stationaryTurnInnerTrackRatio));
+			SliderFloatWithPendingColor(
+				"Stationary Left Track",
+				&ctx.tankSettings->stationaryTurnLeftTraction,
+				0.0f,
+				1.0f,
+				0.05f,
+				1.0f,
+				"%.2f x",
+				IsPending(
+					ctx.tankSettings->stationaryTurnLeftTraction,
+					ctx.appliedTankSettings->stationaryTurnLeftTraction));
+			SliderFloatWithPendingColor(
+				"Stationary Right Track",
+				&ctx.tankSettings->stationaryTurnRightTraction,
+				0.0f,
+				1.0f,
+				0.05f,
+				1.0f,
+				"%.2f x",
+				IsPending(
+					ctx.tankSettings->stationaryTurnRightTraction,
+					ctx.appliedTankSettings->stationaryTurnRightTraction));
+			SliderFloatWithPendingColor(
+				"Pivot Left Track",
+				&ctx.tankSettings->pivotTurnLeftTraction,
+				0.0f,
+				1.0f,
+				0.05f,
+				1.0f,
+				"%.2f x",
+				IsPending(
+					ctx.tankSettings->pivotTurnLeftTraction,
+					ctx.appliedTankSettings->pivotTurnLeftTraction));
+			SliderFloatWithPendingColor(
+				"Pivot Right Track",
+				&ctx.tankSettings->pivotTurnRightTraction,
+				0.0f,
+				1.0f,
+				0.05f,
+				1.0f,
+				"%.2f x",
+				IsPending(
+					ctx.tankSettings->pivotTurnRightTraction,
+					ctx.appliedTankSettings->pivotTurnRightTraction));
 		}
 		if (ImGui::CollapsingHeader("Drive Response"))
 		{
-		SliderFloatWithPendingColor(
-			"Engine Torque",
-			&ctx.tankSettings->engineMaxTorqueNm,
-			100.0f,
-			5000.0f,
-			50.0f,
-			900.0f,
-			"%.0f Nm",
-			IsPending(
-				ctx.tankSettings->engineMaxTorqueNm,
-				ctx.appliedTankSettings->engineMaxTorqueNm));
-		SliderFloatWithPendingColor(
-			"Engine Max RPM",
-			&ctx.tankSettings->engineMaxRpm,
-			2000.0f,
-			10000.0f,
-			100.0f,
-			5000.0f,
-			"%.0f rpm",
-			IsPending(
-				ctx.tankSettings->engineMaxRpm,
-				ctx.appliedTankSettings->engineMaxRpm));
-		SliderFloatWithPendingColor(
-			"Shift Down RPM",
-			&ctx.tankSettings->transmissionShiftDownRpm,
-			500.0f,
-			9000.0f,
-			100.0f,
-			1000.0f,
-			"%.0f rpm",
-			IsPending(
-				ctx.tankSettings->transmissionShiftDownRpm,
-				ctx.appliedTankSettings->transmissionShiftDownRpm));
-		SliderFloatWithPendingColor(
-			"Shift Up RPM",
-			&ctx.tankSettings->transmissionShiftUpRpm,
-			1000.0f,
-			9900.0f,
-			100.0f,
-			4375.0f,
-			"%.0f rpm",
-			IsPending(
-				ctx.tankSettings->transmissionShiftUpRpm,
-				ctx.appliedTankSettings->transmissionShiftUpRpm));
-		SliderFloatWithPendingColor(
-			"Clutch Strength",
-			&ctx.tankSettings->transmissionClutchStrength,
-			1.0f,
-			100.0f,
-			1.0f,
-			10.0f,
-			"%.1f",
-			IsPending(
-				ctx.tankSettings->transmissionClutchStrength,
-				ctx.appliedTankSettings->transmissionClutchStrength));
-		SliderFloatWithPendingColor(
-			"Final Drive Ratio",
-			&ctx.tankSettings->finalDriveRatio,
-			0.25f,
-			4.0f,
-			0.05f,
-			1.0f,
-			"%.2f x",
-			IsPending(
-				ctx.tankSettings->finalDriveRatio,
-				ctx.appliedTankSettings->finalDriveRatio));
-		SliderFloatWithPendingColor(
-			"Clutch Release",
-			&ctx.tankSettings->clutchReleaseTimeSeconds,
-			0.01f,
-			0.5f,
-			0.01f,
-			0.03f,
-			"%.2f s",
-			IsPending(
-				ctx.tankSettings->clutchReleaseTimeSeconds,
-				ctx.appliedTankSettings->clutchReleaseTimeSeconds));
+			SliderFloatWithPendingColor(
+				"Engine Torque",
+				&ctx.tankSettings->engineMaxTorqueNm,
+				100.0f,
+				5000.0f,
+				50.0f,
+				900.0f,
+				"%.0f Nm",
+				IsPending(
+					ctx.tankSettings->engineMaxTorqueNm,
+					ctx.appliedTankSettings->engineMaxTorqueNm));
+			SliderFloatWithPendingColor(
+				"Engine Max RPM",
+				&ctx.tankSettings->engineMaxRpm,
+				2000.0f,
+				10000.0f,
+				100.0f,
+				5000.0f,
+				"%.0f rpm",
+				IsPending(
+					ctx.tankSettings->engineMaxRpm,
+					ctx.appliedTankSettings->engineMaxRpm));
+			SliderFloatWithPendingColor(
+				"Shift Down RPM",
+				&ctx.tankSettings->transmissionShiftDownRpm,
+				500.0f,
+				9000.0f,
+				100.0f,
+				1000.0f,
+				"%.0f rpm",
+				IsPending(
+					ctx.tankSettings->transmissionShiftDownRpm,
+					ctx.appliedTankSettings->transmissionShiftDownRpm));
+			SliderFloatWithPendingColor(
+				"Shift Up RPM",
+				&ctx.tankSettings->transmissionShiftUpRpm,
+				1000.0f,
+				9900.0f,
+				100.0f,
+				4375.0f,
+				"%.0f rpm",
+				IsPending(
+					ctx.tankSettings->transmissionShiftUpRpm,
+					ctx.appliedTankSettings->transmissionShiftUpRpm));
+			SliderFloatWithPendingColor(
+				"Clutch Strength",
+				&ctx.tankSettings->transmissionClutchStrength,
+				1.0f,
+				100.0f,
+				1.0f,
+				10.0f,
+				"%.1f",
+				IsPending(
+					ctx.tankSettings->transmissionClutchStrength,
+					ctx.appliedTankSettings->transmissionClutchStrength));
+			SliderFloatWithPendingColor(
+				"Final Drive Ratio",
+				&ctx.tankSettings->finalDriveRatio,
+				0.25f,
+				4.0f,
+				0.05f,
+				1.0f,
+				"%.2f x",
+				IsPending(
+					ctx.tankSettings->finalDriveRatio,
+					ctx.appliedTankSettings->finalDriveRatio));
+			SliderFloatWithPendingColor(
+				"Clutch Release",
+				&ctx.tankSettings->clutchReleaseTimeSeconds,
+				0.01f,
+				0.5f,
+				0.01f,
+				0.03f,
+				"%.2f s",
+				IsPending(
+					ctx.tankSettings->clutchReleaseTimeSeconds,
+					ctx.appliedTankSettings->clutchReleaseTimeSeconds));
 		}
 		if (ImGui::CollapsingHeader("Body Yaw"))
 		{
-		SliderFloatWithPendingColor(
-			"Yaw Speed Limit",
-			&ctx.tankSettings->yawSpeedLimitDegrees,
-			15.0f,
-			720.0f,
-			5.0f,
-			720.0f,
-			"%.0f deg/s",
-			IsPending(
-				ctx.tankSettings->yawSpeedLimitDegrees,
-				ctx.appliedTankSettings->yawSpeedLimitDegrees));
-		SliderFloatWithPendingColor(
-			"Yaw Damping",
-			&ctx.tankSettings->yawDamping,
-			0.0f,
-			30.0f,
-			0.5f,
-			0.0f,
-			"%.1f /s",
-			IsPending(
-				ctx.tankSettings->yawDamping,
-				ctx.appliedTankSettings->yawDamping));
+			SliderFloatWithPendingColor(
+				"Yaw Speed Limit",
+				&ctx.tankSettings->yawSpeedLimitDegrees,
+				15.0f,
+				720.0f,
+				5.0f,
+				720.0f,
+				"%.0f deg/s",
+				IsPending(
+					ctx.tankSettings->yawSpeedLimitDegrees,
+					ctx.appliedTankSettings->yawSpeedLimitDegrees));
+			SliderFloatWithPendingColor(
+				"Yaw Damping",
+				&ctx.tankSettings->yawDamping,
+				0.0f,
+				30.0f,
+				0.5f,
+				0.0f,
+				"%.1f /s",
+				IsPending(
+					ctx.tankSettings->yawDamping,
+					ctx.appliedTankSettings->yawDamping));
 		}
 		if (ImGui::CollapsingHeader("Track Layout Adjustment"))
 		{
-		SliderFloatWithPendingColor(
-			"Track Width", &ctx.tankSettings->trackWidthM, 0.15f, 1.0f, 0.01f, 0.3f, "%.2f m",
-			IsPending(ctx.tankSettings->trackWidthM, ctx.appliedTankSettings->trackWidthM));
-		SliderFloatWithPendingColor(
-			"Track Spacing", &ctx.tankSettings->trackSpacingM, 1.8f, 6.0f, 0.1f, 2.4f, "%.2f m",
-			IsPending(ctx.tankSettings->trackSpacingM, ctx.appliedTankSettings->trackSpacingM));
-		SliderFloatWithPendingColor(
-			"Ride Height Scale", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
-			IsPending(ctx.tankSettings->rideHeightScale, ctx.appliedTankSettings->rideHeightScale));
-		SliderFloatWithPendingColor(
-			"Suspension Frequency",
-			&ctx.tankSettings->suspensionFrequencyHz,
-			0.1f,
-			10.0f,
-			0.1f,
-			1.0f,
-			"%.1f Hz",
-			IsPending(
-				ctx.tankSettings->suspensionFrequencyHz,
-				ctx.appliedTankSettings->suspensionFrequencyHz));
-		SliderFloatWithPendingColor(
-			"Suspension Damping",
-			&ctx.tankSettings->suspensionDamping,
-			0.0f,
-			2.0f,
-			0.05f,
-			0.5f,
-			"%.2f",
-			IsPending(
-				ctx.tankSettings->suspensionDamping,
-				ctx.appliedTankSettings->suspensionDamping));
-		if (ImGui::TreeNode("Suspension Stroke per Wheel"))
-		{
-			const char* trackNames[] = { "Left", "Right" };
-			const char* surfaceNames[] = { "Lower", "Upper" };
-			for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
+			SliderFloatWithPendingColor(
+				"Track Width", &ctx.tankSettings->trackWidthM, 0.15f, 1.0f, 0.01f, 0.3f, "%.2f m",
+				IsPending(ctx.tankSettings->trackWidthM, ctx.appliedTankSettings->trackWidthM));
+			SliderFloatWithPendingColor(
+				"Track Spacing", &ctx.tankSettings->trackSpacingM, 1.8f, 6.0f, 0.1f, 2.4f, "%.2f m",
+				IsPending(ctx.tankSettings->trackSpacingM, ctx.appliedTankSettings->trackSpacingM));
+			SliderFloatWithPendingColor(
+				"Ride Height Scale", &ctx.tankSettings->rideHeightScale, 0.5f, 1.1f, 0.05f, 0.8f, "%.2f x",
+				IsPending(ctx.tankSettings->rideHeightScale, ctx.appliedTankSettings->rideHeightScale));
+			SliderFloatWithPendingColor(
+				"Suspension Frequency",
+				&ctx.tankSettings->suspensionFrequencyHz,
+				0.1f,
+				10.0f,
+				0.1f,
+				1.0f,
+				"%.1f Hz",
+				IsPending(
+					ctx.tankSettings->suspensionFrequencyHz,
+					ctx.appliedTankSettings->suspensionFrequencyHz));
+			SliderFloatWithPendingColor(
+				"Suspension Damping",
+				&ctx.tankSettings->suspensionDamping,
+				0.0f,
+				2.0f,
+				0.05f,
+				0.5f,
+				"%.2f",
+				IsPending(
+					ctx.tankSettings->suspensionDamping,
+					ctx.appliedTankSettings->suspensionDamping));
+			if (ImGui::TreeNode("Suspension Stroke per Wheel"))
 			{
-				for (int surface = 0; surface < Tank::Physics::kTankSurfacesPerTrack; ++surface)
+				const char* trackNames[] = { "Left", "Right" };
+				const char* surfaceNames[] = { "Lower", "Upper" };
+				for (int track = 0; track < Tank::Physics::kTankTrackCount; ++track)
 				{
-					ImGui::PushID(track * Tank::Physics::kTankSurfacesPerTrack + surface);
-					const std::string groupLabel =
-						std::string(trackNames[track]) + " " + surfaceNames[surface];
-					if (ImGui::TreeNode(groupLabel.c_str()))
+					for (int surface = 0; surface < Tank::Physics::kTankSurfacesPerTrack; ++surface)
 					{
-						for (int position = 0;
-							position < Tank::Physics::kTankSuspensionPositionsPerSurface;
-							++position)
+						ImGui::PushID(track * Tank::Physics::kTankSurfacesPerTrack + surface);
+						const std::string groupLabel =
+							std::string(trackNames[track]) + " " + surfaceNames[surface];
+						if (ImGui::TreeNode(groupLabel.c_str()))
 						{
-							const bool endWheel = position == 0 ||
-								position == Tank::Physics::kTankSuspensionPositionsPerSurface - 1;
-							if (!endWheel && position > ctx.tankSettings->roadWheelCount)
+							for (int position = 0;
+								position < Tank::Physics::kTankSuspensionPositionsPerSurface;
+								++position)
 							{
-								continue;
+								const bool endWheel = position == 0 ||
+									position == Tank::Physics::kTankSuspensionPositionsPerSurface - 1;
+								if (!endWheel && position > ctx.tankSettings->roadWheelCount)
+								{
+									continue;
+								}
+								const int slot = Tank::Physics::TankSuspensionSlotIndex(
+									track, surface, position);
+								const char* positionLabel = position == 0
+									? "Front End"
+									: (position == Tank::Physics::kTankSuspensionPositionsPerSurface - 1
+										? "Rear End"
+										: nullptr);
+								const std::string roadLabel = positionLabel == nullptr
+									? "Road " + std::to_string(position)
+									: positionLabel;
+								SliderFloatWithPendingColor(
+									roadLabel.c_str(),
+									&ctx.tankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)],
+									0.0f,
+									0.5f,
+									0.01f,
+									endWheel ? 0.0f : 0.2f * ctx.tankSettings->rideHeightScale,
+									"%.2f m",
+									IsPending(
+										ctx.tankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)],
+										ctx.appliedTankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)]));
 							}
-							const int slot = Tank::Physics::TankSuspensionSlotIndex(
-								track, surface, position);
-							const char* positionLabel = position == 0
-								? "Front End"
-								: (position == Tank::Physics::kTankSuspensionPositionsPerSurface - 1
-									? "Rear End"
-									: nullptr);
-							const std::string roadLabel = positionLabel == nullptr
-								? "Road " + std::to_string(position)
-								: positionLabel;
-							SliderFloatWithPendingColor(
-								roadLabel.c_str(),
-								&ctx.tankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)],
-								0.0f,
-								0.5f,
-								0.01f,
-								endWheel ? 0.0f : 0.2f * ctx.tankSettings->rideHeightScale,
-								"%.2f m",
-								IsPending(
-									ctx.tankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)],
-									ctx.appliedTankSettings->suspensionStrokeMeters[static_cast<size_t>(slot)]));
+							ImGui::TreePop();
 						}
-						ImGui::TreePop();
+						ImGui::PopID();
 					}
-					ImGui::PopID();
+				}
+				ImGui::TreePop();
+			}
+			SliderFloatWithPendingColor(
+				"Chassis Width", &ctx.tankSettings->chassisWidthM, 1.6f, 3.2f, 0.1f, 2.4f, "%.2f m",
+				IsPending(ctx.tankSettings->chassisWidthM, ctx.appliedTankSettings->chassisWidthM));
+			SliderFloatWithPendingColor(
+				"Chassis Length", &ctx.tankSettings->chassisLengthM, 3.0f, 5.5f, 0.1f, 4.0f, "%.2f m",
+				IsPending(ctx.tankSettings->chassisLengthM, ctx.appliedTankSettings->chassisLengthM));
+			SliderFloatWithPendingColor(
+				"End Wheel Radius",
+				&ctx.tankSettings->endWheelRadiusM,
+				0.01f,
+				0.6f,
+				0.01f,
+				0.4f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->endWheelRadiusM,
+					ctx.appliedTankSettings->endWheelRadiusM));
+			SliderFloatWithPendingColor(
+				"Road Wheel Radius",
+				&ctx.tankSettings->roadWheelRadiusM,
+				0.2f,
+				0.5f,
+				0.01f,
+				0.3f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->roadWheelRadiusM,
+					ctx.appliedTankSettings->roadWheelRadiusM));
+			{
+				const char* wheelLayouts[] = { "1 + 2 + 1", "1 + 3 + 1", "1 + 4 + 1" };
+				int wheelLayoutIndex = std::clamp(ctx.tankSettings->roadWheelCount, 2, 4) - 2;
+				if (ImGui::Combo("Wheel Layout", &wheelLayoutIndex, wheelLayouts, std::size(wheelLayouts)))
+				{
+					ctx.tankSettings->roadWheelCount = wheelLayoutIndex + 2;
 				}
 			}
-			ImGui::TreePop();
-		}
-		SliderFloatWithPendingColor(
-			"Chassis Width", &ctx.tankSettings->chassisWidthM, 1.6f, 3.2f, 0.1f, 2.4f, "%.2f m",
-			IsPending(ctx.tankSettings->chassisWidthM, ctx.appliedTankSettings->chassisWidthM));
-		SliderFloatWithPendingColor(
-			"Chassis Length", &ctx.tankSettings->chassisLengthM, 3.0f, 5.5f, 0.1f, 4.0f, "%.2f m",
-			IsPending(ctx.tankSettings->chassisLengthM, ctx.appliedTankSettings->chassisLengthM));
-		SliderFloatWithPendingColor(
-			"End Wheel Radius",
-			&ctx.tankSettings->endWheelRadiusM,
-			0.01f,
-			0.6f,
-			0.01f,
-			0.4f,
-			"%.2f m",
-			IsPending(
-				ctx.tankSettings->endWheelRadiusM,
-				ctx.appliedTankSettings->endWheelRadiusM));
-		SliderFloatWithPendingColor(
-			"Road Wheel Radius",
-			&ctx.tankSettings->roadWheelRadiusM,
-			0.2f,
-			0.5f,
-			0.01f,
-			0.3f,
-			"%.2f m",
-			IsPending(
-				ctx.tankSettings->roadWheelRadiusM,
-				ctx.appliedTankSettings->roadWheelRadiusM));
-		{
-			const char* wheelLayouts[] = { "1 + 2 + 1", "1 + 3 + 1", "1 + 4 + 1" };
-			int wheelLayoutIndex = std::clamp(ctx.tankSettings->roadWheelCount, 2, 4) - 2;
-			if (ImGui::Combo("Wheel Layout", &wheelLayoutIndex, wheelLayouts, std::size(wheelLayouts)))
-			{
-				ctx.tankSettings->roadWheelCount = wheelLayoutIndex + 2;
-			}
-		}
-		SliderFloatWithPendingColor(
-			"End Wheel Offset",
-			&ctx.tankSettings->endWheelOffsetM,
-			0.0f,
-			1.0f,
-			0.05f,
-			0.0f,
-			"%.2f m",
-			IsPending(
-				ctx.tankSettings->endWheelOffsetM,
-				ctx.appliedTankSettings->endWheelOffsetM));
-		SliderFloatWithPendingColor(
-			"End Wheel Vertical Offset",
-			&ctx.tankSettings->endWheelVerticalOffsetM,
-			-0.5f,
-			0.5f,
-			0.05f,
-			0.0f,
-			"%.2f m",
-			IsPending(
-				ctx.tankSettings->endWheelVerticalOffsetM,
-				ctx.appliedTankSettings->endWheelVerticalOffsetM));
-		SliderFloatWithPendingColor(
-			"Road Wheel Vertical Offset",
-			&ctx.tankSettings->roadWheelVerticalOffsetM,
-			-0.5f,
-			0.5f,
-			0.05f,
-			0.0f,
-			"%.2f m",
-			IsPending(
-				ctx.tankSettings->roadWheelVerticalOffsetM,
-				ctx.appliedTankSettings->roadWheelVerticalOffsetM));
-		SliderFloatWithPendingColor(
-			"Wheel Horizontal Offset",
-			&ctx.tankSettings->wheelHorizontalOffsetM,
-			-1.0f,
-			1.0f,
-			0.05f,
-			0.0f,
-			"%.2f m",
-			IsPending(
-				ctx.tankSettings->wheelHorizontalOffsetM,
-				ctx.appliedTankSettings->wheelHorizontalOffsetM));
-		if (ctx.tankSettings->roadWheelCount == 2)
-		{
 			SliderFloatWithPendingColor(
-				"Middle Wheel Offset",
-				&ctx.tankSettings->twoRoadWheelOffsetM,
-				0.1f,
-				2.0f,
-				0.05f,
-				0.67f,
-				"%.2f m",
-				IsPending(
-					ctx.tankSettings->twoRoadWheelOffsetM,
-					ctx.appliedTankSettings->twoRoadWheelOffsetM));
-		}
-		else if (ctx.tankSettings->roadWheelCount == 3)
-		{
-			SliderFloatWithPendingColor(
-				"Middle Wheel Offset",
-				&ctx.tankSettings->threeRoadWheelOffsetM,
-				0.1f,
-				2.0f,
-				0.05f,
+				"End Wheel Offset",
+				&ctx.tankSettings->endWheelOffsetM,
+				0.0f,
 				1.0f,
+				0.05f,
+				0.0f,
 				"%.2f m",
 				IsPending(
-					ctx.tankSettings->threeRoadWheelOffsetM,
-					ctx.appliedTankSettings->threeRoadWheelOffsetM));
-		}
-		ImGui::Checkbox("Start Upside Down", &ctx.tankSettings->startUpsideDown);
+					ctx.tankSettings->endWheelOffsetM,
+					ctx.appliedTankSettings->endWheelOffsetM));
+			SliderFloatWithPendingColor(
+				"End Wheel Vertical Offset",
+				&ctx.tankSettings->endWheelVerticalOffsetM,
+				-0.5f,
+				0.5f,
+				0.05f,
+				0.0f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->endWheelVerticalOffsetM,
+					ctx.appliedTankSettings->endWheelVerticalOffsetM));
+			SliderFloatWithPendingColor(
+				"Road Wheel Vertical Offset",
+				&ctx.tankSettings->roadWheelVerticalOffsetM,
+				-0.5f,
+				0.5f,
+				0.05f,
+				0.0f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->roadWheelVerticalOffsetM,
+					ctx.appliedTankSettings->roadWheelVerticalOffsetM));
+			SliderFloatWithPendingColor(
+				"Wheel Horizontal Offset",
+				&ctx.tankSettings->wheelHorizontalOffsetM,
+				-1.0f,
+				1.0f,
+				0.05f,
+				0.0f,
+				"%.2f m",
+				IsPending(
+					ctx.tankSettings->wheelHorizontalOffsetM,
+					ctx.appliedTankSettings->wheelHorizontalOffsetM));
+			if (ctx.tankSettings->roadWheelCount == 2)
+			{
+				SliderFloatWithPendingColor(
+					"Middle Wheel Offset",
+					&ctx.tankSettings->twoRoadWheelOffsetM,
+					0.1f,
+					2.0f,
+					0.05f,
+					0.67f,
+					"%.2f m",
+					IsPending(
+						ctx.tankSettings->twoRoadWheelOffsetM,
+						ctx.appliedTankSettings->twoRoadWheelOffsetM));
+			}
+			else if (ctx.tankSettings->roadWheelCount == 3)
+			{
+				SliderFloatWithPendingColor(
+					"Middle Wheel Offset",
+					&ctx.tankSettings->threeRoadWheelOffsetM,
+					0.1f,
+					2.0f,
+					0.05f,
+					1.0f,
+					"%.2f m",
+					IsPending(
+						ctx.tankSettings->threeRoadWheelOffsetM,
+						ctx.appliedTankSettings->threeRoadWheelOffsetM));
+			}
+			ImGui::Checkbox("Start Upside Down", &ctx.tankSettings->startUpsideDown);
 		}
 		if (ImGui::CollapsingHeader("Mortar Parameters"))
 		{
@@ -1999,72 +2107,72 @@ namespace Ui
 		}
 		if (ImGui::CollapsingHeader("Export glTF"))
 		{
-        if (ctx.tankModelExportBinary)
-        {
-            bool binary = *ctx.tankModelExportBinary;
-            if (ImGui::RadioButton("glTF (.gltf)", !binary))
-            {
-                binary = false;
-            }
-            ImGui::SameLine();
-            if (ImGui::RadioButton("glB (.glb)", binary))
-            {
-                binary = true;
-            }
-            *ctx.tankModelExportBinary = binary;
-        }
-        if (ctx.tankModelExportPath)
-        {
-            ImGui::InputText("Export Path", ctx.tankModelExportPath);
-            std::filesystem::path resolvedPath(*ctx.tankModelExportPath);
-            resolvedPath.replace_extension(
-                ctx.tankModelExportBinary && *ctx.tankModelExportBinary
-                    ? ".glb"
-                    : ".gltf");
-            resolvedPath = std::filesystem::absolute(resolvedPath).lexically_normal();
-            ImGui::TextWrapped("Resolved: %s", resolvedPath.string().c_str());
-        }
-		if (ImGui::Button("Export Tank glTF"))
-		{
-			if (ctx.exportTankModel) ctx.exportTankModel();
-		}
-		if (ctx.tankModelExportStatus && !ctx.tankModelExportStatus->empty())
-		{
-			ImGui::TextWrapped("%s", ctx.tankModelExportStatus->c_str());
-		}
+			if (ctx.tankModelExportBinary)
+			{
+				bool binary = *ctx.tankModelExportBinary;
+				if (ImGui::RadioButton("glTF (.gltf)", !binary))
+				{
+					binary = false;
+				}
+				ImGui::SameLine();
+				if (ImGui::RadioButton("glB (.glb)", binary))
+				{
+					binary = true;
+				}
+				*ctx.tankModelExportBinary = binary;
+			}
+			if (ctx.tankModelExportPath)
+			{
+				ImGui::InputText("Export Path", ctx.tankModelExportPath);
+				std::filesystem::path resolvedPath(*ctx.tankModelExportPath);
+				resolvedPath.replace_extension(
+					ctx.tankModelExportBinary && *ctx.tankModelExportBinary
+					? ".glb"
+					: ".gltf");
+				resolvedPath = std::filesystem::absolute(resolvedPath).lexically_normal();
+				ImGui::TextWrapped("Resolved: %s", resolvedPath.string().c_str());
+			}
+			if (ImGui::Button("Export Tank glTF"))
+			{
+				if (ctx.exportTankModel) ctx.exportTankModel();
+			}
+			if (ctx.tankModelExportStatus && !ctx.tankModelExportStatus->empty())
+			{
+				ImGui::TextWrapped("%s", ctx.tankModelExportStatus->c_str());
+			}
 		}
 		if (ImGui::CollapsingHeader("Track Input"))
 		{
-		ImGui::Text(
-			"Analog track axes 1 / 3: %s",
-			!ctx.analogTracksConnected ? "not connected" :
+			ImGui::Text(
+				"Analog track axes 1 / 3: %s",
+				!ctx.analogTracksConnected ? "not connected" :
 				(ctx.analogTracksArmed ? "ready" : "waiting for neutral"));
-		ImGui::Text(
-			"Left %.2f  Right %.2f  Roll %.2f",
-			ctx.analogLeftTrack,
-			ctx.analogRightTrack,
-			ctx.analogRoll);
-		if (state.yawSpeedLimited)
-		{
-			ImGui::PushStyleColor(
-				ImGuiCol_Text,
-				ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
-		}
-		ImGui::Text(
-			"Tank Yaw Speed: %+.1f deg/s%s",
-			state.yawSpeedDegrees,
-			state.yawSpeedLimited ? "  LIMITED" : "");
-		if (state.yawSpeedLimited)
-		{
-			ImGui::PopStyleColor();
-		}
-		const Tank::Physics::TrackedDriverInput& driverInput = *ctx.driverInput;
-		ImGui::Text(
-			"SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",
-			driverInput.forward,
-			driverInput.leftRatio,
-			driverInput.rightRatio,
-			driverInput.brake);
+			ImGui::Text(
+				"Left %.2f  Right %.2f  Roll %.2f",
+				ctx.analogLeftTrack,
+				ctx.analogRightTrack,
+				ctx.analogRoll);
+			if (state.yawSpeedLimited)
+			{
+				ImGui::PushStyleColor(
+					ImGuiCol_Text,
+					ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
+			}
+			ImGui::Text(
+				"Tank Yaw Speed: %+.1f deg/s%s",
+				state.yawSpeedDegrees,
+				state.yawSpeedLimited ? "  LIMITED" : "");
+			if (state.yawSpeedLimited)
+			{
+				ImGui::PopStyleColor();
+			}
+			const Tank::Physics::TrackedDriverInput& driverInput = *ctx.driverInput;
+			ImGui::Text(
+				"SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",
+				driverInput.forward,
+				driverInput.leftRatio,
+				driverInput.rightRatio,
+				driverInput.brake);
 		}
 		ImGui::EndChild();
 		ImGui::End();
