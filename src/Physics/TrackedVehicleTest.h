@@ -6,12 +6,21 @@
 #include "TankTypes.h"
 #include "MortarAimController.h"
 #include "Map/GltfHitMesh.h"
+#include "ImpactMarkBuffer.h"
 
 #include <array>
 #include <memory>
+#include <vector>
 
 namespace Tank::Physics
 {
+    struct DestructibleBoxState
+    {
+        CombatTarget target = {};
+        Vec3 position = {};
+        Vec3 size = {};
+    };
+
     struct TrackedVehicleTestState
     {
         int stepIndex = 0;
@@ -45,6 +54,10 @@ namespace Tank::Physics
         float rollingTraceInputSign = 0.0f;
         MortarAimSnapshot mortarAim = {};
         AssaultWeaponSnapshot assaultWeapon = {};
+        std::vector<AssaultProjectileState> assaultProjectiles;
+        ImpactMarkBuffer assaultImpactMarks;
+        std::uint64_t assaultHitTargetId = 0;
+        std::vector<DestructibleBoxState> destructibleBoxes;
         SpecialMoveStateSnapshot specialMove = {};
         bool rollingObstructionSuspected = false;
         bool rollingRecoveryActive = false;
@@ -76,6 +89,9 @@ namespace Tank::Physics
             std::string& error);
         void SetInput(const TankInput& input);
         bool FireAssault();
+        void SetAssaultProjectileSettings(const AssaultProjectileSettings& settings);
+        const AssaultProjectileSettings& ProjectileSettings() const;
+        bool AddDestructibleBox(const Vec3& position, const Vec3& size, float hitPoints = 60.0f);
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
@@ -85,6 +101,9 @@ namespace Tank::Physics
         const TankSettings& Settings() const;
 
     private:
+        void SpawnAssaultRound();
+        void AdvanceAssaultProjectiles(float deltaTimeSeconds);
+        void ApplyAssaultImpact(std::uint32_t hitBodyId, float damage);
         bool InitializeInternal(
             const TankSettings& settings,
             const PhysicsEnvironmentSettings& environmentSettings,

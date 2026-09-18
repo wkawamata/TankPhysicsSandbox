@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 18;
+        constexpr int kSchemaVersion = 21;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -50,6 +50,13 @@ namespace Tank::Physics
         nlohmann::json json;
         json["version"] = kSchemaVersion;
         json["chassisMassKg"] = settings.chassisMassKg;
+        json["assaultMaximumProjectiles"] = settings.assaultProjectiles.maximumCount;
+        json["assaultSpeedMetersPerSecond"] = settings.assaultProjectiles.speedMetersPerSecond;
+        json["assaultDamagePerRound"] = settings.assaultProjectiles.damagePerRound;
+        json["assaultLifetimeSeconds"] = settings.assaultProjectiles.lifetimeSeconds;
+        json["assaultMaximumImpactMarks"] = settings.assaultProjectiles.maximumImpactMarks;
+        json["assaultExpireAtMaximumDistance"] = settings.assaultProjectiles.expireAtMaximumDistance;
+        json["assaultMaximumDistanceMeters"] = settings.assaultProjectiles.maximumDistanceMeters;
         json["recoilImpulseNewtonSeconds"] = settings.recoilImpulseNewtonSeconds;
         json["recoilPointForwardM"] = settings.recoilPointForwardM;
         json["recoilPointHeightM"] = settings.recoilPointHeightM;
@@ -143,6 +150,13 @@ namespace Tank::Physics
 
         TankSettings loaded = settings;
         ReadFloat(json, "chassisMassKg", loaded.chassisMassKg);
+        ReadInt(json, "assaultMaximumProjectiles", loaded.assaultProjectiles.maximumCount);
+        ReadFloat(json, "assaultSpeedMetersPerSecond", loaded.assaultProjectiles.speedMetersPerSecond);
+        ReadFloat(json, "assaultDamagePerRound", loaded.assaultProjectiles.damagePerRound);
+        ReadFloat(json, "assaultLifetimeSeconds", loaded.assaultProjectiles.lifetimeSeconds);
+        ReadInt(json, "assaultMaximumImpactMarks", loaded.assaultProjectiles.maximumImpactMarks);
+        ReadBool(json, "assaultExpireAtMaximumDistance", loaded.assaultProjectiles.expireAtMaximumDistance);
+        ReadFloat(json, "assaultMaximumDistanceMeters", loaded.assaultProjectiles.maximumDistanceMeters);
         ReadFloat(json, "recoilImpulseNewtonSeconds", loaded.recoilImpulseNewtonSeconds);
         ReadFloat(json, "recoilPointForwardM", loaded.recoilPointForwardM);
         ReadFloat(json, "recoilPointHeightM", loaded.recoilPointHeightM);

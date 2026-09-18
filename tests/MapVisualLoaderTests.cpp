@@ -13,6 +13,41 @@
 
 namespace
 {
+    bool TestIndestructibleBoxTemplate()
+    {
+        const auto folder = std::filesystem::path(TANK_SOURCE_DIR) / "Assets/Map/Templates";
+        Tank::Map::HitTriangleMesh hit;
+        std::string error;
+        if (!Tank::Map::LoadGltfHitMesh(folder / "IndestructibleBox.gltf", hit, error))
+        {
+            std::cerr << error << '\n';
+            return false;
+        }
+        if (hit.vertices.size() != 8 || hit.triangles.size() != 12) return false;
+        // Closed, outward-facing collider on all six sides after LH conversion.
+        for (const auto& triangle : hit.triangles)
+        {
+            const auto& a = hit.vertices[triangle[0]];
+            const auto& b = hit.vertices[triangle[1]];
+            const auto& c = hit.vertices[triangle[2]];
+            const float ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+            const float vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+            const float outward = (uy * vz - uz * vy) * a[0] +
+                (uz * vx - ux * vz) * (a[1] - 1.5f) + (ux * vy - uy * vx) * a[2];
+            if (outward <= 0.0f) return false;
+        }
+        Tank::Map::Manifest manifest;
+        manifest.instances.push_back({ "instance-1", "IndestructibleBox.gltf", {} });
+        std::string json;
+        Tank::Map::Manifest restored;
+        if (!Tank::Map::SerializeManifest(manifest, json, error) ||
+            !Tank::Map::DeserializeManifest(json, restored, error)) return false;
+        Engine::SceneBuilder builder;
+        const auto material = builder.AddSolidColorMaterial(110, 120, 130, 255);
+        return Tank::Rendering::AppendMapVisuals(builder, folder, restored, material, error) &&
+            builder.GetScene().instances.size() == 1 && builder.GetMesh().indices.size() == 36;
+    }
+
     bool NearlyEqual(float a, float b)
     {
         return std::abs(a - b) < 0.0001f;
@@ -151,7 +186,7 @@ namespace
 
 int main()
 {
-    if (!TestHitMeshOverlayGeometry() || !TestFailureDoesNotMutateScene() ||
+    if (!TestIndestructibleBoxTemplate() || !TestHitMeshOverlayGeometry() || !TestFailureDoesNotMutateScene() ||
         !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() || !TestClearBeacons())
     {
         std::cerr << "Map visual loader tests failed.\n";

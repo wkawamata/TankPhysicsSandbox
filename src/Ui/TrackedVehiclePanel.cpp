@@ -228,6 +228,12 @@ namespace Ui
 				state.mortarAim.rangeMeters);
 			ImGui::Text("Assault rounds fired: %llu",
 				static_cast<unsigned long long>(state.assaultWeapon.roundsFired));
+			for (const auto& box : state.destructibleBoxes)
+			{
+				ImGui::Text("Box %llu: %s / HP %.0f",
+					static_cast<unsigned long long>(box.target.id),
+					box.target.active ? "Active" : "Destroyed", box.target.hitPoints);
+			}
 			ImGui::Text("Track: %s  Obstruction: %s%s",
 				state.trackInputSwapped
 					? "Swapped (Inverted)"
@@ -709,6 +715,27 @@ namespace Ui
 			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
 		}
 		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
+		if (ctx.tankSettings && ImGui::CollapsingHeader("Assault Projectiles"))
+		{
+			auto& settings = ctx.tankSettings->assaultProjectiles;
+			ImGui::SliderInt("Maximum simultaneous rounds", &settings.maximumCount, 0, 1024, "%d", ImGuiSliderFlags_AlwaysClamp);
+			ImGui::DragFloat("Bullet speed (m/s)", &settings.speedMetersPerSecond, 1.0f, 0.1f, 10000.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+			ImGui::DragFloat("Damage per round", &settings.damagePerRound, 1.0f, 0.0f, 1000000.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+			bool infinite = settings.lifetimeSeconds <= 0.0f;
+			if (ImGui::Checkbox("Infinite lifetime", &infinite))
+				settings.lifetimeSeconds = infinite ? 0.0f : 5.0f;
+			if (!infinite)
+				ImGui::DragFloat("Lifetime (seconds)", &settings.lifetimeSeconds, 0.1f, 0.01f, 86400.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+			if (ctx.state) ImGui::Text("Active rounds: %zu / %d", ctx.state->assaultProjectiles.size(), settings.maximumCount);
+			ImGui::Checkbox("Expire at maximum distance", &settings.expireAtMaximumDistance);
+			if (settings.expireAtMaximumDistance)
+				ImGui::DragFloat("Maximum distance (m)", &settings.maximumDistanceMeters, 1.0f, 0.1f, 1000000.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+			ImGui::TextWrapped("Distance expiry is independent of infinite lifetime. Distance settings affect new rounds.");
+			ImGui::SliderInt("Maximum ground impact marks", &settings.maximumImpactMarks, 0, 1024, "%d", ImGuiSliderFlags_AlwaysClamp);
+			if (ctx.state) ImGui::Text("Ground marks: %zu / %d", ctx.state->assaultImpactMarks.Count(), settings.maximumImpactMarks);
+			ImGui::TextWrapped("Ground marks overwrite oldest entries. Zero disables marks. Reset clears them.");
+			ImGui::TextWrapped("Applied live. Speed, damage and lifetime affect new rounds. At capacity, firing stops. Reducing capacity removes oldest rounds.");
+		}
 		if (ImGui::CollapsingHeader("Frame Timing"))
 		{
 			ImGui::Text("Total CPU: %.2f ms  peak %.2f ms",

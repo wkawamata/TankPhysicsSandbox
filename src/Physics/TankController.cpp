@@ -6,11 +6,14 @@
 #include <Jolt/Jolt.h>
 
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Physics/Vehicle/TrackedVehicleController.h>
 #include <Jolt/Physics/Vehicle/VehicleCollisionTester.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/CastResult.h>
 
 #include <algorithm>
 #include <cmath>
@@ -124,6 +127,8 @@ namespace Tank::Physics
     {
         m_input = {};
         m_state = {};
+        m_assaultWeapon = AssaultWeapon{};
+        m_assaultCapacityAvailable = true;
         m_settings = {};
         m_impl.reset();
     }
@@ -146,6 +151,8 @@ namespace Tank::Physics
         m_input = {};
         m_state = {};
         m_settings = settings;
+        m_assaultWeapon = AssaultWeapon{};
+        m_assaultCapacityAvailable = true;
         m_mobilityStateMachine = MobilityStateMachine(m_settings);
         m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
         m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
@@ -448,7 +455,56 @@ namespace Tank::Physics
 
     bool TankController::FireAssault()
     {
-        return m_assaultWeapon.TryFire();
+        if (!m_assaultCapacityAvailable) return false;
+        const bool fired = m_assaultWeapon.TryFire();
+        m_state.assaultWeapon = m_assaultWeapon.Snapshot();
+        return fired;
+    }
+
+    Vec3 TankController::AssaultMuzzlePosition() const
+    {
+        if (!m_impl || !m_impl->hasBody) return {};
+        JPH::RVec3 position;
+        JPH::Quat rotation;
+        m_impl->world.GetBodyInterface().GetPositionAndRotation(m_impl->bodyId, position, rotation);
+        const JPH::Vec3 forward = rotation * JPH::Vec3::sAxisZ();
+        const JPH::RVec3 muzzle = position + JPH::Vec3(0.0f, 0.85f, 0.0f) + forward * 1.8f;
+        return {static_cast<float>(muzzle.GetX()), static_cast<float>(muzzle.GetY()), static_cast<float>(muzzle.GetZ())};
+    }
+
+    Vec3 TankController::AssaultForwardDirection() const
+    {
+        if (!m_impl || !m_impl->hasBody) return {0.0f, 0.0f, 1.0f};
+        const auto direction = m_impl->world.GetBodyInterface().GetRotation(m_impl->bodyId) * JPH::Vec3::sAxisZ();
+        return {direction.GetX(), direction.GetY(), direction.GetZ()};
+    }
+
+    bool TankController::CastAssaultSegment(const Vec3& start, Vec3& end, std::uint32_t& hitBodyId,
+        Vec3& surfaceNormal, bool& staticSurface) const
+    {
+        surfaceNormal = {};
+        staticSurface = false;
+        if (!m_impl || !m_impl->hasBody) return false;
+        const JPH::RRayCast ray(JPH::RVec3(start.x, start.y, start.z),
+            JPH::Vec3(end.x - start.x, end.y - start.y, end.z - start.z));
+        JPH::RayCastResult hit;
+        const bool collided = m_impl->world.GetPhysicsSystem().GetNarrowPhaseQuery().CastRay(
+            ray, hit, {}, {}, JPH::IgnoreSingleBodyFilter(m_impl->bodyId));
+        const JPH::RVec3 endpoint = ray.GetPointOnRay(collided ? hit.mFraction : 1.0f);
+        end = {static_cast<float>(endpoint.GetX()), static_cast<float>(endpoint.GetY()), static_cast<float>(endpoint.GetZ())};
+        hitBodyId = collided ? hit.mBodyID.GetIndexAndSequenceNumber() : JPH::BodyID::cInvalidBodyID;
+        if (collided)
+        {
+            JPH::BodyLockRead lock(m_impl->world.GetPhysicsSystem().GetBodyLockInterface(), hit.mBodyID);
+            if (lock.Succeeded())
+            {
+                const auto& body = lock.GetBody();
+                const auto normal = body.GetWorldSpaceSurfaceNormal(hit.mSubShapeID2, endpoint);
+                surfaceNormal = {normal.GetX(), normal.GetY(), normal.GetZ()};
+                staticSurface = body.IsStatic();
+            }
+        }
+        return collided;
     }
 
     bool TankController::ApplyConfiguredRecoil()
@@ -1057,7 +1113,7 @@ namespace Tank::Physics
         m_state.stepIndex++;
         m_state.timeSeconds += deltaTimeSeconds;
         m_assaultWeapon.Update(deltaTimeSeconds);
-        if (m_input.fireAssault)
+        if (m_input.fireAssault && m_assaultCapacityAvailable)
         {
             m_assaultWeapon.TryFire();
         }

@@ -12,6 +12,7 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 JPH_SUPPRESS_WARNINGS
@@ -30,11 +31,20 @@ namespace Tank::Physics
         TankController controller;
         JPH::BodyID floorBodyId;
         std::vector<JPH::BodyID> obstacleBodyIds;
+        std::vector<JPH::BodyID> destructibleBodyIds;
+        std::uint64_t resolvedAssaultRounds = 0;
+        AssaultProjectileSettings projectileSettings = {};
         bool hasFloorBody = false;
 
         ~Impl()
         {
             JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
+            for (const JPH::BodyID id : destructibleBodyIds)
+            {
+                if (id.IsInvalid()) continue;
+                bodyInterface.RemoveBody(id);
+                bodyInterface.DestroyBody(id);
+            }
             for (const JPH::BodyID obstacleBodyId : obstacleBodyIds)
             {
                 bodyInterface.RemoveBody(obstacleBodyId);
@@ -211,6 +221,7 @@ namespace Tank::Physics
         }
 
         m_impl->controller.Initialize(m_impl->world, settings, spawn);
+        SetAssaultProjectileSettings(settings.assaultProjectiles);
         if (error != nullptr) error->clear();
         return true;
     }
@@ -260,7 +271,147 @@ namespace Tank::Physics
             Initialize();
         }
 
-        return m_impl->controller.FireAssault();
+        m_impl->controller.SetAssaultCapacityAvailable(
+            m_state.assaultProjectiles.size() < static_cast<size_t>(m_impl->projectileSettings.maximumCount));
+        if (!m_impl->controller.FireAssault()) return false;
+        SpawnAssaultRound();
+        return true;
+    }
+
+    const AssaultProjectileSettings& TrackedVehicleTest::ProjectileSettings() const
+    {
+        static const AssaultProjectileSettings defaults;
+        return m_impl ? m_impl->projectileSettings : defaults;
+    }
+
+    void TrackedVehicleTest::SetAssaultProjectileSettings(const AssaultProjectileSettings& settings)
+    {
+        if (!m_impl) return;
+        auto& current = m_impl->projectileSettings;
+        current.maximumCount = std::clamp(settings.maximumCount, 0, 1024);
+        current.expireAtMaximumDistance = settings.expireAtMaximumDistance;
+        current.maximumDistanceMeters = std::isfinite(settings.maximumDistanceMeters)
+            ? std::clamp(settings.maximumDistanceMeters, 0.1f, 1000000.0f) : 40.0f;
+        current.maximumImpactMarks = std::clamp(settings.maximumImpactMarks, 0, 1024);
+        m_state.assaultImpactMarks.SetCapacity(current.maximumImpactMarks);
+        current.speedMetersPerSecond = std::isfinite(settings.speedMetersPerSecond)
+            ? std::clamp(settings.speedMetersPerSecond, 0.1f, 10000.0f) : 80.0f;
+        current.damagePerRound = std::isfinite(settings.damagePerRound)
+            ? std::clamp(settings.damagePerRound, 0.0f, 1000000.0f) : 20.0f;
+        current.lifetimeSeconds = std::isfinite(settings.lifetimeSeconds)
+            ? std::clamp(settings.lifetimeSeconds, 0.0f, 86400.0f) : 0.0f;
+        auto& projectiles = m_state.assaultProjectiles;
+        if (projectiles.size() > static_cast<size_t>(current.maximumCount))
+            projectiles.erase(projectiles.begin(), projectiles.end() - current.maximumCount);
+        m_impl->controller.SetAssaultCapacityAvailable(
+            projectiles.size() < static_cast<size_t>(current.maximumCount));
+    }
+
+    bool TrackedVehicleTest::AddDestructibleBox(const Vec3& position, const Vec3& size, float hitPoints)
+    {
+        if (!m_impl || !std::isfinite(hitPoints) || hitPoints <= 0.0f ||
+            !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
+            !std::isfinite(size.x) || !std::isfinite(size.y) || !std::isfinite(size.z) ||
+            size.x < 0.1f || size.y < 0.1f || size.z < 0.1f) return false;
+        JPH::BodyCreationSettings settings(
+            new JPH::BoxShape(JPH::Vec3(size.x, size.y, size.z) * 0.5f),
+            JPH::RVec3(position.x, position.y, position.z), JPH::Quat::sIdentity(),
+            JPH::EMotionType::Static, Layers::NonMoving);
+        auto& bodies = m_impl->world.GetBodyInterface();
+        JPH::Body* body = bodies.CreateBody(settings);
+        if (!body) return false;
+        const auto id = body->GetID();
+        bodies.AddBody(id, JPH::EActivation::DontActivate);
+        m_impl->destructibleBodyIds.push_back(id);
+        m_state.destructibleBoxes.push_back({
+            {m_state.destructibleBoxes.size() + 1, CombatTargetKind::Destructible, hitPoints, true},
+            position, size});
+        return true;
+    }
+
+    void TrackedVehicleTest::SpawnAssaultRound()
+    {
+        m_state.assaultWeapon = m_impl->controller.State().assaultWeapon;
+        m_impl->resolvedAssaultRounds = m_state.assaultWeapon.roundsFired;
+        const auto& settings = m_impl->projectileSettings;
+        const auto forward = m_impl->controller.AssaultForwardDirection();
+        m_state.assaultProjectiles.push_back({m_impl->controller.AssaultMuzzlePosition(),
+            {forward.x * settings.speedMetersPerSecond,
+             forward.y * settings.speedMetersPerSecond,
+             forward.z * settings.speedMetersPerSecond},
+            settings.damagePerRound, 0.0f, settings.lifetimeSeconds, 0.0f,
+            settings.expireAtMaximumDistance, settings.maximumDistanceMeters});
+    }
+
+    void TrackedVehicleTest::AdvanceAssaultProjectiles(float deltaTimeSeconds)
+    {
+        m_state.assaultHitTargetId = 0;
+        auto advance = [&](AssaultProjectileState& projectile)
+        {
+            float flightTime = deltaTimeSeconds;
+            const float speed = std::sqrt(projectile.velocity.x * projectile.velocity.x +
+                projectile.velocity.y * projectile.velocity.y + projectile.velocity.z * projectile.velocity.z);
+            const float remainingDistance = std::max(0.0f,
+                projectile.maximumDistanceMeters - projectile.distanceTraveledMeters);
+            const bool reachesMaximumDistance = projectile.expireAtMaximumDistance &&
+                speed * flightTime >= remainingDistance;
+            if (projectile.expireAtMaximumDistance && speed > 0.0f)
+                flightTime = std::min(flightTime, remainingDistance / speed);
+            if (projectile.lifetimeSeconds > 0.0f)
+                flightTime = std::min(flightTime, std::max(0.0f,
+                    projectile.lifetimeSeconds - projectile.ageSeconds));
+            if (flightTime <= 0.0f) return true;
+            Vec3 end = {
+                projectile.position.x + projectile.velocity.x * flightTime,
+                projectile.position.y + projectile.velocity.y * flightTime,
+                projectile.position.z + projectile.velocity.z * flightTime};
+            std::uint32_t hitBodyId = JPH::BodyID::cInvalidBodyID;
+            Vec3 normal;
+            bool staticSurface = false;
+            if (m_impl->controller.CastAssaultSegment(projectile.position, end, hitBodyId, normal, staticSurface))
+            {
+                const bool destructible = std::any_of(m_impl->destructibleBodyIds.begin(),
+                    m_impl->destructibleBodyIds.end(), [hitBodyId](const auto id)
+                    { return !id.IsInvalid() && id.GetIndexAndSequenceNumber() == hitBodyId; });
+                if (staticSurface && normal.y > 0.0f && !destructible)
+                    m_state.assaultImpactMarks.Add(end, normal);
+                ApplyAssaultImpact(hitBodyId, projectile.damage);
+                return true;
+            }
+            projectile.position = end;
+            projectile.ageSeconds += flightTime;
+            projectile.distanceTraveledMeters += speed * flightTime;
+            return reachesMaximumDistance || (projectile.lifetimeSeconds > 0.0f &&
+                projectile.ageSeconds >= projectile.lifetimeSeconds);
+        };
+        auto& projectiles = m_state.assaultProjectiles;
+        size_t survivors = 0;
+        for (size_t i = 0; i < projectiles.size(); ++i)
+        {
+            auto projectile = projectiles[i];
+            if (!advance(projectile)) projectiles[survivors++] = projectile;
+        }
+        projectiles.resize(survivors);
+    }
+
+    void TrackedVehicleTest::ApplyAssaultImpact(std::uint32_t hitBodyId, float damage)
+    {
+        for (size_t i = 0; i < m_impl->destructibleBodyIds.size(); ++i)
+        {
+            auto& id = m_impl->destructibleBodyIds[i];
+            if (id.IsInvalid() || id.GetIndexAndSequenceNumber() != hitBodyId) continue;
+            auto& target = m_state.destructibleBoxes[i].target;
+            const auto result = AssaultWeapon({damage, 8.0f}).ApplyHit(target);
+            if (result.hit) m_state.assaultHitTargetId = target.id;
+            if (result.destroyed)
+            {
+                auto& bodies = m_impl->world.GetBodyInterface();
+                bodies.RemoveBody(id);
+                bodies.DestroyBody(id);
+                id = JPH::BodyID();
+            }
+            break;
+        }
     }
 
     bool TrackedVehicleTest::ApplyRecoilImpulse(float impulseNewtonSeconds)
@@ -280,11 +431,14 @@ namespace Tank::Physics
             Initialize();
         }
 
-        if (deltaTimeSeconds <= 0.0f)
+        if (!std::isfinite(deltaTimeSeconds) || deltaTimeSeconds <= 0.0f)
         {
             return m_state;
         }
 
+        AdvanceAssaultProjectiles(deltaTimeSeconds);
+        m_impl->controller.SetAssaultCapacityAvailable(
+            m_state.assaultProjectiles.size() < static_cast<size_t>(m_impl->projectileSettings.maximumCount));
         m_impl->controller.PreStep();
         m_impl->world.Step(deltaTimeSeconds);
         m_impl->controller.PostStep(deltaTimeSeconds);
@@ -334,6 +488,10 @@ namespace Tank::Physics
         m_state.specialMove = m_impl->controller.State().specialMove;
         m_state.mortarAim = m_impl->controller.State().mortarAim;
         m_state.assaultWeapon = m_impl->controller.State().assaultWeapon;
+        if (m_state.assaultWeapon.roundsFired != m_impl->resolvedAssaultRounds)
+        {
+            SpawnAssaultRound();
+        }
         m_state.trackInputSwapped =
             m_impl->controller.State().trackInputSwapped;
         m_state.rollChainAvailable =
