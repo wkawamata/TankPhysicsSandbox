@@ -1763,6 +1763,11 @@ void TankSandboxApp::EnterTrackedVehicleMode()
         m_initialRollingProfileApplied = m_trackedVehicleMode.LoadRollingProfile(
             true, m_sceneRenderer, m_cameraController);
     }
+    if (!m_initialMortarProfileApplied)
+    {
+        m_initialMortarProfileApplied = m_trackedVehicleMode.LoadMortarProfile(
+            true, m_sceneRenderer, m_cameraController);
+    }
     ActivateOrbitCamera(m_trackedVehicleMode.GetScene(), { 0.0f, 0.8f, 0.0f });
     m_appMode = AppMode::PhysicsTrackedVehicle;
     if (m_cameraController.AutoLoad())
