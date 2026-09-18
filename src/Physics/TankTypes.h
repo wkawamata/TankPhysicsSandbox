@@ -49,6 +49,7 @@ namespace Tank::Physics
 
     struct TankSettings
     {
+        AssaultProjectileSettings assaultProjectiles = {};
         float chassisMassKg = 4000.0f;
         float recoilImpulseNewtonSeconds = 20000.0f;
         float recoilPointForwardM = 1.2f;

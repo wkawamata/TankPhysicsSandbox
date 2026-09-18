@@ -43,6 +43,7 @@ private:
     bool OpenMapFolder(const std::filesystem::path& folder, std::string& error);
     std::filesystem::path MapAssetsRoot() const;
     bool AddSelectedModel();
+    bool AddIndestructibleBox();
     bool UpdateSelectedInstance(const Tank::Map::Transform& transform);
     void SetSelectedInstanceVisible(bool visible);
     bool DuplicateSelectedInstance();

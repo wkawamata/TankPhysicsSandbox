@@ -2,6 +2,7 @@
 
 #include "Physics/TestObstacleLayout.h"
 #include "Rendering/PhysicsDebugOverlay.h"
+#include "Rendering/ImpactMarkGeometry.h"
 
 #include <DirectXMath.h>
 #include <DirectXMathConvert.inl>
@@ -450,6 +451,9 @@ void TrackedVehicleScenePresenter::BuildScene(
 {
     m_sceneBuilder.Clear();
     m_model = {};
+    m_destructibleBoxInstances.clear();
+    m_impactMarkInstances.clear();
+    m_impactMarkMesh.reset();
 
     uint32_t floorMaterial = 0;
     if (envSettings.gridEnabled)
@@ -684,6 +688,47 @@ void TrackedVehicleScenePresenter::BuildScene(
     m_trackShoeLastTimeSeconds = 0.0f;
 }
 
+bool TrackedVehicleScenePresenter::EnsureImpactMarkCapacity(size_t capacity)
+{
+    capacity = (std::min)(capacity, size_t{1024});
+    if (m_impactMarkInstances.size() == capacity) return false;
+    if (m_impactMarkInstances.size() > capacity)
+    {
+        auto& instances = m_sceneBuilder.GetScene().instances;
+        // This pool is appended after map/tank instances; never move their indices.
+        if (m_impactMarkInstances.back() != instances.size() - 1) return false;
+        instances.resize(instances.size() - (m_impactMarkInstances.size() - capacity));
+        m_impactMarkInstances.resize(capacity);
+        return true;
+    }
+    if (!m_impactMarkMesh)
+    {
+        m_impactMarkMesh = Tank::Rendering::ImpactMarkGeometry::AppendQuad(m_sceneBuilder);
+        m_impactMarkMaterial = m_sceneBuilder.AddSolidColorMaterial(240, 100, 25, 255);
+    }
+    while (m_impactMarkInstances.size() < capacity)
+    {
+        m_impactMarkInstances.push_back(m_sceneBuilder.GetScene().instances.size());
+        m_sceneBuilder.AddInstance(*m_impactMarkMesh, XMMatrixScaling(0, 0, 0), m_impactMarkMaterial);
+    }
+    return true;
+}
+
+void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
+    const Tank::Physics::TrackedVehicleTestState& state)
+{
+    if (state.destructibleBoxes.empty()) return;
+    const uint32_t material = m_sceneBuilder.AddSolidColorMaterial(175, 100, 35, 255);
+    const auto cube = m_sceneBuilder.AddCube(1.0f);
+    for (const auto& box : state.destructibleBoxes)
+    {
+        m_destructibleBoxInstances.push_back(m_sceneBuilder.GetScene().instances.size());
+        m_sceneBuilder.AddInstance(cube,
+            XMMatrixScaling(box.size.x, box.size.y, box.size.z) *
+            XMMatrixTranslation(box.position.x, box.position.y, box.position.z), material);
+    }
+}
+
 void TrackedVehicleScenePresenter::UpdateScene(
     const Tank::Physics::TrackedVehicleTestState& state,
     const Tank::Physics::TankSettings& tankSettings,
@@ -698,6 +743,18 @@ void TrackedVehicleScenePresenter::UpdateScene(
     bool showGltfSide)
 {
     Engine::Scene& scene = m_sceneBuilder.GetScene();
+    const auto& marks = state.assaultImpactMarks.Slots();
+    for (size_t i = 0; i < m_impactMarkInstances.size(); ++i)
+        SetInstanceWorld(scene.instances[m_impactMarkInstances[i]], i < marks.size() && marks[i].sequence != 0
+            ? Tank::Rendering::ImpactMarkGeometry::World(marks[i]) : XMMatrixScaling(0, 0, 0));
+    for (size_t i = 0; i < m_destructibleBoxInstances.size() && i < state.destructibleBoxes.size(); ++i)
+    {
+        const auto& box = state.destructibleBoxes[i];
+        SetInstanceWorld(scene.instances[m_destructibleBoxInstances[i]], box.target.active
+            ? XMMatrixScaling(box.size.x, box.size.y, box.size.z) *
+                XMMatrixTranslation(box.position.x, box.position.y, box.position.z)
+            : XMMatrixScaling(0.0f, 0.0f, 0.0f));
+    }
     const XMVECTOR rotation = XMVectorSet(
         state.bodyRotation.x, state.bodyRotation.y, state.bodyRotation.z, state.bodyRotation.w);
     const XMMATRIX bodyTransform =
@@ -968,6 +1025,9 @@ void TrackedVehicleScenePresenter::ApplyMaterials(
 void TrackedVehicleScenePresenter::Clear()
 {
     m_sceneBuilder.Clear();
+    m_destructibleBoxInstances.clear();
+    m_impactMarkInstances.clear();
+    m_impactMarkMesh.reset();
 }
 
 Engine::SceneBuilder& TrackedVehicleScenePresenter::SceneBuilder()

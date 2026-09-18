@@ -35,7 +35,7 @@ public:
     bool LoadTankModelAsset(const std::filesystem::path& path);
 
     bool Enter(RtPbrSurvey::SceneRenderer& renderer);
-    void Exit();
+    void Exit(RtPbrSurvey::SceneRenderer& renderer);
 
     void UpdateInput(
         const Tank::Input::GamepadState& gamepadState,
@@ -150,6 +150,8 @@ private:
     float NormalizeRawGamepadAxis(float value);
     void UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer);
     void UpdateClearCondition();
+    void InitializeDestructibleTargets();
+    void ApplyAssaultProjectileSettings();
 
     Tank::App::RollingSpeedOptimizationSession m_rollingOptimizer;
     TrackedVehicleScenePresenter m_presenter;
@@ -190,9 +192,8 @@ private:
     bool m_tankVisualMaterialApplyPending = false;
     bool m_active = false;
     std::array<RtPbrSurvey::DebugLineHandle, 32> m_mortarRangeLines = {};
-    RtPbrSurvey::DebugLineHandle m_assaultTracerLine = RtPbrSurvey::kInvalidDebugLineHandle;
+    std::vector<RtPbrSurvey::DebugLineHandle> m_assaultTracerLines;
     std::uint64_t m_lastAssaultRoundsFired = 0;
-    float m_assaultTracerSeconds = 0.0f;
     bool m_lastLoggedMortarVisible = false;
     bool m_mapCleared = false;
 

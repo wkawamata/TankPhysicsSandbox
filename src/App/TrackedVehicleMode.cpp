@@ -262,6 +262,10 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
             mapPrimitives,
             m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
     }
+    InitializeDestructibleTargets();
+    m_presenter.AppendDestructibleBoxes(m_test.State());
+    ApplyAssaultProjectileSettings();
+    m_presenter.EnsureImpactMarkCapacity(m_test.State().assaultImpactMarks.Capacity());
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_paused = false;
@@ -281,8 +285,10 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
     return true;
 }
 
-void TrackedVehicleMode::Exit()
+void TrackedVehicleMode::Exit(RtPbrSurvey::SceneRenderer& renderer)
 {
+    for (const auto handle : m_assaultTracerLines) renderer.RemoveDebugLine(handle);
+    m_assaultTracerLines.clear();
     m_presenter.Clear();
     m_mapHitMeshOverlayInstance.reset();
     m_mapMarkerInstances.clear();
@@ -296,10 +302,10 @@ void TrackedVehicleMode::Exit()
 void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer)
 {
     const Tank::Physics::TrackedVehicleTestState& state = m_test.State();
+    const bool impactMarkPoolChanged = m_presenter.EnsureImpactMarkCapacity(state.assaultImpactMarks.Capacity());
     if (state.assaultWeapon.roundsFired != m_lastAssaultRoundsFired)
     {
         m_lastAssaultRoundsFired = state.assaultWeapon.roundsFired;
-        m_assaultTracerSeconds = 0.12f;
         char message[256] = {};
         std::snprintf(
             message,
@@ -311,54 +317,33 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
             state.bodyPosition.z);
         OutputDebugStringA(message);
     }
-    const Tank::Physics::Vec3 forward = ForwardFromRotation(state.bodyRotation);
-    const Tank::Physics::Vec3 muzzle = {
-        state.bodyPosition.x + forward.x * 1.8f,
-        state.bodyPosition.y + 0.85f + forward.y * 1.8f,
-        state.bodyPosition.z + forward.z * 1.8f };
-    RtPbrSurvey::DebugLineDesc assaultTracer;
-    assaultTracer.start = {muzzle.x, muzzle.y, muzzle.z};
-    assaultTracer.end = {
-        muzzle.x + forward.x * 16.0f,
-        muzzle.y + forward.y * 16.0f,
-        muzzle.z + forward.z * 16.0f};
-    assaultTracer.color = {1.0f, 0.8f, 0.15f, 1.0f};
-    assaultTracer.visible = m_assaultTracerSeconds > 0.0f;
-    assaultTracer.depthMode = RtPbrSurvey::DebugLineDepthMode::Overlay;
-    if (m_assaultTracerLine == RtPbrSurvey::kInvalidDebugLineHandle)
+    const size_t maximumLines = static_cast<size_t>(m_test.ProjectileSettings().maximumCount);
+    while (m_assaultTracerLines.size() > maximumLines)
     {
-        m_assaultTracerLine = renderer.AddDebugLine(assaultTracer);
-        char message[320] = {};
-        std::snprintf(
-            message,
-            sizeof(message),
-            "[Tank DebugLine] Assault line added: handle=%u visible=%d start=(%.2f, %.2f, %.2f) end=(%.2f, %.2f, %.2f)\n",
-            m_assaultTracerLine,
-            assaultTracer.visible ? 1 : 0,
-            assaultTracer.start.x,
-            assaultTracer.start.y,
-            assaultTracer.start.z,
-            assaultTracer.end.x,
-            assaultTracer.end.y,
-            assaultTracer.end.z);
-        OutputDebugStringA(message);
+        renderer.RemoveDebugLine(m_assaultTracerLines.back());
+        m_assaultTracerLines.pop_back();
     }
-    else
+    m_assaultTracerLines.resize((std::max)(m_assaultTracerLines.size(), state.assaultProjectiles.size()),
+        RtPbrSurvey::kInvalidDebugLineHandle);
+    for (size_t i = 0; i < m_assaultTracerLines.size(); ++i)
     {
-        const bool updated = renderer.UpdateDebugLine(m_assaultTracerLine, assaultTracer);
-        if (!updated || assaultTracer.visible)
+        RtPbrSurvey::DebugLineDesc tracer;
+        tracer.color = {1.0f, 0.8f, 0.15f, 1.0f};
+        tracer.depthMode = RtPbrSurvey::DebugLineDepthMode::Overlay;
+        tracer.visible = i < state.assaultProjectiles.size();
+        if (tracer.visible)
         {
-            char message[192] = {};
-            std::snprintf(
-                message,
-                sizeof(message),
-                "[Tank DebugLine] Assault line update: handle=%u updated=%d visible=%d timer=%.3f\n",
-                m_assaultTracerLine,
-                updated ? 1 : 0,
-                assaultTracer.visible ? 1 : 0,
-                m_assaultTracerSeconds);
-            OutputDebugStringA(message);
+            const auto& projectile = state.assaultProjectiles[i];
+            const auto& v = projectile.velocity;
+            const float speed = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+            const float trailSeconds = (std::min)(projectile.ageSeconds, 1.5f / speed);
+            tracer.start = {projectile.position.x - v.x * trailSeconds,
+                projectile.position.y - v.y * trailSeconds, projectile.position.z - v.z * trailSeconds};
+            tracer.end = {projectile.position.x, projectile.position.y, projectile.position.z};
         }
+        auto& handle = m_assaultTracerLines[i];
+        if (handle == RtPbrSurvey::kInvalidDebugLineHandle || !renderer.UpdateDebugLine(handle, tracer))
+            handle = renderer.AddDebugLine(tracer);
     }
 
     const auto cue = MortarRangeCue();
@@ -418,6 +403,11 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
         m_showGltfBody,
         m_showGltfCannon,
         m_showGltfSide);
+    if (impactMarkPoolChanged)
+    {
+        renderer.ReloadSceneResources(m_presenter.GetScene());
+        renderer.SetDisplayInstanceCount(static_cast<int>(m_presenter.GetScene().instances.size()));
+    }
     if (m_mapHitMeshOverlayInstance &&
         *m_mapHitMeshOverlayInstance < m_presenter.GetScene().instances.size())
     {
@@ -636,6 +626,12 @@ void TrackedVehicleMode::Step(
     RtPbrSurvey::SceneRenderer& renderer,
     Tank::App::CameraController& cameraController)
 {
+    const int previousMaximum = m_test.ProjectileSettings().maximumCount;
+    const int previousMarkMaximum = m_test.ProjectileSettings().maximumImpactMarks;
+    ApplyAssaultProjectileSettings();
+    if (m_paused && !m_singleStep && (previousMaximum != m_test.ProjectileSettings().maximumCount ||
+        previousMarkMaximum != m_test.ProjectileSettings().maximumImpactMarks))
+        UpdateSceneInternal(renderer);
     if (!m_paused || m_singleStep)
     {
         const auto physicsStart = std::chrono::steady_clock::now();
@@ -666,8 +662,6 @@ void TrackedVehicleMode::Step(
             m_physicsStepTimeMs);
         UpdateClearCondition();
         UpdateSceneInternal(renderer);
-        m_assaultTracerSeconds = std::max(
-            0.0f, m_assaultTracerSeconds - kPhysicsFixedDt);
         renderer.SetScene(m_presenter.GetScene());
         m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - sceneStart).count();
@@ -697,6 +691,25 @@ void TrackedVehicleMode::ResetFrameTimingPeaks()
     m_sceneUpdatePeakTimeMs = m_sceneUpdateTimeMs;
 }
 
+void TrackedVehicleMode::ApplyAssaultProjectileSettings()
+{
+    const size_t baseInstances = m_presenter.GetScene().instances.size() - m_presenter.ImpactMarkInstanceCount();
+    const size_t limit = RtPbrSurveyEngine::kMaxInstanceCount;
+    const int available = static_cast<int>(baseInstances < limit ? limit - baseInstances : 0);
+    auto& settings = m_settings.assaultProjectiles;
+    settings.maximumImpactMarks = std::clamp(settings.maximumImpactMarks, 0, available);
+    m_test.SetAssaultProjectileSettings(settings);
+}
+
+void TrackedVehicleMode::InitializeDestructibleTargets()
+{
+    // Test targets are opt-in for the flat sandbox, not authored maps or courses.
+    if (m_manifestMap || m_customMap || m_selectedMap != Tank::Physics::MapId::FlatGround) return;
+    m_test.AddDestructibleBox({0.0f, 1.5f, 12.0f}, {2.0f, 3.0f, 2.0f});
+    m_test.AddDestructibleBox({-4.0f, 1.5f, 16.0f}, {2.0f, 3.0f, 2.0f});
+    m_test.AddDestructibleBox({4.0f, 1.5f, 16.0f}, {2.0f, 3.0f, 2.0f});
+}
+
 void TrackedVehicleMode::Reset(
     RtPbrSurvey::SceneRenderer& renderer,
     Tank::App::CameraController& cameraController)
@@ -721,13 +734,14 @@ void TrackedVehicleMode::Reset(
             m_settings, m_environmentSettings, mapPrimitives,
             m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
     }
+    InitializeDestructibleTargets();
+    ApplyAssaultProjectileSettings();
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_singleStep = false;
     m_analogTracksArmed = false;
     m_loggedRollingTraceSequence = 0;
     m_lastAssaultRoundsFired = 0;
-    m_assaultTracerSeconds = 0.0f;
     m_mapCleared = false;
     m_clearedAreaName.clear();
     m_clearedAreaIndex.reset();
@@ -756,6 +770,7 @@ bool TrackedVehicleMode::FireRecoil()
 
 bool TrackedVehicleMode::FireAssault()
 {
+    ApplyAssaultProjectileSettings();
     const bool fired = m_test.FireAssault();
     if (fired && m_paused)
     {

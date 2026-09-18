@@ -29,6 +29,11 @@ namespace Tank::Physics
             const MapSpawn& spawn);
         void SetInput(const TankInput& input);
         bool FireAssault();
+        void SetAssaultCapacityAvailable(bool available) { m_assaultCapacityAvailable = available; }
+        Vec3 AssaultMuzzlePosition() const;
+        Vec3 AssaultForwardDirection() const;
+        bool CastAssaultSegment(const Vec3& start, Vec3& end, std::uint32_t& hitBodyId,
+            Vec3& surfaceNormal, bool& staticSurface) const;
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         void PreStep();
@@ -52,6 +57,7 @@ namespace Tank::Physics
         SpecialMoveInputProcessor m_specialMoveInputProcessor;
         MortarAimController m_mortarAimController;
         AssaultWeapon m_assaultWeapon;
+        bool m_assaultCapacityAvailable = true;
         std::unique_ptr<Impl> m_impl;
     };
 }

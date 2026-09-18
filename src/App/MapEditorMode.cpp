@@ -108,6 +108,38 @@ std::optional<std::filesystem::path> MapEditorMode::ConsumeClosedMapFolder()
     return folder;
 }
 
+bool MapEditorMode::AddIndestructibleBox()
+{
+    // Store a self-contained glTF inside the map, so saved maps remain portable.
+    // Static Hit meshes are not registered as destructible combat targets.
+    const std::string asset = "Models/IndestructibleBox.gltf";
+    const auto destination = m_map.Folder() / asset;
+    std::error_code error;
+    std::filesystem::create_directories(destination.parent_path(), error);
+    if (!error && !std::filesystem::exists(destination, error))
+        std::filesystem::copy_file(MapAssetsRoot() / "Templates/IndestructibleBox.gltf",
+            destination, std::filesystem::copy_options::none, error);
+    if (error)
+    {
+        m_status = "Could not prepare box asset: " + error.message();
+        return false;
+    }
+    // Never overwrite a user's existing asset. Validate it through the normal path.
+    Tank::Map::GltfRoles roles;
+    std::string roleError;
+    if (!Tank::Map::InspectGltfRoles(destination, roles, roleError))
+    {
+        m_status = "Could not inspect box asset: " + roleError;
+        return false;
+    }
+    RefreshAssets();
+    m_selectedAsset = asset;
+    m_inspectedAsset = asset;
+    m_roles = std::move(roles);
+    m_roleError.clear();
+    return AddSelectedModel();
+}
+
 bool MapEditorMode::AddSelectedModel()
 {
     if (m_selectedAsset != m_inspectedAsset)
@@ -452,6 +484,8 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         gridChanged |= ImGui::DragFloat("Line width (m)", &m_gridLineWidthMeters, 0.005f, 0.005f, 0.2f, "%.3f");
         if (gridChanged) m_sceneReloadRequested = true;
         ImGui::Separator();
+        if (ImGui::Button("Add Indestructible Box")) AddIndestructibleBox();
+        ImGui::TextWrapped("Static box: 2 x 3 x 2 m, origin at its base. Shots cannot destroy it. Edit position/rotation below, then Save.");
         if (ImGui::Button("Refresh Models")) RefreshAssets();
         ImGui::SameLine();
         ImGui::Text("glTF / GLB: %zu", m_assets.size());
@@ -503,7 +537,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 ImGui::Text("%s - node %zu, mesh %zu: %s", node.role == Tank::Map::MeshRole::Visual ? "Visual" : "Hit",
                     node.nodeIndex, node.meshIndex, node.name.empty() ? "(unnamed)" : node.name.c_str());
         }
-        ImGui::TextWrapped("Add to Map loads Visual meshes into the preview. Hit meshes are reserved for physics.");
+        ImGui::TextWrapped("Add to Map loads Visual meshes into the preview. Hit meshes become indestructible static colliders during play.");
 
         ImGui::SeparatorText("Placed Models");
         if (document.instances.empty())

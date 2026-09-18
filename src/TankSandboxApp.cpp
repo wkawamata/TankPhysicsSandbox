@@ -626,7 +626,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
         {
             m_appMode = AppMode::TopMenu;
             m_boxDropMode.Exit();
-            m_trackedVehicleMode.Exit();
+            m_trackedVehicleMode.Exit(m_sceneRenderer);
             m_sceneRenderer.SetScene(Engine::Scene{});
         }
         else

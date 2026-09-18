@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "PhysicsTypes.h"
 
 namespace Tank::Physics
 {
@@ -25,6 +26,30 @@ namespace Tank::Physics
     {
         float damagePerRound = 20.0f;
         float roundsPerSecond = 8.0f;
+    };
+
+    struct AssaultProjectileSettings
+    {
+        int maximumCount = 64;
+        float speedMetersPerSecond = 80.0f;
+        float damagePerRound = 20.0f;
+        // Zero means infinite; do not serialize IEEE infinity into JSON.
+        float lifetimeSeconds = 0.0f;
+        int maximumImpactMarks = 128;
+        bool expireAtMaximumDistance = true;
+        float maximumDistanceMeters = 40.0f;
+    };
+
+    struct AssaultProjectileState
+    {
+        Vec3 position = {};
+        Vec3 velocity = {};
+        float damage = 20.0f;
+        float ageSeconds = 0.0f;
+        float lifetimeSeconds = 0.0f;
+        float distanceTraveledMeters = 0.0f;
+        bool expireAtMaximumDistance = true;
+        float maximumDistanceMeters = 40.0f;
     };
 
     struct AssaultWeaponSnapshot

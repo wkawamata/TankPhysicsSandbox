@@ -106,6 +106,7 @@ add_library(TankPhysicsCore STATIC
     src/Physics/StaticMeshShape.h
     src/Physics/TankController.cpp
     src/Physics/TankController.h
+    src/Physics/ImpactMarkBuffer.h
     src/Physics/TankMotionObservation.cpp
     src/Physics/TankMotionObservation.h
     src/Physics/TankSettingsJson.cpp
@@ -226,6 +227,7 @@ add_executable(TankSandbox
     src/Rendering/PhysicsDebugOverlay.h
     src/Rendering/PhysicsDebugOverlay.cpp
     src/Rendering/TrackedVehicleScenePresenter.h
+    src/Rendering/ImpactMarkGeometry.h
     src/Rendering/TrackedVehicleScenePresenter.cpp
     src/Ui/CameraPanel.cpp
     src/Ui/CameraPanel.h
@@ -1129,6 +1131,21 @@ if(BUILD_TESTING)
     endif()
 
     add_executable(AssaultWeaponTests tests/AssaultWeaponTests.cpp)
+    add_executable(AssaultDestructibleTests tests/AssaultDestructibleTests.cpp)
+    add_executable(AssaultProjectileTests tests/AssaultProjectileTests.cpp)
+    add_executable(ImpactMarkTests tests/ImpactMarkTests.cpp)
+    target_link_libraries(ImpactMarkTests PRIVATE TankPhysicsCore RtPbrSurvey::SceneRenderer)
+    if(MSVC)
+        target_compile_options(ImpactMarkTests PRIVATE /W4 /permissive-)
+    endif()
+    target_link_libraries(AssaultProjectileTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(AssaultProjectileTests PRIVATE /W4 /permissive-)
+    endif()
+    target_link_libraries(AssaultDestructibleTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(AssaultDestructibleTests PRIVATE /W4 /permissive-)
+    endif()
     target_link_libraries(AssaultWeaponTests PRIVATE TankPhysicsCore)
     if(MSVC)
         target_compile_options(AssaultWeaponTests PRIVATE /W4 /permissive-)
@@ -1200,6 +1217,9 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME TankPhysics.AssaultWeapon COMMAND AssaultWeaponTests)
+    add_test(NAME TankPhysics.AssaultDestructible COMMAND AssaultDestructibleTests)
+    add_test(NAME TankPhysics.AssaultProjectile COMMAND AssaultProjectileTests)
+    add_test(NAME TankRendering.ImpactMark COMMAND ImpactMarkTests)
 
     add_executable(TrackedVehicleFrictionTests
         tests/TrackedVehicleFrictionTests.cpp

@@ -24,6 +24,10 @@ int main()
 {
     Tank::Physics::TankSettings source;
     source.chassisMassKg = 5200.0f;
+    source.assaultProjectiles = {128, 150.0f, 35.0f, 2.5f};
+    source.assaultProjectiles.maximumImpactMarks = 17;
+    source.assaultProjectiles.expireAtMaximumDistance = false;
+    source.assaultProjectiles.maximumDistanceMeters = 123.0f;
     source.recoilImpulseNewtonSeconds = 27500.0f;
     source.recoilPointForwardM = 1.5f;
     source.recoilPointHeightM = 0.9f;
@@ -95,6 +99,18 @@ int main()
         "serialized settings must deserialize");
     passed &= Check(NearlyEqual(loaded.chassisMassKg, source.chassisMassKg),
         "chassis mass must round trip");
+    passed &= Check(loaded.assaultProjectiles.maximumCount == 128 && loaded.assaultProjectiles.maximumImpactMarks == 17 &&
+        NearlyEqual(loaded.assaultProjectiles.speedMetersPerSecond, 150.0f) &&
+        NearlyEqual(loaded.assaultProjectiles.damagePerRound, 35.0f) &&
+        NearlyEqual(loaded.assaultProjectiles.lifetimeSeconds, 2.5f) &&
+        !loaded.assaultProjectiles.expireAtMaximumDistance &&
+        NearlyEqual(loaded.assaultProjectiles.maximumDistanceMeters, 123.0f),
+        "projectile settings must round trip");
+    Tank::Physics::TankSettings defaultProjectileSettings;
+    passed &= Check(Tank::Physics::DeserializeTankSettings(
+        Tank::Physics::SerializeTankSettings(defaultProjectileSettings), defaultProjectileSettings) &&
+        defaultProjectileSettings.assaultProjectiles.lifetimeSeconds == 0.0f,
+        "infinite lifetime must round trip as zero, not IEEE infinity");
     passed &= Check(
         NearlyEqual(
             loaded.recoilImpulseNewtonSeconds,
