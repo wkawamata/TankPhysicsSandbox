@@ -4,6 +4,7 @@
 #include "Physics/TankSettingsJson.h"
 #include "Physics/PhysicsEnvironmentSettingsJson.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <fstream>
@@ -105,6 +106,22 @@ namespace Tank::App
             : "No improvement found. Parameters unchanged.";
         m_applyPending = m_result->improved && m_result->error.empty();
     }
+
+    float RollingSpeedOptimizationSession::ProgressFraction() const
+    {
+        return std::clamp(
+            static_cast<float>(CompletedEvaluations()) /
+                static_cast<float>(kExpectedEvaluationCount),
+            0.0f,
+            1.0f);
+    }
+
+    int RollingSpeedOptimizationSession::CompletedEvaluations() const
+    {
+        return m_progress ? std::clamp(
+            m_progress->evaluations.load(), 0, kExpectedEvaluationCount) : 0;
+    }
+
     bool RollingSpeedOptimizationSession::Matches(const Physics::TankSettings& settings,
         const Physics::PhysicsEnvironmentSettings& environment) const
     {

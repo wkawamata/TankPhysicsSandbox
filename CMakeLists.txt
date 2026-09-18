@@ -917,6 +917,9 @@ if(BUILD_TESTING)
         tests/CameraControlTests.cpp
     )
     target_include_directories(CameraControlTests PRIVATE src)
+    target_compile_definitions(CameraControlTests PRIVATE
+        TANK_SOURCE_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Config"
+    )
     target_precompile_headers(CameraControlTests PRIVATE src/stdafx.h)
     target_link_libraries(CameraControlTests
         PRIVATE

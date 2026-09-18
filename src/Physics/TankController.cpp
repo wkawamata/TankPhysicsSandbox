@@ -4,1297 +4,1306 @@
 #include "PhysicsWorld.h"
 
 #include <Jolt/Jolt.h>
-
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
+#include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Vehicle/TrackedVehicleController.h>
 #include <Jolt/Physics/Vehicle/VehicleCollisionTester.h>
-#include <Jolt/Physics/PhysicsSystem.h>
+
+
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstdlib>
+#include <memory>
+#include "MapDefinition.h"
+#include "MobilityStateMachine.h"
+#include "RollingSpeedTuning.h"
+#include "SpecialMoveTypes.h"
+#include "TankTypes.h"
 
 JPH_SUPPRESS_WARNINGS
 
 namespace Tank::Physics
 {
-    namespace Layers
-    {
-        constexpr JPH::ObjectLayer NonMoving = 0;
-        constexpr JPH::ObjectLayer Moving = 1;
-    }
+	namespace Layers
+	{
+		constexpr JPH::ObjectLayer NonMoving = 0;
+		constexpr JPH::ObjectLayer Moving = 1;
+	}
 
-    namespace
-    {
-        float ClampNormalized(float value)
-        {
-            return std::clamp(value, -1.0f, 1.0f);
-        }
+	namespace
+	{
+		float ClampNormalized(float value)
+		{
+			return std::clamp(value, -1.0f, 1.0f);
+		}
 
-        bool IsMortarHeld(const TankInput& input)
-        {
-            constexpr float threshold = 0.70f;
-            return input.leftLeverX <= -threshold &&
-                input.rightLeverX >= threshold;
-        }
+		bool IsMortarHeld(const TankInput& input)
+		{
+			constexpr float threshold = 0.70f;
+			return input.leftLeverX <= -threshold &&
+				input.rightLeverX >= threshold;
+		}
 
-        float ToJoltTrackRatio(float value)
-        {
-            constexpr float minimumMagnitude = 0.001f;
-            if (std::abs(value) < minimumMagnitude)
-            {
-                return value < 0.0f ? -minimumMagnitude : minimumMagnitude;
-            }
-            return value;
-        }
+		float ToJoltTrackRatio(float value)
+		{
+			constexpr float minimumMagnitude = 0.001f;
+			if (std::abs(value) < minimumMagnitude)
+			{
+				return value < 0.0f ? -minimumMagnitude : minimumMagnitude;
+			}
+			return value;
+		}
 
-        float ToJoltRollTorqueSign(float rollSign)
-        {
-            // The public tank-space convention is DirectX left-handed:
-            // +Z forward and a positive Z rotation moves +Y toward +X.
-            // Jolt's quaternion / torque convention has the opposite
-            // rotational handedness, so only the torque sign is bridged.
-            return -rollSign;
-        }
+		float ToJoltRollTorqueSign(float rollSign)
+		{
+			// The public tank-space convention is DirectX left-handed:
+			// +Z forward and a positive Z rotation moves +Y toward +X.
+			// Jolt's quaternion / torque convention has the opposite
+			// rotational handedness, so only the torque sign is bridged.
+			return -rollSign;
+		}
 
-    }
+	}
 
-    struct TankController::Impl
-    {
-        PhysicsWorld& world;
-        JPH::BodyID bodyId;
-        JPH::Ref<JPH::VehicleConstraint> vehicleConstraint;
-        bool hasBody = false;
-        bool rollInputLatched = false;
-        float latchedRollCommand = 0.0f;
-        float rollRotationSign = 0.0f;
-        Tank::Physics::RollingPhase rollingPhase = RollingPhase::None;
-        int rollSettledFrames = 0;
-        float rollDistanceIntegral = 0.0f;
-        float maximumRollProgress = 0.0f;
-        float rollTargetDistanceM = 0.0f;
-        bool rollReturningToStart = false;
-        float rollCommitFramesRemaining = 0.0f;
-        float rollingEnvironmentScale = 1.0f;
-        std::vector<JPH::Ref<JPH::WheelSettingsTV>> rollingWheelSettings;
-        RollingDecision lastRollingDecision = RollingDecision::None;
-        std::uint64_t rollingDecisionCount = 0;
-        float rollingDecisionCommandSign = 0.0f;
-        float rollingDecisionInputSign = 0.0f;
-        RollingTraceEvent lastRollingTraceEvent = RollingTraceEvent::None;
-        std::uint64_t rollingTraceSequence = 0;
-        float rollingTraceRequestSign = 0.0f;
-        float rollingTraceCommandSign = 0.0f;
-        float rollingTraceInputSign = 0.0f;
-        bool rollChainAvailable = false;
-        JPH::RVec3 rollStartPosition;
-        JPH::Vec3 rollStartUp;
-        JPH::Vec3 rollDirection;
-        bool accelerationTiming = false;
-        float accelerationStartTime = 0.0f;
+	struct TankController::Impl
+	{
+		PhysicsWorld& world;
+		JPH::BodyID bodyId;
+		JPH::Ref<JPH::VehicleConstraint> vehicleConstraint;
+		bool hasBody = false;
+		bool rollInputLatched = false;
+		float latchedRollCommand = 0.0f;
+		float rollRotationSign = 0.0f;
+		Tank::Physics::RollingPhase rollingPhase = RollingPhase::None;
+		int rollSettledFrames = 0;
+		float rollDistanceIntegral = 0.0f;
+		float maximumRollProgress = 0.0f;
+		float rollTargetDistanceM = 0.0f;
+		bool rollReturningToStart = false;
+		float rollCommitFramesRemaining = 0.0f;
+		float rollingEnvironmentScale = 1.0f;
+		std::vector<JPH::Ref<JPH::WheelSettingsTV>> rollingWheelSettings;
+		RollingDecision lastRollingDecision = RollingDecision::None;
+		std::uint64_t rollingDecisionCount = 0;
+		float rollingDecisionCommandSign = 0.0f;
+		float rollingDecisionInputSign = 0.0f;
+		RollingTraceEvent lastRollingTraceEvent = RollingTraceEvent::None;
+		std::uint64_t rollingTraceSequence = 0;
+		float rollingTraceRequestSign = 0.0f;
+		float rollingTraceCommandSign = 0.0f;
+		float rollingTraceInputSign = 0.0f;
+		bool rollChainAvailable = false;
+		JPH::RVec3 rollStartPosition;
+		JPH::Vec3 rollStartUp;
+		JPH::Vec3 rollDirection;
+		bool accelerationTiming = false;
+		float accelerationStartTime = 0.0f;
 
-        explicit Impl(PhysicsWorld& w) : world(w) {}
+		explicit Impl(PhysicsWorld& w) : world(w) {}
 
-        ~Impl()
-        {
-            JPH::PhysicsSystem& physicsSystem = world.GetPhysicsSystem();
+		~Impl()
+		{
+			JPH::PhysicsSystem& physicsSystem = world.GetPhysicsSystem();
 
-            if (vehicleConstraint != nullptr)
-            {
-                physicsSystem.RemoveStepListener(vehicleConstraint);
-                physicsSystem.RemoveConstraint(vehicleConstraint);
-                vehicleConstraint = nullptr;
-            }
+			if (vehicleConstraint != nullptr)
+			{
+				physicsSystem.RemoveStepListener(vehicleConstraint);
+				physicsSystem.RemoveConstraint(vehicleConstraint);
+				vehicleConstraint = nullptr;
+			}
 
-            if (hasBody)
-            {
-                JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
-                bodyInterface.RemoveBody(bodyId);
-                bodyInterface.DestroyBody(bodyId);
-                hasBody = false;
-            }
-        }
-    };
+			if (hasBody)
+			{
+				JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
+				bodyInterface.RemoveBody(bodyId);
+				bodyInterface.DestroyBody(bodyId);
+				hasBody = false;
+			}
+		}
+	};
 
-    TankController::TankController() = default;
-    TankController::~TankController() = default;
+	TankController::TankController() = default;
+	TankController::~TankController() = default;
 
-    void TankController::Initialize()
-    {
-        m_input = {};
-        m_state = {};
-        m_settings = {};
-        m_impl.reset();
-    }
+	void TankController::Initialize()
+	{
+		m_input = {};
+		m_state = {};
+		m_settings = {};
+		m_impl.reset();
+	}
 
-    void TankController::Initialize(PhysicsWorld& world)
-    {
-        Initialize(world, {});
-    }
+	void TankController::Initialize(PhysicsWorld& world)
+	{
+		Initialize(world, {});
+	}
 
-    void TankController::Initialize(PhysicsWorld& world, const TankSettings& settings)
-    {
-        Initialize(world, settings, {});
-    }
+	void TankController::Initialize(PhysicsWorld& world, const TankSettings& settings)
+	{
+		Initialize(world, settings, {});
+	}
 
-    void TankController::Initialize(
-        PhysicsWorld& world,
-        const TankSettings& settings,
-        const MapSpawn& spawn)
-    {
-        m_input = {};
-        m_state = {};
-        m_settings = settings;
-        m_mobilityStateMachine = MobilityStateMachine(m_settings);
-        m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
-        m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
-        m_settings.rollSpeedMultiplier = std::isfinite(m_settings.rollSpeedMultiplier)
-            ? std::clamp(m_settings.rollSpeedMultiplier, 0.5f, 2.0f) : 1.0f;
-        m_settings.rollSpeedTuning = SanitizeRollingSpeedTuning(m_settings.rollSpeedTuning);
-        m_settings.rollReturnDecisionDegrees = std::clamp(
-            m_settings.rollReturnDecisionDegrees, 1.0f, 89.0f);
-        m_settings.rollApproachStartDegrees = std::clamp(
-            m_settings.rollApproachStartDegrees, 1.0f, 89.0f);
-        m_settings.rollApproachDampingNms = (std::max)(
-            m_settings.rollApproachDampingNms, 0.0f);
-        m_settings.rollCommitTorqueNm = (std::max)(
-            m_settings.rollCommitTorqueNm, 0.0f);
-        m_settings.rollAirBrakeTorqueNm = std::clamp(
-            m_settings.rollAirBrakeTorqueNm, 0.0f, 300000.0f);
-        m_settings.rollDistanceM = std::clamp(m_settings.rollDistanceM, 0.5f, 7.0f);
-        m_settings.rollTravelVehicleWidths = std::clamp(
-            m_settings.rollTravelVehicleWidths, 1.0f, 2.0f);
-        m_settings.rollTorqueCutoffDegrees =
-            std::clamp(m_settings.rollTorqueCutoffDegrees, 45.0f, 120.0f);
-        m_settings.rollStabilizationTorqueNm =
-            (std::max)(m_settings.rollStabilizationTorqueNm, 0.0f);
-        m_settings.rollStabilizationDampingNms =
-            (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
-        m_settings.neutralBrakeAmount = std::clamp(
-            m_settings.neutralBrakeAmount,
-            0.0f,
-            1.0f);
-        m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 1.0f);
-        m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 6.0f);
-        m_settings.trackLongitudinalFriction =
-            std::clamp(m_settings.trackLongitudinalFriction, 0.0f, 10.0f);
-        m_settings.trackLateralFriction =
-            std::clamp(m_settings.trackLateralFriction, 0.0f, 10.0f);
-        m_settings.chassisWidthM = std::clamp(m_settings.chassisWidthM, 1.6f, 3.2f);
-        m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
-        m_settings.endWheelRadiusM =
-            std::clamp(m_settings.endWheelRadiusM, 0.01f, 0.6f);
-        m_settings.roadWheelRadiusM =
-            std::clamp(m_settings.roadWheelRadiusM, 0.2f, 0.5f);
-        m_settings.clutchReleaseTimeSeconds =
-            std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
-        m_settings.engineMaxTorqueNm =
-            std::clamp(m_settings.engineMaxTorqueNm, 100.0f, 5000.0f);
-        m_settings.engineMaxRpm =
-            std::clamp(m_settings.engineMaxRpm, 2000.0f, 10000.0f);
-        m_settings.transmissionShiftDownRpm = std::clamp(
-            m_settings.transmissionShiftDownRpm,
-            500.0f,
-            m_settings.engineMaxRpm - 200.0f);
-        m_settings.transmissionShiftUpRpm = std::clamp(
-            m_settings.transmissionShiftUpRpm,
-            m_settings.transmissionShiftDownRpm + 100.0f,
-            m_settings.engineMaxRpm - 100.0f);
-        m_settings.transmissionClutchStrength = std::clamp(
-            m_settings.transmissionClutchStrength,
-            1.0f,
-            100.0f);
-        m_settings.finalDriveRatio =
-            std::clamp(m_settings.finalDriveRatio, 0.25f, 4.0f);
-        m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
-        const float maximumEndWheelOffset =
-            (std::max)(
-                0.0f,
-                0.5f * m_settings.chassisLengthM -
-                    m_settings.endWheelRadiusM - 0.1f);
-        m_settings.endWheelOffsetM = std::clamp(
-            m_settings.endWheelOffsetM,
-            0.0f,
-            (std::min)(1.0f, maximumEndWheelOffset));
-        const float endWheelPosition =
-            0.5f * m_settings.chassisLengthM - m_settings.endWheelOffsetM;
-        const float maximumTwoRoadWheelOffset =
-            (std::max)(0.1f, endWheelPosition - m_settings.roadWheelRadiusM);
-        m_settings.twoRoadWheelOffsetM = std::clamp(
-            m_settings.twoRoadWheelOffsetM,
-            0.1f,
-            (std::min)(2.0f, maximumTwoRoadWheelOffset));
-        m_settings.threeRoadWheelOffsetM = std::clamp(
-            m_settings.threeRoadWheelOffsetM,
-            0.1f,
-            (std::min)(2.0f, maximumTwoRoadWheelOffset));
-        m_settings.rideHeightScale =
-            std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
-        m_settings.suspensionFrequencyHz =
-            std::clamp(m_settings.suspensionFrequencyHz, 0.1f, 10.0f);
-        m_settings.suspensionDamping =
-            std::clamp(m_settings.suspensionDamping, 0.0f, 2.0f);
-        m_settings.mortarMinimumFireAngleDegrees = std::clamp(
-            m_settings.mortarMinimumFireAngleDegrees, 1.0f, 35.0f);
-        m_settings.mortarMaximumAngleDegrees = std::clamp(
-            m_settings.mortarMaximumAngleDegrees,
-            m_settings.mortarMinimumFireAngleDegrees,
-            60.0f);
-        m_settings.mortarRaiseRateDegreesPerSecond = std::clamp(
-            m_settings.mortarRaiseRateDegreesPerSecond, 1.0f, 60.0f);
-        m_settings.mortarReturnRateDegreesPerSecond = std::clamp(
-            m_settings.mortarReturnRateDegreesPerSecond, 1.0f, 60.0f);
-        m_settings.mortarMinimumRangeMeters = std::clamp(
-            m_settings.mortarMinimumRangeMeters, 0.0f, 100.0f);
-        m_settings.mortarMaximumRangeMeters = std::clamp(
-            m_settings.mortarMaximumRangeMeters,
-            m_settings.mortarMinimumRangeMeters, 200.0f);
-        m_settings.mortarMinimumAttackRadiusMeters = std::clamp(
-            m_settings.mortarMinimumAttackRadiusMeters, 0.1f, 25.0f);
-        m_settings.mortarMaximumAttackRadiusMeters = std::clamp(
-            m_settings.mortarMaximumAttackRadiusMeters,
-            m_settings.mortarMinimumAttackRadiusMeters, 50.0f);
-        m_settings.mortarStanceTorqueNm = std::clamp(
-            m_settings.mortarStanceTorqueNm, 10000.0f, 1000000.0f);
-        m_settings.mortarStanceDampingNms = std::clamp(
-            m_settings.mortarStanceDampingNms, 1000.0f, 250000.0f);
-        m_mortarAimController.Configure({
-            m_settings.mortarMinimumFireAngleDegrees,
-            m_settings.mortarMaximumAngleDegrees,
-            m_settings.mortarRaiseRateDegreesPerSecond,
-            m_settings.mortarReturnRateDegreesPerSecond,
-            m_settings.mortarMinimumRangeMeters,
-            m_settings.mortarMaximumRangeMeters,
-            m_settings.mortarMinimumAttackRadiusMeters,
-            m_settings.mortarMaximumAttackRadiusMeters});
-        for (float& stroke : m_settings.suspensionStrokeMeters)
-        {
-            stroke = std::clamp(stroke, 0.0f, 0.5f);
-        }
-        m_settings.wheelHorizontalOffsetM = std::clamp(
-            m_settings.wheelHorizontalOffsetM,
-            -1.0f,
-            1.0f);
-        m_impl = std::make_unique<Impl>(world);
+	void TankController::Initialize(
+		PhysicsWorld& world,
+		const TankSettings& settings,
+		const MapSpawn& spawn)
+	{
+		m_input = {};
+		m_state = {};
+		m_settings = settings;
+		m_mobilityStateMachine = MobilityStateMachine(m_settings);
+		m_settings.chassisMassKg = (std::max)(m_settings.chassisMassKg, 1.0f);
+		m_settings.rollTorqueNm = (std::max)(m_settings.rollTorqueNm, 0.0f);
+		m_settings.rollSpeedMultiplier = std::isfinite(m_settings.rollSpeedMultiplier)
+			? std::clamp(m_settings.rollSpeedMultiplier, 0.5f, 2.0f) : 1.0f;
+		m_settings.rollSpeedTuning = SanitizeRollingSpeedTuning(m_settings.rollSpeedTuning);
+		m_settings.rollReturnDecisionDegrees = std::clamp(
+			m_settings.rollReturnDecisionDegrees, 1.0f, 89.0f);
+		m_settings.rollApproachStartDegrees = std::clamp(
+			m_settings.rollApproachStartDegrees, 1.0f, 89.0f);
+		m_settings.rollApproachDampingNms = (std::max)(
+			m_settings.rollApproachDampingNms, 0.0f);
+		m_settings.rollCommitTorqueNm = (std::max)(
+			m_settings.rollCommitTorqueNm, 0.0f);
+		m_settings.rollAirBrakeTorqueNm = std::clamp(
+			m_settings.rollAirBrakeTorqueNm, 0.0f, 300000.0f);
+		m_settings.rollDistanceM = std::clamp(m_settings.rollDistanceM, 0.5f, 7.0f);
+		m_settings.rollTravelVehicleWidths = std::clamp(
+			m_settings.rollTravelVehicleWidths, 1.0f, 2.0f);
+		m_settings.rollTorqueCutoffDegrees =
+			std::clamp(m_settings.rollTorqueCutoffDegrees, 45.0f, 120.0f);
+		m_settings.rollStabilizationTorqueNm =
+			(std::max)(m_settings.rollStabilizationTorqueNm, 0.0f);
+		m_settings.rollStabilizationDampingNms =
+			(std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
+		m_settings.neutralBrakeAmount = std::clamp(
+			m_settings.neutralBrakeAmount,
+			0.0f,
+			1.0f);
+		m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 1.0f);
+		m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 6.0f);
+		m_settings.trackLongitudinalFriction =
+			std::clamp(m_settings.trackLongitudinalFriction, 0.0f, 10.0f);
+		m_settings.trackLateralFriction =
+			std::clamp(m_settings.trackLateralFriction, 0.0f, 10.0f);
+		m_settings.chassisWidthM = std::clamp(m_settings.chassisWidthM, 1.6f, 3.2f);
+		m_settings.chassisLengthM = std::clamp(m_settings.chassisLengthM, 3.0f, 5.5f);
+		m_settings.endWheelRadiusM =
+			std::clamp(m_settings.endWheelRadiusM, 0.01f, 0.6f);
+		m_settings.roadWheelRadiusM =
+			std::clamp(m_settings.roadWheelRadiusM, 0.2f, 0.5f);
+		m_settings.clutchReleaseTimeSeconds =
+			std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
+		m_settings.engineMaxTorqueNm =
+			std::clamp(m_settings.engineMaxTorqueNm, 100.0f, 5000.0f);
+		m_settings.engineMaxRpm =
+			std::clamp(m_settings.engineMaxRpm, 2000.0f, 10000.0f);
+		m_settings.transmissionShiftDownRpm = std::clamp(
+			m_settings.transmissionShiftDownRpm,
+			500.0f,
+			m_settings.engineMaxRpm - 200.0f);
+		m_settings.transmissionShiftUpRpm = std::clamp(
+			m_settings.transmissionShiftUpRpm,
+			m_settings.transmissionShiftDownRpm + 100.0f,
+			m_settings.engineMaxRpm - 100.0f);
+		m_settings.transmissionClutchStrength = std::clamp(
+			m_settings.transmissionClutchStrength,
+			1.0f,
+			100.0f);
+		m_settings.finalDriveRatio =
+			std::clamp(m_settings.finalDriveRatio, 0.25f, 4.0f);
+		m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
+		const float maximumEndWheelOffset =
+			(std::max)(
+				0.0f,
+				0.5f * m_settings.chassisLengthM -
+				m_settings.endWheelRadiusM - 0.1f);
+		m_settings.endWheelOffsetM = std::clamp(
+			m_settings.endWheelOffsetM,
+			0.0f,
+			(std::min)(1.0f, maximumEndWheelOffset));
+		const float endWheelPosition =
+			0.5f * m_settings.chassisLengthM - m_settings.endWheelOffsetM;
+		const float maximumTwoRoadWheelOffset =
+			(std::max)(0.1f, endWheelPosition - m_settings.roadWheelRadiusM);
+		m_settings.twoRoadWheelOffsetM = std::clamp(
+			m_settings.twoRoadWheelOffsetM,
+			0.1f,
+			(std::min)(2.0f, maximumTwoRoadWheelOffset));
+		m_settings.threeRoadWheelOffsetM = std::clamp(
+			m_settings.threeRoadWheelOffsetM,
+			0.1f,
+			(std::min)(2.0f, maximumTwoRoadWheelOffset));
+		m_settings.rideHeightScale =
+			std::clamp(m_settings.rideHeightScale, 0.5f, 1.1f);
+		m_settings.suspensionFrequencyHz =
+			std::clamp(m_settings.suspensionFrequencyHz, 0.1f, 10.0f);
+		m_settings.suspensionDamping =
+			std::clamp(m_settings.suspensionDamping, 0.0f, 2.0f);
+		m_settings.mortarMinimumFireAngleDegrees = std::clamp(
+			m_settings.mortarMinimumFireAngleDegrees, 1.0f, 35.0f);
+		m_settings.mortarMaximumAngleDegrees = std::clamp(
+			m_settings.mortarMaximumAngleDegrees,
+			m_settings.mortarMinimumFireAngleDegrees,
+			60.0f);
+		m_settings.mortarRaiseRateDegreesPerSecond = std::clamp(
+			m_settings.mortarRaiseRateDegreesPerSecond, 1.0f, 60.0f);
+		m_settings.mortarReturnRateDegreesPerSecond = std::clamp(
+			m_settings.mortarReturnRateDegreesPerSecond, 1.0f, 60.0f);
+		m_settings.mortarMinimumRangeMeters = std::clamp(
+			m_settings.mortarMinimumRangeMeters, 0.0f, 100.0f);
+		m_settings.mortarMaximumRangeMeters = std::clamp(
+			m_settings.mortarMaximumRangeMeters,
+			m_settings.mortarMinimumRangeMeters, 200.0f);
+		m_settings.mortarMinimumAttackRadiusMeters = std::clamp(
+			m_settings.mortarMinimumAttackRadiusMeters, 0.1f, 25.0f);
+		m_settings.mortarMaximumAttackRadiusMeters = std::clamp(
+			m_settings.mortarMaximumAttackRadiusMeters,
+			m_settings.mortarMinimumAttackRadiusMeters, 50.0f);
+		m_settings.mortarStanceTorqueNm = std::clamp(
+			m_settings.mortarStanceTorqueNm, 10000.0f, 1000000.0f);
+		m_settings.mortarStanceDampingNms = std::clamp(
+			m_settings.mortarStanceDampingNms, 1000.0f, 250000.0f);
+		m_mortarAimController.Configure({
+			m_settings.mortarMinimumFireAngleDegrees,
+			m_settings.mortarMaximumAngleDegrees,
+			m_settings.mortarRaiseRateDegreesPerSecond,
+			m_settings.mortarReturnRateDegreesPerSecond,
+			m_settings.mortarMinimumRangeMeters,
+			m_settings.mortarMaximumRangeMeters,
+			m_settings.mortarMinimumAttackRadiusMeters,
+			m_settings.mortarMaximumAttackRadiusMeters });
+		for (float& stroke : m_settings.suspensionStrokeMeters)
+		{
+			stroke = std::clamp(stroke, 0.0f, 0.5f);
+		}
+		m_settings.wheelHorizontalOffsetM = std::clamp(
+			m_settings.wheelHorizontalOffsetM,
+			-1.0f,
+			1.0f);
+		m_impl = std::make_unique<Impl>(world);
 
-        const float roadWheelRadius = m_settings.roadWheelRadiusM;
-        const float wheelWidth = m_settings.trackWidthM;
-        const float halfVehicleWidth = 0.5f * m_settings.chassisWidthM;
-        const float halfTrackSpacing = 0.5f * m_settings.trackSpacingM;
-        const float halfVehicleLength = 0.5f * m_settings.chassisLengthM;
-        const float halfVehicleHeight = 0.5f;
-        const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
+		const float roadWheelRadius = m_settings.roadWheelRadiusM;
+		const float wheelWidth = m_settings.trackWidthM;
+		const float halfVehicleWidth = 0.5f * m_settings.chassisWidthM;
+		const float halfTrackSpacing = 0.5f * m_settings.trackSpacingM;
+		const float halfVehicleLength = 0.5f * m_settings.chassisLengthM;
+		const float halfVehicleHeight = 0.5f;
+		const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
 
-        JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
+		JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
 
-        JPH::RefConst<JPH::Shape> tankBodyShape =
-            new JPH::BoxShape(JPH::Vec3(halfVehicleWidth, halfVehicleHeight, halfVehicleLength));
-        const JPH::Quat yawRotation =
-            JPH::Quat::sRotation(JPH::Vec3::sAxisY(), spawn.yawRadians);
-        const JPH::Quat initialRotation = m_settings.startUpsideDown ?
-            yawRotation * JPH::Quat::sRotation(JPH::Vec3::sAxisZ(), JPH::JPH_PI) :
-            yawRotation;
+		JPH::RefConst<JPH::Shape> tankBodyShape =
+			new JPH::BoxShape(JPH::Vec3(halfVehicleWidth, halfVehicleHeight, halfVehicleLength));
+		const JPH::Quat yawRotation =
+			JPH::Quat::sRotation(JPH::Vec3::sAxisY(), spawn.yawRadians);
+		const JPH::Quat initialRotation = m_settings.startUpsideDown ?
+			yawRotation * JPH::Quat::sRotation(JPH::Vec3::sAxisZ(), JPH::JPH_PI) :
+			yawRotation;
 
-        JPH::BodyCreationSettings tankBodySettings(
-            tankBodyShape,
-            JPH::RVec3(
-                spawn.position.x,
-                spawn.position.y,
-                spawn.position.z),
-            initialRotation,
-            JPH::EMotionType::Dynamic,
-            Layers::Moving);
-        tankBodySettings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
-        tankBodySettings.mMassPropertiesOverride.mMass = m_settings.chassisMassKg;
+		JPH::BodyCreationSettings tankBodySettings(
+			tankBodyShape,
+			JPH::RVec3(
+				spawn.position.x,
+				spawn.position.y,
+				spawn.position.z),
+			initialRotation,
+			JPH::EMotionType::Dynamic,
+			Layers::Moving);
+		tankBodySettings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+		tankBodySettings.mMassPropertiesOverride.mMass = m_settings.chassisMassKg;
 
-        JPH::Body* tankBody = bodyInterface.CreateBody(tankBodySettings);
-        m_impl->bodyId = tankBody->GetID();
-        m_impl->hasBody = true;
-        bodyInterface.AddBody(m_impl->bodyId, JPH::EActivation::Activate);
+		JPH::Body* tankBody = bodyInterface.CreateBody(tankBodySettings);
+		m_impl->bodyId = tankBody->GetID();
+		m_impl->hasBody = true;
+		bodyInterface.AddBody(m_impl->bodyId, JPH::EActivation::Activate);
 
-        JPH::VehicleConstraintSettings vehicle;
-        vehicle.mMaxPitchRollAngle = JPH::JPH_PI;
+		JPH::VehicleConstraintSettings vehicle;
+		vehicle.mMaxPitchRollAngle = JPH::JPH_PI;
 
-        JPH::TrackedVehicleControllerSettings* controllerSettings =
-            new JPH::TrackedVehicleControllerSettings;
-        controllerSettings->mEngine.mMaxTorque = m_settings.engineMaxTorqueNm;
-        controllerSettings->mEngine.mMaxRPM = m_settings.engineMaxRpm;
-        controllerSettings->mTransmission.mShiftDownRPM =
-            m_settings.transmissionShiftDownRpm;
-        controllerSettings->mTransmission.mShiftUpRPM =
-            m_settings.transmissionShiftUpRpm;
-        controllerSettings->mTransmission.mClutchStrength =
-            m_settings.transmissionClutchStrength;
-        for (float& ratio : controllerSettings->mTransmission.mGearRatios)
-        {
-            ratio *= m_settings.finalDriveRatio;
-        }
-        for (float& ratio : controllerSettings->mTransmission.mReverseGearRatios)
-        {
-            ratio *= m_settings.finalDriveRatio;
-        }
-        controllerSettings->mTransmission.mClutchReleaseTime =
-            std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
-        vehicle.mController = controllerSettings;
+		JPH::TrackedVehicleControllerSettings* controllerSettings =
+			new JPH::TrackedVehicleControllerSettings;
+		controllerSettings->mEngine.mMaxTorque = m_settings.engineMaxTorqueNm;
+		controllerSettings->mEngine.mMaxRPM = m_settings.engineMaxRpm;
+		controllerSettings->mTransmission.mShiftDownRPM =
+			m_settings.transmissionShiftDownRpm;
+		controllerSettings->mTransmission.mShiftUpRPM =
+			m_settings.transmissionShiftUpRpm;
+		controllerSettings->mTransmission.mClutchStrength =
+			m_settings.transmissionClutchStrength;
+		for (float& ratio : controllerSettings->mTransmission.mGearRatios)
+		{
+			ratio *= m_settings.finalDriveRatio;
+		}
+		for (float& ratio : controllerSettings->mTransmission.mReverseGearRatios)
+		{
+			ratio *= m_settings.finalDriveRatio;
+		}
+		controllerSettings->mTransmission.mClutchReleaseTime =
+			std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
+		vehicle.mController = controllerSettings;
 
-        for (int t = 0; t < 2; ++t)
-        {
-            JPH::VehicleTrackSettings& track = controllerSettings->mTracks[t];
+		for (int t = 0; t < 2; ++t)
+		{
+			JPH::VehicleTrackSettings& track = controllerSettings->mTracks[t];
 
-            const int numWheelsPerSurface = m_settings.roadWheelCount + 2;
-            track.mDrivenWheel =
-                static_cast<JPH::uint>(vehicle.mWheels.size() + numWheelsPerSurface - 1);
+			const int numWheelsPerSurface = m_settings.roadWheelCount + 2;
+			track.mDrivenWheel =
+				static_cast<JPH::uint>(vehicle.mWheels.size() + numWheelsPerSurface - 1);
 
-            for (int surface = 0; surface < kTankSurfacesPerTrack; ++surface)
-            {
-                const bool upperSurface = surface == 1;
-                for (int w = 0; w < numWheelsPerSurface; ++w)
-                {
-                    JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
-                    wheel->mLongitudinalFriction =
-                        m_settings.trackLongitudinalFriction;
-                    wheel->mLateralFriction = m_settings.trackLateralFriction;
-                    const float wheelFraction =
-                        static_cast<float>(w) / static_cast<float>(numWheelsPerSurface - 1);
-                    const bool endWheel = w == 0 || w == numWheelsPerSurface - 1;
-                    float wheelZ =
-                        halfVehicleLength - wheelFraction * m_settings.chassisLengthM;
-                    if (endWheel)
-                    {
-                        wheelZ = w == 0 ? endWheelPosition : -endWheelPosition;
-                    }
-                    if (m_settings.roadWheelCount == 2 && !endWheel)
-                    {
-                        wheelZ = w == 1
-                            ? m_settings.twoRoadWheelOffsetM
-                            : -m_settings.twoRoadWheelOffsetM;
-                    }
-                    else if (m_settings.roadWheelCount == 3 && !endWheel)
-                    {
-                        wheelZ = w == 1
-                            ? m_settings.threeRoadWheelOffsetM
-                            : (w == 2 ? 0.0f : -m_settings.threeRoadWheelOffsetM);
-                    }
-                    wheel->mPosition =
-                        JPH::Vec3(
-                            0.0f,
-                            endWheel ? m_settings.endWheelVerticalOffsetM
-                                     : -roadWheelRadius + m_settings.roadWheelVerticalOffsetM,
-                            wheelZ);
-                    const float wheelHorizontalPosition =
-                        halfTrackSpacing + m_settings.wheelHorizontalOffsetM;
-                    wheel->mPosition.SetX(
-                        t == 0 ? wheelHorizontalPosition : -wheelHorizontalPosition);
-                    if (upperSurface)
-                    {
-                        wheel->mPosition.SetY(-wheel->mPosition.GetY());
-                        wheel->mSuspensionDirection = JPH::Vec3::sAxisY();
-                        wheel->mSteeringAxis = -JPH::Vec3::sAxisY();
-                        wheel->mWheelUp = -JPH::Vec3::sAxisY();
-                    }
-                    wheel->mRadius = endWheel
-                        ? m_settings.endWheelRadiusM
-                        : m_settings.roadWheelRadiusM;
-                    wheel->mWidth = wheelWidth;
-                    wheel->mSuspensionForcePoint = wheel->mPosition;
-                    wheel->mEnableSuspensionForcePoint = true;
-                    wheel->mSuspensionMinLength = suspensionMinLength;
-                    const int suspensionPosition = w == 0
-                        ? 0
-                        : (w == numWheelsPerSurface - 1
-                            ? kTankSuspensionPositionsPerSurface - 1
-                            : w);
-                    const int suspensionSlot = TankSuspensionSlotIndex(
-                        t, surface, suspensionPosition);
-                    wheel->mSuspensionMaxLength = suspensionMinLength +
-                        m_settings.suspensionStrokeMeters[
-                            static_cast<size_t>(suspensionSlot)];
-                    wheel->mSuspensionSpring.mFrequency =
-                        m_settings.suspensionFrequencyHz;
-                    wheel->mSuspensionSpring.mDamping =
-                        m_settings.suspensionDamping;
+			for (int surface = 0; surface < kTankSurfacesPerTrack; ++surface)
+			{
+				const bool upperSurface = surface == 1;
+				for (int w = 0; w < numWheelsPerSurface; ++w)
+				{
+					JPH::WheelSettingsTV* wheel = new JPH::WheelSettingsTV;
+					wheel->mLongitudinalFriction =
+						m_settings.trackLongitudinalFriction;
+					wheel->mLateralFriction = m_settings.trackLateralFriction;
+					const float wheelFraction =
+						static_cast<float>(w) / static_cast<float>(numWheelsPerSurface - 1);
+					const bool endWheel = w == 0 || w == numWheelsPerSurface - 1;
+					float wheelZ =
+						halfVehicleLength - wheelFraction * m_settings.chassisLengthM;
+					if (endWheel)
+					{
+						wheelZ = w == 0 ? endWheelPosition : -endWheelPosition;
+					}
+					if (m_settings.roadWheelCount == 2 && !endWheel)
+					{
+						wheelZ = w == 1
+							? m_settings.twoRoadWheelOffsetM
+							: -m_settings.twoRoadWheelOffsetM;
+					}
+					else if (m_settings.roadWheelCount == 3 && !endWheel)
+					{
+						wheelZ = w == 1
+							? m_settings.threeRoadWheelOffsetM
+							: (w == 2 ? 0.0f : -m_settings.threeRoadWheelOffsetM);
+					}
+					wheel->mPosition =
+						JPH::Vec3(
+							0.0f,
+							endWheel ? m_settings.endWheelVerticalOffsetM
+							: -roadWheelRadius + m_settings.roadWheelVerticalOffsetM,
+							wheelZ);
+					const float wheelHorizontalPosition =
+						halfTrackSpacing + m_settings.wheelHorizontalOffsetM;
+					wheel->mPosition.SetX(
+						t == 0 ? wheelHorizontalPosition : -wheelHorizontalPosition);
+					if (upperSurface)
+					{
+						wheel->mPosition.SetY(-wheel->mPosition.GetY());
+						wheel->mSuspensionDirection = JPH::Vec3::sAxisY();
+						wheel->mSteeringAxis = -JPH::Vec3::sAxisY();
+						wheel->mWheelUp = -JPH::Vec3::sAxisY();
+					}
+					wheel->mRadius = endWheel
+						? m_settings.endWheelRadiusM
+						: m_settings.roadWheelRadiusM;
+					wheel->mWidth = wheelWidth;
+					wheel->mSuspensionForcePoint = wheel->mPosition;
+					wheel->mEnableSuspensionForcePoint = true;
+					wheel->mSuspensionMinLength = suspensionMinLength;
+					const int suspensionPosition = w == 0
+						? 0
+						: (w == numWheelsPerSurface - 1
+							? kTankSuspensionPositionsPerSurface - 1
+							: w);
+					const int suspensionSlot = TankSuspensionSlotIndex(
+						t, surface, suspensionPosition);
+					wheel->mSuspensionMaxLength = suspensionMinLength +
+						m_settings.suspensionStrokeMeters[
+							static_cast<size_t>(suspensionSlot)];
+					wheel->mSuspensionSpring.mFrequency =
+						m_settings.suspensionFrequencyHz;
+					wheel->mSuspensionSpring.mDamping =
+						m_settings.suspensionDamping;
 
-                    track.mWheels.push_back(static_cast<JPH::uint>(vehicle.mWheels.size()));
-                    vehicle.mWheels.push_back(wheel);
-                    m_impl->rollingWheelSettings.push_back(wheel);
-                }
-            }
-        }
+					track.mWheels.push_back(static_cast<JPH::uint>(vehicle.mWheels.size()));
+					vehicle.mWheels.push_back(wheel);
+					m_impl->rollingWheelSettings.push_back(wheel);
+				}
+			}
+		}
 
-        m_impl->vehicleConstraint = new JPH::VehicleConstraint(*tankBody, vehicle);
-        m_impl->vehicleConstraint->SetVehicleCollisionTester(
-            new JPH::VehicleCollisionTesterRay(Layers::Moving));
+		m_impl->vehicleConstraint = new JPH::VehicleConstraint(*tankBody, vehicle);
+		m_impl->vehicleConstraint->SetVehicleCollisionTester(
+			new JPH::VehicleCollisionTesterRay(Layers::Moving));
 
-        JPH::PhysicsSystem& physicsSystem = world.GetPhysicsSystem();
-        physicsSystem.AddConstraint(m_impl->vehicleConstraint);
-        physicsSystem.AddStepListener(m_impl->vehicleConstraint);
-    }
+		JPH::PhysicsSystem& physicsSystem = world.GetPhysicsSystem();
+		physicsSystem.AddConstraint(m_impl->vehicleConstraint);
+		physicsSystem.AddStepListener(m_impl->vehicleConstraint);
+	}
 
-    void TankController::SetInput(const TankInput& input)
-    {
-        m_input.throttle = ClampNormalized(input.throttle);
-        m_input.steering = ClampNormalized(input.steering);
-        m_input.leftTrack = ClampNormalized(input.leftTrack);
-        m_input.rightTrack = ClampNormalized(input.rightTrack);
-        m_input.roll =
-            m_settings.rollingInputEnabled ? ClampNormalized(input.roll) : 0.0f;
-        m_input.fireAssault = input.fireAssault;
-        m_input.leftLeverX = ClampNormalized(input.leftLeverX);
-        m_input.rightLeverX = ClampNormalized(input.rightLeverX);
-        m_input.brakeAmount = std::clamp(input.brakeAmount, 0.0f, 1.0f);
-        m_input.brake = input.brake;
-    }
+	void TankController::SetInput(const TankInput& input)
+	{
+		m_input.throttle = ClampNormalized(input.throttle);
+		m_input.steering = ClampNormalized(input.steering);
+		m_input.leftTrack = ClampNormalized(input.leftTrack);
+		m_input.rightTrack = ClampNormalized(input.rightTrack);
+		m_input.roll =
+			m_settings.rollingInputEnabled ? ClampNormalized(input.roll) : 0.0f;
+		m_input.fireAssault = input.fireAssault;
+		m_input.leftLeverX = ClampNormalized(input.leftLeverX);
+		m_input.rightLeverX = ClampNormalized(input.rightLeverX);
+		m_input.brakeAmount = std::clamp(input.brakeAmount, 0.0f, 1.0f);
+		m_input.brake = input.brake;
+	}
 
-    bool TankController::FireAssault()
-    {
-        return m_assaultWeapon.TryFire();
-    }
+	bool TankController::FireAssault()
+	{
+		return m_assaultWeapon.TryFire();
+	}
 
-    bool TankController::ApplyConfiguredRecoil()
-    {
-        if (m_impl == nullptr ||
-            !std::isfinite(m_settings.recoilImpulseNewtonSeconds) ||
-            m_settings.recoilImpulseNewtonSeconds <= 0.0f ||
-            !std::isfinite(m_settings.recoilPointForwardM) ||
-            !std::isfinite(m_settings.recoilPointHeightM))
-        {
-            return false;
-        }
+	bool TankController::ApplyConfiguredRecoil()
+	{
+		if (m_impl == nullptr ||
+			!std::isfinite(m_settings.recoilImpulseNewtonSeconds) ||
+			m_settings.recoilImpulseNewtonSeconds <= 0.0f ||
+			!std::isfinite(m_settings.recoilPointForwardM) ||
+			!std::isfinite(m_settings.recoilPointHeightM))
+		{
+			return false;
+		}
 
-        JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
-        const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
-        const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
-        const JPH::Vec3 localPoint(
-            0.0f,
-            m_settings.recoilPointHeightM,
-            m_settings.recoilPointForwardM);
-        const JPH::RVec3 worldPoint =
-            bodyInterface.GetCenterOfMassPosition(m_impl->bodyId) +
-            bodyRotation * localPoint;
-        bodyInterface.AddImpulse(
-            m_impl->bodyId,
-            -m_settings.recoilImpulseNewtonSeconds * bodyForward,
-            worldPoint);
-        return true;
-    }
+		JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
+		const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
+		const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+		const JPH::Vec3 localPoint(
+			0.0f,
+			m_settings.recoilPointHeightM,
+			m_settings.recoilPointForwardM);
+		const JPH::RVec3 worldPoint =
+			bodyInterface.GetCenterOfMassPosition(m_impl->bodyId) +
+			bodyRotation * localPoint;
+		bodyInterface.AddImpulse(
+			m_impl->bodyId,
+			-m_settings.recoilImpulseNewtonSeconds * bodyForward,
+			worldPoint);
+		return true;
+	}
 
-    bool TankController::ApplyRecoilImpulse(float impulseNewtonSeconds)
-    {
-        if (m_impl == nullptr || !std::isfinite(impulseNewtonSeconds) ||
-            impulseNewtonSeconds <= 0.0f)
-        {
-            return false;
-        }
+	bool TankController::ApplyRecoilImpulse(float impulseNewtonSeconds)
+	{
+		if (m_impl == nullptr || !std::isfinite(impulseNewtonSeconds) ||
+			impulseNewtonSeconds <= 0.0f)
+		{
+			return false;
+		}
 
-        JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
-        const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
-        const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
-        bodyInterface.AddImpulse(m_impl->bodyId, -impulseNewtonSeconds * bodyForward);
-        return true;
-    }
+		JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
+		const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
+		const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+		bodyInterface.AddImpulse(m_impl->bodyId, -impulseNewtonSeconds * bodyForward);
+		return true;
+	}
 
-    void TankController::PreStep()
-    {
-        if (m_impl == nullptr)
-        {
-            return;
-        }
+	void TankController::PreStep()
+	{
+		if (m_impl == nullptr)
+		{
+			return;
+		}
 
-        JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
-        bodyInterface.ActivateBody(m_impl->bodyId);
+		JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
+		bodyInterface.ActivateBody(m_impl->bodyId);
 
-        const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
-        const float rollSpeed = m_settings.rollSpeedMultiplier;
-        const auto& tuning = m_settings.rollSpeedTuning;
-        const auto scale = [rollSpeed](float atTwo) { return RollingSpeedScale(atTwo, rollSpeed); };
-        const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
-        const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
-        const bool mortarActive =
-            m_state.specialMove.state == SpecialMoveState::MortarStarting ||
-            m_state.specialMove.state == SpecialMoveState::MortarAiming;
-        if (mortarActive)
-        {
-            // Mortar stance is a physical pitch target, never a pose override.
-            // Holding X raises the forward end; releasing X lowers it smoothly.
-            JPH::Vec3 flatForward = bodyForward;
-            flatForward.SetY(0.0f);
-            if (flatForward.LengthSq() > 0.0001f)
-            {
-                flatForward = flatForward.Normalized();
-                const float pitchRadians = JPH::DegreesToRadians(
-                    m_state.mortarAim.angleDegrees);
-                const JPH::Vec3 targetUp =
-                    JPH::Vec3::sAxisY() * std::cos(pitchRadians) -
-                    flatForward * std::sin(pitchRadians);
-                const JPH::Vec3 bodyRight = bodyUp.Cross(bodyForward).Normalized();
-                const float pitchError = bodyUp.Cross(targetUp).Dot(bodyRight);
-                const float pitchVelocity = bodyInterface.GetAngularVelocity(
-                    m_impl->bodyId).Dot(bodyRight);
-                bodyInterface.AddTorque(
-                    m_impl->bodyId,
-                    bodyRight * (pitchError * m_settings.mortarStanceTorqueNm -
-                        pitchVelocity * m_settings.mortarStanceDampingNms));
-            }
-        }
-        if (std::abs(m_input.throttle) > 0.001f)
-        {
-            m_impl->rollChainAvailable = false;
-        }
-        // Landing enables the next one-shot roll input. It intentionally
-        // bypasses the normal stopped gate, so the new roll replaces the
-        // previous roll's settling brake while lateral slide remains.
-        const bool rollChainRequested =
-            m_impl->rollChainAvailable &&
-            std::abs(m_input.throttle) < 0.001f;
-        const bool canStartRoll =
-            m_state.mobility.state == MobilityState::Stopped ||
-            rollChainRequested;
-        const bool canRequestRoll =
-            m_state.mobility.state == MobilityState::Stopped ||
-            rollChainRequested;
-        TankInput specialMoveInput = m_input;
-        if (!m_settings.rollingInputEnabled &&
-            specialMoveInput.leftLeverX * specialMoveInput.rightLeverX > 0.0f)
-        {
-            specialMoveInput.leftLeverX = 0.0f;
-            specialMoveInput.rightLeverX = 0.0f;
-        }
-        const SpecialMoveState previousSpecialMove = m_state.specialMove.state;
-        m_state.specialMove = m_specialMoveInputProcessor.Update(
-            m_specialMoveStateMachine,
-            specialMoveInput,
-            m_state.mobility.state == MobilityState::Stopped,
-            canRequestRoll);
-        if (previousSpecialMove != SpecialMoveState::MortarStarting &&
-            previousSpecialMove != SpecialMoveState::MortarAiming &&
-            m_state.specialMove.state == SpecialMoveState::MortarStarting)
-        {
-            m_mortarAimController.Reset();
-            m_state.mortarAim = m_mortarAimController.Snapshot();
-        }
-        const RollingPhase rollingPhaseBefore = m_impl->rollingPhase;
-        const bool wasRollingEvaluating =
-            m_impl->rollingPhase == RollingPhase::Evaluating;
-        // A chained request starts immediately and replaces Settling. A
-        // normal request remains subject to the stopped mobility gate above.
-        // A phase may remain RollStarting for one frame while the FSM and
-        // physics synchronize. It is never a standing request: a roll can
-        // only begin in the same frame that the recognizer emitted a fresh
-        // paired-lever event. This prevents a landing from replaying an old
-        // request after the player has returned both levers to neutral.
-        const bool rollStartEventThisFrame =
-            m_state.specialMove.lastEvent ==
-                SpecialMoveEvent::RollLeftRequested ||
-            m_state.specialMove.lastEvent ==
-                SpecialMoveEvent::RollRightRequested;
-        const bool rollStartPending =
-            m_state.specialMove.state == SpecialMoveState::RollStarting &&
-            rollStartEventThisFrame;
-        if (rollStartPending && m_impl->rollInputLatched &&
-            m_impl->rollChainAvailable)
-        {
-            // Landing has already made the prior roll complete. A new roll
-            // request replaces its settling brake immediately, rather than
-            // waiting for an otherwise invisible slide to decay.
-            m_impl->rollInputLatched = false;
-            m_impl->rollingPhase = RollingPhase::None;
-        }
-        if (rollStartPending && !m_impl->rollInputLatched && canStartRoll)
-        {
-            m_impl->latchedRollCommand =
-                m_state.specialMove.requestedRollSign;
-            // RollSign is the shared horizontal lever sign. It is applied
-            // directly to the model's local +Z rotation axis regardless of
-            // whether the hull is upright, inverted, or still sliding.
-            m_impl->rollRotationSign = m_impl->latchedRollCommand;
-            m_impl->lastRollingTraceEvent = RollingTraceEvent::StartLatched;
-            ++m_impl->rollingTraceSequence;
-            m_impl->rollingTraceRequestSign =
-                m_state.specialMove.requestedRollSign;
-            m_impl->rollingTraceCommandSign = m_impl->rollRotationSign;
-            m_impl->rollingTraceInputSign =
-                std::abs(m_input.leftLeverX) >= 0.70f &&
-                    std::abs(m_input.rightLeverX) >= 0.70f &&
-                    m_input.leftLeverX * m_input.rightLeverX > 0.0f
-                ? (m_input.leftLeverX < 0.0f ? -1.0f : 1.0f)
-                : 0.0f;
-            // The lateral motion is not an independently chosen direction:
-            // it must follow the side toward which the currently upper hull
-            // surface is falling under the commanded roll rotation.
-            // Translation is not an independent steering rule. Determine
-            // which tread rises from the requested physical angular motion,
-            // then move toward the opposite tread: the side the hull is
-            // physically falling into. This stays valid while inverted.
-            const float physicsRollSign = ToJoltRollTorqueSign(
-                m_impl->rollRotationSign);
-            const JPH::Vec3 bodyRight = bodyUp.Cross(bodyForward);
-            const float rightTreadLift =
-                (bodyForward * physicsRollSign).Cross(bodyRight).Dot(
-                    JPH::Vec3::sAxisY());
-            JPH::Vec3 horizontalFallDirection = rightTreadLift >= 0.0f
-                ? -bodyRight
-                : bodyRight;
-            horizontalFallDirection.SetY(0.0f);
-            m_impl->rollInputLatched = true;
-            m_impl->rollChainAvailable = false;
-            m_impl->rollingPhase = RollingPhase::PoweredRoll;
-            m_impl->rollSettledFrames = 0;
-            m_impl->rollDistanceIntegral = 0.0f;
-            m_impl->maximumRollProgress = 0.0f;
-            const float physicalVehicleWidth = (std::max)(
-                m_settings.chassisWidthM,
-                m_settings.trackSpacingM + m_settings.trackWidthM);
-            m_impl->rollTargetDistanceM =
-                m_settings.rollDistanceMatchesVehicleWidth
-                ? physicalVehicleWidth * m_settings.rollTravelVehicleWidths
-                : m_settings.rollDistanceM;
-            m_impl->rollReturningToStart = false;
-            m_impl->rollStartPosition =
-                bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
-            m_impl->rollStartUp = bodyUp;
-            m_impl->rollDirection =
-                horizontalFallDirection.LengthSq() > 0.0001f
-                ? horizontalFallDirection.Normalized()
-                : JPH::Vec3::sAxisX() * m_impl->latchedRollCommand;
-        }
+		const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
+		const float rollSpeed = m_settings.rollSpeedMultiplier;
+		const auto& tuning = m_settings.rollSpeedTuning;
+		const auto scale = [rollSpeed](float atTwo) { return RollingSpeedScale(atTwo, rollSpeed); };
+		const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
+		const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+		const bool mortarActive =
+			m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+			m_state.specialMove.state == SpecialMoveState::MortarAiming;
+		if (mortarActive)
+		{
+			// Mortar stance is a physical pitch target, never a pose override.
+			// Holding X raises the forward end; releasing X lowers it smoothly.
+			JPH::Vec3 flatForward = bodyForward;
+			flatForward.SetY(0.0f);
+			if (flatForward.LengthSq() > 0.0001f)
+			{
+				flatForward = flatForward.Normalized();
+				const float pitchRadians = JPH::DegreesToRadians(
+					m_state.mortarAim.angleDegrees);
+				const JPH::Vec3 targetUp =
+					JPH::Vec3::sAxisY() * std::cos(pitchRadians) -
+					flatForward * std::sin(pitchRadians);
+				const JPH::Vec3 bodyRight = bodyUp.Cross(bodyForward).Normalized();
+				const float pitchError = bodyUp.Cross(targetUp).Dot(bodyRight);
+				const float pitchVelocity = bodyInterface.GetAngularVelocity(
+					m_impl->bodyId).Dot(bodyRight);
+				bodyInterface.AddTorque(
+					m_impl->bodyId,
+					bodyRight * (pitchError * m_settings.mortarStanceTorqueNm -
+						pitchVelocity * m_settings.mortarStanceDampingNms));
+			}
+		}
+		if (std::abs(m_input.throttle) > 0.001f)
+		{
+			m_impl->rollChainAvailable = false;
+		}
+		// Landing enables the next one-shot roll input. It intentionally
+		// bypasses the normal stopped gate, so the new roll replaces the
+		// previous roll's settling brake while lateral slide remains.
+		const bool rollChainRequested =
+			m_impl->rollChainAvailable &&
+			std::abs(m_input.throttle) < 0.001f;
+		const bool canStartRoll =
+			m_state.mobility.state == MobilityState::Stopped ||
+			rollChainRequested;
+		const bool canRequestRoll =
+			m_state.mobility.state == MobilityState::Stopped ||
+			rollChainRequested;
+		TankInput specialMoveInput = m_input;
+		if (!m_settings.rollingInputEnabled &&
+			specialMoveInput.leftLeverX * specialMoveInput.rightLeverX > 0.0f)
+		{
+			specialMoveInput.leftLeverX = 0.0f;
+			specialMoveInput.rightLeverX = 0.0f;
+		}
+		const SpecialMoveState previousSpecialMove = m_state.specialMove.state;
+		m_state.specialMove = m_specialMoveInputProcessor.Update(
+			m_specialMoveStateMachine,
+			specialMoveInput,
+			m_state.mobility.state == MobilityState::Stopped,
+			canRequestRoll);
+		if (previousSpecialMove != SpecialMoveState::MortarStarting &&
+			previousSpecialMove != SpecialMoveState::MortarAiming &&
+			m_state.specialMove.state == SpecialMoveState::MortarStarting)
+		{
+			m_mortarAimController.Reset();
+			m_state.mortarAim = m_mortarAimController.Snapshot();
+		}
+		const RollingPhase rollingPhaseBefore = m_impl->rollingPhase;
+		const bool wasRollingEvaluating =
+			m_impl->rollingPhase == RollingPhase::Evaluating;
+		// A chained request starts immediately and replaces Settling. A
+		// normal request remains subject to the stopped mobility gate above.
+		// A phase may remain RollStarting for one frame while the FSM and
+		// physics synchronize. It is never a standing request: a roll can
+		// only begin in the same frame that the recognizer emitted a fresh
+		// paired-lever event. This prevents a landing from replaying an old
+		// request after the player has returned both levers to neutral.
+		const bool rollStartEventThisFrame =
+			m_state.specialMove.lastEvent ==
+			SpecialMoveEvent::RollLeftRequested ||
+			m_state.specialMove.lastEvent ==
+			SpecialMoveEvent::RollRightRequested;
+		const bool rollStartPending =
+			m_state.specialMove.state == SpecialMoveState::RollStarting &&
+			rollStartEventThisFrame;
+		if (rollStartPending && m_impl->rollInputLatched &&
+			m_impl->rollChainAvailable)
+		{
+			// Landing has already made the prior roll complete. A new roll
+			// request replaces its settling brake immediately, rather than
+			// waiting for an otherwise invisible slide to decay.
+			m_impl->rollInputLatched = false;
+			m_impl->rollingPhase = RollingPhase::None;
+		}
+		if (rollStartPending && !m_impl->rollInputLatched && canStartRoll)
+		{
+			m_impl->latchedRollCommand =
+				m_state.specialMove.requestedRollSign;
+			// RollSign is the shared horizontal lever sign. It is applied
+			// directly to the model's local +Z rotation axis regardless of
+			// whether the hull is upright, inverted, or still sliding.
+			m_impl->rollRotationSign = m_impl->latchedRollCommand;
+			m_impl->lastRollingTraceEvent = RollingTraceEvent::StartLatched;
+			++m_impl->rollingTraceSequence;
+			m_impl->rollingTraceRequestSign =
+				m_state.specialMove.requestedRollSign;
+			m_impl->rollingTraceCommandSign = m_impl->rollRotationSign;
+			m_impl->rollingTraceInputSign =
+				std::abs(m_input.leftLeverX) >= 0.70f &&
+				std::abs(m_input.rightLeverX) >= 0.70f &&
+				m_input.leftLeverX * m_input.rightLeverX > 0.0f
+				? (m_input.leftLeverX < 0.0f ? -1.0f : 1.0f)
+				: 0.0f;
+			// The lateral motion is not an independently chosen direction:
+			// it must follow the side toward which the currently upper hull
+			// surface is falling under the commanded roll rotation.
+			// Translation is not an independent steering rule. Determine
+			// which tread rises from the requested physical angular motion,
+			// then move toward the opposite tread: the side the hull is
+			// physically falling into. This stays valid while inverted.
+			const float physicsRollSign = ToJoltRollTorqueSign(
+				m_impl->rollRotationSign);
+			const JPH::Vec3 bodyRight = bodyUp.Cross(bodyForward);
+			const float rightTreadLift =
+				(bodyForward * physicsRollSign).Cross(bodyRight).Dot(
+					JPH::Vec3::sAxisY());
+			JPH::Vec3 horizontalFallDirection = rightTreadLift >= 0.0f
+				? -bodyRight
+				: bodyRight;
+			horizontalFallDirection.SetY(0.0f);
+			m_impl->rollInputLatched = true;
+			m_impl->rollChainAvailable = false;
+			m_impl->rollingPhase = RollingPhase::PoweredRoll;
+			m_impl->rollSettledFrames = 0;
+			m_impl->rollDistanceIntegral = 0.0f;
+			m_impl->maximumRollProgress = 0.0f;
+			const float physicalVehicleWidth = (std::max)(
+				m_settings.chassisWidthM,
+				m_settings.trackSpacingM + m_settings.trackWidthM);
+			m_impl->rollTargetDistanceM =
+				m_settings.rollDistanceMatchesVehicleWidth
+				? physicalVehicleWidth * m_settings.rollTravelVehicleWidths
+				: m_settings.rollDistanceM;
+			m_impl->rollReturningToStart = false;
+			m_impl->rollStartPosition =
+				bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
+			m_impl->rollStartUp = bodyUp;
+			m_impl->rollDirection =
+				horizontalFallDirection.LengthSq() > 0.0001f
+				? horizontalFallDirection.Normalized()
+				: JPH::Vec3::sAxisX() * m_impl->latchedRollCommand;
+		}
 
-        if (m_impl->rollingPhase == RollingPhase::PoweredRoll)
-        {
-            const float cutoffDot = std::cos(
-                JPH::DegreesToRadians(m_settings.rollTorqueCutoffDegrees));
-            if (bodyUp.Dot(m_impl->rollStartUp) > cutoffDot)
-            {
-                const float rollAngleDegrees = JPH::RadiansToDegrees(std::acos(
-                    std::clamp(bodyUp.Dot(m_impl->rollStartUp), -1.0f, 1.0f)));
-                const float rollAngularVelocity =
-                    bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
-                const float approachDamping =
-                    rollAngleDegrees >= m_settings.rollApproachStartDegrees
-                    ? rollAngularVelocity * m_settings.rollApproachDampingNms
-                    : 0.0f;
-                const float physicsRollSign = ToJoltRollTorqueSign(
-                    m_impl->rollRotationSign);
-                bodyInterface.AddTorque(
-                    m_impl->bodyId,
-                    bodyForward *
-                        (physicsRollSign * m_settings.rollTorqueNm *
-                                scale(tuning.driveTorque) -
-                            approachDamping * scale(tuning.approachDamping)));
-                const bool sameDirectionLevers =
-                    std::abs(m_input.leftLeverX) >= 0.70f &&
-                    std::abs(m_input.rightLeverX) >= 0.70f &&
-                    m_input.leftLeverX * m_input.rightLeverX > 0.0f;
-                const float leverSign =
-                    m_input.leftLeverX < 0.0f ? -1.0f : 1.0f;
-                if (sameDirectionLevers &&
-                    rollAngleDegrees >= m_settings.rollReturnDecisionDegrees &&
-                    leverSign * m_impl->rollRotationSign < 0.0f)
-                {
-                    // A reverse paired input becomes eligible before the
-                    // normal 90-degree forward decision. No input or a
-                    // same-direction input keeps the original roll path.
-                    m_impl->lastRollingDecision = RollingDecision::ReturnToStart;
-                    m_impl->rollingDecisionCommandSign =
-                        m_impl->rollRotationSign;
-                    m_impl->rollingDecisionInputSign = leverSign;
-                    ++m_impl->rollingDecisionCount;
-                    m_impl->lastRollingTraceEvent =
-                        RollingTraceEvent::ReturnToStart;
-                    ++m_impl->rollingTraceSequence;
-                    m_impl->rollingTraceRequestSign =
-                        m_impl->latchedRollCommand;
-                    m_impl->rollingTraceCommandSign =
-                        -m_impl->rollRotationSign;
-                    m_impl->rollingTraceInputSign = leverSign;
-                    m_impl->rollReturningToStart = true;
-                    m_impl->rollRotationSign = -m_impl->rollRotationSign;
-                    m_impl->rollTargetDistanceM = 0.0f;
-                    m_impl->rollDistanceIntegral = 0.0f;
-                    m_impl->rollingPhase = RollingPhase::CommitRoll;
-                    m_impl->rollCommitFramesRemaining = 4.0f * scale(tuning.commitDuration);
-                }
-            }
-            else
-            {
-                m_impl->rollingPhase = RollingPhase::Evaluating;
-            }
-        }
+		if (m_impl->rollingPhase == RollingPhase::PoweredRoll)
+		{
+			const float cutoffDot = std::cos(
+				JPH::DegreesToRadians(m_settings.rollTorqueCutoffDegrees));
+			if (bodyUp.Dot(m_impl->rollStartUp) > cutoffDot)
+			{
+				const float rollAngleDegrees = JPH::RadiansToDegrees(std::acos(
+					std::clamp(bodyUp.Dot(m_impl->rollStartUp), -1.0f, 1.0f)));
+				const float rollAngularVelocity =
+					bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+				const float approachDamping =
+					rollAngleDegrees >= m_settings.rollApproachStartDegrees
+					? rollAngularVelocity * m_settings.rollApproachDampingNms
+					: 0.0f;
+				const float physicsRollSign = ToJoltRollTorqueSign(
+					m_impl->rollRotationSign);
+				bodyInterface.AddTorque(
+					m_impl->bodyId,
+					bodyForward *
+					(physicsRollSign * m_settings.rollTorqueNm *
+						scale(tuning.driveTorque) -
+						approachDamping * scale(tuning.approachDamping)));
+				const bool sameDirectionLevers =
+					std::abs(m_input.leftLeverX) >= 0.70f &&
+					std::abs(m_input.rightLeverX) >= 0.70f &&
+					m_input.leftLeverX * m_input.rightLeverX > 0.0f;
+				const float leverSign =
+					m_input.leftLeverX < 0.0f ? -1.0f : 1.0f;
+				if (sameDirectionLevers &&
+					rollAngleDegrees >= m_settings.rollReturnDecisionDegrees &&
+					leverSign * m_impl->rollRotationSign < 0.0f)
+				{
+					// A reverse paired input becomes eligible before the
+					// normal 90-degree forward decision. No input or a
+					// same-direction input keeps the original roll path.
+					m_impl->lastRollingDecision = RollingDecision::ReturnToStart;
+					m_impl->rollingDecisionCommandSign =
+						m_impl->rollRotationSign;
+					m_impl->rollingDecisionInputSign = leverSign;
+					++m_impl->rollingDecisionCount;
+					m_impl->lastRollingTraceEvent =
+						RollingTraceEvent::ReturnToStart;
+					++m_impl->rollingTraceSequence;
+					m_impl->rollingTraceRequestSign =
+						m_impl->latchedRollCommand;
+					m_impl->rollingTraceCommandSign =
+						-m_impl->rollRotationSign;
+					m_impl->rollingTraceInputSign = leverSign;
+					m_impl->rollReturningToStart = true;
+					m_impl->rollRotationSign = -m_impl->rollRotationSign;
+					m_impl->rollTargetDistanceM = 0.0f;
+					m_impl->rollDistanceIntegral = 0.0f;
+					m_impl->rollingPhase = RollingPhase::CommitRoll;
+					m_impl->rollCommitFramesRemaining = 4.0f * scale(tuning.commitDuration);
+				}
+			}
+			else
+			{
+				m_impl->rollingPhase = RollingPhase::Evaluating;
+			}
+		}
 
-        if (wasRollingEvaluating &&
-            m_impl->rollingPhase == RollingPhase::Evaluating)
-        {
-            const bool sameDirectionLevers =
-                std::abs(m_input.leftLeverX) >= 0.70f &&
-                std::abs(m_input.rightLeverX) >= 0.70f &&
-                m_input.leftLeverX * m_input.rightLeverX > 0.0f;
-            const float leverSign =
-                m_input.leftLeverX < 0.0f ? -1.0f : 1.0f;
-            m_impl->lastRollingDecision = RollingDecision::ContinueForward;
-            m_impl->rollingDecisionCommandSign = m_impl->rollRotationSign;
-            m_impl->rollingDecisionInputSign =
-                sameDirectionLevers ? leverSign : 0.0f;
-            ++m_impl->rollingDecisionCount;
-            m_impl->lastRollingTraceEvent =
-                RollingTraceEvent::ContinueForward;
-            ++m_impl->rollingTraceSequence;
-            m_impl->rollingTraceRequestSign = m_impl->latchedRollCommand;
-            m_impl->rollingTraceCommandSign = m_impl->rollRotationSign;
-            m_impl->rollingTraceInputSign =
-                sameDirectionLevers ? leverSign : 0.0f;
-            if (sameDirectionLevers &&
-                leverSign * m_impl->rollRotationSign < 0.0f)
-            {
-                m_impl->rollReturningToStart = true;
-                m_impl->lastRollingDecision = RollingDecision::ReturnToStart;
-                m_impl->lastRollingTraceEvent = RollingTraceEvent::ReturnToStart;
-                m_impl->rollRotationSign = -m_impl->rollRotationSign;
-                m_impl->rollingTraceCommandSign = m_impl->rollRotationSign;
-                m_impl->rollTargetDistanceM = 0.0f;
-                m_impl->rollDistanceIntegral = 0.0f;
-            }
-            m_impl->rollingPhase = RollingPhase::CommitRoll;
-            m_impl->rollCommitFramesRemaining = 4.0f * scale(tuning.commitDuration);
-        }
+		if (wasRollingEvaluating &&
+			m_impl->rollingPhase == RollingPhase::Evaluating)
+		{
+			const bool sameDirectionLevers =
+				std::abs(m_input.leftLeverX) >= 0.70f &&
+				std::abs(m_input.rightLeverX) >= 0.70f &&
+				m_input.leftLeverX * m_input.rightLeverX > 0.0f;
+			const float leverSign =
+				m_input.leftLeverX < 0.0f ? -1.0f : 1.0f;
+			m_impl->lastRollingDecision = RollingDecision::ContinueForward;
+			m_impl->rollingDecisionCommandSign = m_impl->rollRotationSign;
+			m_impl->rollingDecisionInputSign =
+				sameDirectionLevers ? leverSign : 0.0f;
+			++m_impl->rollingDecisionCount;
+			m_impl->lastRollingTraceEvent =
+				RollingTraceEvent::ContinueForward;
+			++m_impl->rollingTraceSequence;
+			m_impl->rollingTraceRequestSign = m_impl->latchedRollCommand;
+			m_impl->rollingTraceCommandSign = m_impl->rollRotationSign;
+			m_impl->rollingTraceInputSign =
+				sameDirectionLevers ? leverSign : 0.0f;
+			if (sameDirectionLevers &&
+				leverSign * m_impl->rollRotationSign < 0.0f)
+			{
+				m_impl->rollReturningToStart = true;
+				m_impl->lastRollingDecision = RollingDecision::ReturnToStart;
+				m_impl->lastRollingTraceEvent = RollingTraceEvent::ReturnToStart;
+				m_impl->rollRotationSign = -m_impl->rollRotationSign;
+				m_impl->rollingTraceCommandSign = m_impl->rollRotationSign;
+				m_impl->rollTargetDistanceM = 0.0f;
+				m_impl->rollDistanceIntegral = 0.0f;
+			}
+			m_impl->rollingPhase = RollingPhase::CommitRoll;
+			m_impl->rollCommitFramesRemaining = 4.0f * scale(tuning.commitDuration);
+		}
 
-        if (m_impl->rollingPhase == RollingPhase::CommitRoll)
-        {
-            const float physicsRollSign = ToJoltRollTorqueSign(
-                m_impl->rollRotationSign);
-            bodyInterface.AddTorque(
-                m_impl->bodyId,
-                    bodyForward *
-                    (physicsRollSign * m_settings.rollCommitTorqueNm *
-                        scale(tuning.commitTorque) *
-                        (std::min)(m_impl->rollCommitFramesRemaining, 1.0f)));
-            if (--m_impl->rollCommitFramesRemaining <= 0)
-            {
-                m_impl->rollingPhase = RollingPhase::BallisticRoll;
-            }
-        }
+		if (m_impl->rollingPhase == RollingPhase::CommitRoll)
+		{
+			const float physicsRollSign = ToJoltRollTorqueSign(
+				m_impl->rollRotationSign);
+			bodyInterface.AddTorque(
+				m_impl->bodyId,
+				bodyForward *
+				(physicsRollSign * m_settings.rollCommitTorqueNm *
+					scale(tuning.commitTorque) *
+					(std::min)(m_impl->rollCommitFramesRemaining, 1.0f)));
+			if (--m_impl->rollCommitFramesRemaining <= 0)
+			{
+				m_impl->rollingPhase = RollingPhase::BallisticRoll;
+			}
+		}
 
-        if (m_impl->rollingPhase == RollingPhase::PoweredRoll ||
-            m_impl->rollingPhase == RollingPhase::Evaluating ||
-            m_impl->rollingPhase == RollingPhase::CommitRoll ||
-            m_impl->rollingPhase == RollingPhase::BallisticRoll)
-        {
-            constexpr float positionGain = 80000.0f;
-            constexpr float integralGain = 40000.0f;
-            // Translation must arrive at the landing point while the hull is
-            // still rolling. A stronger velocity term removes the horizontal
-            // speed before contact; no translation force is applied in
-            // Settling, so any remaining movement is genuine inertia.
-            constexpr float velocityGain = 80000.0f;
-            constexpr float maximumForce = 200000.0f;
-            const JPH::RVec3 position =
-                bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
-            const float lateralDistance = static_cast<float>(
-                (position - m_impl->rollStartPosition).Dot(m_impl->rollDirection));
-            const float lateralVelocity =
-                bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(m_impl->rollDirection);
-            const float rollAngularVelocity =
-                bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
-            const float airBrakeReleaseDegrees = std::clamp(
-                m_settings.rollAirBrakeReleaseDegrees,
-                0.0f,
-                89.0f);
-            const float airBrakeReleaseDot = -std::cos(
-                JPH::DegreesToRadians(airBrakeReleaseDegrees));
-            const float physicsRollSign = ToJoltRollTorqueSign(
-                m_impl->rollRotationSign);
-            if (!m_impl->rollReturningToStart &&
-                m_impl->rollingPhase == RollingPhase::BallisticRoll &&
-                bodyUp.Dot(m_impl->rollStartUp) > airBrakeReleaseDot &&
-                rollAngularVelocity * physicsRollSign > 0.5f)
-            {
-                bodyInterface.AddTorque(
-                    m_impl->bodyId,
-                    bodyForward *
-                        (-physicsRollSign *
-                            m_settings.rollAirBrakeTorqueNm *
-                            scale(tuning.airBrakeTorque)));
-            }
-            if (m_impl->rollReturningToStart &&
-                m_impl->rollingPhase == RollingPhase::BallisticRoll &&
-                bodyUp.Dot(m_impl->rollStartUp) < 0.95f)
-            {
-                // The reverse command at 90 degrees is an active recovery
-                // action, not passive air-braked settling. Drive toward the
-                // original up direction until the normal settled gate takes
-                // over. This branch is unreachable for a forward roll.
-                const float returnTorque =
-                    physicsRollSign * (m_settings.rollTorqueNm * 0.35f *
-                        scale(tuning.driveTorque)) -
-                    rollAngularVelocity * m_settings.rollApproachDampingNms *
-                        scale(tuning.approachDamping);
-                bodyInterface.AddTorque(
-                    m_impl->bodyId,
-                    bodyForward * returnTorque);
-            }
-            const float rollAngleRadians = std::acos(std::clamp(
-                bodyUp.Dot(m_impl->rollStartUp),
-                -1.0f,
-                1.0f));
-            const float instantaneousRollProgress =
-                rollAngleRadians / JPH::JPH_PI;
-            m_impl->maximumRollProgress = (std::max)(
-                m_impl->maximumRollProgress,
-                instantaneousRollProgress);
-            // Complete the horizontal travel before the hull contacts the
-            // ground. The eased trajectory reaches its target at the
-            // quarter-turn decision, leaving the falling half of the roll
-            // for physical braking instead of a visible post-landing
-            // distance correction.
-            constexpr float travelArrivalProgress = 0.55f;
-            const float normalizedTravelProgress = std::clamp(
-                m_impl->maximumRollProgress / travelArrivalProgress,
-                0.0f,
-                1.0f);
-            const float easedTravelProgress =
-                normalizedTravelProgress * normalizedTravelProgress *
-                (3.0f - 2.0f * normalizedTravelProgress);
-            const float targetDistance =
-                m_impl->rollTargetDistanceM * easedTravelProgress;
-            const float distanceError = targetDistance - lateralDistance;
-            m_impl->rollDistanceIntegral = std::clamp(
-                m_impl->rollDistanceIntegral + distanceError / 60.0f,
-                -2.0f,
-                2.0f);
-            const float force = std::clamp(
-                distanceError * positionGain * scale(tuning.travelForce) +
-                    m_impl->rollDistanceIntegral * integralGain *
-                        scale(tuning.travelForce) * rollSpeed -
-                    lateralVelocity * velocityGain * scale(tuning.travelDamping),
-                -maximumForce * scale(tuning.forceLimit),
-                maximumForce * scale(tuning.forceLimit));
-            bodyInterface.AddForce(m_impl->bodyId, m_impl->rollDirection * force);
+		if (m_impl->rollingPhase == RollingPhase::PoweredRoll ||
+			m_impl->rollingPhase == RollingPhase::Evaluating ||
+			m_impl->rollingPhase == RollingPhase::CommitRoll ||
+			m_impl->rollingPhase == RollingPhase::BallisticRoll)
+		{
+			constexpr float positionGain = 80000.0f;
+			constexpr float integralGain = 40000.0f;
+			// Translation must arrive at the landing point while the hull is
+			// still rolling. A stronger velocity term removes the horizontal
+			// speed before contact; no translation force is applied in
+			// Settling, so any remaining movement is genuine inertia.
+			constexpr float velocityGain = 80000.0f;
+			constexpr float maximumForce = 200000.0f;
+			const JPH::RVec3 position =
+				bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
+			const float lateralDistance = static_cast<float>(
+				(position - m_impl->rollStartPosition).Dot(m_impl->rollDirection));
+			const float lateralVelocity =
+				bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(m_impl->rollDirection);
+			const float rollAngularVelocity =
+				bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+			const float airBrakeReleaseDegrees = std::clamp(
+				m_settings.rollAirBrakeReleaseDegrees,
+				0.0f,
+				89.0f);
+			const float airBrakeReleaseDot = -std::cos(
+				JPH::DegreesToRadians(airBrakeReleaseDegrees));
+			const float physicsRollSign = ToJoltRollTorqueSign(
+				m_impl->rollRotationSign);
+			if (!m_impl->rollReturningToStart &&
+				m_impl->rollingPhase == RollingPhase::BallisticRoll &&
+				bodyUp.Dot(m_impl->rollStartUp) > airBrakeReleaseDot &&
+				rollAngularVelocity * physicsRollSign > 0.5f)
+			{
+				bodyInterface.AddTorque(
+					m_impl->bodyId,
+					bodyForward *
+					(-physicsRollSign *
+						m_settings.rollAirBrakeTorqueNm *
+						scale(tuning.airBrakeTorque)));
+			}
+			if (m_impl->rollReturningToStart &&
+				m_impl->rollingPhase == RollingPhase::BallisticRoll &&
+				bodyUp.Dot(m_impl->rollStartUp) < 0.95f)
+			{
+				// The reverse command at 90 degrees is an active recovery
+				// action, not passive air-braked settling. Drive toward the
+				// original up direction until the normal settled gate takes
+				// over. This branch is unreachable for a forward roll.
+				const float returnTorque =
+					physicsRollSign * (m_settings.rollTorqueNm * 0.35f *
+						scale(tuning.driveTorque)) -
+					rollAngularVelocity * m_settings.rollApproachDampingNms *
+					scale(tuning.approachDamping);
+				bodyInterface.AddTorque(
+					m_impl->bodyId,
+					bodyForward * returnTorque);
+			}
+			const float rollAngleRadians = std::acos(std::clamp(
+				bodyUp.Dot(m_impl->rollStartUp),
+				-1.0f,
+				1.0f));
+			const float instantaneousRollProgress =
+				rollAngleRadians / JPH::JPH_PI;
+			m_impl->maximumRollProgress = (std::max)(
+				m_impl->maximumRollProgress,
+				instantaneousRollProgress);
+			// Complete the horizontal travel before the hull contacts the
+			// ground. The eased trajectory reaches its target at the
+			// quarter-turn decision, leaving the falling half of the roll
+			// for physical braking instead of a visible post-landing
+			// distance correction.
+			constexpr float travelArrivalProgress = 0.55f;
+			const float normalizedTravelProgress = std::clamp(
+				m_impl->maximumRollProgress / travelArrivalProgress,
+				0.0f,
+				1.0f);
+			const float easedTravelProgress =
+				normalizedTravelProgress * normalizedTravelProgress *
+				(3.0f - 2.0f * normalizedTravelProgress);
+			const float targetDistance =
+				m_impl->rollTargetDistanceM * easedTravelProgress;
+			const float distanceError = targetDistance - lateralDistance;
+			m_impl->rollDistanceIntegral = std::clamp(
+				m_impl->rollDistanceIntegral + distanceError / 60.0f,
+				-2.0f,
+				2.0f);
+			const float force = std::clamp(
+				distanceError * positionGain * scale(tuning.travelForce) +
+				m_impl->rollDistanceIntegral * integralGain *
+				scale(tuning.travelForce) * rollSpeed -
+				lateralVelocity * velocityGain * scale(tuning.travelDamping),
+				-maximumForce * scale(tuning.forceLimit),
+				maximumForce * scale(tuning.forceLimit));
+			bodyInterface.AddForce(m_impl->bodyId, m_impl->rollDirection * force);
 
-            const bool forwardRollLanded =
-                !m_impl->rollReturningToStart &&
-                std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
-                m_impl->maximumRollProgress > 0.90f;
-            // A 90-degree reverse never reaches the forward roll's 180-degree
-            // progress threshold. It finishes when it returns to the exact
-            // starting up direction instead.
-            const bool returnRollLanded = m_impl->rollReturningToStart &&
-                bodyUp.Dot(m_impl->rollStartUp) > 0.95f;
-            if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
-                (forwardRollLanded || returnRollLanded))
-            {
-                m_impl->rollingPhase = RollingPhase::Settling;
-                m_impl->rollSettledFrames = 0;
-                m_impl->rollDistanceIntegral = 0.0f;
-                // The completed rotation is now eligible to chain. Settling
-                // remains active to control the remaining lateral slide, but
-                // must not keep the special-move FSM busy until it stops.
-                m_impl->rollChainAvailable = true;
-                if (m_state.specialMove.state ==
-                    SpecialMoveState::Rolling)
-                {
-                    m_state.specialMove =
-                        m_specialMoveStateMachine.Update(
-                            SpecialMoveEvent::MoveCompleted,
-                            true);
-                }
-            }
-        }
+			const bool forwardRollLanded =
+				!m_impl->rollReturningToStart &&
+				std::abs(bodyUp.Dot(JPH::Vec3::sAxisY())) > 0.95f &&
+				m_impl->maximumRollProgress > 0.90f;
+			// A 90-degree reverse never reaches the forward roll's 180-degree
+			// progress threshold. It finishes when it returns to the exact
+			// starting up direction instead.
+			const bool returnRollLanded = m_impl->rollReturningToStart &&
+				bodyUp.Dot(m_impl->rollStartUp) > 0.95f;
+			if (m_impl->rollingPhase == RollingPhase::BallisticRoll &&
+				(forwardRollLanded || returnRollLanded))
+			{
+				m_impl->rollingPhase = RollingPhase::Settling;
+				m_impl->rollSettledFrames = 0;
+				m_impl->rollDistanceIntegral = 0.0f;
+				// The completed rotation is now eligible to chain. Settling
+				// remains active to control the remaining lateral slide, but
+				// must not keep the special-move FSM busy until it stops.
+				m_impl->rollChainAvailable = true;
+				if (m_state.specialMove.state ==
+					SpecialMoveState::Rolling)
+				{
+					m_state.specialMove =
+						m_specialMoveStateMachine.Update(
+							SpecialMoveEvent::MoveCompleted,
+							true);
+				}
+			}
+		}
 
-        if (m_impl->rollingPhase == RollingPhase::Settling)
-        {
-            const float lateralVelocity =
-                bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(
-                    m_impl->rollDirection);
-            const float rollAngularVelocity =
-                bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
-            const float settledUpAlignment = m_impl->rollReturningToStart
-                ? bodyUp.Dot(m_impl->rollStartUp)
-                : std::abs(bodyUp.Dot(JPH::Vec3::sAxisY()));
-            if (std::abs(lateralVelocity) < 0.1f * rollSpeed &&
-                settledUpAlignment > 0.95f &&
-                std::abs(rollAngularVelocity) < 0.1f * rollSpeed)
-            {
-                ++m_impl->rollSettledFrames;
-                if (m_impl->rollSettledFrames >= static_cast<int>(std::ceil(15.0f / rollSpeed)))
-                {
-                    m_impl->rollingPhase = RollingPhase::None;
-                    m_impl->rollInputLatched = false;
-                    m_impl->rollChainAvailable = true;
-                    m_impl->lastRollingTraceEvent = RollingTraceEvent::Finished;
-                    ++m_impl->rollingTraceSequence;
-                    m_impl->rollingTraceRequestSign =
-                        m_impl->latchedRollCommand;
-                    m_impl->rollingTraceCommandSign =
-                        m_impl->rollRotationSign;
-                    m_impl->rollingTraceInputSign = 0.0f;
-                    if (m_state.specialMove.state ==
-                        SpecialMoveState::Rolling)
-                    {
-                        m_state.specialMove =
-                            m_specialMoveStateMachine.Update(
-                                SpecialMoveEvent::MoveCompleted,
-                                true);
-                    }
-                }
-            }
-            else
-            {
-                m_impl->rollSettledFrames = 0;
-            }
-        }
+		if (m_impl->rollingPhase == RollingPhase::Settling)
+		{
+			const float lateralVelocity =
+				bodyInterface.GetLinearVelocity(m_impl->bodyId).Dot(
+					m_impl->rollDirection);
+			const float rollAngularVelocity =
+				bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+			const float settledUpAlignment = m_impl->rollReturningToStart
+				? bodyUp.Dot(m_impl->rollStartUp)
+				: std::abs(bodyUp.Dot(JPH::Vec3::sAxisY()));
+			if (std::abs(lateralVelocity) < 0.1f * rollSpeed &&
+				settledUpAlignment > 0.95f &&
+				std::abs(rollAngularVelocity) < 0.1f * rollSpeed)
+			{
+				++m_impl->rollSettledFrames;
+				if (m_impl->rollSettledFrames >= static_cast<int>(std::ceil(15.0f / rollSpeed)))
+				{
+					m_impl->rollingPhase = RollingPhase::None;
+					m_impl->rollInputLatched = false;
+					m_impl->rollChainAvailable = true;
+					m_impl->lastRollingTraceEvent = RollingTraceEvent::Finished;
+					++m_impl->rollingTraceSequence;
+					m_impl->rollingTraceRequestSign =
+						m_impl->latchedRollCommand;
+					m_impl->rollingTraceCommandSign =
+						m_impl->rollRotationSign;
+					m_impl->rollingTraceInputSign = 0.0f;
+					if (m_state.specialMove.state ==
+						SpecialMoveState::Rolling)
+					{
+						m_state.specialMove =
+							m_specialMoveStateMachine.Update(
+								SpecialMoveEvent::MoveCompleted,
+								true);
+					}
+				}
+			}
+			else
+			{
+				m_impl->rollSettledFrames = 0;
+			}
+		}
 
-        if (m_impl->rollingPhase != RollingPhase::PoweredRoll)
-        {
-            // An active roll must stabilize toward its accepted result, not
-            // whichever upright orientation happens to be nearest at 90
-            // degrees. Otherwise the generic stabilizer can reverse a
-            // ContinueForward roll without emitting ReturnToStart.
-            const JPH::Vec3 targetUp = m_impl->rollingPhase ==
-                    RollingPhase::None
-                ? (bodyUp.Dot(JPH::Vec3::sAxisY()) >= 0.0f
-                    ? JPH::Vec3::sAxisY()
-                    : -JPH::Vec3::sAxisY())
-                : (m_impl->rollReturningToStart
-                    ? m_impl->rollStartUp
-                    : -m_impl->rollStartUp);
-            const float rollError = bodyUp.Cross(targetUp).Dot(bodyForward);
-            const float rollAngularVelocity =
-                bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
-            bodyInterface.AddTorque(
-                m_impl->bodyId,
-                bodyForward *
-                    (rollError * m_settings.rollStabilizationTorqueNm *
-                            (m_impl->rollingPhase == RollingPhase::None ? 1.0f : scale(tuning.stabilizationTorque)) -
-                        rollAngularVelocity *
-                            m_settings.rollStabilizationDampingNms *
-                            (m_impl->rollingPhase == RollingPhase::None ? 1.0f : scale(tuning.stabilizationDamping))));
-        }
+		if (m_impl->rollingPhase != RollingPhase::PoweredRoll)
+		{
+			// An active roll must stabilize toward its accepted result, not
+			// whichever upright orientation happens to be nearest at 90
+			// degrees. Otherwise the generic stabilizer can reverse a
+			// ContinueForward roll without emitting ReturnToStart.
+			const JPH::Vec3 targetUp = m_impl->rollingPhase ==
+				RollingPhase::None
+				? (bodyUp.Dot(JPH::Vec3::sAxisY()) >= 0.0f
+					? JPH::Vec3::sAxisY()
+					: -JPH::Vec3::sAxisY())
+				: (m_impl->rollReturningToStart
+					? m_impl->rollStartUp
+					: -m_impl->rollStartUp);
+			const float rollError = bodyUp.Cross(targetUp).Dot(bodyForward);
+			const float rollAngularVelocity =
+				bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+			bodyInterface.AddTorque(
+				m_impl->bodyId,
+				bodyForward *
+				(rollError * m_settings.rollStabilizationTorqueNm *
+					(m_impl->rollingPhase == RollingPhase::None ? 1.0f : scale(tuning.stabilizationTorque)) -
+					rollAngularVelocity *
+					m_settings.rollStabilizationDampingNms *
+					(m_impl->rollingPhase == RollingPhase::None ? 1.0f : scale(tuning.stabilizationDamping))));
+		}
 
-        // Scale only this vehicle's gravity/suspension during a roll.
-        // No world time or other body's gravity is changed. Restore at completion.
-        const float environmentSpeed = m_impl->rollingPhase == RollingPhase::None ? 1.0f : rollSpeed;
-        if (environmentSpeed != m_impl->rollingEnvironmentScale)
-        {
-            bodyInterface.SetGravityFactor(m_impl->bodyId, RollingSpeedScale(tuning.gravity, environmentSpeed));
-            for (auto& wheel : m_impl->rollingWheelSettings)
-                wheel->mSuspensionSpring.mFrequency = m_settings.suspensionFrequencyHz *
-                    RollingSpeedScale(tuning.suspensionFrequency, environmentSpeed);
-            m_impl->rollingEnvironmentScale = environmentSpeed;
-        }
+		// Scale only this vehicle's gravity/suspension during a roll.
+		// No world time or other body's gravity is changed. Restore at completion.
+		const float environmentSpeed = m_impl->rollingPhase == RollingPhase::None ? 1.0f : rollSpeed;
+		if (environmentSpeed != m_impl->rollingEnvironmentScale)
+		{
+			bodyInterface.SetGravityFactor(m_impl->bodyId, RollingSpeedScale(tuning.gravity, environmentSpeed));
+			for (auto& wheel : m_impl->rollingWheelSettings)
+				wheel->mSuspensionSpring.mFrequency = m_settings.suspensionFrequencyHz *
+				RollingSpeedScale(tuning.suspensionFrequency, environmentSpeed);
+			m_impl->rollingEnvironmentScale = environmentSpeed;
+		}
 
-        if (rollingPhaseBefore == RollingPhase::None &&
-            m_impl->rollingPhase != RollingPhase::None &&
-            m_state.specialMove.state == SpecialMoveState::RollStarting)
-        {
-            m_state.specialMove = m_specialMoveStateMachine.Update(
-                SpecialMoveEvent::MoveCompleted, true);
-        }
-        else if (rollingPhaseBefore != RollingPhase::None &&
-            m_impl->rollingPhase == RollingPhase::None &&
-            m_state.specialMove.state == SpecialMoveState::Rolling)
-        {
-            m_state.specialMove = m_specialMoveStateMachine.Update(
-                SpecialMoveEvent::MoveCompleted, true);
-            m_specialMoveInputProcessor.Reset();
-        }
+		if (rollingPhaseBefore == RollingPhase::None &&
+			m_impl->rollingPhase != RollingPhase::None &&
+			m_state.specialMove.state == SpecialMoveState::RollStarting)
+		{
+			m_state.specialMove = m_specialMoveStateMachine.Update(
+				SpecialMoveEvent::MoveCompleted, true);
+		}
+		else if (rollingPhaseBefore != RollingPhase::None &&
+			m_impl->rollingPhase == RollingPhase::None &&
+			m_state.specialMove.state == SpecialMoveState::Rolling)
+		{
+			m_state.specialMove = m_specialMoveStateMachine.Update(
+				SpecialMoveEvent::MoveCompleted, true);
+			m_specialMoveInputProcessor.Reset();
+		}
 
-        float forward = m_input.throttle;
-        float leftTrack = m_input.leftTrack;
-        float rightTrack = m_input.rightTrack;
-        m_state.trackInputSwapped =
-            bodyUp.Dot(JPH::Vec3::sAxisY()) < 0.0f;
-        if (m_state.trackInputSwapped)
-        {
-            std::swap(leftTrack, rightTrack);
-        }
-        constexpr float turnInputEpsilon = 0.001f;
-        const bool stationaryTurn =
-            (std::abs(leftTrack) < turnInputEpsilon) !=
-            (std::abs(rightTrack) < turnInputEpsilon);
-        const bool pivotTurn = leftTrack * rightTrack < 0.0f;
-        if (stationaryTurn)
-        {
-            const float innerTrackRatio =
-                std::clamp(m_settings.stationaryTurnInnerTrackRatio, 0.0f, 1.0f);
-            if (std::abs(leftTrack) < turnInputEpsilon)
-            {
-                leftTrack = std::copysign(innerTrackRatio, rightTrack);
-            }
-            else
-            {
-                rightTrack = std::copysign(innerTrackRatio, leftTrack);
-            }
-            leftTrack *= std::clamp(m_settings.stationaryTurnLeftTraction, 0.0f, 1.0f);
-            rightTrack *= std::clamp(m_settings.stationaryTurnRightTraction, 0.0f, 1.0f);
-        }
-        else if (pivotTurn)
-        {
-            leftTrack *= std::clamp(m_settings.pivotTurnLeftTraction, 0.0f, 1.0f);
-            rightTrack *= std::clamp(m_settings.pivotTurnRightTraction, 0.0f, 1.0f);
-        }
-        float leftRatio = ToJoltTrackRatio(leftTrack);
-        float rightRatio = ToJoltTrackRatio(rightTrack);
-        float brake = m_input.brake ? 1.0f : m_input.brakeAmount;
-        if (m_settings.neutralBrakeEnabled &&
-            std::abs(forward) < 0.001f)
-        {
-            brake = (std::max)(brake, m_settings.neutralBrakeAmount);
-        }
-        m_driverInput = {forward, leftRatio, rightRatio, brake};
+		float forward = m_input.throttle;
+		float leftTrack = m_input.leftTrack;
+		float rightTrack = m_input.rightTrack;
+		m_state.trackInputSwapped =
+			bodyUp.Dot(JPH::Vec3::sAxisY()) < 0.0f;
+		if (m_state.trackInputSwapped)
+		{
+			std::swap(leftTrack, rightTrack);
+		}
+		constexpr float turnInputEpsilon = 0.001f;
+		const bool stationaryTurn =
+			(std::abs(leftTrack) < turnInputEpsilon) !=
+			(std::abs(rightTrack) < turnInputEpsilon);
+		const bool pivotTurn = leftTrack * rightTrack < 0.0f;
+		if (stationaryTurn)
+		{
+			const float innerTrackRatio =
+				std::clamp(m_settings.stationaryTurnInnerTrackRatio, 0.0f, 1.0f);
+			if (std::abs(leftTrack) < turnInputEpsilon)
+			{
+				leftTrack = std::copysign(innerTrackRatio, rightTrack);
+			}
+			else
+			{
+				rightTrack = std::copysign(innerTrackRatio, leftTrack);
+			}
+			leftTrack *= std::clamp(m_settings.stationaryTurnLeftTraction, 0.0f, 1.0f);
+			rightTrack *= std::clamp(m_settings.stationaryTurnRightTraction, 0.0f, 1.0f);
+		}
+		else if (pivotTurn)
+		{
+			leftTrack *= std::clamp(m_settings.pivotTurnLeftTraction, 0.0f, 1.0f);
+			rightTrack *= std::clamp(m_settings.pivotTurnRightTraction, 0.0f, 1.0f);
+		}
+		float leftRatio = ToJoltTrackRatio(leftTrack);
+		float rightRatio = ToJoltTrackRatio(rightTrack);
+		float brake = m_input.brake ? 1.0f : m_input.brakeAmount;
+		if (m_settings.neutralBrakeEnabled &&
+			std::abs(forward) < 0.001f)
+		{
+			brake = (std::max)(brake, m_settings.neutralBrakeAmount);
+		}
+		m_driverInput = { forward, leftRatio, rightRatio, brake };
 
-        JPH::TrackedVehicleController* controller =
-            static_cast<JPH::TrackedVehicleController*>(
-                m_impl->vehicleConstraint->GetController());
-        controller->SetDriverInput(forward, leftRatio, rightRatio, brake);
-    }
+		JPH::TrackedVehicleController* controller =
+			static_cast<JPH::TrackedVehicleController*>(
+				m_impl->vehicleConstraint->GetController());
+		controller->SetDriverInput(forward, leftRatio, rightRatio, brake);
+	}
 
-    void TankController::PostStep(float deltaTimeSeconds)
-    {
-        if (deltaTimeSeconds <= 0.0f)
-        {
-            return;
-        }
+	void TankController::PostStep(float deltaTimeSeconds)
+	{
+		if (deltaTimeSeconds <= 0.0f)
+		{
+			return;
+		}
 
-        m_state.stepIndex++;
-        m_state.timeSeconds += deltaTimeSeconds;
-        m_assaultWeapon.Update(deltaTimeSeconds);
-        if (m_input.fireAssault)
-        {
-            m_assaultWeapon.TryFire();
-        }
-        m_state.assaultWeapon = m_assaultWeapon.Snapshot();
+		m_state.stepIndex++;
+		m_state.timeSeconds += deltaTimeSeconds;
+		m_assaultWeapon.Update(deltaTimeSeconds);
+		if (m_input.fireAssault)
+		{
+			m_assaultWeapon.TryFire();
+		}
+		m_state.assaultWeapon = m_assaultWeapon.Snapshot();
 
-        if (m_state.specialMove.state == SpecialMoveState::MortarStarting ||
-            m_state.specialMove.state == SpecialMoveState::MortarAiming)
-        {
-            m_state.mortarAim =
-                m_mortarAimController.Update(
-                    deltaTimeSeconds,
-                    IsMortarHeld(m_input));
-            if (m_state.specialMove.state == SpecialMoveState::MortarStarting &&
-                m_state.mortarAim.canFire)
-            {
-                m_state.specialMove = m_specialMoveStateMachine.Update(
-                    SpecialMoveEvent::MoveCompleted, true);
-            }
-            else if (m_state.specialMove.state == SpecialMoveState::MortarAiming &&
-                !IsMortarHeld(m_input) &&
-                m_state.mortarAim.angleDegrees <= 0.0f)
-            {
-                m_state.specialMove = m_specialMoveStateMachine.Update(
-                    SpecialMoveEvent::MoveCompleted, true);
-                m_specialMoveInputProcessor.Reset();
-            }
-        }
+		if (m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+			m_state.specialMove.state == SpecialMoveState::MortarAiming)
+		{
+			m_state.mortarAim =
+				m_mortarAimController.Update(
+					deltaTimeSeconds,
+					IsMortarHeld(m_input));
+			if (m_state.specialMove.state == SpecialMoveState::MortarStarting &&
+				m_state.mortarAim.canFire)
+			{
+				m_state.specialMove = m_specialMoveStateMachine.Update(
+					SpecialMoveEvent::MoveCompleted, true);
+			}
+			else if (m_state.specialMove.state == SpecialMoveState::MortarAiming &&
+				!IsMortarHeld(m_input) &&
+				m_state.mortarAim.angleDegrees <= 0.0f)
+			{
+				m_state.specialMove = m_specialMoveStateMachine.Update(
+					SpecialMoveEvent::MoveCompleted, true);
+				m_specialMoveInputProcessor.Reset();
+			}
+		}
 
-        if (m_impl == nullptr)
-        {
-            return;
-        }
+		if (m_impl == nullptr)
+		{
+			return;
+		}
 
-        JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
-        const JPH::RVec3 position = bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
-        const JPH::Quat rotation = bodyInterface.GetRotation(m_impl->bodyId);
-        const JPH::Vec3 linearVelocity = bodyInterface.GetLinearVelocity(m_impl->bodyId);
-        JPH::Vec3 angularVelocity = bodyInterface.GetAngularVelocity(m_impl->bodyId);
-        const JPH::Vec3 bodyUp = rotation * JPH::Vec3::sAxisY();
-        const float yawVelocity = angularVelocity.Dot(bodyUp);
-        const float yawSpeedLimit = std::clamp(
-            m_settings.yawSpeedLimitDegrees,
-            15.0f,
-            720.0f) * JPH::JPH_PI / 180.0f;
-        m_state.yawSpeedLimited = std::abs(yawVelocity) > yawSpeedLimit;
-        float limitedYawVelocity =
-            std::clamp(yawVelocity, -yawSpeedLimit, yawSpeedLimit);
-        constexpr float turnInputEpsilon = 0.001f;
-        if (std::abs(m_input.leftTrack - m_input.rightTrack) <
-            turnInputEpsilon)
-        {
-            const float yawDamping = std::clamp(
-                m_settings.yawDamping,
-                0.0f,
-                30.0f);
-            limitedYawVelocity *= std::exp(-yawDamping * deltaTimeSeconds);
-        }
-        m_state.yawSpeedDegrees =
-            limitedYawVelocity * 180.0f / JPH::JPH_PI;
-        angularVelocity += bodyUp * (limitedYawVelocity - yawVelocity);
-        bodyInterface.SetAngularVelocity(m_impl->bodyId, angularVelocity);
+		JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
+		const JPH::RVec3 position = bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
+		const JPH::Quat rotation = bodyInterface.GetRotation(m_impl->bodyId);
+		const JPH::Vec3 linearVelocity = bodyInterface.GetLinearVelocity(m_impl->bodyId);
+		JPH::Vec3 angularVelocity = bodyInterface.GetAngularVelocity(m_impl->bodyId);
+		const JPH::Vec3 bodyUp = rotation * JPH::Vec3::sAxisY();
+		const float yawVelocity = angularVelocity.Dot(bodyUp);
+		const float yawSpeedLimit = std::clamp(
+			m_settings.yawSpeedLimitDegrees,
+			15.0f,
+			720.0f) * JPH::JPH_PI / 180.0f;
+		m_state.yawSpeedLimited = std::abs(yawVelocity) > yawSpeedLimit;
+		float limitedYawVelocity =
+			std::clamp(yawVelocity, -yawSpeedLimit, yawSpeedLimit);
+		constexpr float turnInputEpsilon = 0.001f;
+		if (std::abs(m_input.leftTrack - m_input.rightTrack) <
+			turnInputEpsilon)
+		{
+			const float yawDamping = std::clamp(
+				m_settings.yawDamping,
+				0.0f,
+				30.0f);
+			limitedYawVelocity *= std::exp(-yawDamping * deltaTimeSeconds);
+		}
+		m_state.yawSpeedDegrees =
+			limitedYawVelocity * 180.0f / JPH::JPH_PI;
+		angularVelocity += bodyUp * (limitedYawVelocity - yawVelocity);
+		bodyInterface.SetAngularVelocity(m_impl->bodyId, angularVelocity);
 
-        m_state.body.position = {
-            static_cast<float>(position.GetX()),
-            static_cast<float>(position.GetY()),
-            static_cast<float>(position.GetZ())};
-        m_state.body.rotation = {
-            static_cast<float>(rotation.GetX()),
-            static_cast<float>(rotation.GetY()),
-            static_cast<float>(rotation.GetZ()),
-            static_cast<float>(rotation.GetW())};
-        m_state.linearVelocity = {
-            static_cast<float>(linearVelocity.GetX()),
-            static_cast<float>(linearVelocity.GetY()),
-            static_cast<float>(linearVelocity.GetZ())};
-        m_state.speedMetersPerSecond = std::sqrt(
-            m_state.linearVelocity.x * m_state.linearVelocity.x +
-            m_state.linearVelocity.z * m_state.linearVelocity.z);
-        m_state.maximumSpeedMetersPerSecond = (std::max)(
-            m_state.maximumSpeedMetersPerSecond,
-            m_state.speedMetersPerSecond);
+		m_state.body.position = {
+			static_cast<float>(position.GetX()),
+			static_cast<float>(position.GetY()),
+			static_cast<float>(position.GetZ()) };
+		m_state.body.rotation = {
+			static_cast<float>(rotation.GetX()),
+			static_cast<float>(rotation.GetY()),
+			static_cast<float>(rotation.GetZ()),
+			static_cast<float>(rotation.GetW()) };
+		m_state.linearVelocity = {
+			static_cast<float>(linearVelocity.GetX()),
+			static_cast<float>(linearVelocity.GetY()),
+			static_cast<float>(linearVelocity.GetZ()) };
+		m_state.speedMetersPerSecond = std::sqrt(
+			m_state.linearVelocity.x * m_state.linearVelocity.x +
+			m_state.linearVelocity.z * m_state.linearVelocity.z);
+		m_state.maximumSpeedMetersPerSecond = (std::max)(
+			m_state.maximumSpeedMetersPerSecond,
+			m_state.speedMetersPerSecond);
 
-        const bool driveRequested = std::abs(m_input.throttle) > 0.001f;
-        if (!driveRequested && m_state.speedMetersPerSecond < 0.1f)
-        {
-            m_impl->accelerationTiming = false;
-            m_state.zeroToTenTimeSeconds = -1.0f;
-        }
-        else if (driveRequested && !m_impl->accelerationTiming &&
-            m_state.zeroToTenTimeSeconds < 0.0f)
-        {
-            m_impl->accelerationTiming = true;
-            m_impl->accelerationStartTime = m_state.timeSeconds;
-        }
-        if (m_impl->accelerationTiming && m_state.speedMetersPerSecond >= 10.0f)
-        {
-            m_state.zeroToTenTimeSeconds =
-                m_state.timeSeconds - m_impl->accelerationStartTime;
-            m_impl->accelerationTiming = false;
-        }
+		const bool driveRequested = std::abs(m_input.throttle) > 0.001f;
+		if (!driveRequested && m_state.speedMetersPerSecond < 0.1f)
+		{
+			m_impl->accelerationTiming = false;
+			m_state.zeroToTenTimeSeconds = -1.0f;
+		}
+		else if (driveRequested && !m_impl->accelerationTiming &&
+			m_state.zeroToTenTimeSeconds < 0.0f)
+		{
+			m_impl->accelerationTiming = true;
+			m_impl->accelerationStartTime = m_state.timeSeconds;
+		}
+		if (m_impl->accelerationTiming && m_state.speedMetersPerSecond >= 10.0f)
+		{
+			m_state.zeroToTenTimeSeconds =
+				m_state.timeSeconds - m_impl->accelerationStartTime;
+			m_impl->accelerationTiming = false;
+		}
 
-        const JPH::TrackedVehicleController* controller =
-            static_cast<const JPH::TrackedVehicleController*>(
-                m_impl->vehicleConstraint->GetController());
-        m_state.engineRpm = controller->GetEngine().GetCurrentRPM();
-        m_state.transmissionGear = controller->GetTransmission().GetCurrentGear();
-        m_state.clutchFriction = controller->GetTransmission().GetClutchFriction();
-        m_state.angularVelocity = {
-            static_cast<float>(angularVelocity.GetX()),
-            static_cast<float>(angularVelocity.GetY()),
-            static_cast<float>(angularVelocity.GetZ())};
+		const JPH::TrackedVehicleController* controller =
+			static_cast<const JPH::TrackedVehicleController*>(
+				m_impl->vehicleConstraint->GetController());
+		m_state.engineRpm = controller->GetEngine().GetCurrentRPM();
+		m_state.transmissionGear = controller->GetTransmission().GetCurrentGear();
+		m_state.clutchFriction = controller->GetTransmission().GetClutchFriction();
+		m_state.angularVelocity = {
+			static_cast<float>(angularVelocity.GetX()),
+			static_cast<float>(angularVelocity.GetY()),
+			static_cast<float>(angularVelocity.GetZ()) };
 
-        const auto& wheels = m_impl->vehicleConstraint->GetWheels();
-        const JPH::RMat44 bodyTransform =
-            bodyInterface.GetWorldTransform(m_impl->bodyId);
-        const int wheelsPerSurface = m_settings.roadWheelCount + 2;
-        const int wheelsPerTrack = wheelsPerSurface * kTankSurfacesPerTrack;
-        m_state.wheelCount = (std::min)(static_cast<int>(wheels.size()), kTankWheelCount);
-        for (int i = 0; i < m_state.wheelCount; ++i)
-        {
-            const JPH::Wheel* wheel = wheels[static_cast<size_t>(i)];
-            const JPH::RMat44 wheelTransform = m_impl->vehicleConstraint->GetWheelWorldTransform(
-                static_cast<JPH::uint>(i),
-                JPH::Vec3::sAxisY(),
-                JPH::Vec3::sAxisX());
-            const JPH::RVec3 wheelPosition = wheelTransform.GetTranslation();
-            const JPH::Quat wheelRotation = wheelTransform.GetQuaternion();
-            const JPH::WheelSettings* wheelSettings = wheel->GetSettings();
-            const JPH::RVec3 suspensionOrigin =
-                bodyTransform * wheelSettings->mPosition;
-            const JPH::Vec3 suspensionDirection =
-                bodyTransform.Multiply3x3(wheelSettings->mSuspensionDirection);
+		const auto& wheels = m_impl->vehicleConstraint->GetWheels();
+		const JPH::RMat44 bodyTransform =
+			bodyInterface.GetWorldTransform(m_impl->bodyId);
+		const int wheelsPerSurface = m_settings.roadWheelCount + 2;
+		const int wheelsPerTrack = wheelsPerSurface * kTankSurfacesPerTrack;
+		m_state.wheelCount = (std::min)(static_cast<int>(wheels.size()), kTankWheelCount);
+		for (int i = 0; i < m_state.wheelCount; ++i)
+		{
+			const JPH::Wheel* wheel = wheels[static_cast<size_t>(i)];
+			const JPH::RMat44 wheelTransform = m_impl->vehicleConstraint->GetWheelWorldTransform(
+				static_cast<JPH::uint>(i),
+				JPH::Vec3::sAxisY(),
+				JPH::Vec3::sAxisX());
+			const JPH::RVec3 wheelPosition = wheelTransform.GetTranslation();
+			const JPH::Quat wheelRotation = wheelTransform.GetQuaternion();
+			const JPH::WheelSettings* wheelSettings = wheel->GetSettings();
+			const JPH::RVec3 suspensionOrigin =
+				bodyTransform * wheelSettings->mPosition;
+			const JPH::Vec3 suspensionDirection =
+				bodyTransform.Multiply3x3(wheelSettings->mSuspensionDirection);
 
-            TrackedWheelState& wheelState = m_state.wheels[static_cast<size_t>(i)];
-            wheelState.trackIndex = i / wheelsPerTrack;
-            wheelState.wheelIndex = i % wheelsPerTrack;
-            wheelState.upperSurface = wheelState.wheelIndex >= wheelsPerSurface;
-            const int wheelOnSurface = wheelState.wheelIndex % wheelsPerSurface;
-            const int suspensionPosition = wheelOnSurface == 0
-                ? 0
-                : (wheelOnSurface == wheelsPerSurface - 1
-                    ? kTankSuspensionPositionsPerSurface - 1
-                    : wheelOnSurface);
-            wheelState.suspensionSlotIndex = TankSuspensionSlotIndex(
-                wheelState.trackIndex,
-                wheelState.upperSurface ? 1 : 0,
-                suspensionPosition);
-            wheelState.transform.position = {
-                static_cast<float>(wheelPosition.GetX()),
-                static_cast<float>(wheelPosition.GetY()),
-                static_cast<float>(wheelPosition.GetZ())};
-            wheelState.transform.rotation = {
-                static_cast<float>(wheelRotation.GetX()),
-                static_cast<float>(wheelRotation.GetY()),
-                static_cast<float>(wheelRotation.GetZ()),
-                static_cast<float>(wheelRotation.GetW())};
-            wheelState.suspensionOrigin = {
-                static_cast<float>(suspensionOrigin.GetX()),
-                static_cast<float>(suspensionOrigin.GetY()),
-                static_cast<float>(suspensionOrigin.GetZ())};
-            wheelState.suspensionDirection = {
-                static_cast<float>(suspensionDirection.GetX()),
-                static_cast<float>(suspensionDirection.GetY()),
-                static_cast<float>(suspensionDirection.GetZ())};
-            const float previousSuspensionLength = wheelState.suspensionLength;
-            wheelState.suspensionLength = wheel->GetSuspensionLength();
-            wheelState.suspensionVelocityMetersPerSecond = m_state.stepIndex > 1
-                ? (wheelState.suspensionLength - previousSuspensionLength) /
-                    deltaTimeSeconds
-                : 0.0f;
-            wheelState.suspensionMinLength = wheelSettings->mSuspensionMinLength;
-            wheelState.suspensionMaxLength = wheelSettings->mSuspensionMaxLength;
-            wheelState.suspensionAtHardPoint = wheel->HasHitHardPoint();
-            wheelState.angularVelocityRadians = wheel->GetAngularVelocity();
-            wheelState.suspensionImpulseNewtonSeconds = wheel->GetSuspensionLambda();
-            wheelState.longitudinalImpulseNewtonSeconds =
-                wheel->GetLongitudinalLambda();
-            wheelState.lateralImpulseNewtonSeconds = wheel->GetLateralLambda();
-            wheelState.longitudinalSlipMetersPerSecond = 0.0f;
-            wheelState.hasContact = wheel->HasContact();
-            wheelState.contactPosition = {};
-            wheelState.contactNormal = {};
-            wheelState.contactLongitudinal = {};
-            wheelState.contactLateral = {};
-            if (wheelState.hasContact)
-            {
-                const JPH::RVec3 contactPosition = wheel->GetContactPosition();
-                const JPH::Vec3 contactNormal = wheel->GetContactNormal();
-                const JPH::Vec3 contactLongitudinal = wheel->GetContactLongitudinal();
-                const JPH::Vec3 contactLateral = wheel->GetContactLateral();
-                const float contactLongitudinalSpeed =
-                    wheel->GetContactPointVelocity().Dot(contactLongitudinal);
-                wheelState.longitudinalSlipMetersPerSecond =
-                    wheel->GetAngularVelocity() * wheelSettings->mRadius -
-                    contactLongitudinalSpeed;
-                wheelState.contactPosition = {
-                    static_cast<float>(contactPosition.GetX()),
-                    static_cast<float>(contactPosition.GetY()),
-                    static_cast<float>(contactPosition.GetZ())};
-                wheelState.contactNormal = {
-                    static_cast<float>(contactNormal.GetX()),
-                    static_cast<float>(contactNormal.GetY()),
-                    static_cast<float>(contactNormal.GetZ())};
-                wheelState.contactLongitudinal = {
-                    static_cast<float>(contactLongitudinal.GetX()),
-                    static_cast<float>(contactLongitudinal.GetY()),
-                    static_cast<float>(contactLongitudinal.GetZ())};
-                wheelState.contactLateral = {
-                    static_cast<float>(contactLateral.GetX()),
-                    static_cast<float>(contactLateral.GetY()),
-                    static_cast<float>(contactLateral.GetZ())};
-            }
-        }
-        m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
-        m_state.motionObservation = BuildTankMotionObservation(m_state);
-        m_state.rollingPhase = m_impl->rollingPhase;
-        m_state.lastRollingDecision = m_impl->lastRollingDecision;
-        m_state.rollingDecisionCount = m_impl->rollingDecisionCount;
-        m_state.rollingDecisionCommandSign =
-            m_impl->rollingDecisionCommandSign;
-        m_state.rollingDecisionInputSign =
-            m_impl->rollingDecisionInputSign;
-        m_state.lastRollingTraceEvent = m_impl->lastRollingTraceEvent;
-        m_state.rollingTraceSequence = m_impl->rollingTraceSequence;
-        m_state.rollingTraceRequestSign = m_impl->rollingTraceRequestSign;
-        m_state.rollingTraceCommandSign = m_impl->rollingTraceCommandSign;
-        m_state.rollingTraceInputSign = m_impl->rollingTraceInputSign;
-        m_state.rollChainAvailable =
-            m_impl->rollChainAvailable &&
-            std::abs(m_input.throttle) < 0.001f;
-        const bool mobilityDriveRequested =
-            std::abs(m_input.throttle) > 0.001f ||
-            std::abs(m_input.leftTrack - 1.0f) > 0.001f ||
-            std::abs(m_input.rightTrack - 1.0f) > 0.001f;
-        m_state.mobility = m_mobilityStateMachine.Update(
-            m_state.motionObservation,
-            mobilityDriveRequested,
-            deltaTimeSeconds);
-    }
+			TrackedWheelState& wheelState = m_state.wheels[static_cast<size_t>(i)];
+			wheelState.trackIndex = i / wheelsPerTrack;
+			wheelState.wheelIndex = i % wheelsPerTrack;
+			wheelState.upperSurface = wheelState.wheelIndex >= wheelsPerSurface;
+			const int wheelOnSurface = wheelState.wheelIndex % wheelsPerSurface;
+			const int suspensionPosition = wheelOnSurface == 0
+				? 0
+				: (wheelOnSurface == wheelsPerSurface - 1
+					? kTankSuspensionPositionsPerSurface - 1
+					: wheelOnSurface);
+			wheelState.suspensionSlotIndex = TankSuspensionSlotIndex(
+				wheelState.trackIndex,
+				wheelState.upperSurface ? 1 : 0,
+				suspensionPosition);
+			wheelState.transform.position = {
+				static_cast<float>(wheelPosition.GetX()),
+				static_cast<float>(wheelPosition.GetY()),
+				static_cast<float>(wheelPosition.GetZ()) };
+			wheelState.transform.rotation = {
+				static_cast<float>(wheelRotation.GetX()),
+				static_cast<float>(wheelRotation.GetY()),
+				static_cast<float>(wheelRotation.GetZ()),
+				static_cast<float>(wheelRotation.GetW()) };
+			wheelState.suspensionOrigin = {
+				static_cast<float>(suspensionOrigin.GetX()),
+				static_cast<float>(suspensionOrigin.GetY()),
+				static_cast<float>(suspensionOrigin.GetZ()) };
+			wheelState.suspensionDirection = {
+				static_cast<float>(suspensionDirection.GetX()),
+				static_cast<float>(suspensionDirection.GetY()),
+				static_cast<float>(suspensionDirection.GetZ()) };
+			const float previousSuspensionLength = wheelState.suspensionLength;
+			wheelState.suspensionLength = wheel->GetSuspensionLength();
+			wheelState.suspensionVelocityMetersPerSecond = m_state.stepIndex > 1
+				? (wheelState.suspensionLength - previousSuspensionLength) /
+				deltaTimeSeconds
+				: 0.0f;
+			wheelState.suspensionMinLength = wheelSettings->mSuspensionMinLength;
+			wheelState.suspensionMaxLength = wheelSettings->mSuspensionMaxLength;
+			wheelState.suspensionAtHardPoint = wheel->HasHitHardPoint();
+			wheelState.angularVelocityRadians = wheel->GetAngularVelocity();
+			wheelState.suspensionImpulseNewtonSeconds = wheel->GetSuspensionLambda();
+			wheelState.longitudinalImpulseNewtonSeconds =
+				wheel->GetLongitudinalLambda();
+			wheelState.lateralImpulseNewtonSeconds = wheel->GetLateralLambda();
+			wheelState.longitudinalSlipMetersPerSecond = 0.0f;
+			wheelState.hasContact = wheel->HasContact();
+			wheelState.contactPosition = {};
+			wheelState.contactNormal = {};
+			wheelState.contactLongitudinal = {};
+			wheelState.contactLateral = {};
+			if (wheelState.hasContact)
+			{
+				const JPH::RVec3 contactPosition = wheel->GetContactPosition();
+				const JPH::Vec3 contactNormal = wheel->GetContactNormal();
+				const JPH::Vec3 contactLongitudinal = wheel->GetContactLongitudinal();
+				const JPH::Vec3 contactLateral = wheel->GetContactLateral();
+				const float contactLongitudinalSpeed =
+					wheel->GetContactPointVelocity().Dot(contactLongitudinal);
+				wheelState.longitudinalSlipMetersPerSecond =
+					wheel->GetAngularVelocity() * wheelSettings->mRadius -
+					contactLongitudinalSpeed;
+				wheelState.contactPosition = {
+					static_cast<float>(contactPosition.GetX()),
+					static_cast<float>(contactPosition.GetY()),
+					static_cast<float>(contactPosition.GetZ()) };
+				wheelState.contactNormal = {
+					static_cast<float>(contactNormal.GetX()),
+					static_cast<float>(contactNormal.GetY()),
+					static_cast<float>(contactNormal.GetZ()) };
+				wheelState.contactLongitudinal = {
+					static_cast<float>(contactLongitudinal.GetX()),
+					static_cast<float>(contactLongitudinal.GetY()),
+					static_cast<float>(contactLongitudinal.GetZ()) };
+				wheelState.contactLateral = {
+					static_cast<float>(contactLateral.GetX()),
+					static_cast<float>(contactLateral.GetY()),
+					static_cast<float>(contactLateral.GetZ()) };
+			}
+		}
+		m_state.sleeping = !bodyInterface.IsActive(m_impl->bodyId);
+		m_state.motionObservation = BuildTankMotionObservation(m_state);
+		m_state.rollingPhase = m_impl->rollingPhase;
+		m_state.lastRollingDecision = m_impl->lastRollingDecision;
+		m_state.rollingDecisionCount = m_impl->rollingDecisionCount;
+		m_state.rollingDecisionCommandSign =
+			m_impl->rollingDecisionCommandSign;
+		m_state.rollingDecisionInputSign =
+			m_impl->rollingDecisionInputSign;
+		m_state.lastRollingTraceEvent = m_impl->lastRollingTraceEvent;
+		m_state.rollingTraceSequence = m_impl->rollingTraceSequence;
+		m_state.rollingTraceRequestSign = m_impl->rollingTraceRequestSign;
+		m_state.rollingTraceCommandSign = m_impl->rollingTraceCommandSign;
+		m_state.rollingTraceInputSign = m_impl->rollingTraceInputSign;
+		m_state.rollChainAvailable =
+			m_impl->rollChainAvailable &&
+			std::abs(m_input.throttle) < 0.001f;
+		const bool mobilityDriveRequested =
+			std::abs(m_input.throttle) > 0.001f ||
+			std::abs(m_input.leftTrack - 1.0f) > 0.001f ||
+			std::abs(m_input.rightTrack - 1.0f) > 0.001f;
+		m_state.mobility = m_mobilityStateMachine.Update(
+			m_state.motionObservation,
+			mobilityDriveRequested,
+			deltaTimeSeconds);
+	}
 }

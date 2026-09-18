@@ -166,12 +166,25 @@ namespace Tank::Physics
             return result;
         }
         settings.rollSpeedMultiplier = 0.5f;
-        result.slow = ObserveRollingTrajectory(settings, environment, 1, cancel);
+        result.slowBeforeTrajectory = ObserveRollingTrajectory(settings, environment, 1, cancel);
+        result.slow = result.slowBeforeTrajectory;
         result.slowBefore = result.slowAfter = CompareRollingTrajectories(
-            result.reference, result.slow, 0.5f);
+            result.reference, result.slowBeforeTrajectory, 0.5f);
+        settings.rollSpeedMultiplier = 1.5f;
+        result.intermediateBeforeTrajectory = ObserveRollingTrajectory(
+            settings, environment, 1, cancel);
+        if (!result.intermediateBeforeTrajectory.Complete())
+        {
+            result.cancelled = Cancelled(cancel);
+            result.error = "x1.5 before optimization: " +
+                result.intermediateBeforeTrajectory.error;
+            return result;
+        }
         settings.rollSpeedMultiplier = 2.0f;
-        result.optimized = ObserveRollingTrajectory(settings, environment, 1, cancel);
-        result.before = result.after = CompareRollingTrajectories(result.reference, result.optimized);
+        result.fastBeforeTrajectory = ObserveRollingTrajectory(settings, environment, 1, cancel);
+        result.optimized = result.fastBeforeTrajectory;
+        result.before = result.after = CompareRollingTrajectories(
+            result.reference, result.fastBeforeTrajectory);
         ++result.evaluations;
         const auto combinedScore = [](const RollingTrajectoryError& slow,
             const RollingTrajectoryError& fast)
