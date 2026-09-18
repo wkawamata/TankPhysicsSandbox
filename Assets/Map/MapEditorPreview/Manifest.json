@@ -2,9 +2,9 @@
   "clearAreas": [
     {
       "center": [
-        6.25,
+        20.0,
         2.549999952316284,
-        0.0
+        20.0
       ],
       "id": "clear-area-1",
       "name": "Clear Area",
@@ -29,17 +29,59 @@
         0.0,
         0.0
       ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-1",
+      "position": [
+        20.0,
+        0.0,
+        0.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-2",
+      "position": [
+        20.0,
+        0.0,
+        20.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-3",
+      "position": [
+        20.0,
+        0.0,
+        40.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
     }
   ],
   "playerSpawn": {
     "position": [
-      -5.449999809265137,
+      0.20000000298023224,
       2.0,
       -3.25
     ],
     "rotationDegrees": [
       0.0,
-      73.0,
+      0.0,
       0.0
     ]
   },
