@@ -45,6 +45,7 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     m_status = "Opened Manifest.json";
     m_selectedAsset.clear();
     m_selectedInstanceId.clear();
+    m_focusSelectedRequested = false;
     m_hiddenInstanceIds.clear();
     m_selectedClearAreaId.clear();
     RefreshAssets();
@@ -91,6 +92,13 @@ bool MapEditorMode::ConsumeSceneReloadRequest()
 {
     const bool requested = m_sceneReloadRequested;
     m_sceneReloadRequested = false;
+    return requested;
+}
+
+bool MapEditorMode::ConsumeFocusSelectedRequest()
+{
+    const bool requested = m_focusSelectedRequested;
+    m_focusSelectedRequested = false;
     return requested;
 }
 
@@ -170,6 +178,7 @@ bool MapEditorMode::AddSelectedModel()
     }
     m_sceneReloadRequested = true;
     m_selectedInstanceId = updated.instances.back().id;
+    m_focusSelectedRequested = true;
     m_status = "Added " + m_selectedAsset + ". Save to write Manifest.json.";
     return true;
 }
@@ -183,6 +192,7 @@ bool MapEditorMode::UpdateSelectedInstance(const Tank::Map::Transform& transform
     {
         m_status = "The selected model no longer exists.";
         m_selectedInstanceId.clear();
+        m_focusSelectedRequested = false;
         return false;
     }
     instance->transform = transform;
@@ -200,7 +210,10 @@ void MapEditorMode::SetSelectedInstanceVisible(bool visible)
 {
     if (m_selectedInstanceId.empty()) return;
     if (visible)
+    {
         m_hiddenInstanceIds.erase(m_selectedInstanceId);
+        m_focusSelectedRequested = true;
+    }
     else
         m_hiddenInstanceIds.insert(m_selectedInstanceId);
     m_sceneReloadRequested = true;
@@ -222,6 +235,7 @@ bool MapEditorMode::RemoveSelectedInstance()
     }
     m_hiddenInstanceIds.erase(m_selectedInstanceId);
     m_selectedInstanceId.clear();
+    m_focusSelectedRequested = false;
     m_sceneReloadRequested = true;
     m_status = "Removed " + removedAsset + ". Save to write Manifest.json.";
     return true;
@@ -241,6 +255,7 @@ bool MapEditorMode::DuplicateSelectedInstance()
     }
     m_selectedInstanceId = *duplicateId;
     m_sceneReloadRequested = true;
+    m_focusSelectedRequested = true;
     m_status = "Duplicated model. Move it, then Save to write Manifest.json.";
     return true;
 }
@@ -392,6 +407,7 @@ bool MapEditorMode::Execute(HWND__* owner)
         m_inspectedAsset.clear();
         m_roleError.clear();
         m_selectedInstanceId.clear();
+        m_focusSelectedRequested = false;
         m_hiddenInstanceIds.clear();
         m_selectedClearAreaId.clear();
         m_sceneReloadRequested = true;
@@ -559,6 +575,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     {
                         m_selectedInstanceId = instance.id;
                         m_sceneReloadRequested = true;
+                        m_focusSelectedRequested = true;
                     }
                     ImGui::PopID();
                 }

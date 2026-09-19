@@ -21,6 +21,7 @@ public:
     using AssetValidator = std::function<bool(const std::filesystem::path&, const Tank::Map::GltfRoles&, std::string&)>;
     void SetAssetValidator(AssetValidator validator) { m_assetValidator = std::move(validator); }
     bool ConsumeSceneReloadRequest();
+    bool ConsumeFocusSelectedRequest();
     bool ConsumeApplicationExitApproval();
     std::optional<std::filesystem::path> ConsumeClosedMapFolder();
     bool HasUnsavedChanges() const { return m_map.IsDirty(); }
@@ -72,6 +73,7 @@ private:
     std::unordered_set<std::string> m_hiddenInstanceIds;
     std::string m_selectedClearAreaId;
     bool m_sceneReloadRequested = false;
+    bool m_focusSelectedRequested = false;
     bool m_applicationExitApproved = false;
     std::optional<std::filesystem::path> m_closedMapFolder;
     AssetValidator m_assetValidator;
