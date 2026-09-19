@@ -137,7 +137,7 @@ namespace
     {
         Tank::Map::Manifest manifest;
         manifest.instances = {
-            { "selected", "triangle-visual-hit.gltf", {} },
+            { "selected", "triangle-visual-hit.gltf", { { 4.0f, 2.0f, 6.0f }, {} } },
             { "hidden", "triangle-visual-hit.gltf", {} }
         };
         Tank::Rendering::MapEditorScenePresenter presenter;
@@ -155,7 +155,21 @@ namespace
         }
 
         // 6 grid lines, 1 visible model, 12 selection-box edges, and 3 player-start parts.
-        return presenter.GetScene().instances.size() == 22u;
+        const auto& focus = presenter.SelectedFocusTarget();
+        const bool valid = presenter.GetScene().instances.size() == 22u && focus &&
+            NearlyEqual(focus->center[0], 5.0f) && NearlyEqual(focus->center[1], 2.0f) &&
+            NearlyEqual(focus->center[2], 5.0f) && NearlyEqual(focus->radius, std::sqrt(2.0f));
+        if (!valid)
+        {
+            std::cerr << "Selection focus instances=" << presenter.GetScene().instances.size();
+            if (focus)
+                std::cerr << " center=" << focus->center[0] << ',' << focus->center[1] << ','
+                          << focus->center[2] << " radius=" << focus->radius;
+            else
+                std::cerr << " missing";
+            std::cerr << '\n';
+        }
+        return valid;
     }
 
     bool TestClearBeacons()

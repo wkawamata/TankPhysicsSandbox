@@ -1485,9 +1485,13 @@ void TankSandboxApp::DrawToolUi()
         }
         else if (m_mapEditorMode.ConsumeSceneReloadRequest())
         {
+            const bool focusSelected = m_mapEditorMode.ConsumeFocusSelectedRequest();
             const Tank::Map::MapFolder& map = m_mapEditorMode.Map();
             if (map.IsOpen())
             {
+                const Engine::Scene& previousScene = m_mapEditorScenePresenter.GetScene();
+                const bool preserveCamera = !previousScene.instances.empty();
+                const Engine::CameraState previousCamera = previousScene.camera;
                 std::string error;
                 const Tank::Rendering::MapEditorGridSettings grid = {
                     m_mapEditorMode.GridSpacingMeters(),
@@ -1498,11 +1502,41 @@ void TankSandboxApp::DrawToolUi()
                 if (m_mapEditorScenePresenter.Rebuild(
                     map.Folder(), map.Document(), grid, preview, error))
                 {
-                    m_sceneRenderer.SetScene(m_mapEditorScenePresenter.GetScene());
-                    m_sceneRenderer.ReloadSceneResources(m_mapEditorScenePresenter.GetScene());
+                    Engine::Scene& scene = m_mapEditorScenePresenter.GetScene();
+                    if (preserveCamera)
+                        scene.camera = previousCamera;
+                    DirectX::XMFLOAT3 cameraPivot = scene.camera.gazePoint;
+                    if (focusSelected)
+                    {
+                        if (const auto& target = m_mapEditorScenePresenter.SelectedFocusTarget())
+                        {
+                            float offsetX = scene.camera.pos.x - scene.camera.gazePoint.x;
+                            float offsetY = scene.camera.pos.y - scene.camera.gazePoint.y;
+                            float offsetZ = scene.camera.pos.z - scene.camera.gazePoint.z;
+                            float distance = std::sqrt(
+                                offsetX * offsetX + offsetY * offsetY + offsetZ * offsetZ);
+                            if (distance < 0.1f)
+                            {
+                                offsetX = 1.0f;
+                                offsetY = 0.75f;
+                                offsetZ = -1.0f;
+                                distance = std::sqrt(offsetX * offsetX +
+                                    offsetY * offsetY + offsetZ * offsetZ);
+                            }
+                            const float targetDistance = (std::max)(2.0f, target->radius * 2.5f);
+                            const float scale = targetDistance / distance;
+                            cameraPivot = { target->center[0], target->center[1], target->center[2] };
+                            scene.camera.pos = { cameraPivot.x + offsetX * scale,
+                                cameraPivot.y + offsetY * scale,
+                                cameraPivot.z + offsetZ * scale };
+                            scene.camera.gazePoint = cameraPivot;
+                        }
+                    }
+                    m_sceneRenderer.SetScene(scene);
+                    m_sceneRenderer.ReloadSceneResources(scene);
                     m_sceneRenderer.SetDisplayInstanceCount(
-                        static_cast<int>(m_mapEditorScenePresenter.GetScene().instances.size()));
-                    ActivateOrbitCamera(m_mapEditorScenePresenter.GetScene(), { 0.0f, 0.0f, 0.0f });
+                        static_cast<int>(scene.instances.size()));
+                    ActivateOrbitCamera(scene, cameraPivot);
                     ApplyActiveCameraScene();
                 }
                 else
