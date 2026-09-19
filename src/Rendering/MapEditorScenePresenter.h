@@ -24,6 +24,10 @@ namespace Tank::Rendering
     {
         std::string selectedInstanceId;
         std::unordered_set<std::string> hiddenInstanceIds;
+        bool showVisualMeshes = true;
+        bool showHitMeshes = false;
+        std::array<float, 3> visualMeshColor = {
+            80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
     };
 
     struct MapEditorFocusTarget
@@ -48,10 +52,12 @@ namespace Tank::Rendering
         {
             return m_selectedFocusTarget;
         }
+        const std::string& Warning() const { return m_warning; }
         void Clear();
 
     private:
         std::unique_ptr<Engine::SceneBuilder> m_builder = std::make_unique<Engine::SceneBuilder>();
         std::optional<MapEditorFocusTarget> m_selectedFocusTarget;
+        std::string m_warning;
     };
 }

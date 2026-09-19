@@ -1006,6 +1006,11 @@ namespace Ui
 			ImGui::TextUnformatted("High: >= 0.80");
 			if (ctx.manifestMapActive && ctx.mapHitMeshOverlay != nullptr)
 			{
+				if (ctx.mapVisualMeshes != nullptr &&
+					ImGui::Checkbox("Show Visual Meshes", ctx.mapVisualMeshes))
+				{
+					if (ctx.updateScene) ctx.updateScene();
+				}
 				if (ctx.mapMarkersVisible != nullptr &&
 					ImGui::Checkbox("Show Start / Goal Markers", ctx.mapMarkersVisible))
 				{
@@ -1017,6 +1022,12 @@ namespace Ui
 					if (ctx.updateScene) ctx.updateScene();
 				}
 				ImGui::TextUnformatted("Magenta: collision mesh used by physics");
+				if (ctx.manifestMapMissingVisuals)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.72f, 0.2f, 1.0f));
+					ImGui::TextWrapped("Warning: Visual Mesh missing. Hit Mesh display was enabled automatically.");
+					ImGui::PopStyleColor();
+				}
 				if (ctx.mapCleared && ctx.clearedAreaName != nullptr)
 				{
 					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.4f, 1.0f));

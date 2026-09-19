@@ -86,8 +86,10 @@ public:
     bool& RollingCheatWindowJapanese() { return m_rollingCheatWindowJapanese; }
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
     bool& MapHitMeshOverlay() { return m_mapHitMeshOverlay; }
+    bool& MapVisualMeshes() { return m_mapVisualMeshes; }
     bool& MapMarkersVisible() { return m_mapMarkersVisible; }
     bool HasManifestMap() const { return m_manifestMap.has_value(); }
+    bool ManifestMissingVisuals() const { return m_manifestMissingVisuals; }
     bool& TrackShoeDisplay() { return m_visualSettings.showDummyTrackShoes; }
     bool& ShowTrackProxies() { return m_showTrackProxies; }
     bool& ShowDummyModel() { return m_visualSettings.showDummyBody; }
@@ -169,6 +171,8 @@ private:
     std::filesystem::path m_manifestMapFolder;
     std::vector<Tank::Map::HitTriangleMesh> m_manifestHitMeshes;
     std::optional<size_t> m_mapHitMeshOverlayInstance;
+    std::vector<size_t> m_mapVisualInstances;
+    std::vector<DirectX::XMFLOAT4X4> m_mapVisualWorlds;
     std::vector<size_t> m_mapMarkerInstances;
     std::vector<DirectX::XMFLOAT4X4> m_mapMarkerWorlds;
     std::vector<size_t> m_mapClearBeaconInstances;
@@ -188,7 +192,9 @@ private:
     bool m_showGltfSide = true;
     bool m_physicsDebugOverlay = false;
     bool m_mapHitMeshOverlay = false;
+    bool m_mapVisualMeshes = true;
     bool m_mapMarkersVisible = true;
+    bool m_manifestMissingVisuals = false;
     bool m_tankVisualMaterialApplyPending = false;
     bool m_active = false;
     std::array<RtPbrSurvey::DebugLineHandle, 32> m_mortarRangeLines = {};
