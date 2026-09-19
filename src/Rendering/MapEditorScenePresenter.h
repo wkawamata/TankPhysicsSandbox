@@ -4,8 +4,10 @@
 #include "Map/GltfRoles.h"
 #include "Scene/SceneBuilder.h"
 
+#include <array>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_set>
 
@@ -22,6 +24,16 @@ namespace Tank::Rendering
     {
         std::string selectedInstanceId;
         std::unordered_set<std::string> hiddenInstanceIds;
+        bool showVisualMeshes = true;
+        bool showHitMeshes = false;
+        std::array<float, 3> visualMeshColor = {
+            80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
+    };
+
+    struct MapEditorFocusTarget
+    {
+        std::array<float, 3> center = {};
+        float radius = 0.5f;
     };
 
     // Rendering-only adapter for the map editor. TankMapCore remains renderer-independent.
@@ -36,9 +48,16 @@ namespace Tank::Rendering
         bool ValidateVisualAsset(const std::filesystem::path& assetPath,
             const Map::GltfRoles& roles, std::string& error) const;
         Engine::Scene& GetScene() { return m_builder->GetScene(); }
+        const std::optional<MapEditorFocusTarget>& SelectedFocusTarget() const
+        {
+            return m_selectedFocusTarget;
+        }
+        const std::string& Warning() const { return m_warning; }
         void Clear();
 
     private:
         std::unique_ptr<Engine::SceneBuilder> m_builder = std::make_unique<Engine::SceneBuilder>();
+        std::optional<MapEditorFocusTarget> m_selectedFocusTarget;
+        std::string m_warning;
     };
 }

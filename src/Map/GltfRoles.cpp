@@ -103,7 +103,7 @@ namespace Tank::Map
             Require(roots.is_array(), "Scene nodes must be an array.");
             std::vector<bool> visited(nodes.size());
             GltfRoles result;
-            bool visual = false, hit = false;
+            bool hit = false;
             std::function<void(size_t, int, size_t)> visit = [&](size_t index, int role, size_t depth)
             {
                 Require(depth <= 256, "Node hierarchy exceeds 256 levels.");
@@ -124,7 +124,7 @@ namespace Tank::Map
                     const auto mesh = Index(node["mesh"], meshes.size(), "mesh");
                     Require(meshes[mesh].is_object(), "Mesh must be an object.");
                     result.meshNodes.push_back({ index, mesh, role == 0 ? MeshRole::Visual : MeshRole::Hit, name });
-                    if (role == 0) visual = true; else hit = true;
+                    if (role == 1) hit = true;
                 }
                 if (node.contains("children"))
                 {
@@ -134,7 +134,7 @@ namespace Tank::Map
                 }
             };
             for (const auto& root : roots) visit(Index(root, nodes.size(), "root"), -1, 0);
-            Require(visual && hit, "Both Visual and Hit must contain at least one mesh node.");
+            Require(hit, "Hit must contain at least one mesh node.");
             output = std::move(result);
             error.clear();
             return true;

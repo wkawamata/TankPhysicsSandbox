@@ -63,6 +63,10 @@ int main()
         changed = valid; changed["nodes"][3]["name"] = "hit"; reject(changed);
         changed = valid; changed["nodes"][3]["mesh"] = 0; reject(changed);
         changed = valid; changed["nodes"][4].erase("mesh"); reject(changed);
+        changed = valid; changed["nodes"][2].erase("mesh");
+        Check(ParseGltfRoles(changed.dump(), roles, error) && roles.meshNodes.size() == 1 &&
+            roles.meshNodes[0].role == MeshRole::Hit, "Visual mesh is optional when Hit exists");
+        Check(ParseGltfRoles(valid.dump(), roles, error), "Restore complete role fixture");
         changed = valid; changed["nodes"][2]["mesh"] = 1; reject(changed);
         changed = valid; changed["nodes"][1]["children"] = {-1}; reject(changed);
         changed = valid; changed["scene"] = 0.5; reject(changed);

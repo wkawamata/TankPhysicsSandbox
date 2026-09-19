@@ -20,7 +20,8 @@ namespace Tank::Map
     };
 
     // Inspects glTF 2.0 JSON and its active scene. Does not load geometry or textures.
-    // Exact Visual/Hit names designate mesh-free parent nodes. Both roles required.
+    // Exact Visual/Hit names designate mesh-free parent nodes. Hit is required;
+    // Visual is optional so collision geometry can be used as a visible fallback.
     // Failure leaves output unchanged.
     bool InspectGltfRoles(const std::filesystem::path& path, GltfRoles& output, std::string& error);
     bool ParseGltfRoles(const std::string& json, GltfRoles& output, std::string& error);

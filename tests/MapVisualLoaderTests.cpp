@@ -81,7 +81,8 @@ namespace
         }
         const Engine::SceneVertex& vertex = mesh.vertices[0];
         return NearlyEqual(vertex.position.x, 1.0f) &&
-            NearlyEqual(vertex.position.y, 2.0f) &&
+            NearlyEqual(vertex.position.y,
+                2.0f - Tank::Rendering::kHitMeshOverlayOffsetMeters) &&
             NearlyEqual(vertex.position.z, 3.0f) &&
             NearlyEqual(vertex.normal.x, 0.0f) &&
             NearlyEqual(vertex.normal.y, -1.0f) &&
@@ -127,8 +128,10 @@ namespace
         const Engine::Scene& scene = presenter.GetScene();
         if (scene.instances.size() != 22)
             return false;
+        const Engine::InstanceData& firstGridLine = scene.instances[0];
         const Engine::InstanceData& spawnPost = scene.instances[7];
-        return NearlyEqual(spawnPost.world._14, 2.0f) &&
+        return firstGridLine.world._24 + firstGridLine.world._22 * 0.5f > 0.0f &&
+            NearlyEqual(spawnPost.world._14, 2.0f) &&
             NearlyEqual(spawnPost.world._24, 3.75f) &&
             NearlyEqual(spawnPost.world._34, 4.0f);
     }
@@ -137,7 +140,7 @@ namespace
     {
         Tank::Map::Manifest manifest;
         manifest.instances = {
-            { "selected", "triangle-visual-hit.gltf", {} },
+            { "selected", "triangle-visual-hit.gltf", { { 4.0f, 2.0f, 6.0f }, {} } },
             { "hidden", "triangle-visual-hit.gltf", {} }
         };
         Tank::Rendering::MapEditorScenePresenter presenter;
@@ -155,7 +158,51 @@ namespace
         }
 
         // 6 grid lines, 1 visible model, 12 selection-box edges, and 3 player-start parts.
-        return presenter.GetScene().instances.size() == 22u;
+        const auto& focus = presenter.SelectedFocusTarget();
+        const bool valid = presenter.GetScene().instances.size() == 22u && focus &&
+            NearlyEqual(focus->center[0], 5.0f) && NearlyEqual(focus->center[1], 2.0f) &&
+            NearlyEqual(focus->center[2], 5.0f) && NearlyEqual(focus->radius, std::sqrt(2.0f));
+        if (!valid)
+        {
+            std::cerr << "Selection focus instances=" << presenter.GetScene().instances.size();
+            if (focus)
+                std::cerr << " center=" << focus->center[0] << ',' << focus->center[1] << ','
+                          << focus->center[2] << " radius=" << focus->radius;
+            else
+                std::cerr << " missing";
+            std::cerr << '\n';
+        }
+        return valid;
+    }
+
+    bool TestHitOnlyVisualFallbackAndDisplaySwitches()
+    {
+        Tank::Map::Manifest manifest;
+        manifest.instances = { { "hit-only", "hit-only.gltf", {} } };
+        Tank::Rendering::MapEditorScenePresenter presenter;
+        const Tank::Rendering::MapEditorGridSettings grid = { 1.0f, 1, 0.02f };
+        const std::filesystem::path fixtureFolder =
+            std::filesystem::path(TANK_SOURCE_DIR) / "tests/Fixtures/MapEditor";
+        std::string error;
+        Tank::Rendering::MapEditorPreviewSettings preview;
+        if (!presenter.Rebuild(fixtureFolder, manifest, grid, preview, error) ||
+            presenter.GetScene().instances.size() != 10u || presenter.Warning().empty())
+            return false;
+
+        preview.showVisualMeshes = false;
+        if (!presenter.Rebuild(fixtureFolder, manifest, grid, preview, error) ||
+            presenter.GetScene().instances.size() != 9u)
+            return false;
+
+        preview.showHitMeshes = true;
+        if (!presenter.Rebuild(fixtureFolder, manifest, grid, preview, error) ||
+            presenter.GetScene().instances.size() != 10u)
+            return false;
+        const size_t hitInstance = presenter.GetScene().instances.size() -
+            Tank::Rendering::kPlayerStartMarkerPartCount - 1u;
+        const DirectX::XMFLOAT4X4& hitWorld = presenter.GetScene().instances[hitInstance].world;
+        return hitWorld._11 == 1.0f && hitWorld._22 == 1.0f &&
+            hitWorld._33 == 1.0f && hitWorld._44 == 1.0f;
     }
 
     bool TestClearBeacons()
@@ -187,7 +234,8 @@ namespace
 int main()
 {
     if (!TestIndestructibleBoxTemplate() || !TestHitMeshOverlayGeometry() || !TestFailureDoesNotMutateScene() ||
-        !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() || !TestClearBeacons())
+        !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() ||
+        !TestHitOnlyVisualFallbackAndDisplaySwitches() || !TestClearBeacons())
     {
         std::cerr << "Map visual loader tests failed.\n";
         return 1;
