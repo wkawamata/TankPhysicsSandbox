@@ -402,6 +402,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.activeMapName = &m_trackedVehicleMode.ActiveMapName();
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
     m_trackedVehiclePanelCtx.mapHitMeshOverlay = &m_trackedVehicleMode.MapHitMeshOverlay();
+    m_trackedVehiclePanelCtx.mapVisualMeshes = &m_trackedVehicleMode.MapVisualMeshes();
     m_trackedVehiclePanelCtx.mapMarkersVisible = &m_trackedVehicleMode.MapMarkersVisible();
     m_trackedVehiclePanelCtx.trackShoeDisplay = &m_trackedVehicleMode.TrackShoeDisplay();
     m_trackedVehiclePanelCtx.showTrackProxies = &m_trackedVehicleMode.ShowTrackProxies();
@@ -1498,7 +1499,9 @@ void TankSandboxApp::DrawToolUi()
                     m_mapEditorMode.GridHalfCellCount(),
                     m_mapEditorMode.GridLineWidthMeters() };
                 const Tank::Rendering::MapEditorPreviewSettings preview = {
-                    m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds() };
+                    m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds(),
+                    m_mapEditorMode.ShowVisualMeshes(), m_mapEditorMode.ShowHitMeshes(),
+                    m_mapEditorMode.VisualMeshColor() };
                 if (m_mapEditorScenePresenter.Rebuild(
                     map.Folder(), map.Document(), grid, preview, error))
                 {
@@ -1538,6 +1541,7 @@ void TankSandboxApp::DrawToolUi()
                         static_cast<int>(scene.instances.size()));
                     ActivateOrbitCamera(scene, cameraPivot);
                     ApplyActiveCameraScene();
+                    m_mapEditorMode.SetPreviewWarning(m_mapEditorScenePresenter.Warning());
                 }
                 else
                 {
@@ -1583,6 +1587,8 @@ void TankSandboxApp::DrawToolUi()
             m_trackedVehiclePanelCtx.analogTracksConnected = m_trackedVehicleMode.AnalogTracksConnected();
             m_trackedVehiclePanelCtx.analogTracksArmed = m_trackedVehicleMode.AnalogTracksArmed();
             m_trackedVehiclePanelCtx.manifestMapActive = m_trackedVehicleMode.HasManifestMap();
+            m_trackedVehiclePanelCtx.manifestMapMissingVisuals =
+                m_trackedVehicleMode.ManifestMissingVisuals();
             m_trackedVehiclePanelCtx.manifestMapHasClearAreas =
                 m_trackedVehicleMode.HasClearAreas();
             m_trackedVehiclePanelCtx.mapCleared = m_trackedVehicleMode.MapCleared();

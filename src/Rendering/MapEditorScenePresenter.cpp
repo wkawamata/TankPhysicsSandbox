@@ -1,12 +1,15 @@
 #include "MapEditorScenePresenter.h"
 
 #include "Map/GltfRoles.h"
+#include "Map/GltfHitMesh.h"
 #include "MapVisualLoader.h"
 
 #include <DirectXMath.h>
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <sstream>
 
 namespace
 {
@@ -83,6 +86,48 @@ namespace
             (std::max)(0.5f, std::sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ)) };
     }
 
+    Tank::Rendering::MapVisualBounds MakeHitBounds(
+        const std::string& instanceId, const Tank::Map::HitTriangleMesh& mesh)
+    {
+        Tank::Rendering::MapVisualBounds bounds;
+        bounds.instanceId = instanceId;
+        bounds.minimum.fill((std::numeric_limits<float>::max)());
+        bounds.maximum.fill((std::numeric_limits<float>::lowest)());
+        for (const std::array<float, 3>& vertex : mesh.vertices)
+        {
+            for (size_t axis = 0; axis < 3; ++axis)
+            {
+                bounds.minimum[axis] = (std::min)(bounds.minimum[axis], vertex[axis]);
+                bounds.maximum[axis] = (std::max)(bounds.maximum[axis], vertex[axis]);
+            }
+        }
+        return bounds;
+    }
+
+    bool FindMissingVisuals(const std::filesystem::path& mapFolder,
+        const Tank::Map::Manifest& manifest, std::unordered_set<std::string>& instanceIds,
+        std::vector<std::string>& assets, std::string& error)
+    {
+        for (const Tank::Map::Instance& instance : manifest.instances)
+        {
+            const std::u8string assetUtf8(instance.asset.begin(), instance.asset.end());
+            Tank::Map::GltfRoles roles;
+            if (!Tank::Map::InspectGltfRoles(
+                mapFolder / std::filesystem::path(assetUtf8), roles, error))
+                return false;
+            const bool hasVisual = std::any_of(roles.meshNodes.begin(), roles.meshNodes.end(),
+                [](const Tank::Map::RoleMeshNode& node)
+                { return node.role == Tank::Map::MeshRole::Visual; });
+            if (!hasVisual)
+            {
+                instanceIds.insert(instance.id);
+                if (std::find(assets.begin(), assets.end(), instance.asset) == assets.end())
+                    assets.push_back(instance.asset);
+            }
+        }
+        return true;
+    }
+
 }
 
 bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
@@ -98,15 +143,24 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
     std::string& error)
 {
     auto next = std::make_unique<Engine::SceneBuilder>();
-    const uint32_t fallbackMaterial = next->AddSolidColorMaterial(230, 230, 230, 255);
+    const auto colorByte = [](float value)
+    {
+        return static_cast<uint8_t>(std::lround(std::clamp(value, 0.0f, 1.0f) * 255.0f));
+    };
+    const uint32_t fallbackMaterial = next->AddSolidColorMaterial(
+        colorByte(preview.visualMeshColor[0]), colorByte(preview.visualMeshColor[1]),
+        colorByte(preview.visualMeshColor[2]), 255);
     const uint32_t gridMaterial = next->AddSolidColorMaterial(100, 150, 185, 255);
     const uint32_t xAxisMaterial = next->AddSolidColorMaterial(210, 85, 85, 255);
     const uint32_t zAxisMaterial = next->AddSolidColorMaterial(85, 190, 105, 255);
     const uint32_t spawnMaterial = next->AddSolidColorMaterial(255, 190, 35, 255);
     const uint32_t clearAreaMaterial = next->AddSolidColorMaterial(35, 225, 235, 255);
     const uint32_t selectionMaterial = next->AddSolidColorMaterial(255, 220, 35, 255);
+    const uint32_t hitMeshMaterial = next->AddSolidColorMaterial(255, 45, 190, 255);
     const Engine::SceneMeshId gridMesh = next->AddCube(1.0f);
     const float extent = grid.spacingMeters * static_cast<float>(grid.halfCellCount);
+    constexpr float gridSurfaceOffsetMeters = 0.002f;
+    const float gridCenterY = gridSurfaceOffsetMeters - grid.lineWidthMeters * 0.5f;
     for (int cell = -grid.halfCellCount; cell <= grid.halfCellCount; ++cell)
     {
         const float offset = grid.spacingMeters * static_cast<float>(cell);
@@ -114,26 +168,60 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
         const uint32_t zAxisLineMaterial = cell == 0 ? zAxisMaterial : gridMaterial;
         next->AddInstance(gridMesh,
             DirectX::XMMatrixScaling(extent * 2.0f, grid.lineWidthMeters, grid.lineWidthMeters) *
-                DirectX::XMMatrixTranslation(0.0f, -grid.lineWidthMeters * 0.5f, offset), zAxisLineMaterial);
+                DirectX::XMMatrixTranslation(0.0f, gridCenterY, offset), zAxisLineMaterial);
         next->AddInstance(gridMesh,
             DirectX::XMMatrixScaling(grid.lineWidthMeters, grid.lineWidthMeters, extent * 2.0f) *
-                DirectX::XMMatrixTranslation(offset, -grid.lineWidthMeters * 0.5f, 0.0f), xAxisLineMaterial);
+                DirectX::XMMatrixTranslation(offset, gridCenterY, 0.0f), xAxisLineMaterial);
     }
     Map::Manifest visibleManifest = manifest;
     std::erase_if(visibleManifest.instances, [&preview](const Map::Instance& instance)
         { return preview.hiddenInstanceIds.contains(instance.id); });
-    std::vector<MapVisualBounds> visualBounds;
-    if (!AppendMapVisuals(*next, mapFolder, visibleManifest, fallbackMaterial, error, &visualBounds))
+    std::unordered_set<std::string> missingVisualIds;
+    std::vector<std::string> missingVisualAssets;
+    if (!FindMissingVisuals(mapFolder, manifest, missingVisualIds, missingVisualAssets, error))
         return false;
+    std::vector<MapVisualBounds> visualBounds;
+    if (preview.showVisualMeshes &&
+        !AppendMapVisuals(*next, mapFolder, visibleManifest, fallbackMaterial, error, &visualBounds))
+        return false;
+    std::vector<Map::HitTriangleMesh> hitMeshes;
+    std::vector<MapVisualBounds> hitBounds;
+    for (const Map::Instance& instance : visibleManifest.instances)
+    {
+        const bool fallback = preview.showVisualMeshes && missingVisualIds.contains(instance.id);
+        if (!preview.showHitMeshes && !fallback) continue;
+        const std::u8string assetUtf8(instance.asset.begin(), instance.asset.end());
+        Map::HitTriangleMesh local;
+        if (!Map::LoadGltfHitMesh(mapFolder / std::filesystem::path(assetUtf8), local, error))
+            return false;
+        hitBounds.push_back(MakeHitBounds(instance.id, local));
+        Map::HitTriangleMesh world;
+        if (!Map::TransformHitMesh(local, instance.transform, world, error))
+            return false;
+        hitMeshes.push_back(std::move(world));
+    }
+    if (!hitMeshes.empty())
+    {
+        size_t hitMeshInstance = 0;
+        if (!AppendMapHitMeshOverlay(*next, hitMeshes, hitMeshMaterial, hitMeshInstance, error))
+            return false;
+        Engine::InstanceData& instance = next->GetScene().instances[hitMeshInstance];
+        DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixIdentity());
+        instance.prevWorld = instance.world;
+    }
     const auto selectedInstance = std::find_if(visibleManifest.instances.begin(), visibleManifest.instances.end(),
         [&preview](const Map::Instance& instance) { return instance.id == preview.selectedInstanceId; });
     const auto selectedBounds = std::find_if(visualBounds.begin(), visualBounds.end(),
         [&preview](const MapVisualBounds& bounds) { return bounds.instanceId == preview.selectedInstanceId; });
+    const auto selectedHitBounds = std::find_if(hitBounds.begin(), hitBounds.end(),
+        [&preview](const MapVisualBounds& bounds) { return bounds.instanceId == preview.selectedInstanceId; });
     std::optional<MapEditorFocusTarget> selectedFocusTarget;
-    if (selectedInstance != visibleManifest.instances.end() && selectedBounds != visualBounds.end())
+    const MapVisualBounds* selectionBounds = selectedBounds != visualBounds.end() ?
+        &*selectedBounds : selectedHitBounds != hitBounds.end() ? &*selectedHitBounds : nullptr;
+    if (selectedInstance != visibleManifest.instances.end() && selectionBounds != nullptr)
     {
-        AppendSelectionWireframe(*next, gridMesh, *selectedInstance, *selectedBounds, selectionMaterial);
-        selectedFocusTarget = MakeFocusTarget(*selectedInstance, *selectedBounds);
+        AppendSelectionWireframe(*next, gridMesh, *selectedInstance, *selectionBounds, selectionMaterial);
+        selectedFocusTarget = MakeFocusTarget(*selectedInstance, *selectionBounds);
     }
     std::vector<size_t> markerInstances;
     AppendMapMarkers(*next, gridMesh, manifest, spawnMaterial,
@@ -142,6 +230,20 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
     next->GetScene().camera.gazePoint = { 0.0f, 0.0f, 0.0f };
     m_builder = std::move(next);
     m_selectedFocusTarget = selectedFocusTarget;
+    if (missingVisualAssets.empty())
+        m_warning.clear();
+    else
+    {
+        std::ostringstream warning;
+        warning << "No Visual Mesh in ";
+        for (size_t index = 0; index < missingVisualAssets.size(); ++index)
+        {
+            if (index > 0) warning << ", ";
+            warning << missingVisualAssets[index];
+        }
+        warning << ". Showing Hit Mesh as the fallback.";
+        m_warning = warning.str();
+    }
     error.clear();
     return true;
 }
@@ -156,16 +258,23 @@ bool Tank::Rendering::MapEditorScenePresenter::ValidateVisualAsset(
         return false;
     }
     Engine::SceneBuilder builder;
+    bool hasVisual = false;
     for (const Map::RoleMeshNode& node : roles.meshNodes)
     {
         if (node.role != Map::MeshRole::Visual)
             continue;
+        hasVisual = true;
         const Engine::GltfNodeMeshAddResult add = builder.AddGltfNodeMesh(asset.asset, static_cast<uint32_t>(node.nodeIndex));
         if (!add)
         {
             error = add.message;
             return false;
         }
+    }
+    if (!hasVisual)
+    {
+        Map::HitTriangleMesh hitMesh;
+        if (!Map::LoadGltfHitMesh(assetPath, hitMesh, error)) return false;
     }
     error.clear();
     return true;
@@ -175,4 +284,5 @@ void Tank::Rendering::MapEditorScenePresenter::Clear()
 {
     m_builder = std::make_unique<Engine::SceneBuilder>();
     m_selectedFocusTarget.reset();
+    m_warning.clear();
 }

@@ -43,6 +43,7 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
 {
     if (!m_map.Open(folder, error)) return false;
     m_status = "Opened Manifest.json";
+    m_previewWarning.clear();
     m_selectedAsset.clear();
     m_selectedInstanceId.clear();
     m_focusSelectedRequested = false;
@@ -367,6 +368,8 @@ void MapEditorMode::DrawCheatSheet()
         ImGui::BulletText("Placed Models: position and rotation");
         ImGui::BulletText("Selected model: yellow highlight box");
         ImGui::BulletText("Visible in editor: preview-only visibility");
+        ImGui::BulletText("Show Visual / Hit Meshes and Visual Mesh Color: preview display settings");
+        ImGui::BulletText("Missing Visual Mesh: warning and Hit fallback");
         ImGui::BulletText("Player Start: chassis-center position and rotation");
         ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
         ImGui::BulletText("Clear Areas: goal AABB center and size");
@@ -397,6 +400,7 @@ bool MapEditorMode::Execute(HWND__* owner)
         if (m_map.IsOpen()) m_closedMapFolder = m_map.Folder();
         m_map = {};
         m_status.clear();
+        m_previewWarning.clear();
         m_assets.clear();
         m_availableMaps.clear();
         m_selectedAvailableMap.clear();
@@ -453,9 +457,9 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
-    ImGui::SameLine();
-    if (ImGui::Button("Cheat Sheet")) m_showCheatSheet = true;
+    ImGui::Checkbox("Show Cheat Sheet", &m_showCheatSheet);
     ImGui::Separator();
+    ImGui::BeginChild("##MapEditorScrollArea", ImVec2(0.0f, 0.0f), false);
     ImGui::SeparatorText("Maps in Assets/Map");
     if (ImGui::Button("Refresh Map List")) RefreshAvailableMaps();
     ImGui::SameLine();
@@ -499,6 +503,19 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         gridChanged |= ImGui::SliderInt("Half cells", &m_gridHalfCellCount, 1, 100);
         gridChanged |= ImGui::DragFloat("Line width (m)", &m_gridLineWidthMeters, 0.005f, 0.005f, 0.2f, "%.3f");
         if (gridChanged) m_sceneReloadRequested = true;
+        ImGui::SeparatorText("Mesh Display");
+        bool meshDisplayChanged = ImGui::Checkbox("Show Visual Meshes", &m_showVisualMeshes);
+        ImGui::SameLine();
+        meshDisplayChanged |= ImGui::Checkbox("Show Hit Meshes", &m_showHitMeshes);
+        meshDisplayChanged |= ImGui::ColorEdit3("Visual Mesh Color", m_visualMeshColor.data());
+        if (meshDisplayChanged) m_sceneReloadRequested = true;
+        ImGui::TextDisabled("Display only. Hit collision remains active during play.");
+        if (!m_previewWarning.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.72f, 0.2f, 1.0f));
+            ImGui::TextWrapped("Warning: %s", m_previewWarning.c_str());
+            ImGui::PopStyleColor();
+        }
         ImGui::Separator();
         if (ImGui::Button("Add Indestructible Box")) AddIndestructibleBox();
         ImGui::TextWrapped("Static box: 2 x 3 x 2 m, origin at its base. Shots cannot destroy it. Edit position/rotation below, then Save.");
@@ -549,11 +566,17 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 [](const auto& node) { return node.role == Tank::Map::MeshRole::Visual; });
             ImGui::Text("Mesh nodes - Visual: %zu, Hit: %zu", static_cast<size_t>(visualCount),
                 m_roles.meshNodes.size() - static_cast<size_t>(visualCount));
+            if (visualCount == 0)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.72f, 0.2f, 1.0f));
+                ImGui::TextWrapped("Warning: no Visual Mesh. Hit Mesh will be shown as the fallback.");
+                ImGui::PopStyleColor();
+            }
             for (const auto& node : m_roles.meshNodes)
                 ImGui::Text("%s - node %zu, mesh %zu: %s", node.role == Tank::Map::MeshRole::Visual ? "Visual" : "Hit",
                     node.nodeIndex, node.meshIndex, node.name.empty() ? "(unnamed)" : node.name.c_str());
         }
-        ImGui::TextWrapped("Add to Map loads Visual meshes into the preview. Hit meshes become indestructible static colliders during play.");
+        ImGui::TextWrapped("Visual and Hit display can be toggled above. Hit meshes become indestructible static colliders during play.");
 
         ImGui::SeparatorText("Placed Models");
         if (document.instances.empty())
@@ -658,6 +681,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     if (!m_status.empty()) ImGui::TextWrapped("%s", m_status.c_str());
     ImGui::TextUnformatted("Camera: left drag orbit, middle drag pan, wheel zoom");
     ImGui::TextUnformatted("ESC: Back to Menu");
+    ImGui::EndChild();
 
     if (m_confirm) ImGui::OpenPopup("Unsaved map changes");
     if (ImGui::BeginPopupModal("Unsaved map changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
