@@ -815,6 +815,10 @@ namespace Ui
 			if (settings.expireAtMaximumDistance)
 				ImGui::DragFloat("Maximum distance (m)", &settings.maximumDistanceMeters, 1.0f, 0.1f, 1000000.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
 			ImGui::TextWrapped("Distance expiry is independent of infinite lifetime. Distance settings affect new rounds.");
+			ImGui::DragFloat3("Muzzle local position (m)",
+				&settings.muzzleLocalPosition.x, 0.01f, -100.0f, 100.0f, "%.2f",
+				ImGuiSliderFlags_AlwaysClamp);
+			ImGui::TextDisabled("Tank local: +X right, +Y up, +Z forward. Saved with Tank Settings.");
 			ImGui::SliderInt("Maximum ground impact marks", &settings.maximumImpactMarks, 0, 1024, "%d", ImGuiSliderFlags_AlwaysClamp);
 			if (ctx.state) ImGui::Text("Ground marks: %zu / %d", ctx.state->assaultImpactMarks.Count(), settings.maximumImpactMarks);
 			ImGui::TextWrapped("Ground marks overwrite oldest entries. Zero disables marks. Reset clears them.");

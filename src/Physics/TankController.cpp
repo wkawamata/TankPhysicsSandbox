@@ -469,14 +469,14 @@ namespace Tank::Physics
         return fired;
     }
 
-    Vec3 TankController::AssaultMuzzlePosition() const
+    Vec3 TankController::AssaultMuzzlePosition(const Vec3& localPosition) const
     {
         if (!m_impl || !m_impl->hasBody) return {};
         JPH::RVec3 position;
         JPH::Quat rotation;
         m_impl->world.GetBodyInterface().GetPositionAndRotation(m_impl->bodyId, position, rotation);
-        const JPH::Vec3 forward = rotation * JPH::Vec3::sAxisZ();
-        const JPH::RVec3 muzzle = position + JPH::Vec3(0.0f, 0.85f, 0.0f) + forward * 1.8f;
+        const JPH::RVec3 muzzle = position + rotation * JPH::Vec3(
+            localPosition.x, localPosition.y, localPosition.z);
         return {static_cast<float>(muzzle.GetX()), static_cast<float>(muzzle.GetY()), static_cast<float>(muzzle.GetZ())};
     }
 

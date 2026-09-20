@@ -1,4 +1,14 @@
 {
+  "assaultDamagePerRound": 20.0,
+  "assaultExpireAtMaximumDistance": true,
+  "assaultLifetimeSeconds": 0.0,
+  "assaultMaximumDistanceMeters": 40.0,
+  "assaultMaximumImpactMarks": 128,
+  "assaultMaximumProjectiles": 64,
+  "assaultMuzzleLocalX": -0.4099999964237213,
+  "assaultMuzzleLocalY": 0.10000000149011612,
+  "assaultMuzzleLocalZ": 2.069999933242798,
+  "assaultSpeedMetersPerSecond": 80.0,
   "chassisLengthM": 3.9200000762939453,
   "chassisMassKg": 4000.0,
   "chassisWidthM": 2.4000000953674316,
@@ -71,7 +81,7 @@
   "transmissionShiftDownRpm": 1000.0,
   "transmissionShiftUpRpm": 4375.0,
   "twoRoadWheelOffsetM": 0.6700000166893005,
-  "version": 18,
+  "version": 22,
   "wheelHorizontalOffsetM": -0.019999999552965164,
   "yawDamping": 0.0,
   "yawSpeedLimitDegrees": 100.0
