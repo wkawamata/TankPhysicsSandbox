@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 21;
+        constexpr int kSchemaVersion = 22;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -57,6 +57,9 @@ namespace Tank::Physics
         json["assaultMaximumImpactMarks"] = settings.assaultProjectiles.maximumImpactMarks;
         json["assaultExpireAtMaximumDistance"] = settings.assaultProjectiles.expireAtMaximumDistance;
         json["assaultMaximumDistanceMeters"] = settings.assaultProjectiles.maximumDistanceMeters;
+        json["assaultMuzzleLocalX"] = settings.assaultProjectiles.muzzleLocalPosition.x;
+        json["assaultMuzzleLocalY"] = settings.assaultProjectiles.muzzleLocalPosition.y;
+        json["assaultMuzzleLocalZ"] = settings.assaultProjectiles.muzzleLocalPosition.z;
         json["recoilImpulseNewtonSeconds"] = settings.recoilImpulseNewtonSeconds;
         json["recoilPointForwardM"] = settings.recoilPointForwardM;
         json["recoilPointHeightM"] = settings.recoilPointHeightM;
@@ -157,6 +160,9 @@ namespace Tank::Physics
         ReadInt(json, "assaultMaximumImpactMarks", loaded.assaultProjectiles.maximumImpactMarks);
         ReadBool(json, "assaultExpireAtMaximumDistance", loaded.assaultProjectiles.expireAtMaximumDistance);
         ReadFloat(json, "assaultMaximumDistanceMeters", loaded.assaultProjectiles.maximumDistanceMeters);
+        ReadFloat(json, "assaultMuzzleLocalX", loaded.assaultProjectiles.muzzleLocalPosition.x);
+        ReadFloat(json, "assaultMuzzleLocalY", loaded.assaultProjectiles.muzzleLocalPosition.y);
+        ReadFloat(json, "assaultMuzzleLocalZ", loaded.assaultProjectiles.muzzleLocalPosition.z);
         ReadFloat(json, "recoilImpulseNewtonSeconds", loaded.recoilImpulseNewtonSeconds);
         ReadFloat(json, "recoilPointForwardM", loaded.recoilPointForwardM);
         ReadFloat(json, "recoilPointHeightM", loaded.recoilPointHeightM);

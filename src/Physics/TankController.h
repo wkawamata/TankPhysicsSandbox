@@ -30,7 +30,7 @@ namespace Tank::Physics
         void SetInput(const TankInput& input);
         bool FireAssault();
         void SetAssaultCapacityAvailable(bool available) { m_assaultCapacityAvailable = available; }
-        Vec3 AssaultMuzzlePosition() const;
+        Vec3 AssaultMuzzlePosition(const Vec3& localPosition) const;
         Vec3 AssaultForwardDirection() const;
         bool CastAssaultSegment(const Vec3& start, Vec3& end, std::uint32_t& hitBodyId,
             Vec3& surfaceNormal, bool& staticSurface) const;

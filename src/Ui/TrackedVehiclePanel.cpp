@@ -815,6 +815,10 @@ namespace Ui
 			if (settings.expireAtMaximumDistance)
 				ImGui::DragFloat("Maximum distance (m)", &settings.maximumDistanceMeters, 1.0f, 0.1f, 1000000.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
 			ImGui::TextWrapped("Distance expiry is independent of infinite lifetime. Distance settings affect new rounds.");
+			ImGui::DragFloat3("Muzzle local position (m)",
+				&settings.muzzleLocalPosition.x, 0.01f, -100.0f, 100.0f, "%.2f",
+				ImGuiSliderFlags_AlwaysClamp);
+			ImGui::TextDisabled("Tank local: +X right, +Y up, +Z forward. Saved with Tank Settings.");
 			ImGui::SliderInt("Maximum ground impact marks", &settings.maximumImpactMarks, 0, 1024, "%d", ImGuiSliderFlags_AlwaysClamp);
 			if (ctx.state) ImGui::Text("Ground marks: %zu / %d", ctx.state->assaultImpactMarks.Count(), settings.maximumImpactMarks);
 			ImGui::TextWrapped("Ground marks overwrite oldest entries. Zero disables marks. Reset clears them.");
@@ -1006,6 +1010,11 @@ namespace Ui
 			ImGui::TextUnformatted("High: >= 0.80");
 			if (ctx.manifestMapActive && ctx.mapHitMeshOverlay != nullptr)
 			{
+				if (ctx.mapVisualMeshes != nullptr &&
+					ImGui::Checkbox("Show Visual Meshes", ctx.mapVisualMeshes))
+				{
+					if (ctx.updateScene) ctx.updateScene();
+				}
 				if (ctx.mapMarkersVisible != nullptr &&
 					ImGui::Checkbox("Show Start / Goal Markers", ctx.mapMarkersVisible))
 				{
@@ -1017,6 +1026,12 @@ namespace Ui
 					if (ctx.updateScene) ctx.updateScene();
 				}
 				ImGui::TextUnformatted("Magenta: collision mesh used by physics");
+				if (ctx.manifestMapMissingVisuals)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.72f, 0.2f, 1.0f));
+					ImGui::TextWrapped("Warning: Visual Mesh missing. Hit Mesh display was enabled automatically.");
+					ImGui::PopStyleColor();
+				}
 				if (ctx.mapCleared && ctx.clearedAreaName != nullptr)
 				{
 					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.4f, 1.0f));

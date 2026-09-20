@@ -292,6 +292,13 @@ namespace Tank::Physics
         current.expireAtMaximumDistance = settings.expireAtMaximumDistance;
         current.maximumDistanceMeters = std::isfinite(settings.maximumDistanceMeters)
             ? std::clamp(settings.maximumDistanceMeters, 0.1f, 1000000.0f) : 40.0f;
+        current.muzzleLocalPosition = {
+            std::isfinite(settings.muzzleLocalPosition.x)
+                ? std::clamp(settings.muzzleLocalPosition.x, -100.0f, 100.0f) : 0.0f,
+            std::isfinite(settings.muzzleLocalPosition.y)
+                ? std::clamp(settings.muzzleLocalPosition.y, -100.0f, 100.0f) : 0.85f,
+            std::isfinite(settings.muzzleLocalPosition.z)
+                ? std::clamp(settings.muzzleLocalPosition.z, -100.0f, 100.0f) : 1.8f};
         current.maximumImpactMarks = std::clamp(settings.maximumImpactMarks, 0, 1024);
         m_state.assaultImpactMarks.SetCapacity(current.maximumImpactMarks);
         current.speedMetersPerSecond = std::isfinite(settings.speedMetersPerSecond)
@@ -335,7 +342,8 @@ namespace Tank::Physics
         m_impl->resolvedAssaultRounds = m_state.assaultWeapon.roundsFired;
         const auto& settings = m_impl->projectileSettings;
         const auto forward = m_impl->controller.AssaultForwardDirection();
-        m_state.assaultProjectiles.push_back({m_impl->controller.AssaultMuzzlePosition(),
+        m_state.assaultProjectiles.push_back({m_impl->controller.AssaultMuzzlePosition(
+            settings.muzzleLocalPosition),
             {forward.x * settings.speedMetersPerSecond,
              forward.y * settings.speedMetersPerSecond,
              forward.z * settings.speedMetersPerSecond},

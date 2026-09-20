@@ -16,6 +16,7 @@ namespace Tank::Rendering
 {
     inline constexpr size_t kPlayerStartMarkerPartCount = 3u;
     inline constexpr size_t kClearAreaMarkerPartCount = 12u;
+    inline constexpr float kHitMeshOverlayOffsetMeters = 0.003f;
 
     struct MapVisualBounds
     {
@@ -27,7 +28,8 @@ namespace Tank::Rendering
     bool AppendMapVisuals(Engine::SceneBuilder& builder,
         const std::filesystem::path& mapFolder, const Map::Manifest& manifest,
         uint32_t materialId, std::string& error,
-        std::vector<MapVisualBounds>* instanceBounds = nullptr);
+        std::vector<MapVisualBounds>* instanceBounds = nullptr,
+        std::vector<size_t>* instanceIndices = nullptr);
 
     bool AppendMapHitMeshOverlay(Engine::SceneBuilder& builder,
         const std::vector<Map::HitTriangleMesh>& hitMeshes, uint32_t materialId,

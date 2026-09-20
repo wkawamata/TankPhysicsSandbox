@@ -402,6 +402,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.activeMapName = &m_trackedVehicleMode.ActiveMapName();
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
     m_trackedVehiclePanelCtx.mapHitMeshOverlay = &m_trackedVehicleMode.MapHitMeshOverlay();
+    m_trackedVehiclePanelCtx.mapVisualMeshes = &m_trackedVehicleMode.MapVisualMeshes();
     m_trackedVehiclePanelCtx.mapMarkersVisible = &m_trackedVehicleMode.MapMarkersVisible();
     m_trackedVehiclePanelCtx.trackShoeDisplay = &m_trackedVehicleMode.TrackShoeDisplay();
     m_trackedVehiclePanelCtx.showTrackProxies = &m_trackedVehicleMode.ShowTrackProxies();
@@ -1485,25 +1486,62 @@ void TankSandboxApp::DrawToolUi()
         }
         else if (m_mapEditorMode.ConsumeSceneReloadRequest())
         {
+            const bool focusSelected = m_mapEditorMode.ConsumeFocusSelectedRequest();
             const Tank::Map::MapFolder& map = m_mapEditorMode.Map();
             if (map.IsOpen())
             {
+                const Engine::Scene& previousScene = m_mapEditorScenePresenter.GetScene();
+                const bool preserveCamera = !previousScene.instances.empty();
+                const Engine::CameraState previousCamera = previousScene.camera;
                 std::string error;
                 const Tank::Rendering::MapEditorGridSettings grid = {
                     m_mapEditorMode.GridSpacingMeters(),
                     m_mapEditorMode.GridHalfCellCount(),
                     m_mapEditorMode.GridLineWidthMeters() };
                 const Tank::Rendering::MapEditorPreviewSettings preview = {
-                    m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds() };
+                    m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds(),
+                    m_mapEditorMode.ShowVisualMeshes(), m_mapEditorMode.ShowHitMeshes(),
+                    m_mapEditorMode.VisualMeshColor() };
                 if (m_mapEditorScenePresenter.Rebuild(
                     map.Folder(), map.Document(), grid, preview, error))
                 {
-                    m_sceneRenderer.SetScene(m_mapEditorScenePresenter.GetScene());
-                    m_sceneRenderer.ReloadSceneResources(m_mapEditorScenePresenter.GetScene());
+                    Engine::Scene& scene = m_mapEditorScenePresenter.GetScene();
+                    if (preserveCamera)
+                        scene.camera = previousCamera;
+                    DirectX::XMFLOAT3 cameraPivot = scene.camera.gazePoint;
+                    if (focusSelected)
+                    {
+                        if (const auto& target = m_mapEditorScenePresenter.SelectedFocusTarget())
+                        {
+                            float offsetX = scene.camera.pos.x - scene.camera.gazePoint.x;
+                            float offsetY = scene.camera.pos.y - scene.camera.gazePoint.y;
+                            float offsetZ = scene.camera.pos.z - scene.camera.gazePoint.z;
+                            float distance = std::sqrt(
+                                offsetX * offsetX + offsetY * offsetY + offsetZ * offsetZ);
+                            if (distance < 0.1f)
+                            {
+                                offsetX = 1.0f;
+                                offsetY = 0.75f;
+                                offsetZ = -1.0f;
+                                distance = std::sqrt(offsetX * offsetX +
+                                    offsetY * offsetY + offsetZ * offsetZ);
+                            }
+                            const float targetDistance = (std::max)(2.0f, target->radius * 2.5f);
+                            const float scale = targetDistance / distance;
+                            cameraPivot = { target->center[0], target->center[1], target->center[2] };
+                            scene.camera.pos = { cameraPivot.x + offsetX * scale,
+                                cameraPivot.y + offsetY * scale,
+                                cameraPivot.z + offsetZ * scale };
+                            scene.camera.gazePoint = cameraPivot;
+                        }
+                    }
+                    m_sceneRenderer.SetScene(scene);
+                    m_sceneRenderer.ReloadSceneResources(scene);
                     m_sceneRenderer.SetDisplayInstanceCount(
-                        static_cast<int>(m_mapEditorScenePresenter.GetScene().instances.size()));
-                    ActivateOrbitCamera(m_mapEditorScenePresenter.GetScene(), { 0.0f, 0.0f, 0.0f });
+                        static_cast<int>(scene.instances.size()));
+                    ActivateOrbitCamera(scene, cameraPivot);
                     ApplyActiveCameraScene();
+                    m_mapEditorMode.SetPreviewWarning(m_mapEditorScenePresenter.Warning());
                 }
                 else
                 {
@@ -1549,6 +1587,8 @@ void TankSandboxApp::DrawToolUi()
             m_trackedVehiclePanelCtx.analogTracksConnected = m_trackedVehicleMode.AnalogTracksConnected();
             m_trackedVehiclePanelCtx.analogTracksArmed = m_trackedVehicleMode.AnalogTracksArmed();
             m_trackedVehiclePanelCtx.manifestMapActive = m_trackedVehicleMode.HasManifestMap();
+            m_trackedVehiclePanelCtx.manifestMapMissingVisuals =
+                m_trackedVehicleMode.ManifestMissingVisuals();
             m_trackedVehiclePanelCtx.manifestMapHasClearAreas =
                 m_trackedVehicleMode.HasClearAreas();
             m_trackedVehiclePanelCtx.mapCleared = m_trackedVehicleMode.MapCleared();

@@ -7,6 +7,7 @@
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
 #include "Input/TankInputMapper.h"
+#include "Map/GltfRoles.h"
 #include "Map/MapClearCondition.h"
 #include "Physics/PhysicsEnvironmentSettingsJson.h"
 #include "Physics/TankSettingsJson.h"
@@ -102,7 +103,10 @@ void TrackedVehicleMode::SelectMap(Tank::Physics::MapId mapId)
     m_customMap.reset();
     m_manifestMap.reset();
     m_manifestHitMeshes.clear();
+    m_manifestMissingVisuals = false;
     m_mapHitMeshOverlayInstance.reset();
+    m_mapVisualInstances.clear();
+    m_mapVisualWorlds.clear();
     m_mapMarkerInstances.clear();
     m_mapMarkerWorlds.clear();
     m_mapClearBeaconInstances.clear();
@@ -123,7 +127,10 @@ void TrackedVehicleMode::SelectCustomMap(
     m_customMap = document;
     m_manifestMap.reset();
     m_manifestHitMeshes.clear();
+    m_manifestMissingVisuals = false;
     m_mapHitMeshOverlayInstance.reset();
+    m_mapVisualInstances.clear();
+    m_mapVisualWorlds.clear();
     m_mapMarkerInstances.clear();
     m_mapMarkerWorlds.clear();
     m_mapClearBeaconInstances.clear();
@@ -139,10 +146,21 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     const Tank::Map::Manifest& manifest, std::string& error)
 {
     std::vector<Tank::Map::HitTriangleMesh> meshes;
+    bool missingVisuals = false;
     meshes.reserve(manifest.instances.size());
     for (const Tank::Map::Instance& instance : manifest.instances)
     {
         const std::u8string assetUtf8(instance.asset.begin(), instance.asset.end());
+        Tank::Map::GltfRoles roles;
+        if (!Tank::Map::InspectGltfRoles(
+            folder / std::filesystem::path(assetUtf8), roles, error))
+        {
+            error = "Cannot inspect mesh roles '" + instance.asset + "': " + error;
+            return false;
+        }
+        missingVisuals |= std::none_of(roles.meshNodes.begin(), roles.meshNodes.end(),
+            [](const Tank::Map::RoleMeshNode& node)
+            { return node.role == Tank::Map::MeshRole::Visual; });
         Tank::Map::HitTriangleMesh local;
         if (!Tank::Map::LoadGltfHitMesh(folder / std::filesystem::path(assetUtf8), local, error))
         {
@@ -166,7 +184,10 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     m_manifestMap = manifest;
     m_manifestMapFolder = folder;
     m_manifestHitMeshes = std::move(meshes);
+    m_manifestMissingVisuals = missingVisuals;
     m_mapHitMeshOverlayInstance.reset();
+    m_mapVisualInstances.clear();
+    m_mapVisualWorlds.clear();
     m_mapMarkerInstances.clear();
     m_mapMarkerWorlds.clear();
     m_mapClearBeaconInstances.clear();
@@ -176,7 +197,13 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     m_clearedAreaName.clear();
     m_environmentSettings = {};
     m_activeMapName = folder.filename().string();
-    m_mapLoadStatus = "Loaded Manifest map: " + m_activeMapName;
+    if (missingVisuals)
+    {
+        m_mapHitMeshOverlay = true;
+        m_mapLoadStatus = "Warning: Visual Mesh missing. Showing Hit Mesh for " + m_activeMapName;
+    }
+    else
+        m_mapLoadStatus = "Loaded Manifest map: " + m_activeMapName;
     error.clear();
     return true;
 }
@@ -197,6 +224,8 @@ float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)
 bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
 {
     m_mapHitMeshOverlayInstance.reset();
+    m_mapVisualInstances.clear();
+    m_mapVisualWorlds.clear();
     m_mapMarkerInstances.clear();
     m_mapMarkerWorlds.clear();
     m_mapClearBeaconInstances.clear();
@@ -216,7 +245,7 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
 
     if (m_manifestMap)
     {
-        const uint32_t mapMaterial = m_presenter.SceneBuilder().AddSolidColorMaterial(210, 210, 210, 255);
+        const uint32_t mapMaterial = m_presenter.SceneBuilder().AddSolidColorMaterial(80, 80, 80, 255);
         const uint32_t hitMeshMaterial =
             m_presenter.SceneBuilder().AddSolidColorMaterial(255, 45, 190, 255);
         const uint32_t spawnMaterial =
@@ -229,7 +258,7 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
         std::string error;
         size_t hitMeshOverlayInstance = 0;
         if (!Tank::Rendering::AppendMapVisuals(m_presenter.SceneBuilder(), m_manifestMapFolder,
-            *m_manifestMap, mapMaterial, error) ||
+            *m_manifestMap, mapMaterial, error, nullptr, &m_mapVisualInstances) ||
             !Tank::Rendering::AppendMapHitMeshOverlay(m_presenter.SceneBuilder(),
                 m_manifestHitMeshes, hitMeshMaterial, hitMeshOverlayInstance, error) ||
             !m_test.InitializeWithStaticMeshes(m_settings, m_environmentSettings,
@@ -241,6 +270,9 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
             return false;
         }
         m_mapHitMeshOverlayInstance = hitMeshOverlayInstance;
+        m_mapVisualWorlds.reserve(m_mapVisualInstances.size());
+        for (const size_t index : m_mapVisualInstances)
+            m_mapVisualWorlds.push_back(scene.instances[index].world);
         Tank::Rendering::AppendMapMarkers(m_presenter.SceneBuilder(), markerCube,
             *m_manifestMap, spawnMaterial, clearAreaMaterial, m_mapMarkerInstances);
         Tank::Rendering::AppendMapClearBeacons(m_presenter.SceneBuilder(), markerCube,
@@ -291,6 +323,8 @@ void TrackedVehicleMode::Exit(RtPbrSurvey::SceneRenderer& renderer)
     m_assaultTracerLines.clear();
     m_presenter.Clear();
     m_mapHitMeshOverlayInstance.reset();
+    m_mapVisualInstances.clear();
+    m_mapVisualWorlds.clear();
     m_mapMarkerInstances.clear();
     m_mapMarkerWorlds.clear();
     m_mapClearBeaconInstances.clear();
@@ -418,6 +452,18 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
             m_mapHitMeshOverlay
                 ? DirectX::XMMatrixIdentity()
                 : DirectX::XMMatrixScaling(0.0f, 0.0f, 0.0f)));
+    }
+    for (size_t visual = 0; visual < m_mapVisualInstances.size(); ++visual)
+    {
+        const size_t instanceIndex = m_mapVisualInstances[visual];
+        if (instanceIndex >= m_presenter.GetScene().instances.size()) continue;
+        Engine::InstanceData& instance = m_presenter.GetScene().instances[instanceIndex];
+        instance.prevWorld = instance.world;
+        if (m_mapVisualMeshes)
+            instance.world = m_mapVisualWorlds[visual];
+        else
+            DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(
+                DirectX::XMMatrixScaling(0.0f, 0.0f, 0.0f)));
     }
     for (size_t marker = 0; marker < m_mapMarkerInstances.size(); ++marker)
     {

@@ -46,8 +46,10 @@ namespace Ui
 
         bool* physicsDebugOverlay = nullptr;
         bool* mapHitMeshOverlay = nullptr;
+        bool* mapVisualMeshes = nullptr;
         bool* mapMarkersVisible = nullptr;
         bool manifestMapActive = false;
+        bool manifestMapMissingVisuals = false;
         bool manifestMapHasClearAreas = false;
         bool mapCleared = false;
         const std::string* clearedAreaName = nullptr;

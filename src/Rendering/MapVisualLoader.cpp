@@ -75,9 +75,11 @@ namespace
 bool Tank::Rendering::AppendMapVisuals(Engine::SceneBuilder& builder,
     const std::filesystem::path& mapFolder, const Map::Manifest& manifest,
     uint32_t materialId, std::string& error,
-    std::vector<MapVisualBounds>* instanceBounds)
+    std::vector<MapVisualBounds>* instanceBounds,
+    std::vector<size_t>* instanceIndices)
 {
     if (instanceBounds) instanceBounds->clear();
+    if (instanceIndices) instanceIndices->clear();
     for (const Map::Instance& instance : manifest.instances)
     {
         const std::u8string assetUtf8(instance.asset.begin(), instance.asset.end());
@@ -132,6 +134,7 @@ bool Tank::Rendering::AppendMapVisuals(Engine::SceneBuilder& builder,
                     }
                 }
             }
+            if (instanceIndices) instanceIndices->push_back(builder.GetScene().instances.size());
             builder.AddInstance(*add.meshId, ToWorld(instance.transform), materialId);
         }
     }
@@ -182,7 +185,9 @@ bool Tank::Rendering::AppendMapHitMeshOverlay(Engine::SceneBuilder& builder,
             for (const std::array<float, 3>* point : { &a, &b, &c })
             {
                 vertices.push_back({
-                    { (*point)[0], (*point)[1], (*point)[2] },
+                    { (*point)[0] + normal.x * kHitMeshOverlayOffsetMeters,
+                      (*point)[1] + normal.y * kHitMeshOverlayOffsetMeters,
+                      (*point)[2] + normal.z * kHitMeshOverlayOffsetMeters },
                     { 0.0f, 0.0f },
                     normal });
             }
