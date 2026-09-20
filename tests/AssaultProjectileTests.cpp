@@ -101,6 +101,19 @@ int main()
     Reset(world);
     passed &= Check(world.ProjectileSettings().expireAtMaximumDistance &&
         world.ProjectileSettings().maximumDistanceMeters == 40.0f, "distance expiry defaults on at 40m");
+    auto muzzleSettings = world.ProjectileSettings();
+    muzzleSettings.muzzleLocalPosition = {0.5f, 1.25f, 2.0f};
+    world.SetAssaultProjectileSettings(muzzleSettings);
+    const Vec3 bodyPosition = world.State().bodyPosition;
+    world.FireAssault();
+    passed &= Check(std::abs(world.State().assaultProjectiles.back().position.x -
+            (bodyPosition.x + 0.5f)) < 0.01f &&
+        std::abs(world.State().assaultProjectiles.back().position.y -
+            (bodyPosition.y + 1.25f)) < 0.01f &&
+        std::abs(world.State().assaultProjectiles.back().position.z -
+            (bodyPosition.z + 2.0f)) < 0.01f,
+        "GUI muzzle XYZ is transformed from tank local coordinates");
+    Reset(world);
     world.SetAssaultProjectileSettings({1, 10000.0f, 20.0f, 0.0f, 128, true, 5.0f});
     world.AddDestructibleBox({0.0f, 1.5f, 12.0f}, {2.0f, 3.0f, 2.0f});
     world.FireAssault();

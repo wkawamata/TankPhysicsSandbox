@@ -28,6 +28,7 @@ int main()
     source.assaultProjectiles.maximumImpactMarks = 17;
     source.assaultProjectiles.expireAtMaximumDistance = false;
     source.assaultProjectiles.maximumDistanceMeters = 123.0f;
+    source.assaultProjectiles.muzzleLocalPosition = {0.25f, 1.1f, 2.3f};
     source.recoilImpulseNewtonSeconds = 27500.0f;
     source.recoilPointForwardM = 1.5f;
     source.recoilPointHeightM = 0.9f;
@@ -104,7 +105,10 @@ int main()
         NearlyEqual(loaded.assaultProjectiles.damagePerRound, 35.0f) &&
         NearlyEqual(loaded.assaultProjectiles.lifetimeSeconds, 2.5f) &&
         !loaded.assaultProjectiles.expireAtMaximumDistance &&
-        NearlyEqual(loaded.assaultProjectiles.maximumDistanceMeters, 123.0f),
+        NearlyEqual(loaded.assaultProjectiles.maximumDistanceMeters, 123.0f) &&
+        NearlyEqual(loaded.assaultProjectiles.muzzleLocalPosition.x, 0.25f) &&
+        NearlyEqual(loaded.assaultProjectiles.muzzleLocalPosition.y, 1.1f) &&
+        NearlyEqual(loaded.assaultProjectiles.muzzleLocalPosition.z, 2.3f),
         "projectile settings must round trip");
     Tank::Physics::TankSettings defaultProjectileSettings;
     passed &= Check(Tank::Physics::DeserializeTankSettings(
