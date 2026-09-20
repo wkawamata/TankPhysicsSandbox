@@ -6,7 +6,7 @@
 
 Tank Physics SandboxのMapは、UIとheadless CLIで共有するデータ駆動の検証Sceneである。Map定義はPhysicsが所有し、Renderingは同じprimitive dataを可視化するだけとする。
 
-Map fileは`Config/Maps/`に置き、version付きJSONを使用する。現在のschema versionは`3`である。
+Map fileは`Assets/Map/`に置き、version付きJSONを使用する。現在のschema versionは`3`である。
 
 ## 座標系
 
@@ -64,13 +64,13 @@ Height Field形状はこの3項目で決まる。`size`は共通primitive schema
 JSONを編集または追加した後は、登録された全Mapを検証する。
 
 ```powershell
-build\Debug\TankPhysicsCli.exe --test maps --map-directory Config\Maps
+build\Debug\TankPhysicsCli.exe --test maps --map-directory Assets\Map
 ```
 
 Mapに明確な走破目標がある場合は、決定的な走行検証も実行する。
 
 ```powershell
-build\Debug\TankPhysicsCli.exe --test map --map Config\Maps\mobility_course.json --settle-steps 180 --steps 480 --dt 0.0166667 --throttle 1 --min-forward-distance 45 --min-final-y 0
+build\Debug\TankPhysicsCli.exe --test map --map Assets\Map\mobility_course.json --settle-steps 180 --steps 480 --dt 0.0166667 --throttle 1 --min-forward-distance 45 --min-final-y 0
 ```
 
 `TankPhysics.AllMapFilesCli`はCTestからdirectory全体を検証する。コース固有のCTestは、期待する走行距離または到達高度が安定し、検証目的として有効な場合だけ追加する。

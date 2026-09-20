@@ -41,7 +41,7 @@
 
 - `Box Drop`: 箱の落下試験へ移動します。
 - `Tracked Vehicle Map`: Tracked Vehicleで使用するマップを選択します。
-- `Reload Map Files`: `Config/Maps`のJSONマップを再読み込みします。
+- `Reload Map Files (Assets/Map)`: `Assets/Map`のJSONマップを再読み込みします。
 - `Start Tracked Vehicle`: 選択したマップで戦車シミュレーションを開始します。
 
 Tracked VehicleまたはBox Dropから`ESC`を押すとトップメニューへ戻ります。
@@ -388,7 +388,7 @@ CLIでは次の形式で同じTank設定とマップを再現できます。
 ```powershell
 build\Debug\TankPhysicsCli.exe `
   --test map `
-  --map Config\Maps\mobility_course.json `
+  --map Assets\Map\mobility_course.json `
   --tank-settings Config\tank_physics_slot1.json `
   --settle-steps 180 `
   --steps 480 `

@@ -289,13 +289,6 @@ rtpbrsurvey_copy_runtime_files(TankSandbox)
 
 add_custom_command(TARGET TankSandbox POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps"
-        "$<TARGET_FILE_DIR:TankSandbox>/Config/Maps"
-    COMMENT "Copying Tank map definitions"
-)
-
-add_custom_command(TARGET TankSandbox POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/Assets/Map"
         "$<TARGET_FILE_DIR:TankSandbox>/Assets/Map"
     COMMENT "Copying Map editor assets"
@@ -677,7 +670,7 @@ if(BUILD_TESTING)
         NAME TankPhysics.TopologyMapCli
         COMMAND TankPhysicsCli
             --test map
-            --map "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps/topology_course.json"
+            --map "${CMAKE_CURRENT_SOURCE_DIR}/Assets/Map/topology_course.json"
             --settle-steps 180
             --steps 300
             --dt 0.0166667
@@ -693,7 +686,7 @@ if(BUILD_TESTING)
         NAME TankPhysics.MobilityMapCli
         COMMAND TankPhysicsCli
             --test map
-            --map "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps/mobility_course.json"
+            --map "${CMAKE_CURRENT_SOURCE_DIR}/Assets/Map/mobility_course.json"
             --tank-settings "${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tank_mobility.json"
             --settle-steps 180
             --steps 480
@@ -710,7 +703,7 @@ if(BUILD_TESTING)
         NAME TankPhysics.AllMapFilesCli
         COMMAND TankPhysicsCli
             --test maps
-            --map-directory "${CMAKE_CURRENT_SOURCE_DIR}/Config/Maps"
+            --map-directory "${CMAKE_CURRENT_SOURCE_DIR}/Assets/Map"
     )
     set_tests_properties(TankPhysics.AllMapFilesCli PROPERTIES
         PASS_REGULAR_EXPRESSION "PASS maps"
