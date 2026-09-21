@@ -143,22 +143,27 @@ target_include_directories(TankInputCore
 )
 
 add_library(TankInputMappingJson STATIC
+    src/Input/InputDeviceProfiles.h
+    src/Input/InputDeviceProfilesJson.cpp
+    src/Input/InputDeviceProfilesJson.h
     src/Input/TankInputMappingJson.cpp
     src/Input/TankInputMappingJson.h
 )
 target_include_directories(TankInputMappingJson PUBLIC src)
 target_link_libraries(TankInputMappingJson PUBLIC TankInputCore nlohmann_json::nlohmann_json)
 
-set(TANK_GAMEINPUT_VERSION "3.5.262" CACHE STRING "Microsoft.GameInput NuGet version.")
+set(TANK_GAMEINPUT_VERSION "3.5.270" CACHE STRING "Microsoft.GameInput NuGet version.")
 set(TANK_GAMEINPUT_PACKAGE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/packages/Microsoft.GameInput.${TANK_GAMEINPUT_VERSION}"
     CACHE PATH
     "Microsoft.GameInput NuGet package directory.")
-set(TANK_GAMEINPUT_INCLUDE_DIR "${TANK_GAMEINPUT_PACKAGE_DIR}/native/include/v0")
+set(TANK_GAMEINPUT_INCLUDE_DIR "${TANK_GAMEINPUT_PACKAGE_DIR}/native/include")
 set(TANK_GAMEINPUT_LIBRARY "${TANK_GAMEINPUT_PACKAGE_DIR}/native/lib/x64/GameInput.lib")
+set(TANK_GAMEINPUT_RUNTIME "${TANK_GAMEINPUT_PACKAGE_DIR}/redist/x64/GameInputRedist.dll")
 
 if(NOT EXISTS "${TANK_GAMEINPUT_INCLUDE_DIR}/GameInput.h" OR
-   NOT EXISTS "${TANK_GAMEINPUT_LIBRARY}")
+   NOT EXISTS "${TANK_GAMEINPUT_LIBRARY}" OR
+   NOT EXISTS "${TANK_GAMEINPUT_RUNTIME}")
     message(FATAL_ERROR
         "Microsoft.GameInput NuGet package was not found. "
         "Run scripts/Restore-GameInput.ps1.")
@@ -181,6 +186,8 @@ target_compile_definitions(TankWindowsInput PRIVATE USING_GAMEINPUT)
 target_link_libraries(TankWindowsInput
     PUBLIC
         "${TANK_GAMEINPUT_LIBRARY}"
+        dinput8
+        dxguid
 )
 
 # ── TankSandbox executable ─────────────────────────────────────
@@ -286,6 +293,13 @@ endif()
 
 # ── D3D12 Agility SDK ─────────────────────────────────────────
 rtpbrsurvey_copy_runtime_files(TankSandbox)
+
+add_custom_command(TARGET TankSandbox POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${TANK_GAMEINPUT_RUNTIME}"
+        "$<TARGET_FILE_DIR:TankSandbox>/GameInputRedist.dll"
+    COMMENT "Copying pinned GameInput runtime ${TANK_GAMEINPUT_VERSION}"
+)
 
 add_custom_command(TARGET TankSandbox POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

@@ -1,5 +1,6 @@
 #include "App/TrackedVehicleMode.h"
 #include "Input/TankInputMappingJson.h"
+#include "Input/InputDeviceProfilesJson.h"
 #include <fstream>
 #include "App/CameraController.h"
 #include "App/RollingProfileStore.h"
@@ -33,6 +34,8 @@ namespace
     constexpr const char* kTankSettingsDirectory = TANK_SOURCE_CONFIG_DIR;
     constexpr const char* kRollingProfileDirectory = TANK_SOURCE_CONFIG_DIR;
     constexpr const char* kMortarProfileDirectory = TANK_SOURCE_CONFIG_DIR;
+    const std::filesystem::path kInputDevicesPath =
+        std::filesystem::path(TANK_SOURCE_CONFIG_DIR) / "input_devices.json";
 
     const char* RollingTraceEventName(Tank::Physics::RollingTraceEvent event)
     {
@@ -199,8 +202,7 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     m_activeMapName = folder.filename().string();
     if (missingVisuals)
     {
-        m_mapHitMeshOverlay = true;
-        m_mapLoadStatus = "Warning: Visual Mesh missing. Showing Hit Mesh for " + m_activeMapName;
+        m_mapLoadStatus = "Warning: Visual Mesh missing for " + m_activeMapName;
     }
     else
         m_mapLoadStatus = "Loaded Manifest map: " + m_activeMapName;
@@ -208,16 +210,29 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     return true;
 }
 
-float TrackedVehicleMode::NormalizeRawGamepadAxis(float value)
+Tank::Input::InputDeviceProfile* TrackedVehicleMode::ActiveInputDeviceProfile()
 {
-    const float normalized = std::clamp((value - 0.5f) * 2.0f, -1.0f, 1.0f);
-    if (std::abs(normalized) <= kAnalogTrackDeadzone)
+    if (!m_activeInputDeviceProfile ||
+        *m_activeInputDeviceProfile >= m_inputDeviceProfiles.profiles.size())
     {
-        return 0.0f;
+        return nullptr;
     }
+    return &m_inputDeviceProfiles.profiles[*m_activeInputDeviceProfile];
+}
 
+float TrackedVehicleMode::NormalizeRawGamepadAxis(
+    float value,
+    float neutral,
+    float deadzone)
+{
+    neutral = std::clamp(neutral, 0.01f, 0.99f);
+    const float normalized = value >= neutral
+        ? (value - neutral) / (1.0f - neutral)
+        : (value - neutral) / neutral;
+    const float clampedDeadzone = std::clamp(deadzone, 0.0f, 0.95f);
+    if (std::abs(normalized) <= clampedDeadzone) return 0.0f;
     const float magnitude =
-        (std::abs(normalized) - kAnalogTrackDeadzone) / (1.0f - kAnalogTrackDeadzone);
+        (std::abs(normalized) - clampedDeadzone) / (1.0f - clampedDeadzone);
     return std::copysign(std::min(magnitude, 1.0f), normalized);
 }
 
@@ -535,7 +550,26 @@ void TrackedVehicleMode::UpdateInput(
     bool mortar)
 {
     Tank::Physics::TankInput input;
-    m_analogTracksConnected = gamepadState.connected && gamepadState.axisCount >= 4;
+    m_activeInputDeviceProfile.reset();
+    for (size_t index = 0; index < m_inputDeviceProfiles.profiles.size(); ++index)
+    {
+        const Tank::Input::InputDeviceProfile& candidate =
+            m_inputDeviceProfiles.profiles[index];
+        if (candidate.vendorId == gamepadState.vendorId &&
+            candidate.productId == gamepadState.productId)
+        {
+            m_activeInputDeviceProfile = index;
+            break;
+        }
+    }
+    Tank::Input::InputDeviceProfile* profile = ActiveInputDeviceProfile();
+    const auto hasAxis = [&gamepadState](size_t axis)
+    {
+        return axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
+    };
+    m_analogTracksConnected = gamepadState.connected && profile != nullptr &&
+        hasAxis(profile->leftTrackAxis) && hasAxis(profile->rightTrackAxis) &&
+        hasAxis(profile->leftRollAxis) && hasAxis(profile->rightRollAxis);
     if (!m_analogTracksConnected)
     {
         m_analogTracksArmed = false;
@@ -543,26 +577,40 @@ void TrackedVehicleMode::UpdateInput(
     else if (!m_analogTracksArmed)
     {
         const bool tracksNeutral =
-            std::abs(gamepadState.rawAxes[1] - 0.5f) <= 0.05f &&
-            std::abs(gamepadState.rawAxes[3] - 0.5f) <= 0.05f;
+            std::abs(gamepadState.rawAxes[profile->leftTrackAxis] - profile->neutral) <=
+                profile->neutralTolerance &&
+            std::abs(gamepadState.rawAxes[profile->rightTrackAxis] - profile->neutral) <=
+                profile->neutralTolerance;
         m_analogTracksArmed = tracksNeutral;
     }
     const bool useAnalogTracks = m_analogTracksConnected && m_analogTracksArmed;
-    const bool brakePressed = brake || gamepadState.brakePressed;
-    const bool gamepadAssaultButton =
-        gamepadState.buttonCount > Tank::Input::GamepadState::AssaultFireButtonIndex &&
-        gamepadState.rawButtons[Tank::Input::GamepadState::AssaultFireButtonIndex];
+    const bool profileBrake = profile != nullptr &&
+        profile->brakeButton < gamepadState.buttonCount &&
+        gamepadState.rawButtons[profile->brakeButton];
+    const bool brakePressed = brake || profileBrake || gamepadState.brakePressed;
+    const bool gamepadAssaultButton = profile != nullptr &&
+        profile->fireButton < gamepadState.buttonCount &&
+        gamepadState.rawButtons[profile->fireButton];
     input.fireAssault = fireAssault || gamepadAssaultButton ||
         (gamepadState.hasGamepadMapping && gamepadState.rightTrigger >= 0.5f);
 
-    m_analogLeftTrack =
-        useAnalogTracks ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[3]) : 0.0f;
-    m_analogRightTrack =
-        useAnalogTracks ? -NormalizeRawGamepadAxis(gamepadState.rawAxes[1]) : 0.0f;
-    const float analogRollAxis0 =
-        useAnalogTracks ? NormalizeRawGamepadAxis(gamepadState.rawAxes[0]) : 0.0f;
-    const float analogRollAxis2 =
-        useAnalogTracks ? NormalizeRawGamepadAxis(gamepadState.rawAxes[2]) : 0.0f;
+    const auto mappedAxis = [&](size_t axis, bool inverted)
+    {
+        if (!useAnalogTracks) return 0.0f;
+        const float value = NormalizeRawGamepadAxis(
+            gamepadState.rawAxes[axis], profile->neutral, profile->deadzone);
+        return inverted ? -value : value;
+    };
+    m_analogLeftTrack = mappedAxis(profile != nullptr ? profile->leftTrackAxis : 0,
+        profile != nullptr && profile->invertLeftTrack);
+    m_analogRightTrack = mappedAxis(profile != nullptr ? profile->rightTrackAxis : 0,
+        profile != nullptr && profile->invertRightTrack);
+    const float analogRollAxis0 = mappedAxis(
+        profile != nullptr ? profile->leftRollAxis : 0,
+        profile != nullptr && profile->invertLeftRoll);
+    const float analogRollAxis2 = mappedAxis(
+        profile != nullptr ? profile->rightRollAxis : 0,
+        profile != nullptr && profile->invertRightRoll);
 
     // axis 0 is the physical left lever X axis and axis 2 is the physical
     // right lever X axis. Keep this mapping in lever-local coordinates:
@@ -886,34 +934,35 @@ bool TrackedVehicleMode::SaveMortarProfile()
 
 bool TrackedVehicleMode::SaveInputMappingSettings()
 {
-    std::ofstream file("Config/input_mapping.json");
+    std::ofstream file(kInputDevicesPath);
     if (!file)
     {
-        m_inputMappingStatus = "Save failed: Config/input_mapping.json";
+        m_inputMappingStatus = "Save failed: " + kInputDevicesPath.string();
         return false;
     }
-    file << Tank::Input::SaveTankInputMappingSettings(m_inputMappingSettings).dump(4);
+    file << Tank::Input::SaveInputDeviceProfiles(m_inputDeviceProfiles).dump(4);
     if (!file)
     {
-        m_inputMappingStatus = "Save failed: Config/input_mapping.json";
+        m_inputMappingStatus = "Save failed: " + kInputDevicesPath.string();
         return false;
     }
-    m_inputMappingStatus = "Saved: Config/input_mapping.json";
+    m_inputMappingStatus = "Saved: " + kInputDevicesPath.string();
     return true;
 }
 
 bool TrackedVehicleMode::LoadInputMappingSettings()
 {
-    std::ifstream file("Config/input_mapping.json");
+    std::ifstream file(kInputDevicesPath);
     if (!file)
     {
-        m_inputMappingStatus = "Load failed: Config/input_mapping.json";
+        m_inputMappingStatus = "Load failed: " + kInputDevicesPath.string();
         return false;
     }
     nlohmann::json json;
     file >> json;
-    m_inputMappingSettings = Tank::Input::LoadTankInputMappingSettings(json);
-    m_inputMappingStatus = "Loaded: Config/input_mapping.json";
+    m_inputDeviceProfiles = Tank::Input::LoadInputDeviceProfiles(json);
+    m_activeInputDeviceProfile.reset();
+    m_inputMappingStatus = "Loaded: " + kInputDevicesPath.string();
     return true;
 }
 
