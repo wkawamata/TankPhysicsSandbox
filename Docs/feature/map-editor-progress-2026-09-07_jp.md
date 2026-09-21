@@ -144,7 +144,7 @@
 ## 6. マップを選択してプレイ — DONE
 
 - [x] DONE: エディタから戻ったとき、編集元MapフォルダのManifestを再読込してトップ画面へ登録・選択する。任意フォルダを `Config/map_editor_folders.json` へ保存し、再起動時に同名のビルド出力内コピーより優先して復元。自動テストとGUI再起動確認に成功。
-- [x] DONE: `Config/Maps`直下のMapフォルダを検索し、トップ画面へManifest Mapの選択肢と走行開始を追加。`MapEditorPreview (Manifest)`の選択と開始をGUI確認済み。
+- [x] DONE: `Assets/Map`直下のMapフォルダを検索し、トップ画面へManifest Mapの選択肢と走行開始を追加。`MapEditorPreview (Manifest)`の選択と開始をGUI確認済み。
 - [x] DONE: ManifestからVisual Mesh・HitMesh・戦車の開始位置とyawを読み込み、既定床を使わずプレイを開始する処理を実装。自動物理テストとGUI走行確認に成功。
 - [x] DONE: クリア判定version 1を「戦車の車体中心がいずれかのAABB境界内へ入る」に決定。最初に入ったエリア名を保持し、物理シミュレーションは継続する。
 - [x] DONE: AABBへの進入判定を走行へ接続し、Map欄へ`MAP CLEAR`とエリア名を表示。中心・境界・範囲外・複数エリアの自動テストとGUI走行確認に成功。

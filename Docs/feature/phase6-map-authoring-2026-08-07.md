@@ -6,7 +6,7 @@ Date: 2026-08-07
 
 Tank Physics Sandbox maps are data-driven validation scenes shared by the UI and headless CLI. Physics owns the map definition; rendering only visualizes the same primitive data.
 
-Map files live in `Config/Maps/` and use versioned JSON. The current schema version is `3`.
+Map files live in `Assets/Map/` and use versioned JSON. The current schema version is `3`.
 
 ## Coordinate System
 
@@ -62,13 +62,13 @@ The environment floor has its own `floorFriction` setting and is stored separate
 Validate every checked-in map after editing or adding a JSON file:
 
 ```powershell
-build\Debug\TankPhysicsCli.exe --test maps --map-directory Config\Maps
+build\Debug\TankPhysicsCli.exe --test maps --map-directory Assets\Map
 ```
 
 Run a deterministic traversal check when a map has a specific mobility goal:
 
 ```powershell
-build\Debug\TankPhysicsCli.exe --test map --map Config\Maps\mobility_course.json --settle-steps 180 --steps 480 --dt 0.0166667 --throttle 1 --min-forward-distance 45 --min-final-y 0
+build\Debug\TankPhysicsCli.exe --test map --map Assets\Map\mobility_course.json --settle-steps 180 --steps 480 --dt 0.0166667 --throttle 1 --min-forward-distance 45 --min-final-y 0
 ```
 
 `TankPhysics.AllMapFilesCli` runs the directory validation through CTest. Course-specific CTest entries should be added only when the expected traversal distance or height is stable and meaningful.
