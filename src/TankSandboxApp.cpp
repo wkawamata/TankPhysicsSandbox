@@ -381,7 +381,8 @@ void TankSandboxApp::OnInit()
     {
         m_trackedVehicleMode.LoadTankVisualSettings(false, m_sceneRenderer);
     }
-    m_gamepad.Initialize();
+    m_gamepad.Initialize(Win32Application::GetHwnd());
+    m_trackedVehicleMode.LoadInputMappingSettings();
 
     m_cameraPanelCtx.cameraController = &m_cameraController;
     m_cameraPanelCtx.setCamera = [this](const Engine::CameraState& c) { m_sceneRenderer.SetCamera(c); };
@@ -401,6 +402,8 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.driverInput = &m_trackedVehicleMode.Test().DriverInput();
     m_trackedVehiclePanelCtx.activeMapName = &m_trackedVehicleMode.ActiveMapName();
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
+    m_trackedVehiclePanelCtx.gamepadInputWindowVisible =
+        &m_trackedVehicleMode.GamepadInputWindowVisible();
     m_trackedVehiclePanelCtx.mapHitMeshOverlay = &m_trackedVehicleMode.MapHitMeshOverlay();
     m_trackedVehiclePanelCtx.mapVisualMeshes = &m_trackedVehicleMode.MapVisualMeshes();
     m_trackedVehiclePanelCtx.mapMarkersVisible = &m_trackedVehicleMode.MapMarkersVisible();
@@ -1563,6 +1566,8 @@ void TankSandboxApp::DrawToolUi()
         {
             const Tank::Input::GamepadState& gp = m_gamepad.State();
             m_trackedVehiclePanelCtx.gamepadState = gp;
+            m_trackedVehiclePanelCtx.inputDeviceProfile =
+                m_trackedVehicleMode.ActiveInputDeviceProfile();
             m_trackedVehiclePanelCtx.gamepadAvailable = m_gamepad.IsAvailable();
             m_trackedVehiclePanelCtx.cpuFrameTimeMs = m_sceneRenderer.CpuFrameTimeMs();
             m_trackedVehiclePanelCtx.peakCpuFrameTimeMs = m_peakCpuFrameTimeMs;

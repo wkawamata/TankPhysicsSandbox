@@ -2,6 +2,8 @@
 
 #include "Input/GamepadState.h"
 
+#include <Windows.h>
+
 #include <memory>
 
 namespace Tank::Platform::Windows
@@ -15,7 +17,7 @@ namespace Tank::Platform::Windows
         WindowsGamepad(const WindowsGamepad&) = delete;
         WindowsGamepad& operator=(const WindowsGamepad&) = delete;
 
-        bool Initialize();
+        bool Initialize(HWND windowHandle);
         void Poll();
 
         bool IsAvailable() const;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Input/GamepadState.h"
+#include "Input/InputDeviceProfiles.h"
 #include "App/RollingSpeedOptimizationSession.h"
 #include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
@@ -78,6 +79,7 @@ public:
     const Tank::Physics::PhysicsEnvironmentSettings& AppliedEnvSettings() const { return m_appliedEnvironmentSettings; }
     Tank::Rendering::TankVisualSettings& VisualSettings() { return m_visualSettings; }
     Tank::Input::TankInputMappingSettings& InputMappingSettings() { return m_inputMappingSettings; }
+    Tank::Input::InputDeviceProfile* ActiveInputDeviceProfile();
     const std::string& InputMappingStatus() const { return m_inputMappingStatus; }
 
     bool& Paused() { return m_paused; }
@@ -85,6 +87,7 @@ public:
     bool& RollingCheatWindowVisible() { return m_rollingCheatWindowVisible; }
     bool& RollingCheatWindowJapanese() { return m_rollingCheatWindowJapanese; }
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
+    bool& GamepadInputWindowVisible() { return m_gamepadInputWindowVisible; }
     bool& MapHitMeshOverlay() { return m_mapHitMeshOverlay; }
     bool& MapVisualMeshes() { return m_mapVisualMeshes; }
     bool& MapMarkersVisible() { return m_mapMarkersVisible; }
@@ -147,9 +150,7 @@ public:
     static constexpr float kPhysicsFixedDt = 1.0f / 60.0f;
 
 private:
-    static constexpr float kAnalogTrackDeadzone = 0.1f;
-
-    float NormalizeRawGamepadAxis(float value);
+    float NormalizeRawGamepadAxis(float value, float neutral, float deadzone);
     void UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer);
     void UpdateClearCondition();
     void InitializeDestructibleTargets();
@@ -161,6 +162,8 @@ private:
 
     Tank::Physics::TankSettings m_settings;
     Tank::Input::TankInputMappingSettings m_inputMappingSettings;
+    Tank::Input::InputDeviceProfiles m_inputDeviceProfiles;
+    std::optional<size_t> m_activeInputDeviceProfile;
     std::string m_inputMappingStatus;
     Tank::Physics::TankSettings m_appliedSettings;
     Tank::Physics::PhysicsEnvironmentSettings m_environmentSettings;
@@ -191,6 +194,7 @@ private:
     bool m_showGltfCannon = true;
     bool m_showGltfSide = true;
     bool m_physicsDebugOverlay = false;
+    bool m_gamepadInputWindowVisible = true;
     bool m_mapHitMeshOverlay = false;
     bool m_mapVisualMeshes = true;
     bool m_mapMarkersVisible = true;

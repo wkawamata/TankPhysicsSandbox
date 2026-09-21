@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Input/GamepadState.h"
+#include "Input/InputDeviceProfiles.h"
 #include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TankTypes.h"
@@ -45,6 +46,7 @@ namespace Ui
         bool analogTracksArmed = false;
 
         bool* physicsDebugOverlay = nullptr;
+        bool* gamepadInputWindowVisible = nullptr;
         bool* mapHitMeshOverlay = nullptr;
         bool* mapVisualMeshes = nullptr;
         bool* mapMarkersVisible = nullptr;
@@ -85,6 +87,7 @@ namespace Ui
 
         Tank::Physics::TankSettings* tankSettings = nullptr;
         Tank::Input::TankInputMappingSettings* inputMappingSettings = nullptr;
+        Tank::Input::InputDeviceProfile* inputDeviceProfile = nullptr;
         const Tank::Physics::TankSettings* appliedTankSettings = nullptr;
         Tank::Physics::PhysicsEnvironmentSettings* envSettings = nullptr;
         const Tank::Physics::PhysicsEnvironmentSettings* appliedEnvSettings = nullptr;

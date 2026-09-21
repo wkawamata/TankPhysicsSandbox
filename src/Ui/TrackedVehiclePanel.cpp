@@ -307,22 +307,48 @@ namespace Ui
 				return;
 			}
 
-			ImGui::TextUnformatted("Maps gamepad axes to the left and right levers.");
-			ImGui::TextUnformatted("File: Config/input_mapping.json");
-			if (ctx.inputMappingSettings != nullptr)
+			ImGui::TextUnformatted("Device-specific raw axis and button mapping.");
+			ImGui::TextUnformatted("File: Config/input_devices.json");
+			if (ctx.inputDeviceProfile != nullptr)
 			{
-				int leftAxis = static_cast<int>(ctx.inputMappingSettings->leftLeverAxis);
-				int rightAxis = static_cast<int>(ctx.inputMappingSettings->rightLeverAxis);
-				if (ImGui::InputInt("Left Lever Axis", &leftAxis))
+				auto& profile = *ctx.inputDeviceProfile;
+				ImGui::Text("Profile: %s", profile.id.c_str());
+				ImGui::Text("VID: %04X  PID: %04X", profile.vendorId, profile.productId);
+				int leftTrackAxis = static_cast<int>(profile.leftTrackAxis);
+				int rightTrackAxis = static_cast<int>(profile.rightTrackAxis);
+				int leftRollAxis = static_cast<int>(profile.leftRollAxis);
+				int rightRollAxis = static_cast<int>(profile.rightRollAxis);
+				if (ImGui::InputInt("Left Track Axis", &leftTrackAxis))
 				{
-					ctx.inputMappingSettings->leftLeverAxis =
-						static_cast<std::size_t>(std::clamp(leftAxis, 0, 15));
+					profile.leftTrackAxis = static_cast<std::size_t>(
+						std::clamp(leftTrackAxis, 0, 15));
 				}
-				if (ImGui::InputInt("Right Lever Axis", &rightAxis))
+				if (ImGui::InputInt("Right Track Axis", &rightTrackAxis))
 				{
-					ctx.inputMappingSettings->rightLeverAxis =
-						static_cast<std::size_t>(std::clamp(rightAxis, 0, 15));
+					profile.rightTrackAxis = static_cast<std::size_t>(
+						std::clamp(rightTrackAxis, 0, 15));
 				}
+				if (ImGui::InputInt("Left Roll Axis", &leftRollAxis))
+					profile.leftRollAxis = static_cast<std::size_t>(std::clamp(leftRollAxis, 0, 15));
+				if (ImGui::InputInt("Right Roll Axis", &rightRollAxis))
+					profile.rightRollAxis = static_cast<std::size_t>(std::clamp(rightRollAxis, 0, 15));
+				ImGui::Checkbox("Invert Left Track", &profile.invertLeftTrack);
+				ImGui::Checkbox("Invert Right Track", &profile.invertRightTrack);
+				ImGui::Checkbox("Invert Left Roll", &profile.invertLeftRoll);
+				ImGui::Checkbox("Invert Right Roll", &profile.invertRightRoll);
+				ImGui::SliderFloat("Neutral", &profile.neutral, 0.0f, 1.0f, "%.3f");
+				ImGui::SliderFloat("Neutral Tolerance", &profile.neutralTolerance, 0.0f, 0.25f, "%.3f");
+				ImGui::SliderFloat("Deadzone", &profile.deadzone, 0.0f, 0.5f, "%.3f");
+				int brakeButton = static_cast<int>(profile.brakeButton);
+				int fireButton = static_cast<int>(profile.fireButton);
+				if (ImGui::InputInt("Brake Button", &brakeButton))
+					profile.brakeButton = static_cast<std::uint32_t>(std::clamp(brakeButton, 0, 63));
+				if (ImGui::InputInt("Fire Button", &fireButton))
+					profile.fireButton = static_cast<std::uint32_t>(std::clamp(fireButton, 0, 63));
+			}
+			else
+			{
+				ImGui::TextUnformatted("Current device has no matching profile.");
 			}
 			if (ImGui::Button("Save Mapping") && ctx.saveInputMappingSettings)
 			{
@@ -719,6 +745,10 @@ namespace Ui
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
+		if (ctx.gamepadInputWindowVisible != nullptr)
+		{
+			ImGui::Checkbox("Show Gamepad & Input Window", ctx.gamepadInputWindowVisible);
+		}
 		DrawStateSummary(ctx, state);
 		UpdateAndDrawRollingTravelTelemetry(ctx, state);
 		ImGui::BeginChild(
@@ -769,7 +799,6 @@ namespace Ui
 		{
 			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
 		}
-		DrawLeverInputMapping(ctx);
 		ImGui::SeparatorText("Simulation");
 		if (ImGui::Button(
 			*ctx.trackedVehiclePaused ? "Resume [Space]" : "Pause [Space]"))
@@ -1029,7 +1058,7 @@ namespace Ui
 				if (ctx.manifestMapMissingVisuals)
 				{
 					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.72f, 0.2f, 1.0f));
-					ImGui::TextWrapped("Warning: Visual Mesh missing. Hit Mesh display was enabled automatically.");
+					ImGui::TextWrapped("Warning: Visual Mesh missing. Enable Hit Mesh display if needed.");
 					ImGui::PopStyleColor();
 				}
 				if (ctx.mapCleared && ctx.clearedAreaName != nullptr)
@@ -1055,8 +1084,11 @@ namespace Ui
 		ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
 		ImGui::Text("Q/E roll, X mortar, Left Ctrl fire, B brake, Space pause, F step fwd");
 		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
-		if (ImGui::CollapsingHeader("Gamepad"))
+		if (ctx.gamepadInputWindowVisible != nullptr && *ctx.gamepadInputWindowVisible)
 		{
+			ImGui::SetNextWindowSize(ImVec2(440.0f, 640.0f), ImGuiCond_FirstUseEver);
+			if (ImGui::Begin("Gamepad & Input", ctx.gamepadInputWindowVisible))
+			{
 			if (!ctx.gamepadAvailable)
 			{
 				ImGui::TextUnformatted("Gamepad: GameInput unavailable");
@@ -1076,15 +1108,18 @@ namespace Ui
 				ImGui::Text("Buttons: %u  Axes: %u  Switches: %u",
 					gamepadState.buttonCount, gamepadState.axisCount, gamepadState.switchCount);
 				ImGui::Text("Gamepad mapping: %s", gamepadState.hasGamepadMapping ? "yes" : "no");
-				if (!gamepadState.hasGamepadMapping)
+				if (gamepadState.axisCount > 0)
 				{
-					ImGui::TextUnformatted("Raw fallback: axes 0/1");
+					ImGui::TextUnformatted("Raw controller axes:");
 					for (std::uint32_t axis = 0;
 						axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
 						++axis)
 					{
 						ImGui::Text("Axis %u: %.3f", axis, gamepadState.rawAxes[axis]);
 					}
+				}
+				if (gamepadState.buttonCount > 0)
+				{
 					ImGui::TextUnformatted("Pressed raw buttons:");
 					ImGui::SameLine();
 					bool anyButtonPressed = false;
@@ -1105,6 +1140,9 @@ namespace Ui
 						ImGui::SameLine();
 						ImGui::TextUnformatted("none");
 					}
+				}
+				if (gamepadState.switchCount > 0)
+				{
 					static constexpr const char* switchNames[] = {
 						"Center", "Up", "Up-Right", "Right", "Down-Right",
 						"Down", "Down-Left", "Left", "Up-Left"
@@ -1126,6 +1164,9 @@ namespace Ui
 				ImGui::Text("Brake binding: raw button %u",
 					Tank::Input::GamepadState::BrakeButtonIndex);
 			}
+			DrawLeverInputMapping(ctx);
+			}
+			ImGui::End();
 		}
 		if (ImGui::CollapsingHeader("Ground"))
 		{
