@@ -2,16 +2,16 @@
   "clearAreas": [
     {
       "center": [
-        20.0,
-        2.549999952316284,
-        20.0
+        27.399999618530273,
+        3.700000047683716,
+        42.150001525878906
       ],
       "id": "clear-area-1",
       "name": "Clear Area",
       "size": [
-        4.550000190734863,
+        34.04999923706055,
         5.0,
-        19.399999618530273
+        14.300000190734863
       ]
     }
   ],
@@ -69,6 +69,34 @@
       "rotationDegrees": [
         0.0,
         0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/IndestructibleBox.gltf",
+      "id": "instance-4",
+      "position": [
+        21.549999237060547,
+        0.05000000074505806,
+        19.549999237060547
+      ],
+      "rotationDegrees": [
+        0.0,
+        -43.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/HitOnlyTriangle.gltf",
+      "id": "instance-5",
+      "position": [
+        12.25,
+        1.25,
+        2.5
+      ],
+      "rotationDegrees": [
+        90.0,
+        270.0,
         0.0
       ]
     }
