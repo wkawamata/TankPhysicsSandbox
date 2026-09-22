@@ -1,24 +1,24 @@
 {
-    "version": 1,
     "profiles": [
         {
-            "id": "elecom-056e-200a",
-            "name": "ELECOM MMO Gamepad",
-            "vendorId": 1390,
-            "productId": 8202,
-            "leftTrackAxis": 3,
-            "rightTrackAxis": 1,
-            "leftRollAxis": 0,
-            "rightRollAxis": 2,
-            "invertLeftTrack": true,
-            "invertRightTrack": true,
-            "invertLeftRoll": false,
-            "invertRightRoll": false,
-            "neutral": 0.5,
-            "neutralTolerance": 0.05,
-            "deadzone": 0.1,
             "brakeButton": 3,
-            "fireButton": 13
+            "deadzone": 0.029999999329447746,
+            "fireButton": 13,
+            "id": "elecom-056e-200a",
+            "invertLeftRoll": false,
+            "invertLeftTrack": true,
+            "invertRightRoll": false,
+            "invertRightTrack": true,
+            "leftRollAxis": 0,
+            "leftTrackAxis": 3,
+            "name": "ELECOM MMO Gamepad",
+            "neutral": 0.5,
+            "neutralTolerance": 0.05000000074505806,
+            "productId": 8202,
+            "rightRollAxis": 2,
+            "rightTrackAxis": 1,
+            "vendorId": 1390
         }
-    ]
+    ],
+    "version": 1
 }
