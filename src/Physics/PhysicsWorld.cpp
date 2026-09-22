@@ -1,4 +1,6 @@
 #include "PhysicsWorld.h"
+#include "Diagnostics/Log.h"
+#include <cstdio>
 
 #include <Jolt/Jolt.h>
 
@@ -27,15 +29,16 @@ namespace Tank::Physics
             char buffer[1024];
             std::vsnprintf(buffer, sizeof(buffer), format, list);
             va_end(list);
+            Diagnostics::Write(Diagnostics::LogLevel::Trace, "Jolt", buffer);
         }
 
 #ifdef JPH_ENABLE_ASSERTS
         bool AssertFailedImpl(const char* expression, const char* message, const char* file, JPH::uint line)
         {
-            (void)expression;
-            (void)message;
-            (void)file;
-            (void)line;
+            char buffer[2048]{};
+            std::snprintf(buffer, sizeof(buffer), "%s:%u: %s (%s)", file, line,
+                expression, message ? message : "");
+            Diagnostics::Write(Diagnostics::LogLevel::Error, "Jolt", buffer);
             return true;
         }
 #endif

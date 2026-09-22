@@ -1,4 +1,5 @@
 #include "App/TrackedVehicleMode.h"
+#include "Diagnostics/Log.h"
 #include "Input/TankInputMappingJson.h"
 #include "Input/InputDeviceProfilesJson.h"
 #include <fstream>
@@ -364,7 +365,7 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
             state.bodyPosition.x,
             state.bodyPosition.y,
             state.bodyPosition.z);
-        OutputDebugStringA(message);
+        Tank::Diagnostics::Write(Tank::Diagnostics::LogLevel::Debug, "Vehicle", message);
     }
     const size_t maximumLines = static_cast<size_t>(m_test.ProjectileSettings().maximumCount);
     while (m_assaultTracerLines.size() > maximumLines)
@@ -406,7 +407,7 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
             cue.visible ? 1 : 0,
             cue.canFire ? 1 : 0,
             cue.radiusMeters);
-        OutputDebugStringA(message);
+        Tank::Diagnostics::Write(Tank::Diagnostics::LogLevel::Debug, "Vehicle", message);
         m_lastLoggedMortarVisible = cue.visible;
     }
     m_presenter.SetMortarRangeCue(cue);
@@ -437,7 +438,7 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
                 "[Tank DebugLine] Mortar line update failed: index=%zu handle=%u\n",
                 i,
                 m_mortarRangeLines[i]);
-            OutputDebugStringA(message);
+            Tank::Diagnostics::Write(Tank::Diagnostics::LogLevel::Warning, "Vehicle", message);
         }
     }
     m_presenter.UpdateScene(
@@ -745,7 +746,7 @@ void TrackedVehicleMode::Step(
                 state.rollingTraceCommandSign,
                 state.rollingTraceInputSign,
                 state.angularVelocity.z);
-            OutputDebugStringA(message);
+            Tank::Diagnostics::Write(Tank::Diagnostics::LogLevel::Debug, "Vehicle", message);
             m_loggedRollingTraceSequence = state.rollingTraceSequence;
         }
         const auto sceneStart = std::chrono::steady_clock::now();

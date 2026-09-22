@@ -34,6 +34,12 @@ add_subdirectory(External/RtPbrSurvey)
 
 find_package(nlohmann_json CONFIG REQUIRED)
 
+add_library(TankDiagnostics STATIC src/Diagnostics/Log.cpp src/Diagnostics/Log.h)
+target_include_directories(TankDiagnostics PUBLIC src)
+if(MSVC)
+    target_compile_options(TankDiagnostics PRIVATE /W4 /permissive- /utf-8)
+endif()
+
 add_library(TankMapCore STATIC
     src/Map/GltfRoles.cpp
     src/Map/GltfRoles.h
@@ -127,6 +133,7 @@ target_link_libraries(TankPhysicsCore
     PUBLIC
         Jolt
     PRIVATE
+        TankDiagnostics
         TankMapCore
         nlohmann_json::nlohmann_json
 )
@@ -236,6 +243,11 @@ add_executable(TankSandbox
     src/Rendering/TrackedVehicleScenePresenter.h
     src/Rendering/ImpactMarkGeometry.h
     src/Rendering/TrackedVehicleScenePresenter.cpp
+    src/Diagnostics/Log.h
+    src/Platform/Windows/DebugLogSink.cpp
+    src/Platform/Windows/DebugLogSink.h
+    src/Ui/OutputPanel.cpp
+    src/Ui/OutputPanel.h
     src/Ui/CameraPanel.cpp
     src/Ui/CameraPanel.h
     src/Ui/RendererSettingsPanel.cpp
@@ -273,6 +285,7 @@ target_link_libraries(TankSandbox
         shell32
         uuid
         TankPhysicsCore
+        TankDiagnostics
         TankInputCore
         TankInputMappingJson
         TankWindowsInput
@@ -333,6 +346,12 @@ if(MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(LogTests tests/LogTests.cpp)
+    target_link_libraries(LogTests PRIVATE TankDiagnostics)
+    if(MSVC)
+        target_compile_options(LogTests PRIVATE /W4 /permissive- /utf-8)
+    endif()
+    add_test(NAME TankDiagnostics.Log COMMAND LogTests)
     add_executable(MapEditingTests tests/MapEditingTests.cpp)
     target_link_libraries(MapEditingTests PRIVATE TankMapCore)
     if(MSVC)

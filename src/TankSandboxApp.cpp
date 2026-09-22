@@ -1,4 +1,5 @@
 #include "TankSandboxApp.h"
+#include "Platform/Windows/DebugLogSink.h"
 #include "Input/TankInputMapper.h"
 #include "Map/MapManifest.h"
 #include "Platform/Win32Application.h"
@@ -248,6 +249,9 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
 
 void TankSandboxApp::OnInit()
 {
+    Tank::Diagnostics::SetLogSink(Tank::Platform::Windows::DebugLogSink);
+    Tank::Diagnostics::Write(Tank::Diagnostics::LogLevel::Info, "Application",
+        "Tank Sandbox を起動しました。Output: F9で表示切替");
     GraphicsDeviceDesc deviceDesc = {};
     deviceDesc.hwnd = Win32Application::GetHwnd();
     deviceDesc.swapChainWidth = GetWidth();
@@ -581,6 +585,7 @@ void TankSandboxApp::OnInit()
 
 void TankSandboxApp::OnDestroy()
 {
+    Tank::Diagnostics::SetLogSink(nullptr);
     m_sceneRenderer.Shutdown();
     if (m_logFile)
     {
@@ -605,6 +610,11 @@ bool TankSandboxApp::OnCloseRequested()
 
 void TankSandboxApp::OnKeyDown(UINT8 key)
 {
+    if (key == VK_F9)
+    {
+        m_outputPanel.open = !m_outputPanel.open;
+        return;
+    }
     if (m_appMode != AppMode::TopMenu && key >= '1' && key <= '4')
     {
         const int slot = static_cast<int>(key - '1');
@@ -1204,6 +1214,7 @@ void TankSandboxApp::UpdateUiFrame()
 {
     m_imguiSystem.BeginFrame();
     DrawToolUi();
+    m_outputPanel.Draw();
 
     if (m_appMode == AppMode::MapEditor)
     {
@@ -1608,6 +1619,7 @@ void TankSandboxApp::DrawToolUi()
 void TankSandboxApp::DrawTopMenuUi()
 {
     ImGui::Begin("Tank Sandbox");
+    ImGui::Checkbox("Output (F9)", &m_outputPanel.open);
     if (ImGui::Button("Map Editor"))
     {
         ClearVehicleInputState();
