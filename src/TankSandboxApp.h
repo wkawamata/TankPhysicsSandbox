@@ -24,6 +24,7 @@
 #include "Rendering/MapEditorScenePresenter.h"
 #include "Ui/ImGuiSystem.h"
 #include "Ui/CameraPanel.h"
+#include "Ui/OutputPanel.h"
 #include "Ui/RendererSettingsPanel.h"
 #include "Ui/TrackedVehiclePanel.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
@@ -157,6 +158,7 @@ private:
     Tank::App::CameraController m_cameraController;
 
     // UI panel contexts
+    Ui::OutputPanel m_outputPanel;
     Ui::CameraPanelContext m_cameraPanelCtx;
     Ui::RendererSettingsPanelContext m_rendererPanelCtx;
     Ui::TrackedVehiclePanelContext m_trackedVehiclePanelCtx;
