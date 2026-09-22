@@ -183,7 +183,8 @@ private:
     bool m_benchmarkReflectionsOn = false;
 
     // Renderer state
-    bool m_rendererDebugOpen = true;
+    bool m_cameraWindowVisible = true;
+    bool m_renderSettingsWindowVisible = true;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     RtPbrSurvey::EnvironmentMappingUiState m_environmentMappingUi;
     std::string m_rendererSettingsStatus;

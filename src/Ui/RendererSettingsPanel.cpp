@@ -12,7 +12,30 @@ namespace Ui
 
     void DrawRendererSettingsPanel(RendererSettingsPanelContext& ctx)
     {
-        ImGui::Begin("Renderer Settings");
+        if (ctx.windowVisible == nullptr || !*ctx.windowVisible)
+        {
+            return;
+        }
+
+        ImGui::SetNextWindowSize(ImVec2(440.0f, 700.0f), ImGuiCond_FirstUseEver);
+        if (!ImGui::Begin("Render Settings", ctx.windowVisible))
+        {
+            ImGui::End();
+            return;
+        }
+
+        ImGui::Text("FrameIndex: %d", ctx.rendererFrameIndex);
+        if (ctx.rendererCpuFrameTimeMs > 0.0f)
+        {
+            ImGui::Text("CPU Frame: %.2f ms (%.1f FPS)",
+                ctx.rendererCpuFrameTimeMs,
+                1000.0f / ctx.rendererCpuFrameTimeMs);
+        }
+        else
+        {
+            ImGui::TextUnformatted("CPU Frame: unavailable");
+        }
+        ImGui::Separator();
         ImGui::TextUnformatted(kRendererSettingsPath);
         if (ImGui::Button("Save"))
         {
@@ -43,6 +66,19 @@ namespace Ui
         {
             ImGui::TextWrapped("%s", ctx.screenshotStatus->c_str());
         }
+
+        ImGui::Separator();
+        if (ImGui::BeginChild(
+            "RtPbrSurveyDebugContents",
+            ImVec2(0.0f, 0.0f),
+            ImGuiChildFlags_Borders))
+        {
+            if (ctx.drawRendererDebugContents)
+            {
+                ctx.drawRendererDebugContents();
+            }
+        }
+        ImGui::EndChild();
         ImGui::End();
     }
 }
