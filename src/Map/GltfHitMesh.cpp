@@ -422,6 +422,11 @@ namespace Tank::Map
                 return false;
             }
         }
+        if (!std::isfinite(transform.scale) || transform.scale <= 0.0f)
+        {
+            error = "HitMesh placement scale must be positive and finite.";
+            return false;
+        }
 
         HitTriangleMesh result;
         result.triangles = input.triangles;
@@ -433,12 +438,12 @@ namespace Tank::Map
                 error = "HitMesh vertex must be finite before placement.";
                 return false;
             }
-            const float x = vertex[0] * matrix[0][0] + vertex[1] * matrix[1][0] +
-                vertex[2] * matrix[2][0] + transform.position[0];
-            const float y = vertex[0] * matrix[0][1] + vertex[1] * matrix[1][1] +
-                vertex[2] * matrix[2][1] + transform.position[1];
-            const float z = vertex[0] * matrix[0][2] + vertex[1] * matrix[1][2] +
-                vertex[2] * matrix[2][2] + transform.position[2];
+            const float x = transform.scale * (vertex[0] * matrix[0][0] + vertex[1] * matrix[1][0] +
+                vertex[2] * matrix[2][0]) + transform.position[0];
+            const float y = transform.scale * (vertex[0] * matrix[0][1] + vertex[1] * matrix[1][1] +
+                vertex[2] * matrix[2][1]) + transform.position[1];
+            const float z = transform.scale * (vertex[0] * matrix[0][2] + vertex[1] * matrix[1][2] +
+                vertex[2] * matrix[2][2]) + transform.position[2];
             if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
             {
                 error = "HitMesh placement produced a non-finite vertex.";
