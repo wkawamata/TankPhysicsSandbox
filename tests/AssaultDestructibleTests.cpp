@@ -77,7 +77,12 @@ int main()
     Advance(world, 20);
     passed &= Check(world.State().destructibleBoxes[0].target.hitPoints == 60.0f &&
         world.State().assaultHitTargetId == 0, "wall blocks damage");
-    passed &= Check(world.State().assaultImpactMarks.Count() == 0, "vertical wall is not ground");
+    passed &= Check(world.State().assaultImpactMarks.Count() == 1,
+        "static vertical wall receives an impact mark");
+    const auto& wallMark = world.State().assaultImpactMarks.Slots().front();
+    passed &= Check(std::abs(wallMark.normal.x) < 0.01f &&
+        std::abs(wallMark.normal.y) < 0.01f && wallMark.normal.z < -0.99f,
+        "vertical wall mark preserves the wall surface normal");
 
     world.Initialize();
     Advance(world, 180);

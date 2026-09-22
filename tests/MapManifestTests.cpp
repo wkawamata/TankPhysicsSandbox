@@ -26,7 +26,7 @@ int main()
         Manifest source;
         source.playerSpawn = { { 3.0f, 2.5f, -4.0f }, { 10.0f, 90.0f, -15.0f } };
         source.instances = {
-            { "building-001", "Models/Building.glb", { { 10.0f, 0.0f, 20.0f }, { 5.0f, 90.0f, -20.0f } } },
+            { "building-001", "Models/Building.glb", { { 10.0f, 0.0f, 20.0f }, { 5.0f, 90.0f, -20.0f }, 1.75f } },
             { "building-002", "Models/Building.glb", { { -10.0f, 0.0f, 20.0f }, {} } },
             { "ramp-001", "Ramp.gltf", {} }
         };
@@ -43,6 +43,8 @@ int main()
         Check(SerializeManifest(loaded, roundTrip, error) && roundTrip == text, "All fields survive round trip");
         Check(loaded.instances.size() == 3 && loaded.clearAreas.size() == 2,
             "Repeated assets and multiple areas are retained");
+        Check(loaded.instances[0].transform.scale == 1.75f,
+            "Instance scale survives round trip");
 
         const Json valid = Json::parse(text);
         auto Reject = [&](const std::string& invalid)
@@ -101,6 +103,16 @@ int main()
             bad["instances"][1]["id"] = id;
             Reject(bad.dump());
         }
+        for (const Json scale : { Json(0), Json(-1), Json("1"), Json(1e100) })
+        {
+            auto bad = valid;
+            bad["instances"][0]["scale"] = scale;
+            Reject(bad.dump());
+        }
+        auto legacy = valid;
+        legacy["instances"][0].erase("scale");
+        Check(DeserializeManifest(legacy.dump(), loaded, error) && loaded.instances[0].transform.scale == 1.0f,
+            "Manifest without scale keeps the unit-scale default");
         auto invalid = source;
         invalid.playerSpawn.position[0] = std::numeric_limits<float>::infinity();
         std::string unchanged = "previous output";

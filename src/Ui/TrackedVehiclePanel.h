@@ -49,6 +49,7 @@ namespace Ui
         bool* cameraWindowVisible = nullptr;
         bool* gamepadInputWindowVisible = nullptr;
         bool* renderSettingsWindowVisible = nullptr;
+        bool* outputWindowVisible = nullptr;
         bool* mapHitMeshOverlay = nullptr;
         bool* mapVisualMeshes = nullptr;
         bool* mapMarkersVisible = nullptr;

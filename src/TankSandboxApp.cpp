@@ -387,6 +387,8 @@ void TankSandboxApp::OnInit()
     }
     m_gamepad.Initialize(Win32Application::GetHwnd());
     m_trackedVehicleMode.LoadInputMappingSettings();
+    LoadUiLayoutSettings();
+    m_lastSavedUiLayoutSettings = CaptureUiLayoutSettings();
 
     m_cameraPanelCtx.cameraController = &m_cameraController;
     m_cameraPanelCtx.setCamera = [this](const Engine::CameraState& c) { m_sceneRenderer.SetCamera(c); };
@@ -424,6 +426,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.gamepadInputWindowVisible =
         &m_trackedVehicleMode.GamepadInputWindowVisible();
     m_trackedVehiclePanelCtx.renderSettingsWindowVisible = &m_renderSettingsWindowVisible;
+    m_trackedVehiclePanelCtx.outputWindowVisible = &m_outputPanel.open;
     m_trackedVehiclePanelCtx.mapHitMeshOverlay = &m_trackedVehicleMode.MapHitMeshOverlay();
     m_trackedVehiclePanelCtx.mapVisualMeshes = &m_trackedVehicleMode.MapVisualMeshes();
     m_trackedVehiclePanelCtx.mapMarkersVisible = &m_trackedVehicleMode.MapMarkersVisible();
@@ -601,6 +604,7 @@ void TankSandboxApp::OnInit()
 
 void TankSandboxApp::OnDestroy()
 {
+    SaveUiLayoutSettings();
     Tank::Diagnostics::SetLogSink(nullptr);
     m_sceneRenderer.Shutdown();
     if (m_logFile)
@@ -984,6 +988,7 @@ void TankSandboxApp::OnIdle()
     {
         m_cameraController.UpdateTransition(TrackedVehicleMode::kPhysicsFixedDt, *camera);
         m_cameraController.UpdateSlotCache(*camera);
+        ApplyActiveCameraScene();
     }
 
     UpdateUiFrame();
@@ -1235,6 +1240,7 @@ void TankSandboxApp::UpdateUiFrame()
     if (m_appMode == AppMode::MapEditor)
     {
         m_imguiSystem.EndFrame();
+        PersistUiLayoutSettingsIfChanged();
         return;
     }
 
@@ -1266,6 +1272,7 @@ void TankSandboxApp::UpdateUiFrame()
     }
 
     m_imguiSystem.EndFrame();
+    PersistUiLayoutSettingsIfChanged();
 }
 
 void TankSandboxApp::RequestScreenshot()
@@ -1429,6 +1436,63 @@ void TankSandboxApp::ResetRendererSettings()
         m_environmentMappingUi.lighting.diffuseIblEnabled ||
         m_environmentMappingUi.lighting.specularIblEnabled;
     m_rendererSettingsStatus = "Reset to Tank defaults";
+}
+
+Tank::App::UiLayoutSettings TankSandboxApp::CaptureUiLayoutSettings()
+{
+    return {
+        m_cameraWindowVisible,
+        m_trackedVehicleMode.GamepadInputWindowVisible(),
+        m_renderSettingsWindowVisible,
+        m_outputPanel.open,
+        m_trackedVehicleMode.RollingCheatWindowVisible(),
+    };
+}
+
+void TankSandboxApp::ApplyUiLayoutSettings(const Tank::App::UiLayoutSettings& settings)
+{
+    m_cameraWindowVisible = settings.cameraWindowVisible;
+    m_trackedVehicleMode.GamepadInputWindowVisible() = settings.gamepadInputWindowVisible;
+    m_renderSettingsWindowVisible = settings.renderSettingsWindowVisible;
+    m_outputPanel.open = settings.outputWindowVisible;
+    m_trackedVehicleMode.RollingCheatWindowVisible() = settings.rollingCheatWindowVisible;
+}
+
+void TankSandboxApp::LoadUiLayoutSettings()
+{
+    Tank::App::UiLayoutSettings settings = CaptureUiLayoutSettings();
+    Tank::App::UiLayoutSettingsStore store(TANK_SOURCE_CONFIG_DIR);
+    std::string status;
+    if (store.Read(settings, status))
+    {
+        ApplyUiLayoutSettings(settings);
+    }
+}
+
+void TankSandboxApp::SaveUiLayoutSettings()
+{
+    const Tank::App::UiLayoutSettings settings = CaptureUiLayoutSettings();
+    Tank::App::UiLayoutSettingsStore store(TANK_SOURCE_CONFIG_DIR);
+    std::string status;
+    if (store.Write(settings, status))
+    {
+        m_lastSavedUiLayoutSettings = settings;
+    }
+    else
+    {
+        Tank::Diagnostics::Write(
+            Tank::Diagnostics::LogLevel::Warning,
+            "UI",
+            status);
+    }
+}
+
+void TankSandboxApp::PersistUiLayoutSettingsIfChanged()
+{
+    if (CaptureUiLayoutSettings() != m_lastSavedUiLayoutSettings)
+    {
+        SaveUiLayoutSettings();
+    }
 }
 
 bool TankSandboxApp::SaveCameraSettings()

@@ -41,8 +41,19 @@ namespace Tank::Map
 
         Transform ReadTransform(const Json& value)
         {
-            return { ReadVector(value.at("position"), "position"),
+            Transform transform = {
+                ReadVector(value.at("position"), "position"),
                 ReadVector(value.at("rotationDegrees"), "rotationDegrees") };
+            if (const auto scale = value.find("scale"); scale != value.end())
+            {
+                Require(scale->is_number(), "scale must be a number");
+                const double scaleValue = scale->get<double>();
+                Require(std::isfinite(scaleValue) && scaleValue > 0.0 &&
+                    scaleValue <= static_cast<double>((std::numeric_limits<float>::max)()),
+                    "scale must be a positive finite float");
+                transform.scale = static_cast<float>(scaleValue);
+            }
+            return transform;
         }
 
         std::string ReadId(const Json& entry, std::set<std::string>& ids)
@@ -135,7 +146,8 @@ namespace Tank::Map
                 { "version", 1 },
                 { "playerSpawn", {
                     { "position", manifest.playerSpawn.position },
-                    { "rotationDegrees", manifest.playerSpawn.rotationDegrees } } },
+                    { "rotationDegrees", manifest.playerSpawn.rotationDegrees },
+                    { "scale", manifest.playerSpawn.scale } } },
                 { "instances", Json::array() },
                 { "clearAreas", Json::array() }
             };
@@ -144,7 +156,8 @@ namespace Tank::Map
                 json["instances"].push_back({
                     { "id", instance.id }, { "asset", instance.asset },
                     { "position", instance.transform.position },
-                    { "rotationDegrees", instance.transform.rotationDegrees } });
+                    { "rotationDegrees", instance.transform.rotationDegrees },
+                    { "scale", instance.transform.scale } });
             }
             for (const auto& area : manifest.clearAreas)
             {

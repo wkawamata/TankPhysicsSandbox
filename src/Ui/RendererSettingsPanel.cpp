@@ -25,6 +25,9 @@ namespace Ui
         }
 
         ImGui::Text("FrameIndex: %d", ctx.rendererFrameIndex);
+
+        ImGui::SameLine();
+
         if (ctx.rendererCpuFrameTimeMs > 0.0f)
         {
             ImGui::Text("CPU Frame: %.2f ms (%.1f FPS)",
@@ -36,7 +39,7 @@ namespace Ui
             ImGui::TextUnformatted("CPU Frame: unavailable");
         }
         ImGui::Separator();
-        ImGui::TextUnformatted(kRendererSettingsPath);
+
         if (ImGui::Button("Save"))
         {
             if (ctx.saveSettings) ctx.saveSettings();
@@ -51,17 +54,20 @@ namespace Ui
         {
             if (ctx.resetSettings) ctx.resetSettings();
         }
+        ImGui::TextUnformatted(kRendererSettingsPath);
+        ImGui::SameLine();
         if (ctx.settingsStatus && !ctx.settingsStatus->empty())
         {
             ImGui::TextWrapped("%s", ctx.settingsStatus->c_str());
         }
-        ImGui::Separator();
-        if (ImGui::Button("Capture"))
+
+        if (ImGui::Button("Screen Shot"))
         {
             if (ctx.requestScreenshot) ctx.requestScreenshot();
         }
         ImGui::SameLine();
         ImGui::TextUnformatted("F12");
+
         if (ctx.screenshotStatus && !ctx.screenshotStatus->empty())
         {
             ImGui::TextWrapped("%s", ctx.screenshotStatus->c_str());

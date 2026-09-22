@@ -10,6 +10,8 @@ namespace Tank::Map
     {
         std::array<float, 3> position = { 0.0f, 0.0f, 0.0f };
         std::array<float, 3> rotationDegrees = { 0.0f, 0.0f, 0.0f };
+        // Uniform scale keeps Visual and HitMesh placement in the same meter space.
+        float scale = 1.0f;
     };
 
     struct Instance

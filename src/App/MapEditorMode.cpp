@@ -626,7 +626,8 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 }
                 const bool positionChanged = ImGui::DragFloat3("Position (m)", transform.position.data(), 0.05f);
                 const bool rotationChanged = ImGui::DragFloat3("Rotation (deg)", transform.rotationDegrees.data(), 1.0f);
-                if ((positionChanged || rotationChanged) && !UpdateSelectedInstance(transform))
+                const bool scaleChanged = ImGui::DragFloat("Scale", &transform.scale, 0.01f, 0.1f, 20.0f, "%.2f x");
+                if ((positionChanged || rotationChanged || scaleChanged) && !UpdateSelectedInstance(transform))
                     m_status = "Transform preview was not updated.";
             }
         }

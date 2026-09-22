@@ -32,20 +32,6 @@
     },
     {
       "asset": "Models/Ground.gltf",
-      "id": "instance-1",
-      "position": [
-        20.0,
-        0.0,
-        0.0
-      ],
-      "rotationDegrees": [
-        0.0,
-        0.0,
-        0.0
-      ]
-    },
-    {
-      "asset": "Models/Ground.gltf",
       "id": "instance-2",
       "position": [
         20.0,
@@ -87,16 +73,72 @@
       ]
     },
     {
-      "asset": "Models/HitOnlyTriangle.gltf",
+      "asset": "Models/Ground.gltf",
       "id": "instance-5",
       "position": [
-        12.25,
-        1.25,
-        2.5
+        40.0,
+        0.0,
+        40.0
       ],
       "rotationDegrees": [
-        90.0,
-        270.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-6",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-1",
+      "position": [
+        40.0,
+        0.0,
+        20.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-7",
+      "position": [
+        0.0,
+        0.0,
+        20.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "asset": "Models/Ground.gltf",
+      "id": "instance-8",
+      "position": [
+        0.0,
+        0.0,
+        40.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
         0.0
       ]
     }
@@ -109,7 +151,7 @@
     ],
     "rotationDegrees": [
       0.0,
-      0.0,
+      -8.0,
       0.0
     ]
   },

@@ -22,7 +22,8 @@ namespace
     DirectX::XMMATRIX ToWorld(const Tank::Map::Transform& transform)
     {
         constexpr float degreesToRadians = DirectX::XM_PI / 180.0f;
-        return DirectX::XMMatrixRotationRollPitchYaw(
+        return DirectX::XMMatrixScaling(transform.scale, transform.scale, transform.scale) *
+            DirectX::XMMatrixRotationRollPitchYaw(
                    transform.rotationDegrees[0] * degreesToRadians,
                    transform.rotationDegrees[1] * degreesToRadians,
                    transform.rotationDegrees[2] * degreesToRadians) *
@@ -83,7 +84,7 @@ namespace
         const float halfY = (bounds.maximum[1] - bounds.minimum[1]) * 0.5f;
         const float halfZ = (bounds.maximum[2] - bounds.minimum[2]) * 0.5f;
         return { { worldCenter.x, worldCenter.y, worldCenter.z },
-            (std::max)(0.5f, std::sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ)) };
+            (std::max)(0.5f, instance.transform.scale * std::sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ)) };
     }
 
     Tank::Rendering::MapVisualBounds MakeHitBounds(

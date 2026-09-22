@@ -381,7 +381,9 @@ namespace Tank::Physics
                 const bool destructible = std::any_of(m_impl->destructibleBodyIds.begin(),
                     m_impl->destructibleBodyIds.end(), [hitBodyId](const auto id)
                     { return !id.IsInvalid() && id.GetIndexAndSequenceNumber() == hitBodyId; });
-                if (staticSurface && normal.y > 0.0f && !destructible)
+                // Static Map geometry and the ground retain surface marks. Dynamic
+                // destructible targets deliberately remain free of persistent marks.
+                if (staticSurface && !destructible)
                     m_state.assaultImpactMarks.Add(end, normal);
                 ApplyAssaultImpact(hitBodyId, projectile.damage);
                 return true;

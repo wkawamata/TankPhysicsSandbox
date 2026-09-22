@@ -218,6 +218,8 @@ add_executable(TankSandbox
     src/App/CameraController.h
     src/App/CameraSettingsStore.cpp
     src/App/CameraSettingsStore.h
+    src/App/UiLayoutSettingsStore.cpp
+    src/App/UiLayoutSettingsStore.h
     src/App/TankSettingsStore.cpp
     src/App/TankSettingsStore.h
     src/App/RollingSpeedOptimizationSession.cpp
@@ -474,6 +476,13 @@ if(BUILD_TESTING)
     target_include_directories(MapFolderRegistryStoreTests PRIVATE src)
     target_link_libraries(MapFolderRegistryStoreTests PRIVATE nlohmann_json::nlohmann_json)
 
+    add_executable(UiLayoutSettingsStoreTests
+        src/App/UiLayoutSettingsStore.cpp
+        tests/UiLayoutSettingsStoreTests.cpp
+    )
+    target_include_directories(UiLayoutSettingsStoreTests PRIVATE src)
+    target_link_libraries(UiLayoutSettingsStoreTests PRIVATE nlohmann_json::nlohmann_json)
+
     add_executable(TankSettingsStoreTests
         src/App/TankSettingsStore.cpp
         tests/TankSettingsStoreTests.cpp
@@ -510,6 +519,10 @@ if(BUILD_TESTING)
     add_test(
         NAME TankApp.MapFolderRegistryStore
         COMMAND MapFolderRegistryStoreTests
+    )
+    add_test(
+        NAME TankApp.UiLayoutSettingsStore
+        COMMAND UiLayoutSettingsStoreTests
     )
     add_test(
         NAME TankApp.TankSettingsStore
