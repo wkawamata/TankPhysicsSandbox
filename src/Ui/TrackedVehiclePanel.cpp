@@ -763,6 +763,10 @@ namespace Ui
 			{
 				ImGui::Checkbox("Render Settings Window", ctx.renderSettingsWindowVisible);
 			}
+			if (ctx.outputWindowVisible != nullptr)
+			{
+				ImGui::Checkbox("Output Window", ctx.outputWindowVisible);
+			}
 		}
 
 		DrawStateSummary(ctx, state);

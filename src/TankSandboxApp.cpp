@@ -424,6 +424,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.gamepadInputWindowVisible =
         &m_trackedVehicleMode.GamepadInputWindowVisible();
     m_trackedVehiclePanelCtx.renderSettingsWindowVisible = &m_renderSettingsWindowVisible;
+    m_trackedVehiclePanelCtx.outputWindowVisible = &m_outputPanel.open;
     m_trackedVehiclePanelCtx.mapHitMeshOverlay = &m_trackedVehicleMode.MapHitMeshOverlay();
     m_trackedVehiclePanelCtx.mapVisualMeshes = &m_trackedVehicleMode.MapVisualMeshes();
     m_trackedVehiclePanelCtx.mapMarkersVisible = &m_trackedVehicleMode.MapMarkersVisible();
@@ -984,6 +985,7 @@ void TankSandboxApp::OnIdle()
     {
         m_cameraController.UpdateTransition(TrackedVehicleMode::kPhysicsFixedDt, *camera);
         m_cameraController.UpdateSlotCache(*camera);
+        ApplyActiveCameraScene();
     }
 
     UpdateUiFrame();
