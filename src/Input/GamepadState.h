@@ -12,8 +12,6 @@ namespace Tank::Input
         static constexpr std::size_t MaxRawAxes = 16;
         static constexpr std::size_t MaxRawButtons = 64;
         static constexpr std::size_t MaxRawSwitches = 8;
-        static constexpr std::uint32_t BrakeButtonIndex = 3;
-        // Raw controller button index used by the current gamepad profile.
         static constexpr std::uint32_t AssaultFireButtonIndex = 13;
 
         bool connected = false;
@@ -35,5 +33,10 @@ namespace Tank::Input
         bool dpadLeft = false;
         bool dpadRight = false;
         bool brakePressed = false;
+
+        bool IsRawButtonPressed(std::uint32_t button) const
+        {
+            return button < buttonCount && button < rawButtons.size() && rawButtons[button];
+        }
     };
 }

@@ -227,11 +227,6 @@ namespace Tank::Platform::Windows
 
             state.leftStickX = state.rawAxes[0];
             state.leftStickY = -state.rawAxes[1];
-            if (state.buttonCount > Input::GamepadState::BrakeButtonIndex)
-            {
-                state.brakePressed =
-                    state.rawButtons[Input::GamepadState::BrakeButtonIndex];
-            }
             return true;
         }
 

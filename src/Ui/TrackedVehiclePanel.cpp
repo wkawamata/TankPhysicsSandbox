@@ -302,7 +302,7 @@ namespace Ui
 		void DrawLeverInputMapping(
 			TrackedVehiclePanelContext& ctx)
 		{
-			if (!ImGui::CollapsingHeader("Lever Input Mapping"))
+			if (!ImGui::CollapsingHeader("Input Mapping"))
 			{
 				return;
 			}
@@ -753,30 +753,29 @@ namespace Ui
 		{
 			if (ctx.cameraWindowVisible != nullptr)
 			{
-				ImGui::Checkbox("Camera Window", ctx.cameraWindowVisible);
+				ImGui::Checkbox("Camera##SubWindowOnOff", ctx.cameraWindowVisible);
 			}
-			if (ctx.gamepadInputWindowVisible != nullptr)
-			{
-				ImGui::Checkbox("Gamepad & Input Window", ctx.gamepadInputWindowVisible);
-			}
+			ImGui::SameLine();
 			if (ctx.renderSettingsWindowVisible != nullptr)
 			{
-				ImGui::Checkbox("Render Settings Window", ctx.renderSettingsWindowVisible);
+				ImGui::Checkbox("Render Settings##SubWindowOnOff", ctx.renderSettingsWindowVisible);
 			}
+			ImGui::SameLine();
+			if (ctx.gamepadInputWindowVisible != nullptr)
+			{
+				ImGui::Checkbox("Gamepad & Input##SubWindowOnOff", ctx.gamepadInputWindowVisible);
+			}
+			ImGui::SameLine();
 			if (ctx.outputWindowVisible != nullptr)
 			{
-				ImGui::Checkbox("Output Window", ctx.outputWindowVisible);
+				ImGui::Checkbox("Output##SubWindowOnOff", ctx.outputWindowVisible);
 			}
 		}
 
 		DrawStateSummary(ctx, state);
 
 		UpdateAndDrawRollingTravelTelemetry(ctx, state);
-		if (ImGui::Button("Reset GUI"))
-		{
-			ImGui::SetWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
-			ImGui::SetWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_Always);
-		}
+
 		ImGui::SeparatorText("Tank Settings");
 		ImGui::TextUnformatted("Slot");
 		ImGui::SameLine();
@@ -1181,9 +1180,22 @@ namespace Ui
 				}
 				ImGui::Text("Left Stick: X %.2f  Y %.2f",
 					gamepadState.leftStickX, gamepadState.leftStickY);
-				ImGui::Text("Brake: %s", gamepadState.brakePressed ? "On" : "Off");
-				ImGui::Text("Brake binding: raw button %u",
-					Tank::Input::GamepadState::BrakeButtonIndex);
+				if (ctx.inputDeviceProfile != nullptr)
+				{
+					const std::uint32_t brakeButton = ctx.inputDeviceProfile->brakeButton;
+					ImGui::Text("Brake: %s",
+						gamepadState.IsRawButtonPressed(brakeButton) ? "On" : "Off");
+					ImGui::Text("Brake binding: profile raw button %u", brakeButton);
+				}
+				else if (gamepadState.hasGamepadMapping)
+				{
+					ImGui::Text("Brake: %s", gamepadState.brakePressed ? "On" : "Off");
+					ImGui::TextUnformatted("Brake binding: standard gamepad mapping");
+				}
+				else
+				{
+					ImGui::TextUnformatted("Brake: no input-device profile");
+				}
 			}
 			DrawLeverInputMapping(ctx);
 			}
@@ -1662,109 +1674,41 @@ namespace Ui
 					ctx.appliedTankSettings->rollStabilizationDampingNms));
 
 		}
-		if (ImGui::CollapsingHeader("Tank Design"))
-		{
 
-			ImGui::SeparatorText("Body Material");
-			auto drawMaterial = [](const char* label, Tank::Rendering::BodyMaterialSettings& material)
-				{
-					bool changed = false;
-					if (ImGui::TreeNode(label))
-					{
-						changed |= ImGui::ColorEdit3("Albedo", &material.albedo.r);
-						changed |= ImGuiWidgets::SliderFloatWithControls(
-							"Roughness", &material.roughness, 0.04f, 1.0f, 0.02f, 0.8f);
-						changed |= ImGuiWidgets::SliderFloatWithControls(
-							"Metallic", &material.metallic, 0.0f, 1.0f, 0.05f, 0.0f);
-						changed |= ImGuiWidgets::SliderFloatWithControls(
-							"Ambient Occlusion",
-							&material.ambientOcclusion,
-							0.0f,
-							1.0f,
-							0.05f,
-							1.0f);
-						changed |= ImGuiWidgets::SliderFloatWithControls(
-							"Emissive", &material.emissive, 0.0f, 4.0f, 0.1f, 0.0f);
-						ImGui::TreePop();
-					}
-					return changed;
-				};
-			bool materialChanged = false;
-			materialChanged |= drawMaterial("Hull Upper", ctx.visualSettings->hullUpper);
-			materialChanged |= drawMaterial("Hull Lower", ctx.visualSettings->hullLower);
-			materialChanged |= drawMaterial(
-				"Structure Upper", ctx.visualSettings->structureUpper);
-			materialChanged |= drawMaterial(
-				"Structure Lower", ctx.visualSettings->structureLower);
-			materialChanged |= drawMaterial("Wheels", ctx.visualSettings->wheels);
-			ImGui::BeginDisabled(!ctx.visualSettings->colorWheelsByContact);
-			materialChanged |= drawMaterial(
-				"Contacted Wheels",
-				ctx.visualSettings->contactedWheels);
-			ImGui::EndDisabled();
-			materialChanged |= drawMaterial("Track Shoes", ctx.visualSettings->trackShoes);
-			materialChanged |= drawMaterial(
-				"Track Proxies", ctx.visualSettings->trackProxies);
-			materialChanged |= drawMaterial(
-				"Forward Marker", ctx.visualSettings->forwardMarker);
-			*ctx.tankVisualMaterialApplyPending |= materialChanged;
-			if (*ctx.tankVisualMaterialApplyPending && !ImGui::IsAnyItemActive())
-			{
-				if (ctx.applyMaterials) ctx.applyMaterials();
-				*ctx.tankVisualMaterialApplyPending = false;
-			}
-			if (ImGui::Button("Save Visual"))
-			{
-				if (ctx.saveTankVisualSettings) ctx.saveTankVisualSettings();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Load Visual"))
-			{
-				if (ctx.loadTankVisualSettings) ctx.loadTankVisualSettings();
-			}
-			ImGui::SameLine();
-			ImGui::Checkbox("AutoLoad##TankVisual", ctx.tankVisualSettingsAutoLoad);
-			if (ctx.tankVisualSettingsStatus && !ctx.tankVisualSettingsStatus->empty())
-			{
-				ImGui::TextWrapped("%s", ctx.tankVisualSettingsStatus->c_str());
-			}
-			if (ImGui::Checkbox(
-				"Color Wheels by Contact",
-				&ctx.visualSettings->colorWheelsByContact))
-			{
-				if (ctx.applyMaterials) ctx.applyMaterials();
-			}
-			if (ImGui::Checkbox("Show Track Proxies", ctx.showTrackProxies))
-			{
-				if (ctx.updateScene) ctx.updateScene();
-			}
-		}
-		if (ImGui::CollapsingHeader("Tank Model Display"))
+		if (ImGui::CollapsingHeader("Track Input"))
 		{
-			if (ctx.tankModelLoadStatus && !ctx.tankModelLoadStatus->empty())
+			ImGui::Text(
+				"Analog track axes 1 / 3: %s",
+				!ctx.analogTracksConnected ? "not connected" :
+				(ctx.analogTracksArmed ? "ready" : "waiting for neutral"));
+			ImGui::Text(
+				"Left %.2f  Right %.2f  Roll %.2f",
+				ctx.analogLeftTrack,
+				ctx.analogRightTrack,
+				ctx.analogRoll);
+			if (state.yawSpeedLimited)
 			{
-				ImGui::TextWrapped("%s", ctx.tankModelLoadStatus->c_str());
+				ImGui::PushStyleColor(
+					ImGuiCol_Text,
+					ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
 			}
-			bool displayChanged = false;
-			ImGui::SeparatorText("Dummy Model");
-			displayChanged |= ImGui::Checkbox("Body##Dummy", ctx.showDummyModel);
-			ImGui::SameLine();
-			displayChanged |= ImGui::Checkbox("Wheels##Dummy", ctx.showDummyWheels);
-			ImGui::SameLine();
-			displayChanged |= ImGui::Checkbox("Track Shoes##Dummy", ctx.trackShoeDisplay);
-			ImGui::SeparatorText("glTF Overlay");
-			displayChanged |= ImGui::SliderFloat(
-				"Model Scale", &ctx.visualSettings->gltfModelScale, 0.1f, 3.0f, "%.3f");
-			displayChanged |= ImGui::Checkbox("Body", ctx.showGltfBody);
-			ImGui::SameLine();
-			displayChanged |= ImGui::Checkbox("Cannon", ctx.showGltfCannon);
-			ImGui::SameLine();
-			displayChanged |= ImGui::Checkbox("Side", ctx.showGltfSide);
-			if (displayChanged && ctx.updateScene)
+			ImGui::Text(
+				"Tank Yaw Speed: %+.1f deg/s%s",
+				state.yawSpeedDegrees,
+				state.yawSpeedLimited ? "  LIMITED" : "");
+			if (state.yawSpeedLimited)
 			{
-				ctx.updateScene();
+				ImGui::PopStyleColor();
 			}
+			const Tank::Physics::TrackedDriverInput& driverInput = *ctx.driverInput;
+			ImGui::Text(
+				"SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",
+				driverInput.forward,
+				driverInput.leftRatio,
+				driverInput.rightRatio,
+				driverInput.brake);
 		}
+
 		if (ImGui::CollapsingHeader("Turn Traction"))
 		{
 			SliderFloatWithPendingColor(
@@ -2182,6 +2126,113 @@ namespace Ui
 			SliderFloatWithPendingColor("Stance Damping", &ctx.tankSettings->mortarStanceDampingNms, 1000.0f, 250000.0f, 1000.0f, 80000.0f, "%.0f Nms", IsPending(ctx.tankSettings->mortarStanceDampingNms, ctx.appliedTankSettings->mortarStanceDampingNms));
 			ImGui::TextDisabled("Load && Apply / Reset applies pending mortar changes.");
 		}
+
+
+
+		if (ImGui::CollapsingHeader("Tank Design"))
+		{
+
+			ImGui::SeparatorText("Body Material");
+			auto drawMaterial = [](const char* label, Tank::Rendering::BodyMaterialSettings& material)
+				{
+					bool changed = false;
+					if (ImGui::TreeNode(label))
+					{
+						changed |= ImGui::ColorEdit3("Albedo", &material.albedo.r);
+						changed |= ImGuiWidgets::SliderFloatWithControls(
+							"Roughness", &material.roughness, 0.04f, 1.0f, 0.02f, 0.8f);
+						changed |= ImGuiWidgets::SliderFloatWithControls(
+							"Metallic", &material.metallic, 0.0f, 1.0f, 0.05f, 0.0f);
+						changed |= ImGuiWidgets::SliderFloatWithControls(
+							"Ambient Occlusion",
+							&material.ambientOcclusion,
+							0.0f,
+							1.0f,
+							0.05f,
+							1.0f);
+						changed |= ImGuiWidgets::SliderFloatWithControls(
+							"Emissive", &material.emissive, 0.0f, 4.0f, 0.1f, 0.0f);
+						ImGui::TreePop();
+					}
+					return changed;
+				};
+			bool materialChanged = false;
+			materialChanged |= drawMaterial("Hull Upper", ctx.visualSettings->hullUpper);
+			materialChanged |= drawMaterial("Hull Lower", ctx.visualSettings->hullLower);
+			materialChanged |= drawMaterial(
+				"Structure Upper", ctx.visualSettings->structureUpper);
+			materialChanged |= drawMaterial(
+				"Structure Lower", ctx.visualSettings->structureLower);
+			materialChanged |= drawMaterial("Wheels", ctx.visualSettings->wheels);
+			ImGui::BeginDisabled(!ctx.visualSettings->colorWheelsByContact);
+			materialChanged |= drawMaterial(
+				"Contacted Wheels",
+				ctx.visualSettings->contactedWheels);
+			ImGui::EndDisabled();
+			materialChanged |= drawMaterial("Track Shoes", ctx.visualSettings->trackShoes);
+			materialChanged |= drawMaterial(
+				"Track Proxies", ctx.visualSettings->trackProxies);
+			materialChanged |= drawMaterial(
+				"Forward Marker", ctx.visualSettings->forwardMarker);
+			*ctx.tankVisualMaterialApplyPending |= materialChanged;
+			if (*ctx.tankVisualMaterialApplyPending && !ImGui::IsAnyItemActive())
+			{
+				if (ctx.applyMaterials) ctx.applyMaterials();
+				*ctx.tankVisualMaterialApplyPending = false;
+			}
+			if (ImGui::Button("Save Visual"))
+			{
+				if (ctx.saveTankVisualSettings) ctx.saveTankVisualSettings();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Load Visual"))
+			{
+				if (ctx.loadTankVisualSettings) ctx.loadTankVisualSettings();
+			}
+			ImGui::SameLine();
+			ImGui::Checkbox("AutoLoad##TankVisual", ctx.tankVisualSettingsAutoLoad);
+			if (ctx.tankVisualSettingsStatus && !ctx.tankVisualSettingsStatus->empty())
+			{
+				ImGui::TextWrapped("%s", ctx.tankVisualSettingsStatus->c_str());
+			}
+			if (ImGui::Checkbox(
+				"Color Wheels by Contact",
+				&ctx.visualSettings->colorWheelsByContact))
+			{
+				if (ctx.applyMaterials) ctx.applyMaterials();
+			}
+			if (ImGui::Checkbox("Show Track Proxies", ctx.showTrackProxies))
+			{
+				if (ctx.updateScene) ctx.updateScene();
+			}
+		}
+		if (ImGui::CollapsingHeader("Tank Model Display"))
+		{
+			if (ctx.tankModelLoadStatus && !ctx.tankModelLoadStatus->empty())
+			{
+				ImGui::TextWrapped("%s", ctx.tankModelLoadStatus->c_str());
+			}
+			bool displayChanged = false;
+			ImGui::SeparatorText("Dummy Model");
+			displayChanged |= ImGui::Checkbox("Body##Dummy", ctx.showDummyModel);
+			ImGui::SameLine();
+			displayChanged |= ImGui::Checkbox("Wheels##Dummy", ctx.showDummyWheels);
+			ImGui::SameLine();
+			displayChanged |= ImGui::Checkbox("Track Shoes##Dummy", ctx.trackShoeDisplay);
+			ImGui::SeparatorText("glTF Overlay");
+			displayChanged |= ImGui::SliderFloat(
+				"Model Scale", &ctx.visualSettings->gltfModelScale, 0.1f, 3.0f, "%.3f");
+			displayChanged |= ImGui::Checkbox("Body", ctx.showGltfBody);
+			ImGui::SameLine();
+			displayChanged |= ImGui::Checkbox("Cannon", ctx.showGltfCannon);
+			ImGui::SameLine();
+			displayChanged |= ImGui::Checkbox("Side", ctx.showGltfSide);
+			if (displayChanged && ctx.updateScene)
+			{
+				ctx.updateScene();
+			}
+		}
+
 		if (ImGui::CollapsingHeader("Export glTF"))
 		{
 			if (ctx.tankModelExportBinary)
@@ -2218,39 +2269,16 @@ namespace Ui
 				ImGui::TextWrapped("%s", ctx.tankModelExportStatus->c_str());
 			}
 		}
-		if (ImGui::CollapsingHeader("Track Input"))
+
+		if (ImGui::CollapsingHeader("UI"))
 		{
-			ImGui::Text(
-				"Analog track axes 1 / 3: %s",
-				!ctx.analogTracksConnected ? "not connected" :
-				(ctx.analogTracksArmed ? "ready" : "waiting for neutral"));
-			ImGui::Text(
-				"Left %.2f  Right %.2f  Roll %.2f",
-				ctx.analogLeftTrack,
-				ctx.analogRightTrack,
-				ctx.analogRoll);
-			if (state.yawSpeedLimited)
+			if (ImGui::Button("Reset"))
 			{
-				ImGui::PushStyleColor(
-					ImGuiCol_Text,
-					ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
+				ImGui::SetWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
+				ImGui::SetWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_Always);
 			}
-			ImGui::Text(
-				"Tank Yaw Speed: %+.1f deg/s%s",
-				state.yawSpeedDegrees,
-				state.yawSpeedLimited ? "  LIMITED" : "");
-			if (state.yawSpeedLimited)
-			{
-				ImGui::PopStyleColor();
-			}
-			const Tank::Physics::TrackedDriverInput& driverInput = *ctx.driverInput;
-			ImGui::Text(
-				"SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",
-				driverInput.forward,
-				driverInput.leftRatio,
-				driverInput.rightRatio,
-				driverInput.brake);
 		}
+
 		ImGui::EndChild();
 		ImGui::End();
 		DrawRollingCheatWindow(ctx);

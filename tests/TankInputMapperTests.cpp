@@ -75,6 +75,16 @@ int main()
         Tank::Input::MapGamepadToTankInput(braking);
     passed &= Check(brakingInput.brake, "brake button must be preserved");
 
+    Tank::Input::GamepadState rawButtons;
+    rawButtons.buttonCount = 6;
+    rawButtons.rawButtons[5] = true;
+    passed &= Check(rawButtons.IsRawButtonPressed(5),
+        "selected raw brake button must be readable");
+    passed &= Check(!rawButtons.IsRawButtonPressed(3),
+        "unselected raw button must not be treated as brake");
+    passed &= Check(!rawButtons.IsRawButtonPressed(6),
+        "raw button access must honor button count");
+
     Tank::Input::GamepadState assaultTrigger;
     assaultTrigger.connected = true;
     assaultTrigger.buttonCount = Tank::Input::GamepadState::AssaultFireButtonIndex + 1;

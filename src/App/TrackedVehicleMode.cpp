@@ -587,12 +587,12 @@ void TrackedVehicleMode::UpdateInput(
     }
     const bool useAnalogTracks = m_analogTracksConnected && m_analogTracksArmed;
     const bool profileBrake = profile != nullptr &&
-        profile->brakeButton < gamepadState.buttonCount &&
-        gamepadState.rawButtons[profile->brakeButton];
-    const bool brakePressed = brake || profileBrake || gamepadState.brakePressed;
+        gamepadState.IsRawButtonPressed(profile->brakeButton);
+    const bool standardGamepadBrake =
+        gamepadState.hasGamepadMapping && gamepadState.brakePressed;
+    const bool brakePressed = brake || profileBrake || standardGamepadBrake;
     const bool gamepadAssaultButton = profile != nullptr &&
-        profile->fireButton < gamepadState.buttonCount &&
-        gamepadState.rawButtons[profile->fireButton];
+        gamepadState.IsRawButtonPressed(profile->fireButton);
     input.fireAssault = fireAssault || gamepadAssaultButton ||
         (gamepadState.hasGamepadMapping && gamepadState.rightTrigger >= 0.5f);
 
@@ -693,7 +693,7 @@ void TrackedVehicleMode::UpdateInput(
         gamepadState.connected &&
         (std::abs(gamepadState.leftStickX) > 0.05f ||
             std::abs(gamepadState.leftStickY) > 0.05f ||
-            gamepadState.brakePressed);
+            standardGamepadBrake);
     if (gamepadActive)
     {
         const bool keyboardBrake = input.brake;
