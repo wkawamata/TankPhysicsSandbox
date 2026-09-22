@@ -94,6 +94,7 @@ namespace Ui
             m_include[0] = m_exclude[0] = '\0';
             dirty = true;
         }
+        ImGui::SameLine(0.0f, 30.0f);
         for (size_t i = 0; i < kLogLevelCount; ++i)
         {
             if (i != 0) ImGui::SameLine();

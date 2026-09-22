@@ -12,6 +12,7 @@
 #include "App/MapEditorMode.h"
 #include "App/CameraController.h"
 #include "App/CameraSettingsStore.h"
+#include "App/UiLayoutSettingsStore.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
 #include "App/TrackedVehicleMode.h"
@@ -86,6 +87,11 @@ private:
     void ResetRendererSettings();
     bool SaveCameraSettings();
     bool LoadCameraSettings();
+    Tank::App::UiLayoutSettings CaptureUiLayoutSettings();
+    void ApplyUiLayoutSettings(const Tank::App::UiLayoutSettings& settings);
+    void LoadUiLayoutSettings();
+    void SaveUiLayoutSettings();
+    void PersistUiLayoutSettingsIfChanged();
     void DrawTopMenuUi();
     void ReloadCustomMaps();
     bool LoadAutoMap();
@@ -185,6 +191,7 @@ private:
     // Renderer state
     bool m_cameraWindowVisible = true;
     bool m_renderSettingsWindowVisible = true;
+    Tank::App::UiLayoutSettings m_lastSavedUiLayoutSettings;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;
     RtPbrSurvey::EnvironmentMappingUiState m_environmentMappingUi;
     std::string m_rendererSettingsStatus;

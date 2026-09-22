@@ -869,9 +869,9 @@ namespace Ui
 				&settings.muzzleLocalPosition.x, 0.01f, -100.0f, 100.0f, "%.2f",
 				ImGuiSliderFlags_AlwaysClamp);
 			ImGui::TextDisabled("Tank local: +X right, +Y up, +Z forward. Saved with Tank Settings.");
-			ImGui::SliderInt("Maximum ground impact marks", &settings.maximumImpactMarks, 0, 1024, "%d", ImGuiSliderFlags_AlwaysClamp);
-			if (ctx.state) ImGui::Text("Ground marks: %zu / %d", ctx.state->assaultImpactMarks.Count(), settings.maximumImpactMarks);
-			ImGui::TextWrapped("Ground marks overwrite oldest entries. Zero disables marks. Reset clears them.");
+			ImGui::SliderInt("Maximum static surface impact marks", &settings.maximumImpactMarks, 0, 1024, "%d", ImGuiSliderFlags_AlwaysClamp);
+			if (ctx.state) ImGui::Text("Static surface marks: %zu / %d", ctx.state->assaultImpactMarks.Count(), settings.maximumImpactMarks);
+			ImGui::TextWrapped("Marks apply to ground and static Map surfaces, overwrite oldest entries, and are cleared by Reset. Zero disables marks.");
 			ImGui::TextWrapped("Applied live. Speed, damage and lifetime affect new rounds. At capacity, firing stops. Reducing capacity removes oldest rounds.");
 		}
 		if (ImGui::CollapsingHeader("Frame Timing"))

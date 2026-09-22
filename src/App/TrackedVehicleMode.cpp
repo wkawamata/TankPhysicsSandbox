@@ -247,9 +247,10 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
     m_mapClearBeaconInstances.clear();
     m_mapClearBeaconWorlds.clear();
     m_clearedAreaIndex.reset();
-    const std::vector<Tank::Physics::MapPrimitive> mapPrimitives = m_customMap ?
-        m_customMap->primitives :
-        Tank::Physics::BuildMapPrimitives(m_selectedMap, m_environmentSettings);
+    const std::vector<Tank::Physics::MapPrimitive> mapPrimitives = m_manifestMap ?
+        std::vector<Tank::Physics::MapPrimitive>{} :
+        (m_customMap ? m_customMap->primitives :
+            Tank::Physics::BuildMapPrimitives(m_selectedMap, m_environmentSettings));
     m_presenter.BuildScene(
         m_environmentSettings,
         mapPrimitives,
@@ -811,11 +812,12 @@ void TrackedVehicleMode::Reset(
 {
     const Tank::Physics::TrackedVehicleTestState previousState = m_test.State();
     Engine::CameraState* camera = ActiveCamera();
-    const std::vector<Tank::Physics::MapPrimitive> mapPrimitives = m_customMap ?
-        m_customMap->primitives :
-        Tank::Physics::BuildMapPrimitives(
-            m_selectedMap,
-            m_environmentSettings);
+    const std::vector<Tank::Physics::MapPrimitive> mapPrimitives = m_manifestMap ?
+        std::vector<Tank::Physics::MapPrimitive>{} :
+        (m_customMap ? m_customMap->primitives :
+            Tank::Physics::BuildMapPrimitives(
+                m_selectedMap,
+                m_environmentSettings));
     if (m_manifestMap)
     {
         std::string error;
