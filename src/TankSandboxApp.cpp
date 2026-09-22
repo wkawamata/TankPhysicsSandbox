@@ -397,10 +397,24 @@ void TankSandboxApp::OnInit()
 
     m_rendererPanelCtx.settingsStatus = &m_rendererSettingsStatus;
     m_rendererPanelCtx.screenshotStatus = &m_screenshotStatus;
+    m_rendererPanelCtx.windowVisible = &m_renderSettingsWindowVisible;
     m_rendererPanelCtx.saveSettings = [this]() { SaveRendererSettings(); };
     m_rendererPanelCtx.loadSettings = [this]() { LoadRendererSettings(); };
     m_rendererPanelCtx.resetSettings = [this]() { ResetRendererSettings(); };
     m_rendererPanelCtx.requestScreenshot = [this]() { RequestScreenshot(); };
+    m_rendererPanelCtx.drawRendererDebugContents = [this]()
+    {
+        const RtPbrSurveyEngine::LightingParams currentLighting =
+            m_sceneRenderer.GetLightingParams();
+        m_environmentMappingUi.lighting.lightDirection = currentLighting.lightDirection;
+        m_environmentMappingUi.lighting.lightColor = currentLighting.lightColor;
+        m_environmentMappingUi.lighting.diffuseIntensity = currentLighting.diffuseIntensity;
+        m_environmentMappingUi.lighting.directLightEnabled = currentLighting.directLightEnabled;
+        m_environmentMappingUi.lighting.emissiveEnabled = currentLighting.emissiveEnabled;
+        RtPbrSurvey::SceneRendererDebugUi::DrawContents(
+            m_sceneRenderer,
+            &m_environmentMappingUi);
+    };
 
     m_trackedVehiclePanelCtx.state = &m_trackedVehicleMode.Test().State();
     m_trackedVehiclePanelCtx.driverInput = &m_trackedVehicleMode.Test().DriverInput();
@@ -1239,24 +1253,16 @@ void TankSandboxApp::UpdateUiFrame()
 
     if (m_renderSettingsWindowVisible)
     {
-        // RtPbrSurvey Debug remains separate until its embedded content API is available.
-        ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 430, 10), ImGuiCond_FirstUseEver);
-        const RtPbrSurveyEngine::LightingParams currentLighting =
-            m_sceneRenderer.GetLightingParams();
-        m_environmentMappingUi.lighting.lightDirection = currentLighting.lightDirection;
-        m_environmentMappingUi.lighting.lightColor = currentLighting.lightColor;
-        m_environmentMappingUi.lighting.diffuseIntensity = currentLighting.diffuseIntensity;
-        m_environmentMappingUi.lighting.directLightEnabled = currentLighting.directLightEnabled;
-        m_environmentMappingUi.lighting.emissiveEnabled = currentLighting.emissiveEnabled;
-        RtPbrSurvey::SceneRendererDebugUi::Draw(
-            m_sceneRenderer,
-            nullptr,
-            "RtPbrSurvey Debug",
-            &m_environmentMappingUi);
+        const RtPbrSurvey::SceneRenderer::UiFrameContext frameContext =
+            m_sceneRenderer.GetUiFrameContext();
+        m_rendererPanelCtx.rendererFrameIndex = frameContext.frameIndex;
+        m_rendererPanelCtx.rendererCpuFrameTimeMs = frameContext.cpuFrameTime;
 
-        // Renderer Settings is merged with RtPbrSurvey Debug when Request 007 lands upstream.
-        ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 740, 10), ImGuiCond_FirstUseEver);
+        // Tank owns this host window and its fixed controls. RtPbrSurvey owns
+        // the child region's renderer diagnostics and settings.
+        ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 430, 10), ImGuiCond_FirstUseEver);
         Ui::DrawRendererSettingsPanel(m_rendererPanelCtx);
+        RtPbrSurvey::SceneRendererDebugUi::DrawAuxiliaryWindows(m_sceneRenderer);
     }
 
     m_imguiSystem.EndFrame();
