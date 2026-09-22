@@ -751,9 +751,17 @@ namespace Ui
 		if (ImGui::CollapsingHeader(
 			"Sub Windows", ImGuiTreeNodeFlags_DefaultOpen))
 		{
+			if (ctx.cameraWindowVisible != nullptr)
+			{
+				ImGui::Checkbox("Camera Window", ctx.cameraWindowVisible);
+			}
 			if (ctx.gamepadInputWindowVisible != nullptr)
 			{
 				ImGui::Checkbox("Gamepad & Input Window", ctx.gamepadInputWindowVisible);
+			}
+			if (ctx.renderSettingsWindowVisible != nullptr)
+			{
+				ImGui::Checkbox("Render Settings Window", ctx.renderSettingsWindowVisible);
 			}
 		}
 

@@ -46,7 +46,9 @@ namespace Ui
         bool analogTracksArmed = false;
 
         bool* physicsDebugOverlay = nullptr;
+        bool* cameraWindowVisible = nullptr;
         bool* gamepadInputWindowVisible = nullptr;
+        bool* renderSettingsWindowVisible = nullptr;
         bool* mapHitMeshOverlay = nullptr;
         bool* mapVisualMeshes = nullptr;
         bool* mapMarkersVisible = nullptr;
