@@ -1,6 +1,6 @@
 {
   "cameraWindowVisible": false,
-  "gamepadInputWindowVisible": true,
+  "gamepadInputWindowVisible": false,
   "outputWindowVisible": true,
   "renderSettingsWindowVisible": true,
   "rollingCheatWindowVisible": false,

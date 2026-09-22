@@ -83,13 +83,29 @@ namespace Tank::App
             { "outputWindowVisible", settings.outputWindowVisible },
             { "rollingCheatWindowVisible", settings.rollingCheatWindowVisible },
         };
+        std::string jsonText = json.dump(2);
+        std::string crlfJsonText;
+        crlfJsonText.reserve(jsonText.size() + 16);
+        for (const char character : jsonText)
+        {
+            if (character == '\n')
+            {
+                crlfJsonText += "\r\n";
+            }
+            else
+            {
+                crlfJsonText += character;
+            }
+        }
+        crlfJsonText += "\r\n";
+
         std::ofstream output(m_path, std::ios::binary | std::ios::trunc);
         if (!output)
         {
             status = "UI layout save failed: cannot open file";
             return false;
         }
-        output << json.dump(2) << "\r\n";
+        output << crlfJsonText;
         if (!output)
         {
             status = "UI layout save failed: cannot write file";

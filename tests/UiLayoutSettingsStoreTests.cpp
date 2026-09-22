@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 
 namespace
 {
@@ -33,6 +34,21 @@ int main()
 
     std::string status;
     passed &= Check(store.Write(source, status), "write must succeed");
+    std::ifstream savedFile(store.Path(), std::ios::binary);
+    const std::string savedText(
+        (std::istreambuf_iterator<char>(savedFile)),
+        std::istreambuf_iterator<char>());
+    bool usesOnlyCrlfLineEndings = true;
+    for (std::size_t index = 0; index < savedText.size(); ++index)
+    {
+        if (savedText[index] == '\n' &&
+            (index == 0 || savedText[index - 1] != '\r'))
+        {
+            usesOnlyCrlfLineEndings = false;
+            break;
+        }
+    }
+    passed &= Check(usesOnlyCrlfLineEndings, "saved JSON must use CRLF line endings");
     Tank::App::UiLayoutSettings loaded;
     passed &= Check(store.Read(loaded, status), "read must succeed after write");
     passed &= Check(loaded == source, "visibility flags must round trip");
