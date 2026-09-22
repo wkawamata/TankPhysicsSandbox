@@ -8,6 +8,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(MSVC)
+    # CMake and Visual Studio can compile one target with /MP. /FS serializes
+    # writes to its shared PDB and prevents C1041 during clean rebuilds.
+    add_compile_options(/FS)
+endif()
+
 # ── Jolt Physics ──────────────────────────────────────────────
 set(DOUBLE_PRECISION OFF)
 set(GENERATE_DEBUG_SYMBOLS ON)
