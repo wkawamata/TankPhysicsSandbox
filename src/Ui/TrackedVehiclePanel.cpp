@@ -745,16 +745,21 @@ namespace Ui
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
-		if (ctx.gamepadInputWindowVisible != nullptr)
+
+		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
+
+		if (ImGui::CollapsingHeader(
+			"Sub Windows", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			ImGui::Checkbox("Show Gamepad & Input Window", ctx.gamepadInputWindowVisible);
+			if (ctx.gamepadInputWindowVisible != nullptr)
+			{
+				ImGui::Checkbox("Gamepad & Input Window", ctx.gamepadInputWindowVisible);
+			}
 		}
+
 		DrawStateSummary(ctx, state);
+
 		UpdateAndDrawRollingTravelTelemetry(ctx, state);
-		ImGui::BeginChild(
-			"TrackedVehicleControls",
-			ImVec2(0.0f, 0.0f),
-			ImGuiChildFlags_None);
 		if (ImGui::Button("Reset GUI"))
 		{
 			ImGui::SetWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_Always);
@@ -795,6 +800,11 @@ namespace Ui
 		{
 			if (ctx.loadTankSettings) ctx.loadTankSettings();
 		}
+		ImGui::SameLine();
+		if (ImGui::Button("Reset Tank"))
+		{
+			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
+		}
 		if (ctx.tankSettingsStatus && !ctx.tankSettingsStatus->empty())
 		{
 			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
@@ -822,12 +832,11 @@ namespace Ui
 		{
 			if (ctx.fireRecoil) ctx.fireRecoil();
 		}
-		ImGui::SameLine();
-		if (ImGui::Button("Reset Tank"))
-		{
-			if (ctx.resetTrackedVehicle) ctx.resetTrackedVehicle();
-		}
-		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
+
+		ImGui::BeginChild(
+			"TrackedVehicleControls",
+			ImVec2(0.0f, 0.0f),
+			ImGuiChildFlags_None);
 		if (ctx.tankSettings && ImGui::CollapsingHeader("Assault Projectiles"))
 		{
 			auto& settings = ctx.tankSettings->assaultProjectiles;
