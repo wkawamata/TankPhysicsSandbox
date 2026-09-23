@@ -925,9 +925,17 @@ void TankSandboxApp::OnIdle()
                     (firstCaptureRoll || recoveredForNextCaptureRoll)));
         {
             const Tank::Input::GamepadState& gp = vehicleGamepadState;
+            const Tank::Input::InputDeviceProfile* profile =
+                m_trackedVehicleMode.ActiveInputDeviceProfile();
+            const std::uint32_t cameraNextButton =
+                profile != nullptr ? profile->cameraNextButton : 4;
+            const std::uint32_t cameraPreviousButton =
+                profile != nullptr ? profile->cameraPreviousButton : 7;
             if (m_cameraController.UpdateButtonStates(
-                    gp.connected && gp.buttonCount > 4 && gp.rawButtons[4],
-                    gp.connected && gp.buttonCount > 7 && gp.rawButtons[7]))
+                    gp.connected && cameraNextButton < gp.buttonCount &&
+                        gp.rawButtons[cameraNextButton],
+                    gp.connected && cameraPreviousButton < gp.buttonCount &&
+                        gp.rawButtons[cameraPreviousButton]))
             {
                 LoadCameraSettings();
             }
