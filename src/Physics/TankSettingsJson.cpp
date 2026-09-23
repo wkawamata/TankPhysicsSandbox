@@ -6,7 +6,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 22;
+        constexpr int kSchemaVersion = 23;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -42,6 +42,42 @@ namespace Tank::Physics
             {
                 value = entry->get<int>();
             }
+        }
+
+        template <size_t Size>
+        bool ReadFloatArray(
+            const nlohmann::json& object,
+            const char* name,
+            std::array<float, Size>& value,
+            std::string* error)
+        {
+            const auto entry = object.find(name);
+            if (entry == object.end())
+            {
+                return true;
+            }
+            if (!entry->is_array() || entry->size() != Size)
+            {
+                if (error != nullptr)
+                {
+                    *error = std::string(name) + " must contain " +
+                        std::to_string(Size) + " values";
+                }
+                return false;
+            }
+            for (size_t index = 0; index < Size; ++index)
+            {
+                if (!(*entry)[index].is_number())
+                {
+                    if (error != nullptr)
+                    {
+                        *error = std::string(name) + " values must be numbers";
+                    }
+                    return false;
+                }
+                value[index] = (*entry)[index].get<float>();
+            }
+            return true;
         }
     }
 
@@ -87,6 +123,7 @@ namespace Tank::Physics
         json["stationaryTurnInnerTrackRatio"] = settings.stationaryTurnInnerTrackRatio;
         json["stationaryTurnLeftTraction"] = settings.stationaryTurnLeftTraction;
         json["stationaryTurnRightTraction"] = settings.stationaryTurnRightTraction;
+        json["pivotTurnThrottleScale"] = settings.pivotTurnThrottleScale;
         json["pivotTurnLeftTraction"] = settings.pivotTurnLeftTraction;
         json["pivotTurnRightTraction"] = settings.pivotTurnRightTraction;
         json["engineMaxTorqueNm"] = settings.engineMaxTorqueNm;
@@ -94,6 +131,8 @@ namespace Tank::Physics
         json["transmissionShiftDownRpm"] = settings.transmissionShiftDownRpm;
         json["transmissionShiftUpRpm"] = settings.transmissionShiftUpRpm;
         json["transmissionClutchStrength"] = settings.transmissionClutchStrength;
+        json["forwardGearRatios"] = settings.forwardGearRatios;
+        json["reverseGearRatios"] = settings.reverseGearRatios;
         json["finalDriveRatio"] = settings.finalDriveRatio;
         json["clutchReleaseTimeSeconds"] = settings.clutchReleaseTimeSeconds;
         json["yawSpeedLimitDegrees"] = settings.yawSpeedLimitDegrees;
@@ -235,6 +274,7 @@ namespace Tank::Physics
             loaded.stationaryTurnInnerTrackRatio);
         ReadFloat(json, "stationaryTurnLeftTraction", loaded.stationaryTurnLeftTraction);
         ReadFloat(json, "stationaryTurnRightTraction", loaded.stationaryTurnRightTraction);
+        ReadFloat(json, "pivotTurnThrottleScale", loaded.pivotTurnThrottleScale);
         ReadFloat(json, "pivotTurnLeftTraction", loaded.pivotTurnLeftTraction);
         ReadFloat(json, "pivotTurnRightTraction", loaded.pivotTurnRightTraction);
         ReadFloat(json, "engineMaxTorqueNm", loaded.engineMaxTorqueNm);
@@ -248,6 +288,19 @@ namespace Tank::Physics
             json,
             "transmissionClutchStrength",
             loaded.transmissionClutchStrength);
+        if (!ReadFloatArray(
+                json,
+                "forwardGearRatios",
+                loaded.forwardGearRatios,
+                error) ||
+            !ReadFloatArray(
+                json,
+                "reverseGearRatios",
+                loaded.reverseGearRatios,
+                error))
+        {
+            return false;
+        }
         ReadFloat(json, "finalDriveRatio", loaded.finalDriveRatio);
         ReadFloat(
             json,

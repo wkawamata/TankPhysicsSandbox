@@ -107,6 +107,7 @@ namespace Tank::Physics
         float stationaryTurnInnerTrackRatio = 0.0f;
         float stationaryTurnLeftTraction = 1.0f;
         float stationaryTurnRightTraction = 1.0f;
+        float pivotTurnThrottleScale = 1.0f;
         float pivotTurnLeftTraction = 1.0f;
         float pivotTurnRightTraction = 1.0f;
         float engineMaxTorqueNm = 900.0f;
@@ -114,6 +115,8 @@ namespace Tank::Physics
         float transmissionShiftDownRpm = 1000.0f;
         float transmissionShiftUpRpm = 4375.0f;
         float transmissionClutchStrength = 10.0f;
+        std::array<float, 4> forwardGearRatios = { 4.0f, 3.0f, 2.0f, 1.0f };
+        std::array<float, 2> reverseGearRatios = { -4.0f, -3.0f };
         float finalDriveRatio = 1.0f;
         float clutchReleaseTimeSeconds = 0.03f;
         float yawSpeedLimitDegrees = 720.0f;

@@ -1,5 +1,5 @@
 {
-  "cameraWindowVisible": false,
+  "cameraWindowVisible": true,
   "gamepadInputWindowVisible": false,
   "outputWindowVisible": true,
   "renderSettingsWindowVisible": true,

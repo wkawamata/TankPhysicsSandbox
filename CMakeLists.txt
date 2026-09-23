@@ -483,6 +483,12 @@ if(BUILD_TESTING)
     target_include_directories(UiLayoutSettingsStoreTests PRIVATE src)
     target_link_libraries(UiLayoutSettingsStoreTests PRIVATE nlohmann_json::nlohmann_json)
 
+    add_executable(DriveTelemetryTests tests/DriveTelemetryTests.cpp)
+    target_include_directories(DriveTelemetryTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(DriveTelemetryTests PRIVATE /W4 /permissive- /utf-8)
+    endif()
+
     add_executable(TankSettingsStoreTests
         src/App/TankSettingsStore.cpp
         tests/TankSettingsStoreTests.cpp
@@ -524,6 +530,7 @@ if(BUILD_TESTING)
         NAME TankApp.UiLayoutSettingsStore
         COMMAND UiLayoutSettingsStoreTests
     )
+    add_test(NAME TankUi.DriveTelemetry COMMAND DriveTelemetryTests)
     add_test(
         NAME TankApp.TankSettingsStore
         COMMAND TankSettingsStoreTests

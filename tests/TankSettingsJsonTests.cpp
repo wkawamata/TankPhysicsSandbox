@@ -66,6 +66,7 @@ int main()
     source.stationaryTurnInnerTrackRatio = 0.25f;
     source.stationaryTurnLeftTraction = 0.6f;
     source.stationaryTurnRightTraction = 0.7f;
+    source.pivotTurnThrottleScale = 0.35f;
     source.pivotTurnLeftTraction = 0.8f;
     source.pivotTurnRightTraction = 0.9f;
     source.engineMaxTorqueNm = 1250.0f;
@@ -73,6 +74,8 @@ int main()
     source.transmissionShiftDownRpm = 1400.0f;
     source.transmissionShiftUpRpm = 5400.0f;
     source.transmissionClutchStrength = 18.0f;
+    source.forwardGearRatios = { 5.0f, 3.4f, 2.1f, 1.3f };
+    source.reverseGearRatios = { -4.5f, -2.8f };
     source.finalDriveRatio = 1.35f;
     source.clutchReleaseTimeSeconds = 0.12f;
     source.yawSpeedLimitDegrees = 240.0f;
@@ -225,6 +228,9 @@ int main()
             source.stationaryTurnRightTraction),
         "stationary turn right traction must round trip");
     passed &= Check(
+        NearlyEqual(loaded.pivotTurnThrottleScale, source.pivotTurnThrottleScale),
+        "pivot turn throttle scale must round trip");
+    passed &= Check(
         NearlyEqual(loaded.pivotTurnLeftTraction, source.pivotTurnLeftTraction),
         "pivot turn left traction must round trip");
     passed &= Check(
@@ -249,6 +255,12 @@ int main()
             loaded.transmissionClutchStrength,
             source.transmissionClutchStrength),
         "clutch strength must round trip");
+    passed &= Check(
+        loaded.forwardGearRatios == source.forwardGearRatios,
+        "forward gear ratios must round trip");
+    passed &= Check(
+        loaded.reverseGearRatios == source.reverseGearRatios,
+        "reverse gear ratios must round trip");
     passed &= Check(NearlyEqual(loaded.finalDriveRatio, source.finalDriveRatio),
         "final drive ratio must round trip");
     passed &= Check(
@@ -299,6 +311,9 @@ int main()
         NearlyEqual(legacyLoaded.endWheelRadiusM, 0.36f) &&
             NearlyEqual(legacyLoaded.roadWheelRadiusM, 0.36f),
         "legacy wheel radius must initialize both wheel groups");
+
+    passed &= Check(NearlyEqual(legacyLoaded.pivotTurnThrottleScale, 1.0f),
+        "legacy settings must retain full pivot throttle");
 
     const Tank::Physics::TankSettings beforeFutureVersion = loaded;
     passed &= Check(

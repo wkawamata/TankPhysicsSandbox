@@ -1,4 +1,5 @@
 #include "Ui/TrackedVehiclePanel.h"
+#include "Ui/DriveTelemetry.h"
 #include "App/RollingSpeedOptimizationSession.h"
 #include "App/RollingProfileSlotSelection.h"
 
@@ -673,6 +674,122 @@ namespace Ui
 		std::vector<float> actualHistory;
 	};
 
+	DriveSpeedHistory& GetDriveSpeedTelemetry()
+	{
+		static DriveSpeedHistory telemetry;
+		return telemetry;
+	}
+
+	DriveSpeedGraphSettings& GetDriveSpeedGraphSettings()
+	{
+		static DriveSpeedGraphSettings settings;
+		return settings;
+	}
+
+	ImU32 DriveSpeedStateColor(DriveSpeedState state)
+	{
+		switch (state)
+		{
+		case DriveSpeedState::Acceleration: return IM_COL32(80, 220, 120, 255);
+		case DriveSpeedState::NaturalBrake: return IM_COL32(255, 205, 70, 255);
+		case DriveSpeedState::Brake: return IM_COL32(255, 95, 85, 255);
+		default: return IM_COL32(165, 175, 190, 255);
+		}
+	}
+
+	void UpdateDriveSpeedTelemetry(
+		const Tank::Physics::TrackedVehicleTestState& state,
+		const Tank::Physics::TrackedDriverInput& driverInput)
+	{
+		GetDriveSpeedTelemetry().Update(
+			state.stepIndex,
+			state.timeSeconds,
+			state.speedMetersPerSecond,
+			ClassifyDriveSpeedState(driverInput.forward, driverInput.brake),
+			state.mobility.state == Tank::Physics::MobilityState::Stopped);
+	}
+
+	void DrawDriveSpeedGraph()
+	{
+		DriveSpeedGraphSettings& settings = GetDriveSpeedGraphSettings();
+		ImGui::SliderFloat(
+			"Time Window##DriveSpeedGraph",
+			&settings.historyDurationSeconds,
+			1.0f,
+			60.0f,
+			"%.0f s",
+			ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat(
+			"Speed Scale##DriveSpeedGraph",
+			&settings.maximumSpeedMetersPerSecond,
+			1.0f,
+			200.0f,
+			"%.0f m/s",
+			ImGuiSliderFlags_AlwaysClamp);
+		const std::vector<DriveSpeedSample>& samples =
+			GetDriveSpeedTelemetry().Samples();
+		const float historyDurationSeconds = settings.historyDurationSeconds;
+		const float maximumGraphSpeedMetersPerSecond = settings.maximumSpeedMetersPerSecond;
+		ImGui::Text("Speed history (last %.0f s, 0-%.0f m/s)",
+			historyDurationSeconds, maximumGraphSpeedMetersPerSecond);
+		if (samples.size() < 2)
+		{
+			ImGui::TextDisabled("Waiting for speed samples.");
+			return;
+		}
+
+		const float endTime = samples.back().timeSeconds;
+		const float startTime = endTime - historyDurationSeconds;
+		const ImVec2 size((std::max)(ImGui::GetContentRegionAvail().x, 200.0f), 120.0f);
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		ImGui::InvisibleButton("##DriveSpeedGraph", size);
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		drawList->AddRectFilled(origin,
+			{ origin.x + size.x, origin.y + size.y },
+			IM_COL32(20, 23, 28, 255));
+		for (int grid = 0; grid <= 4; ++grid)
+		{
+			const float x = origin.x + size.x * grid / 4.0f;
+			const float y = origin.y + size.y * grid / 4.0f;
+			drawList->AddLine({ x, origin.y }, { x, origin.y + size.y },
+				IM_COL32(70, 75, 82, 120));
+			drawList->AddLine({ origin.x, y }, { origin.x + size.x, y },
+				IM_COL32(70, 75, 82, 120));
+		}
+		const auto pointFor = [&](const DriveSpeedSample& sample)
+		{
+			return ImVec2(
+				origin.x + size.x * std::clamp(
+					(sample.timeSeconds - startTime) / historyDurationSeconds,
+					0.0f, 1.0f),
+				origin.y + size.y * (1.0f - std::clamp(
+					sample.speedMetersPerSecond / maximumGraphSpeedMetersPerSecond,
+					0.0f, 1.0f)));
+		};
+		for (size_t index = 1; index < samples.size(); ++index)
+		{
+			drawList->AddLine(pointFor(samples[index - 1]), pointFor(samples[index]),
+				DriveSpeedStateColor(samples[index].state), 2.0f);
+		}
+		char maximumLabel[32] = {};
+		std::snprintf(maximumLabel, sizeof(maximumLabel), "%.0f m/s", maximumGraphSpeedMetersPerSecond);
+		drawList->AddText({ origin.x + 4.0f, origin.y + 3.0f },
+			IM_COL32(195, 200, 210, 255), maximumLabel);
+		char durationLabel[32] = {};
+		std::snprintf(durationLabel, sizeof(durationLabel), "%.0f s", historyDurationSeconds);
+		drawList->AddText(
+			{ origin.x + size.x - ImGui::CalcTextSize(durationLabel).x - 4.0f,
+				origin.y + size.y - ImGui::GetTextLineHeight() - 3.0f },
+			IM_COL32(195, 200, 210, 255), durationLabel);
+		ImGui::TextColored(ImColor(DriveSpeedStateColor(DriveSpeedState::Acceleration)), "Acceleration");
+		ImGui::SameLine();
+		ImGui::TextColored(ImColor(DriveSpeedStateColor(DriveSpeedState::NaturalBrake)), "Natural Brake");
+		ImGui::SameLine();
+		ImGui::TextColored(ImColor(DriveSpeedStateColor(DriveSpeedState::Brake)), "Brake");
+		ImGui::SameLine();
+		ImGui::TextColored(ImColor(DriveSpeedStateColor(DriveSpeedState::Coast)), "Coast");
+	}
+
 	void UpdateAndDrawRollingTravelTelemetry(
 		const TrackedVehiclePanelContext& ctx,
 		const Tank::Physics::TrackedVehicleTestState& state)
@@ -713,6 +830,224 @@ namespace Ui
 		telemetry.previousPhase = state.rollingPhase;
 		telemetry.previousStepIndex = state.stepIndex;
 
+        if (ImGui::CollapsingHeader("Frame Timing"))
+        {
+            ImGui::Text("Total CPU: %.2f ms  peak %.2f ms",
+                ctx.cpuFrameTimeMs,
+                ctx.peakCpuFrameTimeMs);
+            ImGui::Text("Rolling 300: avg %.2f  p95 %.2f  p99 %.2f ms",
+                ctx.averageCpuFrameTimeMs,
+                ctx.p95CpuFrameTimeMs,
+                ctx.p99CpuFrameTimeMs);
+            ImGui::Text("Physics: %.2f ms  peak %.2f ms",
+                ctx.physicsStepTimeMs,
+                ctx.physicsStepPeakTimeMs);
+            ImGui::Text("Scene Update: %.2f ms  peak %.2f ms",
+                ctx.sceneUpdateTimeMs,
+                ctx.sceneUpdatePeakTimeMs);
+            if (ImGui::Button("Reset Timing Peaks") && ctx.resetFrameTimingPeaks)
+            {
+                ctx.resetFrameTimingPeaks();
+            }
+        }
+
+		const Tank::Physics::TrackedDriverInput& driverInput = *ctx.driverInput;
+		UpdateDriveSpeedTelemetry(state, driverInput);
+		if (ImGui::CollapsingHeader("Drive Telemetry"))
+        {
+            const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
+            int wheelContactCount = 0;
+            for (int i = 0; i < state.wheelCount; ++i)
+            {
+                wheelContactCount += state.wheels[static_cast<size_t>(i)].hasContact ? 1 : 0;
+            }
+            ImGui::Text("Step: %d  Time: %.2f s", state.stepIndex, state.timeSeconds);
+            ImGui::Text("Position: %.2f, %.2f, %.2f",
+                state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
+            
+			ImGui::Text("Speed: %.2f m/s  (%.1f km/h)",
+				state.speedMetersPerSecond,
+				state.speedMetersPerSecond * 3.6f);
+            ImGui::Text("Maximum: %.2f m/s  (%.1f km/h)",
+                state.maximumSpeedMetersPerSecond,
+                state.maximumSpeedMetersPerSecond * 3.6f);
+            if (state.zeroToTenTimeSeconds >= 0.0f)
+            {
+                ImGui::Text("0-10 m/s: %.2f s", state.zeroToTenTimeSeconds);
+            }
+            else
+            {
+                ImGui::TextUnformatted("0-10 m/s: measuring");
+            }
+            ImGui::Text("Engine: %.0f rpm", state.engineRpm); ImGui::SameLine();
+            ImGui::Text("Gear: %d", state.transmissionGear); ImGui::SameLine();
+            ImGui::Text("Clutch: %.0f%%", state.clutchFriction * 100.0f);
+            if (ImGui::TreeNode("Speed Graph##DriveTelemetry"))
+			{
+				DrawDriveSpeedGraph();
+				ImGui::TreePop();
+			}
+			if (ImGui::TreeNode("Input##DriveTelemetry"))
+			{
+            ImGui::Text(
+                "Analog track axes 1 / 3: %s",
+                !ctx.analogTracksConnected ? "not connected" :
+                (ctx.analogTracksArmed ? "ready" : "waiting for neutral"));
+            ImGui::Text(
+                "Left %.2f  Right %.2f  Roll %.2f",
+                ctx.analogLeftTrack,
+                ctx.analogRightTrack,
+                ctx.analogRoll);
+            if (state.yawSpeedLimited)
+            {
+                ImGui::PushStyleColor(
+                    ImGuiCol_Text,
+                    ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
+            }
+            ImGui::Text(
+                "Tank Yaw Speed: %+.1f deg/s%s",
+                state.yawSpeedDegrees,
+                state.yawSpeedLimited ? "  LIMITED" : "");
+            if (state.yawSpeedLimited)
+            {
+                ImGui::PopStyleColor();
+            }
+			ImGui::Text(
+                "SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",
+                driverInput.forward,
+                driverInput.leftRatio,
+                driverInput.rightRatio,
+                driverInput.brake);
+            if (ctx.inputDeviceProfile != nullptr)
+            {
+                const std::uint32_t brakeButton = ctx.inputDeviceProfile->brakeButton;
+                ImGui::Text("Gamepad Brake: %s  (profile raw button %u)",
+                    gamepadState.IsRawButtonPressed(brakeButton) ? "On" : "Off",
+                    brakeButton);
+            }
+            else if (gamepadState.hasGamepadMapping)
+            {
+                ImGui::Text("Gamepad Brake: %s  (standard mapping)",
+                    gamepadState.brakePressed ? "On" : "Off");
+            }
+			else
+			{
+				ImGui::TextUnformatted("Gamepad Brake: no input-device profile");
+			}
+				ImGui::TreePop();
+			}
+			if (ImGui::TreeNode("Traction##DriveTelemetry"))
+			{
+                ImGui::Text("Wheel contacts: %d / %d  Is Jolt sleeping: %s",
+                    wheelContactCount, state.wheelCount, state.sleeping ? "yes" : "no");
+			    int contacts[2] = {};
+                float longitudinalImpulse[2] = {};
+                float lateralImpulse[2] = {};
+                float slipSpeed[2] = {};
+                for (int i = 0; i < state.wheelCount; ++i)
+                {
+                    const Tank::Physics::TrackedWheelState& wheel =
+                        state.wheels[static_cast<size_t>(i)];
+                    if (!wheel.hasContact || wheel.trackIndex < 0 || wheel.trackIndex > 1)
+                    {
+                        continue;
+                    }
+                    const int track = wheel.trackIndex;
+                    ++contacts[track];
+                    longitudinalImpulse[track] +=
+                        std::abs(wheel.longitudinalImpulseNewtonSeconds);
+                    lateralImpulse[track] +=
+                        std::abs(wheel.lateralImpulseNewtonSeconds);
+                    slipSpeed[track] +=
+                        std::abs(wheel.longitudinalSlipMetersPerSecond);
+                }
+                for (int track = 0; track < 2; ++track)
+                {
+                    if (contacts[track] > 0)
+                    {
+                        slipSpeed[track] /= static_cast<float>(contacts[track]);
+                    }
+                }
+			    ImGui::Text("Left : contact %d  drive %.1f Ns  lateral %.1f Ns  slip %.2f m/s",
+                    contacts[0], longitudinalImpulse[0], lateralImpulse[0], slipSpeed[0]);
+                ImGui::Text("Right: contact %d  drive %.1f Ns  lateral %.1f Ns  slip %.2f m/s",
+                    contacts[1], longitudinalImpulse[1], lateralImpulse[1], slipSpeed[1]);
+                if (ImGui::TreeNode("Suspension per Wheel"))
+                {
+                    if (ImGui::BeginTable(
+                        "SuspensionTelemetry",
+                        8,
+                        ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                        ImGuiTableFlags_SizingFixedFit))
+                    {
+                        ImGui::TableSetupColumn("Wheel");
+                        ImGui::TableSetupColumn("Contact");
+                        ImGui::TableSetupColumn("Length");
+                        ImGui::TableSetupColumn("Range");
+                        ImGui::TableSetupColumn("Used");
+                        ImGui::TableSetupColumn("Velocity");
+                        ImGui::TableSetupColumn("Hard");
+                        ImGui::TableSetupColumn("Impulse");
+                        ImGui::TableHeadersRow();
+                        const int wheelsPerSurface = ctx.tankSettings->roadWheelCount + 2;
+                        for (int i = 0; i < state.wheelCount; ++i)
+                        {
+                            const Tank::Physics::TrackedWheelState& wheel =
+                                state.wheels[static_cast<size_t>(i)];
+                            const int wheelOnSurface = wheel.wheelIndex % wheelsPerSurface;
+                            const bool endWheel = wheelOnSurface == 0 ||
+                                wheelOnSurface == wheelsPerSurface - 1;
+                            const char* positionName = wheelOnSurface == 0
+                                ? "Front"
+                                : (wheelOnSurface == wheelsPerSurface - 1 ? "Rear" : nullptr);
+                            const std::string wheelName = std::string(wheel.trackIndex == 0 ? "L" : "R") +
+                                (wheel.upperSurface ? "-U-" : "-L-") +
+                                (positionName != nullptr
+                                    ? positionName
+                                    : "Road" + std::to_string(wheelOnSurface));
+                            const float stroke =
+                                wheel.suspensionMaxLength - wheel.suspensionMinLength;
+                            const float used = stroke > 0.0001f
+                                ? std::clamp(
+                                    (wheel.suspensionLength - wheel.suspensionMinLength) / stroke,
+                                    0.0f,
+                                    1.0f)
+                                : 0.0f;
+
+                            ImGui::TableNextRow();
+                            ImGui::TableSetColumnIndex(0);
+                            ImGui::TextUnformatted(wheelName.c_str());
+                            ImGui::TableSetColumnIndex(1);
+                            ImGui::TextUnformatted(wheel.hasContact ? "yes" : "no");
+                            ImGui::TableSetColumnIndex(2);
+                            ImGui::Text("%.3f m", wheel.suspensionLength);
+                            ImGui::TableSetColumnIndex(3);
+                            ImGui::Text("%.3f-%.3f", wheel.suspensionMinLength, wheel.suspensionMaxLength);
+                            ImGui::TableSetColumnIndex(4);
+                            if (endWheel && stroke <= 0.0001f)
+                            {
+                                ImGui::TextUnformatted("fixed");
+                            }
+                            else
+                            {
+                                ImGui::Text("%.0f%%", used * 100.0f);
+                            }
+                            ImGui::TableSetColumnIndex(5);
+                            ImGui::Text("%+.2f m/s", wheel.suspensionVelocityMetersPerSecond);
+                            ImGui::TableSetColumnIndex(6);
+                            ImGui::TextUnformatted(wheel.suspensionAtHardPoint ? "yes" : "no");
+                            ImGui::TableSetColumnIndex(7);
+                            ImGui::Text("%.1f Ns", wheel.suspensionImpulseNewtonSeconds);
+                        }
+                        ImGui::EndTable();
+                    }
+				    ImGui::TreePop();
+			    }
+			    ImGui::TreePop();
+		    }
+		}
+
+
 		if (!ImGui::CollapsingHeader("Rolling Travel", ImGuiTreeNodeFlags_DefaultOpen)) return;
 		ImGui::Text("Actual / target: %.2f / %.2f m  (%.0f%%)",
 			telemetry.actualMeters, telemetry.targetMeters,
@@ -742,6 +1077,7 @@ namespace Ui
 			}
 		}
 		const Tank::Physics::TrackedVehicleTestState& state = *ctx.state;
+		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
@@ -775,6 +1111,161 @@ namespace Ui
 		DrawStateSummary(ctx, state);
 
 		UpdateAndDrawRollingTravelTelemetry(ctx, state);
+
+        ImGui::BeginDisabled(!ctx.manifestMapActive);
+        if (ImGui::CollapsingHeader("Map"))
+        {
+            ImGui::Text("Active: %s",
+                ctx.activeMapName != nullptr ? ctx.activeMapName->c_str() : "Unknown");
+            ImGui::TextUnformatted("Friction colors");
+            ImGui::ColorButton(
+                "##LowFriction",
+                ImVec4(50.0f / 255.0f, 120.0f / 255.0f, 210.0f / 255.0f, 1.0f),
+                ImGuiColorEditFlags_NoTooltip,
+                ImVec2(18.0f, 18.0f));
+            ImGui::SameLine();
+            ImGui::TextUnformatted("Low: < 0.45");
+            ImGui::ColorButton(
+                "##StandardFriction",
+                ImVec4(70.0f / 255.0f, 145.0f / 255.0f, 85.0f / 255.0f, 1.0f),
+                ImGuiColorEditFlags_NoTooltip,
+                ImVec2(18.0f, 18.0f));
+            ImGui::SameLine();
+            ImGui::TextUnformatted("Standard: 0.45 - 0.79");
+            ImGui::ColorButton(
+                "##HighFriction",
+                ImVec4(205.0f / 255.0f, 85.0f / 255.0f, 55.0f / 255.0f, 1.0f),
+                ImGuiColorEditFlags_NoTooltip,
+                ImVec2(18.0f, 18.0f));
+            ImGui::SameLine();
+            ImGui::TextUnformatted("High: >= 0.80");
+            if (ctx.manifestMapActive && ctx.mapHitMeshOverlay != nullptr)
+            {
+                if (ctx.mapVisualMeshes != nullptr &&
+                    ImGui::Checkbox("Show Visual Meshes", ctx.mapVisualMeshes))
+                {
+                    if (ctx.updateScene) ctx.updateScene();
+                }
+                if (ctx.mapMarkersVisible != nullptr &&
+                    ImGui::Checkbox("Show Start / Goal Markers", ctx.mapMarkersVisible))
+                {
+                    if (ctx.updateScene) ctx.updateScene();
+                }
+                ImGui::TextUnformatted("Orange: start  Cyan: clear-area AABB");
+                if (ImGui::Checkbox("Show HitMesh Overlay", ctx.mapHitMeshOverlay))
+                {
+                    if (ctx.updateScene) ctx.updateScene();
+                }
+                ImGui::TextUnformatted("Magenta: collision mesh used by physics");
+                if (ctx.manifestMapMissingVisuals)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.72f, 0.2f, 1.0f));
+                    ImGui::TextWrapped("Warning: Visual Mesh missing. Enable Hit Mesh display if needed.");
+                    ImGui::PopStyleColor();
+                }
+                if (ctx.mapCleared && ctx.clearedAreaName != nullptr)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.4f, 1.0f));
+                    ImGui::Text("MAP CLEAR: %s", ctx.clearedAreaName->c_str());
+                    ImGui::PopStyleColor();
+                }
+                else if (ctx.manifestMapHasClearAreas)
+                {
+                    ImGui::TextUnformatted("Drive the tank center into a clear-area AABB.");
+                }
+            }
+        }
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(ctx.manifestMapActive);
+        if (ImGui::CollapsingHeader("Ground"))
+        {
+            SliderFloatWithPendingColor(
+                "Floor Size",
+                &ctx.envSettings->floorSizeM,
+                20.0f,
+                1000.0f,
+                10.0f,
+                200.0f,
+                "%.0f m",
+                IsPending(ctx.envSettings->floorSizeM, ctx.appliedEnvSettings->floorSizeM));
+            SliderFloatWithPendingColor(
+                "Floor Friction",
+                &ctx.envSettings->floorFriction,
+                0.0f,
+                2.0f,
+                0.05f,
+                0.6f,
+                "%.2f",
+                IsPending(
+                    ctx.envSettings->floorFriction,
+                    ctx.appliedEnvSettings->floorFriction));
+            ImGui::Checkbox("Grid Enabled", &ctx.envSettings->gridEnabled);
+            SliderFloatWithPendingColor(
+                "Grid Spacing",
+                &ctx.envSettings->gridSpacingM,
+                0.5f,
+                20.0f,
+                0.5f,
+                5.0f,
+                "%.1f m",
+                IsPending(ctx.envSettings->gridSpacingM, ctx.appliedEnvSettings->gridSpacingM));
+            ColorEdit3WithPendingColor(
+                "Ground Color",
+                &ctx.envSettings->groundColor.r,
+                IsPendingColor(ctx.envSettings->groundColor, ctx.appliedEnvSettings->groundColor));
+            ColorEdit3WithPendingColor(
+                "Grid Line Color",
+                &ctx.envSettings->gridLineColor.r,
+                IsPendingColor(ctx.envSettings->gridLineColor, ctx.appliedEnvSettings->gridLineColor));
+            SliderIntWithPendingColor(
+                "Obstacle Count",
+                &ctx.envSettings->obstacleCount,
+                0,
+                100,
+                1,
+                20,
+                "%d",
+                ctx.envSettings->obstacleCount != ctx.appliedEnvSettings->obstacleCount);
+            SliderIntWithPendingColor(
+                "Obstacle Seed",
+                &ctx.envSettings->obstacleSeed,
+                0,
+                9999,
+                1,
+                1,
+                "%d",
+                ctx.envSettings->obstacleSeed != ctx.appliedEnvSettings->obstacleSeed);
+            SliderFloatWithPendingColor(
+                "Obstacle Area",
+                &ctx.envSettings->obstacleAreaSizeM,
+                20.0f,
+                500.0f,
+                10.0f,
+                100.0f,
+                "%.0f m",
+                IsPending(
+                    ctx.envSettings->obstacleAreaSizeM,
+                    ctx.appliedEnvSettings->obstacleAreaSizeM));
+            if (ImGui::Button("Apply Ground & Reset"))
+            {
+                if (ctx.enterTrackedVehicleMode) ctx.enterTrackedVehicleMode();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Save Ground"))
+            {
+                if (ctx.saveEnvSettings) ctx.saveEnvSettings();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Load Ground"))
+            {
+                if (ctx.loadEnvSettings) ctx.loadEnvSettings();
+            }
+            if (ctx.envSettingsStatus && !ctx.envSettingsStatus->empty())
+            {
+                ImGui::TextWrapped("%s", ctx.envSettingsStatus->c_str());
+            }
+        }
+        ImGui::EndDisabled();
 
 		ImGui::SeparatorText("Tank Settings");
 		ImGui::TextUnformatted("Slot");
@@ -843,6 +1334,7 @@ namespace Ui
 		{
 			if (ctx.fireRecoil) ctx.fireRecoil();
 		}
+		ImGui::TextDisabled("Press ESC to return to the top menu.");
 
 		ImGui::BeginChild(
 			"TrackedVehicleControls",
@@ -873,423 +1365,93 @@ namespace Ui
 			ImGui::TextWrapped("Marks apply to ground and static Map surfaces, overwrite oldest entries, and are cleared by Reset. Zero disables marks.");
 			ImGui::TextWrapped("Applied live. Speed, damage and lifetime affect new rounds. At capacity, firing stops. Reducing capacity removes oldest rounds.");
 		}
-		if (ImGui::CollapsingHeader("Frame Timing"))
-		{
-			ImGui::Text("Total CPU: %.2f ms  peak %.2f ms",
-				ctx.cpuFrameTimeMs,
-				ctx.peakCpuFrameTimeMs);
-			ImGui::Text("Rolling 300: avg %.2f  p95 %.2f  p99 %.2f ms",
-				ctx.averageCpuFrameTimeMs,
-				ctx.p95CpuFrameTimeMs,
-				ctx.p99CpuFrameTimeMs);
-			ImGui::Text("Physics: %.2f ms  peak %.2f ms",
-				ctx.physicsStepTimeMs,
-				ctx.physicsStepPeakTimeMs);
-			ImGui::Text("Scene Update: %.2f ms  peak %.2f ms",
-				ctx.sceneUpdateTimeMs,
-				ctx.sceneUpdatePeakTimeMs);
-			if (ImGui::Button("Reset Timing Peaks") && ctx.resetFrameTimingPeaks)
-			{
-				ctx.resetFrameTimingPeaks();
-			}
-		}
-		ImGui::Text("Step: %d", state.stepIndex);
-		ImGui::Text("Time: %.2f s", state.timeSeconds);
-		ImGui::Text("Position: %.2f, %.2f, %.2f",
-			state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
-		{
-			int wheelContactCount = 0;
-			for (int i = 0; i < state.wheelCount; ++i)
-			{
-				wheelContactCount += state.wheels[static_cast<size_t>(i)].hasContact ? 1 : 0;
-			}
-			ImGui::Text("Wheel contacts: %d / %d", wheelContactCount, state.wheelCount);
-		}
-		ImGui::Text("Sleeping: %s", state.sleeping ? "yes" : "no");
-		ImGui::TextUnformatted("Press ESC to return to the top menu.");
-		if (ImGui::CollapsingHeader("Drive Telemetry"))
-		{
-			ImGui::Text("Speed: %.2f m/s  (%.1f km/h)",
-				state.speedMetersPerSecond,
-				state.speedMetersPerSecond * 3.6f);
-			ImGui::Text("Maximum: %.2f m/s  (%.1f km/h)",
-				state.maximumSpeedMetersPerSecond,
-				state.maximumSpeedMetersPerSecond * 3.6f);
-			if (state.zeroToTenTimeSeconds >= 0.0f)
-			{
-				ImGui::Text("0-10 m/s: %.2f s", state.zeroToTenTimeSeconds);
-			}
-			else
-			{
-				ImGui::TextUnformatted("0-10 m/s: measuring");
-			}
-			ImGui::Text("Engine: %.0f rpm", state.engineRpm);
-			ImGui::Text("Gear: %d", state.transmissionGear);
-			ImGui::Text("Clutch: %.0f%%", state.clutchFriction * 100.0f);
-			int contacts[2] = {};
-			float longitudinalImpulse[2] = {};
-			float lateralImpulse[2] = {};
-			float slipSpeed[2] = {};
-			for (int i = 0; i < state.wheelCount; ++i)
-			{
-				const Tank::Physics::TrackedWheelState& wheel =
-					state.wheels[static_cast<size_t>(i)];
-				if (!wheel.hasContact || wheel.trackIndex < 0 || wheel.trackIndex > 1)
-				{
-					continue;
-				}
-				const int track = wheel.trackIndex;
-				++contacts[track];
-				longitudinalImpulse[track] +=
-					std::abs(wheel.longitudinalImpulseNewtonSeconds);
-				lateralImpulse[track] +=
-					std::abs(wheel.lateralImpulseNewtonSeconds);
-				slipSpeed[track] +=
-					std::abs(wheel.longitudinalSlipMetersPerSecond);
-			}
-			for (int track = 0; track < 2; ++track)
-			{
-				if (contacts[track] > 0)
-				{
-					slipSpeed[track] /= static_cast<float>(contacts[track]);
-				}
-			}
-			ImGui::SeparatorText("Track Traction");
-			ImGui::Text("Left : contact %d  drive %.1f Ns  lateral %.1f Ns  slip %.2f m/s",
-				contacts[0], longitudinalImpulse[0], lateralImpulse[0], slipSpeed[0]);
-			ImGui::Text("Right: contact %d  drive %.1f Ns  lateral %.1f Ns  slip %.2f m/s",
-				contacts[1], longitudinalImpulse[1], lateralImpulse[1], slipSpeed[1]);
-			if (ImGui::TreeNode("Suspension per Wheel"))
-			{
-				if (ImGui::BeginTable(
-					"SuspensionTelemetry",
-					8,
-					ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-					ImGuiTableFlags_SizingFixedFit))
-				{
-					ImGui::TableSetupColumn("Wheel");
-					ImGui::TableSetupColumn("Contact");
-					ImGui::TableSetupColumn("Length");
-					ImGui::TableSetupColumn("Range");
-					ImGui::TableSetupColumn("Used");
-					ImGui::TableSetupColumn("Velocity");
-					ImGui::TableSetupColumn("Hard");
-					ImGui::TableSetupColumn("Impulse");
-					ImGui::TableHeadersRow();
-					const int wheelsPerSurface = ctx.tankSettings->roadWheelCount + 2;
-					for (int i = 0; i < state.wheelCount; ++i)
-					{
-						const Tank::Physics::TrackedWheelState& wheel =
-							state.wheels[static_cast<size_t>(i)];
-						const int wheelOnSurface = wheel.wheelIndex % wheelsPerSurface;
-						const bool endWheel = wheelOnSurface == 0 ||
-							wheelOnSurface == wheelsPerSurface - 1;
-						const char* positionName = wheelOnSurface == 0
-							? "Front"
-							: (wheelOnSurface == wheelsPerSurface - 1 ? "Rear" : nullptr);
-						const std::string wheelName = std::string(wheel.trackIndex == 0 ? "L" : "R") +
-							(wheel.upperSurface ? "-U-" : "-L-") +
-							(positionName != nullptr
-								? positionName
-								: "Road" + std::to_string(wheelOnSurface));
-						const float stroke =
-							wheel.suspensionMaxLength - wheel.suspensionMinLength;
-						const float used = stroke > 0.0001f
-							? std::clamp(
-								(wheel.suspensionLength - wheel.suspensionMinLength) / stroke,
-								0.0f,
-								1.0f)
-							: 0.0f;
 
-						ImGui::TableNextRow();
-						ImGui::TableSetColumnIndex(0);
-						ImGui::TextUnformatted(wheelName.c_str());
-						ImGui::TableSetColumnIndex(1);
-						ImGui::TextUnformatted(wheel.hasContact ? "yes" : "no");
-						ImGui::TableSetColumnIndex(2);
-						ImGui::Text("%.3f m", wheel.suspensionLength);
-						ImGui::TableSetColumnIndex(3);
-						ImGui::Text("%.3f-%.3f", wheel.suspensionMinLength, wheel.suspensionMaxLength);
-						ImGui::TableSetColumnIndex(4);
-						if (endWheel && stroke <= 0.0001f)
-						{
-							ImGui::TextUnformatted("fixed");
-						}
-						else
-						{
-							ImGui::Text("%.0f%%", used * 100.0f);
-						}
-						ImGui::TableSetColumnIndex(5);
-						ImGui::Text("%+.2f m/s", wheel.suspensionVelocityMetersPerSecond);
-						ImGui::TableSetColumnIndex(6);
-						ImGui::TextUnformatted(wheel.suspensionAtHardPoint ? "yes" : "no");
-						ImGui::TableSetColumnIndex(7);
-						ImGui::Text("%.1f Ns", wheel.suspensionImpulseNewtonSeconds);
-					}
-					ImGui::EndTable();
-				}
-				ImGui::TreePop();
-			}
-		}
-		if (ImGui::CollapsingHeader("Map"))
-		{
-			ImGui::Text("Active: %s",
-				ctx.activeMapName != nullptr ? ctx.activeMapName->c_str() : "Unknown");
-			ImGui::TextUnformatted("Friction colors");
-			ImGui::ColorButton(
-				"##LowFriction",
-				ImVec4(50.0f / 255.0f, 120.0f / 255.0f, 210.0f / 255.0f, 1.0f),
-				ImGuiColorEditFlags_NoTooltip,
-				ImVec2(18.0f, 18.0f));
-			ImGui::SameLine();
-			ImGui::TextUnformatted("Low: < 0.45");
-			ImGui::ColorButton(
-				"##StandardFriction",
-				ImVec4(70.0f / 255.0f, 145.0f / 255.0f, 85.0f / 255.0f, 1.0f),
-				ImGuiColorEditFlags_NoTooltip,
-				ImVec2(18.0f, 18.0f));
-			ImGui::SameLine();
-			ImGui::TextUnformatted("Standard: 0.45 - 0.79");
-			ImGui::ColorButton(
-				"##HighFriction",
-				ImVec4(205.0f / 255.0f, 85.0f / 255.0f, 55.0f / 255.0f, 1.0f),
-				ImGuiColorEditFlags_NoTooltip,
-				ImVec2(18.0f, 18.0f));
-			ImGui::SameLine();
-			ImGui::TextUnformatted("High: >= 0.80");
-			if (ctx.manifestMapActive && ctx.mapHitMeshOverlay != nullptr)
-			{
-				if (ctx.mapVisualMeshes != nullptr &&
-					ImGui::Checkbox("Show Visual Meshes", ctx.mapVisualMeshes))
-				{
-					if (ctx.updateScene) ctx.updateScene();
-				}
-				if (ctx.mapMarkersVisible != nullptr &&
-					ImGui::Checkbox("Show Start / Goal Markers", ctx.mapMarkersVisible))
-				{
-					if (ctx.updateScene) ctx.updateScene();
-				}
-				ImGui::TextUnformatted("Orange: start  Cyan: clear-area AABB");
-				if (ImGui::Checkbox("Show HitMesh Overlay", ctx.mapHitMeshOverlay))
-				{
-					if (ctx.updateScene) ctx.updateScene();
-				}
-				ImGui::TextUnformatted("Magenta: collision mesh used by physics");
-				if (ctx.manifestMapMissingVisuals)
-				{
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.72f, 0.2f, 1.0f));
-					ImGui::TextWrapped("Warning: Visual Mesh missing. Enable Hit Mesh display if needed.");
-					ImGui::PopStyleColor();
-				}
-				if (ctx.mapCleared && ctx.clearedAreaName != nullptr)
-				{
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.4f, 1.0f));
-					ImGui::Text("MAP CLEAR: %s", ctx.clearedAreaName->c_str());
-					ImGui::PopStyleColor();
-				}
-				else if (ctx.manifestMapHasClearAreas)
-				{
-					ImGui::TextUnformatted("Drive the tank center into a clear-area AABB.");
-				}
-			}
-		}
-		if (ImGui::Checkbox("Physics Debug Overlay", ctx.physicsDebugOverlay))
-		{
-			if (ctx.updateScene) ctx.updateScene();
-		}
-		if (*ctx.physicsDebugOverlay)
-		{
-			ImGui::TextUnformatted("Cyan: suspension  Green/Orange: contact  Yellow: normal");
-		}
-		ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
-		ImGui::Text("Q/E roll, X mortar, Left Ctrl fire, B brake, Space pause, F step fwd");
-		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
-		if (ctx.gamepadInputWindowVisible != nullptr && *ctx.gamepadInputWindowVisible)
-		{
-			ImGui::SetNextWindowSize(ImVec2(440.0f, 640.0f), ImGuiCond_FirstUseEver);
-			if (ImGui::Begin("Gamepad & Input", ctx.gamepadInputWindowVisible))
-			{
-			if (!ctx.gamepadAvailable)
-			{
-				ImGui::TextUnformatted("Gamepad: GameInput unavailable");
-			}
-			else if (!gamepadState.connected)
-			{
-				ImGui::TextUnformatted("Gamepad: Not connected");
-			}
-			else
-			{
-				ImGui::TextUnformatted("Gamepad: Connected");
-				ImGui::Text("Device: %s",
-					gamepadState.deviceName.empty()
-					? "Controller (name unavailable; identify by VID/PID)"
-					: gamepadState.deviceName.c_str());
-				ImGui::Text("VID: %04X  PID: %04X", gamepadState.vendorId, gamepadState.productId);
-				ImGui::Text("Buttons: %u  Axes: %u  Switches: %u",
-					gamepadState.buttonCount, gamepadState.axisCount, gamepadState.switchCount);
-				ImGui::Text("Gamepad mapping: %s", gamepadState.hasGamepadMapping ? "yes" : "no");
-				if (gamepadState.axisCount > 0)
-				{
-					ImGui::TextUnformatted("Raw controller axes:");
-					for (std::uint32_t axis = 0;
-						axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
-						++axis)
-					{
-						ImGui::Text("Axis %u: %.3f", axis, gamepadState.rawAxes[axis]);
-					}
-				}
-				if (gamepadState.buttonCount > 0)
-				{
-					ImGui::TextUnformatted("Pressed raw buttons:");
-					ImGui::SameLine();
-					bool anyButtonPressed = false;
-					for (std::uint32_t button = 0;
-						button < gamepadState.buttonCount && button < gamepadState.rawButtons.size();
-						++button)
-					{
-						if (!gamepadState.rawButtons[button])
-						{
-							continue;
-						}
-						ImGui::SameLine();
-						ImGui::Text("%u", button);
-						anyButtonPressed = true;
-					}
-					if (!anyButtonPressed)
-					{
-						ImGui::SameLine();
-						ImGui::TextUnformatted("none");
-					}
-				}
-				if (gamepadState.switchCount > 0)
-				{
-					static constexpr const char* switchNames[] = {
-						"Center", "Up", "Up-Right", "Right", "Down-Right",
-						"Down", "Down-Left", "Left", "Up-Left"
-					};
-					for (std::uint32_t switchIndex = 0;
-						switchIndex < gamepadState.switchCount &&
-						switchIndex < gamepadState.rawSwitches.size();
-						++switchIndex)
-					{
-						const std::uint32_t position = gamepadState.rawSwitches[switchIndex];
-						const char* positionName =
-							position < std::size(switchNames) ? switchNames[position] : "Unknown";
-						ImGui::Text("Switch %u: %s", switchIndex, positionName);
-					}
-				}
-				ImGui::Text("Left Stick: X %.2f  Y %.2f",
-					gamepadState.leftStickX, gamepadState.leftStickY);
-				if (ctx.inputDeviceProfile != nullptr)
-				{
-					const std::uint32_t brakeButton = ctx.inputDeviceProfile->brakeButton;
-					ImGui::Text("Brake: %s",
-						gamepadState.IsRawButtonPressed(brakeButton) ? "On" : "Off");
-					ImGui::Text("Brake binding: profile raw button %u", brakeButton);
-				}
-				else if (gamepadState.hasGamepadMapping)
-				{
-					ImGui::Text("Brake: %s", gamepadState.brakePressed ? "On" : "Off");
-					ImGui::TextUnformatted("Brake binding: standard gamepad mapping");
-				}
-				else
-				{
-					ImGui::TextUnformatted("Brake: no input-device profile");
-				}
-			}
-			DrawLeverInputMapping(ctx);
-			}
-			ImGui::End();
-		}
-		if (ImGui::CollapsingHeader("Ground"))
-		{
-			SliderFloatWithPendingColor(
-				"Floor Size",
-				&ctx.envSettings->floorSizeM,
-				20.0f,
-				1000.0f,
-				10.0f,
-				200.0f,
-				"%.0f m",
-				IsPending(ctx.envSettings->floorSizeM, ctx.appliedEnvSettings->floorSizeM));
-			SliderFloatWithPendingColor(
-				"Floor Friction",
-				&ctx.envSettings->floorFriction,
-				0.0f,
-				2.0f,
-				0.05f,
-				0.6f,
-				"%.2f",
-				IsPending(
-					ctx.envSettings->floorFriction,
-					ctx.appliedEnvSettings->floorFriction));
-			ImGui::Checkbox("Grid Enabled", &ctx.envSettings->gridEnabled);
-			SliderFloatWithPendingColor(
-				"Grid Spacing",
-				&ctx.envSettings->gridSpacingM,
-				0.5f,
-				20.0f,
-				0.5f,
-				5.0f,
-				"%.1f m",
-				IsPending(ctx.envSettings->gridSpacingM, ctx.appliedEnvSettings->gridSpacingM));
-			ColorEdit3WithPendingColor(
-				"Ground Color",
-				&ctx.envSettings->groundColor.r,
-				IsPendingColor(ctx.envSettings->groundColor, ctx.appliedEnvSettings->groundColor));
-			ColorEdit3WithPendingColor(
-				"Grid Line Color",
-				&ctx.envSettings->gridLineColor.r,
-				IsPendingColor(ctx.envSettings->gridLineColor, ctx.appliedEnvSettings->gridLineColor));
-			SliderIntWithPendingColor(
-				"Obstacle Count",
-				&ctx.envSettings->obstacleCount,
-				0,
-				100,
-				1,
-				20,
-				"%d",
-				ctx.envSettings->obstacleCount != ctx.appliedEnvSettings->obstacleCount);
-			SliderIntWithPendingColor(
-				"Obstacle Seed",
-				&ctx.envSettings->obstacleSeed,
-				0,
-				9999,
-				1,
-				1,
-				"%d",
-				ctx.envSettings->obstacleSeed != ctx.appliedEnvSettings->obstacleSeed);
-			SliderFloatWithPendingColor(
-				"Obstacle Area",
-				&ctx.envSettings->obstacleAreaSizeM,
-				20.0f,
-				500.0f,
-				10.0f,
-				100.0f,
-				"%.0f m",
-				IsPending(
-					ctx.envSettings->obstacleAreaSizeM,
-					ctx.appliedEnvSettings->obstacleAreaSizeM));
-			if (ImGui::Button("Apply Ground & Reset"))
-			{
-				if (ctx.enterTrackedVehicleMode) ctx.enterTrackedVehicleMode();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Save Ground"))
-			{
-				if (ctx.saveEnvSettings) ctx.saveEnvSettings();
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Load Ground"))
-			{
-				if (ctx.loadEnvSettings) ctx.loadEnvSettings();
-			}
-			if (ctx.envSettingsStatus && !ctx.envSettingsStatus->empty())
-			{
-				ImGui::TextWrapped("%s", ctx.envSettingsStatus->c_str());
-			}
-		}
-		if (ImGui::CollapsingHeader("Physics Settings"))
+
+
+        if (ctx.gamepadInputWindowVisible != nullptr && *ctx.gamepadInputWindowVisible)
+        {
+            ImGui::SetNextWindowSize(ImVec2(440.0f, 640.0f), ImGuiCond_FirstUseEver);
+            if (ImGui::Begin("Gamepad & Input", ctx.gamepadInputWindowVisible))
+            {
+                if (!ctx.gamepadAvailable)
+                {
+                    ImGui::TextUnformatted("Gamepad: GameInput unavailable");
+                }
+                else if (!gamepadState.connected)
+                {
+                    ImGui::TextUnformatted("Gamepad: Not connected");
+                }
+                else
+                {
+                    ImGui::TextUnformatted("Gamepad: Connected");
+                    ImGui::Text("Device: %s",
+                        gamepadState.deviceName.empty()
+                        ? "Controller (name unavailable; identify by VID/PID)"
+                        : gamepadState.deviceName.c_str());
+                    ImGui::Text("VID: %04X  PID: %04X", gamepadState.vendorId, gamepadState.productId);
+                    ImGui::Text("Buttons: %u  Axes: %u  Switches: %u",
+                        gamepadState.buttonCount, gamepadState.axisCount, gamepadState.switchCount);
+                    ImGui::Text("Gamepad mapping: %s", gamepadState.hasGamepadMapping ? "yes" : "no");
+                    if (gamepadState.axisCount > 0)
+                    {
+                        ImGui::TextUnformatted("Raw controller axes:");
+                        for (std::uint32_t axis = 0;
+                            axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
+                            ++axis)
+                        {
+                            ImGui::Text("Axis %u: %.3f", axis, gamepadState.rawAxes[axis]);
+                        }
+                    }
+                    if (gamepadState.buttonCount > 0)
+                    {
+                        ImGui::TextUnformatted("Pressed raw buttons:");
+                        ImGui::SameLine();
+                        bool anyButtonPressed = false;
+                        for (std::uint32_t button = 0;
+                            button < gamepadState.buttonCount && button < gamepadState.rawButtons.size();
+                            ++button)
+                        {
+                            if (!gamepadState.rawButtons[button])
+                            {
+                                continue;
+                            }
+                            ImGui::SameLine();
+                            ImGui::Text("%u", button);
+                            anyButtonPressed = true;
+                        }
+                        if (!anyButtonPressed)
+                        {
+                            ImGui::SameLine();
+                            ImGui::TextUnformatted("none");
+                        }
+                    }
+                    if (gamepadState.switchCount > 0)
+                    {
+                        static constexpr const char* switchNames[] = {
+                            "Center", "Up", "Up-Right", "Right", "Down-Right",
+                            "Down", "Down-Left", "Left", "Up-Left"
+                        };
+                        for (std::uint32_t switchIndex = 0;
+                            switchIndex < gamepadState.switchCount &&
+                            switchIndex < gamepadState.rawSwitches.size();
+                            ++switchIndex)
+                        {
+                            const std::uint32_t position = gamepadState.rawSwitches[switchIndex];
+                            const char* positionName =
+                                position < std::size(switchNames) ? switchNames[position] : "Unknown";
+                            ImGui::Text("Switch %u: %s", switchIndex, positionName);
+                        }
+                    }
+                    ImGui::Text("Left Stick: X %.2f  Y %.2f",
+                        gamepadState.leftStickX, gamepadState.leftStickY);
+                }
+                DrawLeverInputMapping(ctx);
+            }
+            ImGui::End();
+        }
+
+
+		if (ImGui::CollapsingHeader("Tank Physics Settings"))
 		{
 			SliderFloatWithPendingColor(
 				"Chassis Mass",
@@ -1347,7 +1509,46 @@ namespace Ui
 				false);
 
 		}
-		if (ImGui::CollapsingHeader("Rolling Parameters"))
+
+        if (ImGui::CollapsingHeader("Mortar Parameters"))
+        {
+            if (ctx.mortarProfileSlot)
+            {
+                ImGui::TextUnformatted("Mortar Profile Slot");
+                for (int slot = 0; slot < 3; ++slot)
+                {
+                    const std::string label = "Slot " + std::to_string(slot + 1) + "##MortarProfile";
+                    if (slot) ImGui::SameLine();
+                    if (ImGui::RadioButton(label.c_str(), *ctx.mortarProfileSlot == slot))
+                    {
+                        const bool apply = ctx.mortarProfileAutoLoadAndReset &&
+                            *ctx.mortarProfileAutoLoadAndReset && *ctx.mortarProfileSlot != slot;
+                        *ctx.mortarProfileSlot = slot;
+                        if (apply && ctx.loadAndApplyMortarProfile) ctx.loadAndApplyMortarProfile();
+                    }
+                }
+                if (ctx.mortarProfileAutoLoadAndReset)
+                    ImGui::Checkbox("Auto load & Reset when changed##MortarProfile", ctx.mortarProfileAutoLoadAndReset);
+            }
+            if (ctx.saveMortarProfile && ImGui::Button("Save Mortar Profile")) ctx.saveMortarProfile();
+            ImGui::SameLine();
+            if (ctx.loadMortarProfile && ImGui::Button("Load Mortar Profile")) ctx.loadMortarProfile();
+            ImGui::SameLine();
+            if (ctx.loadAndApplyMortarProfile && ImGui::Button("Load && Apply Mortar Profile")) ctx.loadAndApplyMortarProfile();
+            if (ctx.mortarProfileStatus && !ctx.mortarProfileStatus->empty()) ImGui::TextWrapped("%s", ctx.mortarProfileStatus->c_str());
+            ImGui::Separator();
+            SliderFloatWithPendingColor("Min Fire Angle", &ctx.tankSettings->mortarMinimumFireAngleDegrees, 1.0f, 35.0f, 1.0f, 18.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMinimumFireAngleDegrees, ctx.appliedTankSettings->mortarMinimumFireAngleDegrees));
+            SliderFloatWithPendingColor("Max Wheelie Angle", &ctx.tankSettings->mortarMaximumAngleDegrees, 10.0f, 60.0f, 1.0f, 40.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMaximumAngleDegrees, ctx.appliedTankSettings->mortarMaximumAngleDegrees));
+            SliderFloatWithPendingColor("Raise Rate", &ctx.tankSettings->mortarRaiseRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 12.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarRaiseRateDegreesPerSecond, ctx.appliedTankSettings->mortarRaiseRateDegreesPerSecond));
+            SliderFloatWithPendingColor("Return Rate", &ctx.tankSettings->mortarReturnRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 10.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarReturnRateDegreesPerSecond, ctx.appliedTankSettings->mortarReturnRateDegreesPerSecond));
+            SliderFloatWithPendingColor("Maximum Range", &ctx.tankSettings->mortarMaximumRangeMeters, 1.0f, 200.0f, 1.0f, 40.0f, "%.0f m", IsPending(ctx.tankSettings->mortarMaximumRangeMeters, ctx.appliedTankSettings->mortarMaximumRangeMeters));
+            SliderFloatWithPendingColor("Maximum Attack Radius", &ctx.tankSettings->mortarMaximumAttackRadiusMeters, 0.5f, 50.0f, 0.5f, 6.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMaximumAttackRadiusMeters, ctx.appliedTankSettings->mortarMaximumAttackRadiusMeters));
+            SliderFloatWithPendingColor("Stance Torque", &ctx.tankSettings->mortarStanceTorqueNm, 10000.0f, 1000000.0f, 10000.0f, 500000.0f, "%.0f Nm", IsPending(ctx.tankSettings->mortarStanceTorqueNm, ctx.appliedTankSettings->mortarStanceTorqueNm));
+            SliderFloatWithPendingColor("Stance Damping", &ctx.tankSettings->mortarStanceDampingNms, 1000.0f, 250000.0f, 1000.0f, 80000.0f, "%.0f Nms", IsPending(ctx.tankSettings->mortarStanceDampingNms, ctx.appliedTankSettings->mortarStanceDampingNms));
+            ImGui::TextDisabled("Load && Apply / Reset applies pending mortar changes.");
+        }
+
+        if (ImGui::CollapsingHeader("Rolling Parameters"))
 		{
 			if (ctx.rollingProfileSlot != nullptr)
 			{
@@ -1675,40 +1876,6 @@ namespace Ui
 
 		}
 
-		if (ImGui::CollapsingHeader("Track Input"))
-		{
-			ImGui::Text(
-				"Analog track axes 1 / 3: %s",
-				!ctx.analogTracksConnected ? "not connected" :
-				(ctx.analogTracksArmed ? "ready" : "waiting for neutral"));
-			ImGui::Text(
-				"Left %.2f  Right %.2f  Roll %.2f",
-				ctx.analogLeftTrack,
-				ctx.analogRightTrack,
-				ctx.analogRoll);
-			if (state.yawSpeedLimited)
-			{
-				ImGui::PushStyleColor(
-					ImGuiCol_Text,
-					ImVec4(1.0f, 0.85f, 0.2f, 1.0f));
-			}
-			ImGui::Text(
-				"Tank Yaw Speed: %+.1f deg/s%s",
-				state.yawSpeedDegrees,
-				state.yawSpeedLimited ? "  LIMITED" : "");
-			if (state.yawSpeedLimited)
-			{
-				ImGui::PopStyleColor();
-			}
-			const Tank::Physics::TrackedDriverInput& driverInput = *ctx.driverInput;
-			ImGui::Text(
-				"SetDriverInput: Fwd %.2f  L %.2f  R %.2f  Brake %.2f",
-				driverInput.forward,
-				driverInput.leftRatio,
-				driverInput.rightRatio,
-				driverInput.brake);
-		}
-
 		if (ImGui::CollapsingHeader("Turn Traction"))
 		{
 			SliderFloatWithPendingColor(
@@ -1766,6 +1933,13 @@ namespace Ui
 				IsPending(
 					ctx.tankSettings->stationaryTurnRightTraction,
 					ctx.appliedTankSettings->stationaryTurnRightTraction));
+			SliderFloatWithPendingColor(
+				"Pivot Throttle Scale",
+				&ctx.tankSettings->pivotTurnThrottleScale,
+				0.0f, 1.0f, 0.05f, 1.0f, "%.2f x",
+				IsPending(ctx.tankSettings->pivotTurnThrottleScale,
+					ctx.appliedTankSettings->pivotTurnThrottleScale));
+			ImGui::TextWrapped("Pivot only: lower values soften acceleration. Try 0.3-0.5; 1.0 keeps full throttle.");
 			SliderFloatWithPendingColor(
 				"Pivot Left Track",
 				&ctx.tankSettings->pivotTurnLeftTraction,
@@ -1868,6 +2042,38 @@ namespace Ui
 				IsPending(
 					ctx.tankSettings->clutchReleaseTimeSeconds,
 					ctx.appliedTankSettings->clutchReleaseTimeSeconds));
+			ImGui::SeparatorText("Gear Ratios");
+			for (size_t gear = 0; gear < ctx.tankSettings->forwardGearRatios.size(); ++gear)
+			{
+				const std::string label = "Forward " + std::to_string(gear + 1);
+				SliderFloatWithPendingColor(
+					label.c_str(),
+					&ctx.tankSettings->forwardGearRatios[gear],
+					0.1f,
+					10.0f,
+					0.1f,
+					4.0f - static_cast<float>(gear),
+					"%.2f x",
+					IsPending(
+						ctx.tankSettings->forwardGearRatios[gear],
+						ctx.appliedTankSettings->forwardGearRatios[gear]));
+			}
+			for (size_t gear = 0; gear < ctx.tankSettings->reverseGearRatios.size(); ++gear)
+			{
+				const std::string label = "Reverse " + std::to_string(gear + 1);
+				SliderFloatWithPendingColor(
+					label.c_str(),
+					&ctx.tankSettings->reverseGearRatios[gear],
+					-10.0f,
+					-0.1f,
+					0.1f,
+					-4.0f + static_cast<float>(gear),
+					"%.2f x",
+					IsPending(
+						ctx.tankSettings->reverseGearRatios[gear],
+						ctx.appliedTankSettings->reverseGearRatios[gear]));
+			}
+			ImGui::TextDisabled("Final Drive Ratio multiplies every gear ratio.");
 		}
 		if (ImGui::CollapsingHeader("Body Yaw"))
 		{
@@ -2089,43 +2295,6 @@ namespace Ui
 			}
 			ImGui::Checkbox("Start Upside Down", &ctx.tankSettings->startUpsideDown);
 		}
-		if (ImGui::CollapsingHeader("Mortar Parameters"))
-		{
-			if (ctx.mortarProfileSlot)
-			{
-				ImGui::TextUnformatted("Mortar Profile Slot");
-				for (int slot = 0; slot < 3; ++slot)
-				{
-					const std::string label = "Slot " + std::to_string(slot + 1) + "##MortarProfile";
-					if (slot) ImGui::SameLine();
-					if (ImGui::RadioButton(label.c_str(), *ctx.mortarProfileSlot == slot))
-					{
-						const bool apply = ctx.mortarProfileAutoLoadAndReset &&
-							*ctx.mortarProfileAutoLoadAndReset && *ctx.mortarProfileSlot != slot;
-						*ctx.mortarProfileSlot = slot;
-						if (apply && ctx.loadAndApplyMortarProfile) ctx.loadAndApplyMortarProfile();
-					}
-				}
-				if (ctx.mortarProfileAutoLoadAndReset)
-					ImGui::Checkbox("Auto load & Reset when changed##MortarProfile", ctx.mortarProfileAutoLoadAndReset);
-			}
-			if (ctx.saveMortarProfile && ImGui::Button("Save Mortar Profile")) ctx.saveMortarProfile();
-			ImGui::SameLine();
-			if (ctx.loadMortarProfile && ImGui::Button("Load Mortar Profile")) ctx.loadMortarProfile();
-			ImGui::SameLine();
-			if (ctx.loadAndApplyMortarProfile && ImGui::Button("Load && Apply Mortar Profile")) ctx.loadAndApplyMortarProfile();
-			if (ctx.mortarProfileStatus && !ctx.mortarProfileStatus->empty()) ImGui::TextWrapped("%s", ctx.mortarProfileStatus->c_str());
-			ImGui::Separator();
-			SliderFloatWithPendingColor("Min Fire Angle", &ctx.tankSettings->mortarMinimumFireAngleDegrees, 1.0f, 35.0f, 1.0f, 18.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMinimumFireAngleDegrees, ctx.appliedTankSettings->mortarMinimumFireAngleDegrees));
-			SliderFloatWithPendingColor("Max Wheelie Angle", &ctx.tankSettings->mortarMaximumAngleDegrees, 10.0f, 60.0f, 1.0f, 40.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMaximumAngleDegrees, ctx.appliedTankSettings->mortarMaximumAngleDegrees));
-			SliderFloatWithPendingColor("Raise Rate", &ctx.tankSettings->mortarRaiseRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 12.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarRaiseRateDegreesPerSecond, ctx.appliedTankSettings->mortarRaiseRateDegreesPerSecond));
-			SliderFloatWithPendingColor("Return Rate", &ctx.tankSettings->mortarReturnRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 10.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarReturnRateDegreesPerSecond, ctx.appliedTankSettings->mortarReturnRateDegreesPerSecond));
-			SliderFloatWithPendingColor("Maximum Range", &ctx.tankSettings->mortarMaximumRangeMeters, 1.0f, 200.0f, 1.0f, 40.0f, "%.0f m", IsPending(ctx.tankSettings->mortarMaximumRangeMeters, ctx.appliedTankSettings->mortarMaximumRangeMeters));
-			SliderFloatWithPendingColor("Maximum Attack Radius", &ctx.tankSettings->mortarMaximumAttackRadiusMeters, 0.5f, 50.0f, 0.5f, 6.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMaximumAttackRadiusMeters, ctx.appliedTankSettings->mortarMaximumAttackRadiusMeters));
-			SliderFloatWithPendingColor("Stance Torque", &ctx.tankSettings->mortarStanceTorqueNm, 10000.0f, 1000000.0f, 10000.0f, 500000.0f, "%.0f Nm", IsPending(ctx.tankSettings->mortarStanceTorqueNm, ctx.appliedTankSettings->mortarStanceTorqueNm));
-			SliderFloatWithPendingColor("Stance Damping", &ctx.tankSettings->mortarStanceDampingNms, 1000.0f, 250000.0f, 1000.0f, 80000.0f, "%.0f Nms", IsPending(ctx.tankSettings->mortarStanceDampingNms, ctx.appliedTankSettings->mortarStanceDampingNms));
-			ImGui::TextDisabled("Load && Apply / Reset applies pending mortar changes.");
-		}
 
 
 
@@ -2231,6 +2400,18 @@ namespace Ui
 			{
 				ctx.updateScene();
 			}
+
+            if (ImGui::Checkbox("Physics Debug Overlay", ctx.physicsDebugOverlay))
+            {
+                if (ctx.updateScene) ctx.updateScene();
+            }
+            if (*ctx.physicsDebugOverlay)
+            {
+                ImGui::TextUnformatted("Cyan: suspension  Green/Orange: contact  Yellow: normal");
+            }
+            ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
+            ImGui::Text("Q/E roll, X mortar, Left Ctrl fire, B brake, Space pause, F step fwd");
+
 		}
 
 		if (ImGui::CollapsingHeader("Export glTF"))

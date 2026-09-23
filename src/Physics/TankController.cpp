@@ -190,6 +190,8 @@ namespace Tank::Physics
             m_settings.neutralBrakeAmount,
             0.0f,
             1.0f);
+        m_settings.pivotTurnThrottleScale = std::clamp(
+            m_settings.pivotTurnThrottleScale, 0.0f, 1.0f);
         m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 1.0f);
         m_settings.trackSpacingM = std::clamp(m_settings.trackSpacingM, 1.8f, 6.0f);
         m_settings.trackLongitudinalFriction =
@@ -220,6 +222,24 @@ namespace Tank::Physics
             m_settings.transmissionClutchStrength,
             1.0f,
             100.0f);
+        constexpr std::array<float, 4> kDefaultForwardGearRatios = {
+            4.0f, 3.0f, 2.0f, 1.0f };
+        constexpr std::array<float, 2> kDefaultReverseGearRatios = {
+            -4.0f, -3.0f };
+        for (size_t gear = 0; gear < m_settings.forwardGearRatios.size(); ++gear)
+        {
+            const float ratio = m_settings.forwardGearRatios[gear];
+            m_settings.forwardGearRatios[gear] = std::isfinite(ratio)
+                ? std::clamp(ratio, 0.1f, 10.0f)
+                : kDefaultForwardGearRatios[gear];
+        }
+        for (size_t gear = 0; gear < m_settings.reverseGearRatios.size(); ++gear)
+        {
+            const float ratio = m_settings.reverseGearRatios[gear];
+            m_settings.reverseGearRatios[gear] = std::isfinite(ratio)
+                ? std::clamp(ratio, -10.0f, -0.1f)
+                : kDefaultReverseGearRatios[gear];
+        }
         m_settings.finalDriveRatio =
             std::clamp(m_settings.finalDriveRatio, 0.25f, 4.0f);
         m_settings.roadWheelCount = std::clamp(m_settings.roadWheelCount, 2, 4);
@@ -341,13 +361,17 @@ namespace Tank::Physics
             m_settings.transmissionShiftUpRpm;
         controllerSettings->mTransmission.mClutchStrength =
             m_settings.transmissionClutchStrength;
-        for (float& ratio : controllerSettings->mTransmission.mGearRatios)
+        controllerSettings->mTransmission.mGearRatios.clear();
+        for (const float ratio : m_settings.forwardGearRatios)
         {
-            ratio *= m_settings.finalDriveRatio;
+            controllerSettings->mTransmission.mGearRatios.push_back(
+                ratio * m_settings.finalDriveRatio);
         }
-        for (float& ratio : controllerSettings->mTransmission.mReverseGearRatios)
+        controllerSettings->mTransmission.mReverseGearRatios.clear();
+        for (const float ratio : m_settings.reverseGearRatios)
         {
-            ratio *= m_settings.finalDriveRatio;
+            controllerSettings->mTransmission.mReverseGearRatios.push_back(
+                ratio * m_settings.finalDriveRatio);
         }
         controllerSettings->mTransmission.mClutchReleaseTime =
             std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
@@ -1092,6 +1116,7 @@ namespace Tank::Physics
         }
         else if (pivotTurn)
         {
+            forward *= m_settings.pivotTurnThrottleScale;
             leftTrack *= std::clamp(m_settings.pivotTurnLeftTraction, 0.0f, 1.0f);
             rightTrack *= std::clamp(m_settings.pivotTurnRightTraction, 0.0f, 1.0f);
         }

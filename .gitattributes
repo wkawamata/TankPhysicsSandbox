@@ -1,0 +1,12 @@
+# Keep project text files CRLF in every checkout, independent of user Git settings.
+.editorconfig text eol=crlf
+*.bat text eol=crlf
+*.cmake text eol=crlf
+*.cpp text eol=crlf
+*.h text eol=crlf
+*.hpp text eol=crlf
+*.json text eol=crlf
+*.md text eol=crlf
+*.ps1 text eol=crlf
+CMakeLists.txt text eol=crlf
+AGENTS.md text eol=crlf

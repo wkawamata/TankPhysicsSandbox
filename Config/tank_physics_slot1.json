@@ -19,13 +19,24 @@
   "engineMaxRpm": 5000.0,
   "engineMaxTorqueNm": 2500.0,
   "finalDriveRatio": 0.25,
+  "forwardGearRatios": [
+    7.999996185302734,
+    3.9999990463256836,
+    2.0,
+    1.0
+  ],
   "neutralBrakeAmount": 0.20000000298023224,
   "neutralBrakeEnabled": true,
   "pivotTurnLeftTraction": 1.0,
   "pivotTurnRightTraction": 1.0,
+  "pivotTurnThrottleScale": 1.0,
   "recoilImpulseNewtonSeconds": 7000.0,
   "recoilPointForwardM": 1.2000000476837158,
   "recoilPointHeightM": 0.800000011920929,
+  "reverseGearRatios": [
+    -4.0,
+    -3.0
+  ],
   "rideHeightScale": 1.100000023841858,
   "roadWheelCount": 4,
   "roadWheelRadiusM": 0.3799999952316284,
@@ -73,15 +84,15 @@
     0.0
   ],
   "threeRoadWheelOffsetM": 1.0,
-  "trackLateralFriction": 2.0,
-  "trackLongitudinalFriction": 4.0,
+  "trackLateralFriction": 4.069999694824219,
+  "trackLongitudinalFriction": 4.999999046325684,
   "trackSpacingM": 4.630000114440918,
   "trackWidthM": 0.6299999952316284,
   "transmissionClutchStrength": 30.0,
   "transmissionShiftDownRpm": 1000.0,
   "transmissionShiftUpRpm": 1000.0,
   "twoRoadWheelOffsetM": 0.6700000166893005,
-  "version": 22,
+  "version": 23,
   "wheelHorizontalOffsetM": -0.019999999552965164,
   "yawDamping": 30.0,
   "yawSpeedLimitDegrees": 72.0

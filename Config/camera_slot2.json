@@ -1,16 +1,30 @@
 {
-  "version": 1,
-  "projection": 0,
+  "damping": 1.0,
+  "followDistance": 101.01399993896484,
   "followTank": true,
-  "followDistance": 44.939998626708984,
+  "followYawOffsetDegrees": 0.0,
   "fovDegrees": 35.79999923706055,
+  "gazePoint": [
+    -0.0022035869769752026,
+    1.439953327178955,
+    0.6895331740379333
+  ],
   "lookDownDegrees": 35.900001525878906,
   "orthographicHeight": 10.0,
-  "position": [3.311018466949463, 27.51357650756836, -54.69557189941406],
-  "gazePoint": [24.671733856201172, 1.1619995832443237, -25.21816635131836],
+  "position": [
+    -0.21794408559799194,
+    60.67177963256836,
+    -81.1357192993164
+  ],
   "positionSpeed": 20.0,
+  "projection": 0,
   "rotationSpeed": 20.0,
-  "damping": 1.0,
-  "yawSpeedLimitDegrees": 720.0,
-  "yawDamping": 8.0
+  "up": [
+    0.0015460248105227947,
+    0.8100414872169495,
+    0.5863704681396484
+  ],
+  "version": 1,
+  "yawDamping": 8.0,
+  "yawSpeedLimitDegrees": 720.0
 }

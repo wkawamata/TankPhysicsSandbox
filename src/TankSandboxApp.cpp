@@ -423,7 +423,6 @@ void TankSandboxApp::OnInit()
     };
 
     m_trackedVehiclePanelCtx.state = &m_trackedVehicleMode.Test().State();
-    m_trackedVehiclePanelCtx.driverInput = &m_trackedVehicleMode.Test().DriverInput();
     m_trackedVehiclePanelCtx.activeMapName = &m_trackedVehicleMode.ActiveMapName();
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
     m_trackedVehiclePanelCtx.cameraWindowVisible = &m_cameraWindowVisible;
@@ -1692,6 +1691,8 @@ void TankSandboxApp::DrawToolUi()
             m_trackedVehiclePanelCtx.mapCleared = m_trackedVehicleMode.MapCleared();
             m_trackedVehiclePanelCtx.clearedAreaName =
                 &m_trackedVehicleMode.ClearedAreaName();
+            // Vehicle creation/reset can replace the controller that owns this input.
+            m_trackedVehiclePanelCtx.driverInput = &m_trackedVehicleMode.Test().DriverInput();
             Ui::DrawTrackedVehiclePanel(m_trackedVehiclePanelCtx);
         }
         break;

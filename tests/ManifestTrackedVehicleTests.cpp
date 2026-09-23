@@ -1,7 +1,9 @@
 #include "Map/GltfHitMesh.h"
 #include "Map/MapManifest.h"
 #include "Physics/TrackedVehicleTest.h"
+#include "Ui/DriveTelemetry.h"
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -73,6 +75,52 @@ int main()
         Check(driven.bodyPosition.z > settled.bodyPosition.z + 0.05f,
             "Tank drives forward on the Manifest HitMesh");
         Check(driven.bodyPosition.y > 0.3f, "Tank remains above the HitMesh while driving");
+        Check(Ui::ClassifyDriveSpeedState(vehicle.DriverInput().forward,
+            vehicle.DriverInput().brake) == Ui::DriveSpeedState::Acceleration,
+            "Live telemetry must classify throttle after vehicle initialization");
+        Check(vehicle.InitializeWithStaticMeshes({}, {}, meshes, spawn, error),
+            "Reinitialize vehicle for telemetry reset regression");
+        drive = {};
+        drive.brake = true;
+        vehicle.SetInput(drive);
+        vehicle.Step(dt);
+        Check(Ui::ClassifyDriveSpeedState(vehicle.DriverInput().forward,
+            vehicle.DriverInput().brake) == Ui::DriveSpeedState::Brake,
+            "Live telemetry must classify braking after controller replacement");
+        for (float scale : { -0.5f, 0.0f, 0.4f, 1.0f, 2.0f })
+        {
+            Tank::Physics::TankSettings settings;
+            settings.pivotTurnThrottleScale = scale;
+            vehicle.Initialize(settings);
+            const float expectedScale = std::clamp(scale, 0.0f, 1.0f);
+            const auto checkInput = [&](float throttle, float left, float right,
+                float expectedThrottle, bool brake = false)
+            {
+                Tank::Physics::TankInput input;
+                input.throttle = throttle;
+                input.leftTrack = left;
+                input.rightTrack = right;
+                input.brake = brake;
+                vehicle.SetInput(input);
+                vehicle.Step(dt);
+                Check(std::abs(vehicle.DriverInput().forward - expectedThrottle) < 0.0001f,
+                    "Throttle scale must apply only to opposing tracks");
+                if (left * right < 0.0f)
+                {
+                    Check(vehicle.DriverInput().leftRatio * vehicle.DriverInput().rightRatio < 0.0f,
+                        "Pivot throttle scaling must preserve opposing track directions");
+                }
+                if (brake) Check(vehicle.DriverInput().brake == 1.0f,
+                    "Pivot throttle scaling must preserve explicit braking");
+            };
+            checkInput(0.5f, 1.0f, 1.0f, 0.5f);
+            checkInput(-0.5f, 1.0f, 1.0f, -0.5f);
+            checkInput(0.5f, 0.0f, 1.0f, 0.5f);
+            checkInput(0.5f, -1.0f, 1.0f, 0.5f * expectedScale);
+            checkInput(0.5f, 1.0f, -1.0f, 0.5f * expectedScale);
+            checkInput(-0.5f, -1.0f, 1.0f, -0.5f * expectedScale);
+            checkInput(0.5f, -1.0f, 1.0f, 0.5f * expectedScale, true);
+        }
         std::cout << "Manifest tracked vehicle physics test passed\n";
         return 0;
     }
