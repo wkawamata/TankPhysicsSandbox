@@ -26,6 +26,8 @@ namespace Tank::Input
         float deadzone = 0.1f;
         std::uint32_t brakeButton = 3;
         std::uint32_t fireButton = 13;
+        std::uint32_t cameraNextButton = 4;
+        std::uint32_t cameraPreviousButton = 7;
     };
 
     struct InputDeviceProfiles

@@ -341,10 +341,16 @@ namespace Ui
 				ImGui::SliderFloat("Deadzone", &profile.deadzone, 0.0f, 0.5f, "%.3f");
 				int brakeButton = static_cast<int>(profile.brakeButton);
 				int fireButton = static_cast<int>(profile.fireButton);
+				int cameraNextButton = static_cast<int>(profile.cameraNextButton);
+				int cameraPreviousButton = static_cast<int>(profile.cameraPreviousButton);
 				if (ImGui::InputInt("Brake Button", &brakeButton))
 					profile.brakeButton = static_cast<std::uint32_t>(std::clamp(brakeButton, 0, 63));
 				if (ImGui::InputInt("Fire Button", &fireButton))
 					profile.fireButton = static_cast<std::uint32_t>(std::clamp(fireButton, 0, 63));
+				if (ImGui::InputInt("Camera Next Button", &cameraNextButton))
+					profile.cameraNextButton = static_cast<std::uint32_t>(std::clamp(cameraNextButton, 0, 63));
+				if (ImGui::InputInt("Camera Previous Button", &cameraPreviousButton))
+					profile.cameraPreviousButton = static_cast<std::uint32_t>(std::clamp(cameraPreviousButton, 0, 63));
 			}
 			else
 			{

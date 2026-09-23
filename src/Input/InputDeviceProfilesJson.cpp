@@ -24,6 +24,8 @@ namespace Tank::Input
             profile.deadzone = json.value("deadzone", profile.deadzone);
             profile.brakeButton = json.value("brakeButton", profile.brakeButton);
             profile.fireButton = json.value("fireButton", profile.fireButton);
+            profile.cameraNextButton = json.value("cameraNextButton", profile.cameraNextButton);
+            profile.cameraPreviousButton = json.value("cameraPreviousButton", profile.cameraPreviousButton);
             return profile;
         }
 
@@ -47,6 +49,8 @@ namespace Tank::Input
                 {"deadzone", profile.deadzone},
                 {"brakeButton", profile.brakeButton},
                 {"fireButton", profile.fireButton},
+                {"cameraNextButton", profile.cameraNextButton},
+                {"cameraPreviousButton", profile.cameraPreviousButton},
             };
         }
     }
