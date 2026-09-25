@@ -151,14 +151,14 @@ private:
     bool m_moveBackward = false;
     bool m_turnLeft = false;
     bool m_turnRight = false;
-    bool m_pivotTurnModifier = false;
+    bool m_pivotTurnLeft = false;
+    bool m_pivotTurnRight = false;
     bool m_rollLeft = false;
     bool m_rollRight = false;
     bool m_brake = false;
     bool m_assaultFire = false;
     bool m_mortar = false;
     bool m_debugAssaultFire = false;
-    bool m_pauseShortcutHeld = false;
     bool m_stepForwardShortcutHeld = false;
     // Camera
     Tank::App::CameraController m_cameraController;

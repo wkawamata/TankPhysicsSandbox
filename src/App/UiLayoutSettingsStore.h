@@ -9,10 +9,13 @@ namespace Tank::App
     struct UiLayoutSettings
     {
         bool cameraWindowVisible = true;
+        bool telemetryWindowVisible = true;
+        bool rollingParametersWindowVisible = true;
         bool gamepadInputWindowVisible = true;
         bool renderSettingsWindowVisible = true;
         bool outputWindowVisible = true;
         bool rollingCheatWindowVisible = false;
+        float rollingCheatFontScale = 1.0f;
 
         bool operator==(const UiLayoutSettings&) const = default;
     };

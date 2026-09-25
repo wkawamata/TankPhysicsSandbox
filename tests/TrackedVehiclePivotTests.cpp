@@ -104,6 +104,35 @@ int main()
     const float limitedYawSpeed = RunLimitedPivot(limitedYawDegrees);
 
     bool passed = true;
+    // Exercise neutral transitions and direction reversals, including a brief
+    // reverse command like the one seen while the two levers cross neutral.
+    Tank::Physics::TrackedVehicleTest responseTest;
+    responseTest.Initialize();
+    bool sawForward = false;
+    bool sawReverse = false;
+    bool sawSwitchDelay = false;
+    for (int phase = 0; phase < 6; ++phase)
+    {
+        Tank::Physics::TankInput input;
+        if (phase % 3 != 0)
+        {
+            input.throttle = phase % 3 == 1 ? 1.0f : -1.0f;
+            input.leftTrack = -1.0f;
+            input.rightTrack = 1.0f;
+        }
+        responseTest.SetInput(input);
+        for (int frame = 0; frame < 120; ++frame)
+        {
+            const auto state = responseTest.Step(1.0f / 60.0f);
+            sawForward |= state.transmissionGear > 0;
+            sawReverse |= state.transmissionGear < 0;
+            sawSwitchDelay |= state.transmissionSwitchingGear;
+        }
+    }
+    passed &= Check(sawForward && sawReverse,
+        "response experiment must exercise forward and reverse gears");
+    passed &= Check(!sawSwitchDelay,
+        "zero switch time must eliminate the gear-switch countdown");
     passed &= Check(std::isfinite(left.yaw) && std::isfinite(right.yaw),
         "yaw values must be finite");
     passed &= Check(std::abs(left.yaw) > 0.3f && std::abs(right.yaw) > 0.3f,

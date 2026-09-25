@@ -468,6 +468,16 @@ namespace Tank::Physics
         m_state.engineRpm = m_impl->controller.State().engineRpm;
         m_state.transmissionGear = m_impl->controller.State().transmissionGear;
         m_state.clutchFriction = m_impl->controller.State().clutchFriction;
+        m_state.transmissionSwitchingGear =
+            m_impl->controller.State().transmissionSwitchingGear;
+        m_state.leftTrackAngularVelocityRadians =
+            m_impl->controller.State().leftTrackAngularVelocityRadians;
+        m_state.rightTrackAngularVelocityRadians =
+            m_impl->controller.State().rightTrackAngularVelocityRadians;
+        m_state.leftTrackDriveTorqueNm =
+            m_impl->controller.State().leftTrackDriveTorqueNm;
+        m_state.rightTrackDriveTorqueNm =
+            m_impl->controller.State().rightTrackDriveTorqueNm;
         m_state.yawSpeedDegrees = m_impl->controller.State().yawSpeedDegrees;
         m_state.yawSpeedLimited = m_impl->controller.State().yawSpeedLimited;
         m_state.wheels = m_impl->controller.State().wheels;
@@ -477,6 +487,7 @@ namespace Tank::Physics
             m_impl->controller.State().motionObservation;
         m_state.mobility = m_impl->controller.State().mobility;
         m_state.rollingPhase = m_impl->controller.State().rollingPhase;
+        m_state.rollingTelemetry = m_impl->controller.State().rollingTelemetry;
         m_state.lastRollingDecision =
             m_impl->controller.State().lastRollingDecision;
         m_state.rollingDecisionCount =

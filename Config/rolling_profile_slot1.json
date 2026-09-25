@@ -1,9 +1,9 @@
 {
-  "airBrakeReleaseDegrees": 30.0,
-  "airBrakeTorqueNm": 150000.0,
-  "approachDampingNms": 30000.0,
+  "airBrakeReleaseDegrees": 15.0,
+  "airBrakeTorqueNm": 28253.0,
+  "approachDampingNms": 0.0,
   "approachStartDegrees": 80.0,
-  "commitTorqueNm": 100000.0,
+  "commitTorqueNm": 0.0,
   "distanceM": 2.4000000953674316,
   "distanceMatchesVehicleWidth": true,
   "inputEnabled": true,
@@ -25,8 +25,8 @@
   },
   "stabilizationDampingNms": 0.0,
   "stabilizationTorqueNm": 0.0,
-  "torqueCutoffDegrees": 90.0,
-  "torqueNm": 86727.0,
-  "travelVehicleWidths": 1.0,
+  "torqueCutoffDegrees": 60.0,
+  "torqueNm": 225000.0,
+  "travelVehicleWidths": 3.0600006580352783,
   "version": 1
 }

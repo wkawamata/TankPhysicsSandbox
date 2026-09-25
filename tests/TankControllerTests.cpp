@@ -31,6 +31,26 @@ int main()
 
     const Tank::Physics::TankState& initialState = controller.State();
     bool passed = true;
+    for (float cutoff : { 150.0f, 180.0f, 200.0f })
+    {
+        Tank::Physics::TankSettings settings;
+        settings.rollTorqueCutoffDegrees = cutoff;
+        Tank::Physics::TankController cutoffController;
+        cutoffController.Initialize(world, settings);
+        passed &= Check(NearlyEqual(cutoffController.Settings().rollTorqueCutoffDegrees,
+                cutoff > 180.0f ? 180.0f : cutoff),
+            "cutoff must accept up to 180 degrees and clamp larger values");
+    }
+    for (float travel : { 2.0f, 5.0f, 10.0f })
+    {
+        Tank::Physics::TankSettings settings;
+        settings.rollTravelVehicleWidths = travel;
+        Tank::Physics::TankController travelController;
+        travelController.Initialize(world, settings);
+        passed &= Check(NearlyEqual(
+                travelController.Settings().rollTravelVehicleWidths, travel),
+            "roll travel multiplier must remain unchanged through 10x");
+    }
     passed &= Check(initialState.stepIndex == 0, "initial step must be zero");
     passed &= Check(NearlyEqual(initialState.timeSeconds, 0.0f), "initial time must be zero");
     passed &= Check(NearlyEqual(initialState.body.rotation.w, 1.0f), "initial rotation must be identity");

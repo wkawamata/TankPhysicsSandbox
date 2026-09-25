@@ -54,10 +54,115 @@ int main()
     }
     const float earlyUpY = BodyUpY(earlyTest.State().bodyRotation);
     bool passed = true;
+    Tank::Physics::TankSettings longTravelSettings = settings;
+    longTravelSettings.rollTravelVehicleWidths = 10.0f;
+    Tank::Physics::TrackedVehicleTest longTravelTest;
+    longTravelTest.Initialize(longTravelSettings);
+    for (int i = 0; i < 180; ++i) longTravelTest.Step(dt);
+    Tank::Physics::TankInput longTravelInput;
+    longTravelInput.leftLeverX = 1.0f;
+    longTravelInput.rightLeverX = 1.0f;
+    const Tank::Physics::Vec3 longTravelStart = longTravelTest.State().bodyPosition;
+    longTravelTest.SetInput(longTravelInput);
+    longTravelTest.Step(dt);
+    const float physicalWidth = (std::max)(settings.chassisWidthM,
+        settings.trackSpacingM + settings.trackWidthM);
+    passed &= Check(std::abs(
+            longTravelTest.State().rollingTelemetry.targetTravelMeters -
+            physicalWidth * 10.0f) < 0.01f,
+        "10x roll travel must reach the physical target without a 2x clamp");
+    longTravelTest.SetInput({});
+    for (int i = 0; i < 720; ++i) longTravelTest.Step(dt);
+    std::cout << "10x roll target=" << physicalWidth * 10.0f
+        << " actual_dx=" << longTravelTest.State().bodyPosition.x - longTravelStart.x
+        << " phase=" << static_cast<int>(longTravelTest.State().rollingPhase)
+        << "\n";
+    passed &= Check(longTravelTest.State().bodyPosition.x - longTravelStart.x >
+            physicalWidth * 4.0f,
+        "10x roll travel must physically move beyond the former 2x limit");
+    // A brief paired input during travel reserves one roll, suppresses the
+    // still-held throttle, brakes, then starts without another input edge.
+    for (float sign : { -1.0f, 1.0f })
+    {
+        Tank::Physics::TrackedVehicleTest movingTest;
+        movingTest.Initialize(settings);
+        for (int i = 0; i < 180; ++i) movingTest.Step(dt);
+        Tank::Physics::TankInput movingInput;
+        movingInput.throttle = 1.0f;
+        movingTest.SetInput(movingInput);
+        for (int i = 0; i < 90; ++i) movingTest.Step(dt);
+        passed &= Check(movingTest.State().speedMetersPerSecond > 0.5f,
+            "moving-roll test must begin with nonzero speed");
+        movingInput.leftLeverX = movingInput.rightLeverX = sign;
+        movingTest.SetInput(movingInput);
+        movingTest.Step(dt);
+        passed &= Check(movingTest.State().rollingTelemetry.brakingToStart &&
+                movingTest.State().rollingTelemetry.pendingSign == sign &&
+                movingTest.State().rollingPhase == Tank::Physics::RollingPhase::None,
+            "moving roll must latch its sign without starting before safe stop");
+        passed &= Check(movingTest.DriverInput().brake == 1.0f &&
+                movingTest.DriverInput().forward == 0.0f,
+            "pending roll must apply full brake and override throttle");
+        movingInput.leftLeverX = movingInput.rightLeverX = 0.0f;
+        movingTest.SetInput(movingInput);
+        bool started = false;
+        for (int i = 0; i < 600; ++i)
+        {
+            const bool stoppedBefore = movingTest.State().mobility.state ==
+                Tank::Physics::MobilityState::Stopped;
+            movingTest.Step(dt);
+            if (movingTest.State().rollingPhase != Tank::Physics::RollingPhase::None)
+            {
+                started = true;
+                passed &= Check(stoppedBefore &&
+                        !movingTest.State().rollingTelemetry.brakingToStart &&
+                        movingTest.State().rollingTraceRequestSign == sign &&
+                        movingTest.State().specialMove.state == Tank::Physics::SpecialMoveState::Rolling,
+                    "reserved roll must start once stopped with original sign and correct FSM state");
+                break;
+            }
+        }
+        passed &= Check(started, "released paired input must start after braking with no second request");
+        movingTest.SetInput({});
+        std::uint64_t lastSequence = movingTest.State().rollingTraceSequence;
+        int extraStarts = 0;
+        for (int i = 0; i < 720; ++i)
+        {
+            const auto stateAfter = movingTest.Step(dt);
+            if (stateAfter.rollingTraceSequence != lastSequence &&
+                stateAfter.lastRollingTraceEvent == Tank::Physics::RollingTraceEvent::StartLatched)
+                ++extraStarts;
+            lastSequence = stateAfter.rollingTraceSequence;
+        }
+        passed &= Check(extraStarts == 0, "consumed pending request must not replay at landing");
+    }
     passed &= Check(earlyUpY > 0.9f,
         "roll must be rejected before mobility reaches Stopped");
     earlyInput.roll = 0.0f;
     earlyTest.SetInput(earlyInput);
+
+    Tank::Physics::TrackedVehicleTest unsafeTest;
+    unsafeTest.Initialize(settings);
+    Tank::Physics::TankInput unsafeInput;
+    unsafeInput.leftLeverX = unsafeInput.rightLeverX = 1.0f;
+    unsafeTest.SetInput(unsafeInput);
+    unsafeTest.Step(dt);
+    passed &= Check(unsafeTest.State().rollingTelemetry.brakingToStart &&
+            unsafeTest.State().rollingPhase == Tank::Physics::RollingPhase::None,
+        "request before initial ground settling must wait, not start in air");
+    unsafeTest.Initialize(settings);
+    for (int i = 0; i < 180; ++i) unsafeTest.Step(dt);
+    passed &= Check(!unsafeTest.State().rollingTelemetry.brakingToStart &&
+            unsafeTest.State().rollingTraceSequence == 0,
+        "reset must discard pending roll request");
+    auto disabledSettings = settings;
+    disabledSettings.rollingInputEnabled = false;
+    unsafeTest.Initialize(disabledSettings);
+    unsafeTest.SetInput(unsafeInput);
+    for (int i = 0; i < 180; ++i) unsafeTest.Step(dt);
+    passed &= Check(!unsafeTest.State().rollingTelemetry.brakingToStart &&
+            unsafeTest.State().rollingTraceSequence == 0,
+        "disabled rolling input must not reserve or start a roll");
 
     // The public DirectX convention is +Z forward, +X right, +Y up. A
     // negative paired horizontal lever command is a negative local-Z roll,
@@ -130,6 +235,9 @@ int main()
         "roll chain must become available at landing");
     passed &= Check(chainStarted,
         "a roll requested immediately after landing must start");
+    passed &= Check(chainTest.State().specialMove.state ==
+            Tank::Physics::SpecialMoveState::Rolling,
+        "chained roll must synchronize the special-move FSM");
 
     Tank::Physics::TrackedVehicleTest returnTest;
     returnTest.Initialize(settings);
@@ -340,6 +448,15 @@ int main()
     const float settledUpY = BodyUpY(state.bodyRotation);
     const float displacementX = state.bodyPosition.x - startPosition.x;
     const float displacementZ = state.bodyPosition.z - startPosition.z;
+    const float displacementY = state.bodyPosition.y - startPosition.y;
+    const float forwardX = 2.0f *
+        (state.bodyRotation.x * state.bodyRotation.z +
+            state.bodyRotation.y * state.bodyRotation.w);
+    const float forwardZ = 1.0f - 2.0f *
+        (state.bodyRotation.x * state.bodyRotation.x +
+            state.bodyRotation.y * state.bodyRotation.y);
+    const float headingDegrees = std::atan2(forwardX, forwardZ) *
+        180.0f / 3.14159265358979323846f;
     const float lateralDistance =
         std::sqrt(displacementX * displacementX + displacementZ * displacementZ);
 
@@ -434,6 +551,106 @@ int main()
             Tank::Physics::MobilityState::Stopped,
         "a second roll must also return mobility to Stopped");
 
+    Tank::Physics::TankSettings profileSettings = settings;
+    profileSettings.rollTorqueCutoffDegrees = 45.0f;
+    profileSettings.rollApproachDampingNms = 0.0f;
+    profileSettings.rollCommitTorqueNm = 0.0f;
+    profileSettings.rollAirBrakeTorqueNm = 0.0f;
+    profileSettings.rollStabilizationTorqueNm = 0.0f;
+    profileSettings.rollStabilizationDampingNms = 0.0f;
+    Tank::Physics::TrackedVehicleTest profileTest;
+    profileTest.Initialize(profileSettings);
+    for (int i = 0; i < 180; ++i) profileTest.Step(dt);
+    const Tank::Physics::Vec3 profileStart = profileTest.State().bodyPosition;
+    Tank::Physics::TankInput profileInput;
+    profileInput.leftLeverX = 1.0f;
+    profileInput.rightLeverX = 1.0f;
+    profileTest.SetInput(profileInput);
+    profileTest.Step(dt);
+    profileTest.SetInput({});
+    bool profileWasRolling = false;
+    bool profileFinished = false;
+    float maximumProfileForwardDrift = 0.0f;
+    float profileHeadingAtFinish = 0.0f;
+    float profileForwardDriftAtFinish = 0.0f;
+    for (int i = 0; i < 720; ++i)
+    {
+        profileTest.Step(dt);
+        const auto& rollingState = profileTest.State();
+        maximumProfileForwardDrift = (std::max)(maximumProfileForwardDrift,
+            std::abs(rollingState.bodyPosition.z - profileStart.z));
+        if (rollingState.rollingPhase != Tank::Physics::RollingPhase::None)
+        {
+            profileWasRolling = true;
+        }
+        else if (profileWasRolling)
+        {
+            const auto& rotation = rollingState.bodyRotation;
+            const float profileFinishForwardX = 2.0f *
+                (rotation.x * rotation.z + rotation.y * rotation.w);
+            const float profileFinishForwardZ = 1.0f - 2.0f *
+                (rotation.x * rotation.x + rotation.y * rotation.y);
+            profileHeadingAtFinish = std::atan2(
+                profileFinishForwardX, profileFinishForwardZ);
+            profileForwardDriftAtFinish =
+                rollingState.bodyPosition.z - profileStart.z;
+            profileFinished = true;
+            break;
+        }
+    }
+    for (int i = 0; i < 180; ++i) profileTest.Step(dt);
+    const auto& profileEnd = profileTest.State();
+    const float profileForwardX = 2.0f *
+        (profileEnd.bodyRotation.x * profileEnd.bodyRotation.z +
+            profileEnd.bodyRotation.y * profileEnd.bodyRotation.w);
+    const float profileForwardZ = 1.0f - 2.0f *
+        (profileEnd.bodyRotation.x * profileEnd.bodyRotation.x +
+            profileEnd.bodyRotation.y * profileEnd.bodyRotation.y);
+    std::cout << "profile final dx=" << profileEnd.bodyPosition.x - profileStart.x
+        << " dy=" << profileEnd.bodyPosition.y - profileStart.y
+        << " dz=" << profileEnd.bodyPosition.z - profileStart.z
+        << " heading_deg=" << std::atan2(profileForwardX, profileForwardZ) *
+            180.0f / 3.14159265358979323846f
+        << " finish_heading_deg=" << profileHeadingAtFinish *
+            180.0f / 3.14159265358979323846f
+        << " finish_dz=" << profileForwardDriftAtFinish << "\n";
+    std::cout << "profile maximum_abs_dz=" << maximumProfileForwardDrift << "\n";
+    passed &= Check(std::abs(profileEnd.bodyPosition.z - profileStart.z) < 0.05f,
+        "rolling must not leave forward-axis position drift");
+    passed &= Check(profileFinished && std::abs(profileForwardDriftAtFinish) < 0.05f,
+        "rolling must correct forward-axis drift before finishing");
+    passed &= Check(maximumProfileForwardDrift < 0.05f,
+        "rolling must stay near the lateral line throughout the move");
+    passed &= Check(std::abs(std::atan2(profileForwardX, profileForwardZ)) <
+            1.0f * 3.14159265358979323846f / 180.0f,
+        "rolling must restore its starting heading");
+    passed &= Check(profileFinished && std::abs(profileHeadingAtFinish) <
+            1.0f * 3.14159265358979323846f / 180.0f,
+        "rolling must correct yaw before finishing");
+
+    Tank::Physics::TrackedVehicleTest leftProfileTest;
+    leftProfileTest.Initialize(profileSettings);
+    for (int i = 0; i < 180; ++i) leftProfileTest.Step(dt);
+    const Tank::Physics::Vec3 leftProfileStart = leftProfileTest.State().bodyPosition;
+    Tank::Physics::TankInput leftProfileInput;
+    leftProfileInput.leftLeverX = -1.0f;
+    leftProfileInput.rightLeverX = -1.0f;
+    leftProfileTest.SetInput(leftProfileInput);
+    leftProfileTest.Step(dt);
+    leftProfileTest.SetInput({});
+    for (int i = 0; i < 720; ++i) leftProfileTest.Step(dt);
+    const auto& leftProfileEnd = leftProfileTest.State();
+    const auto& leftRotation = leftProfileEnd.bodyRotation;
+    const float leftForwardX = 2.0f *
+        (leftRotation.x * leftRotation.z + leftRotation.y * leftRotation.w);
+    const float leftForwardZ = 1.0f - 2.0f *
+        (leftRotation.x * leftRotation.x + leftRotation.y * leftRotation.y);
+    passed &= Check(std::abs(leftProfileEnd.bodyPosition.z - leftProfileStart.z) < 0.05f,
+        "left rolling must not leave forward-axis position drift");
+    passed &= Check(std::abs(std::atan2(leftForwardX, leftForwardZ)) <
+            1.0f * 3.14159265358979323846f / 180.0f,
+        "left rolling must restore its starting heading");
+
     if (!passed)
     {
         std::cerr << "  operatedUpY=" << operatedUpY
@@ -474,6 +691,9 @@ int main()
     std::cout << "PASS TrackedVehicle roll operated_up_y=" << operatedUpY
         << " settled_up_y=" << settledUpY
         << " lateral_distance=" << lateralDistance
+        << " final_dy=" << displacementY
+        << " final_dz=" << displacementZ
+        << " final_heading_deg=" << headingDegrees
         << " max_airborne_frames=" << maximumAirborneFrames
         << " second_roll_dx=" << secondRollDisplacementX << "\n";
     return 0;
