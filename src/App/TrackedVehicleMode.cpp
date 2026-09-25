@@ -620,12 +620,7 @@ void TrackedVehicleMode::UpdateInput(
     input.leftLeverX = analogRollAxis0;
     input.rightLeverX = analogRollAxis2;
 
-    if (!useAnalogTracks && rollLeft != rollRight)
-    {
-        const float keyboardLeverX = rollLeft ? -1.0f : 1.0f;
-        input.leftLeverX = keyboardLeverX;
-        input.rightLeverX = keyboardLeverX;
-    }
+    Tank::Input::ApplyKeyboardRollingInput(input, rollLeft, rollRight);
 
     if (mortar)
     {

@@ -27,10 +27,13 @@ int main()
     Tank::App::UiLayoutSettingsStore store(testRoot);
     Tank::App::UiLayoutSettings source;
     source.cameraWindowVisible = false;
+    source.telemetryWindowVisible = false;
+    source.rollingParametersWindowVisible = false;
     source.gamepadInputWindowVisible = false;
     source.renderSettingsWindowVisible = false;
     source.outputWindowVisible = false;
     source.rollingCheatWindowVisible = true;
+    source.rollingCheatFontScale = 1.5f;
 
     std::string status;
     passed &= Check(store.Write(source, status), "write must succeed");
@@ -38,6 +41,7 @@ int main()
     const std::string savedText(
         (std::istreambuf_iterator<char>(savedFile)),
         std::istreambuf_iterator<char>());
+    savedFile.close();
     bool usesOnlyCrlfLineEndings = true;
     for (std::size_t index = 0; index < savedText.size(); ++index)
     {

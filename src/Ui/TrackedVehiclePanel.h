@@ -47,6 +47,8 @@ namespace Ui
 
         bool* physicsDebugOverlay = nullptr;
         bool* cameraWindowVisible = nullptr;
+        bool* telemetryWindowVisible = nullptr;
+        bool* rollingParametersWindowVisible = nullptr;
         bool* gamepadInputWindowVisible = nullptr;
         bool* renderSettingsWindowVisible = nullptr;
         bool* outputWindowVisible = nullptr;
@@ -70,6 +72,7 @@ namespace Ui
         bool* trackedVehicleSingleStep = nullptr;
         bool* rollingCheatWindowVisible = nullptr;
         bool* rollingCheatWindowJapanese = nullptr;
+        float* rollingCheatFontScale = nullptr;
         int* tankSettingsSlot = nullptr;
         int* rollingProfileSlot = nullptr;
         int* mortarProfileSlot = nullptr;

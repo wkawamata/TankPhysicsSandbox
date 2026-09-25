@@ -426,6 +426,10 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.activeMapName = &m_trackedVehicleMode.ActiveMapName();
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
     m_trackedVehiclePanelCtx.cameraWindowVisible = &m_cameraWindowVisible;
+    m_trackedVehiclePanelCtx.telemetryWindowVisible =
+        &m_trackedVehicleMode.TelemetryWindowVisible();
+    m_trackedVehiclePanelCtx.rollingParametersWindowVisible =
+        &m_trackedVehicleMode.RollingParametersWindowVisible();
     m_trackedVehiclePanelCtx.gamepadInputWindowVisible =
         &m_trackedVehicleMode.GamepadInputWindowVisible();
     m_trackedVehiclePanelCtx.renderSettingsWindowVisible = &m_renderSettingsWindowVisible;
@@ -448,6 +452,8 @@ void TankSandboxApp::OnInit()
         &m_trackedVehicleMode.RollingCheatWindowVisible();
     m_trackedVehiclePanelCtx.rollingCheatWindowJapanese =
         &m_trackedVehicleMode.RollingCheatWindowJapanese();
+    m_trackedVehiclePanelCtx.rollingCheatFontScale =
+        &m_trackedVehicleMode.RollingCheatFontScale();
     m_trackedVehiclePanelCtx.tankSettingsSlot = &m_trackedVehicleMode.TankSettingsSlot();
     m_trackedVehiclePanelCtx.rollingOptimizer = &m_trackedVehicleMode.RollingOptimizer();
     m_trackedVehiclePanelCtx.rollingProfileSlot = &m_trackedVehicleMode.RollingProfileSlot();
@@ -679,14 +685,6 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     {
         m_trackedVehicleMode.Paused() = !m_trackedVehicleMode.Paused();
     }
-    else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == VK_SPACE)
-    {
-        if (!m_pauseShortcutHeld)
-        {
-            m_trackedVehicleMode.Paused() = !m_trackedVehicleMode.Paused();
-        }
-        m_pauseShortcutHeld = true;
-    }
     else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'N' && m_trackedVehicleMode.Paused())
     {
         m_trackedVehicleMode.SingleStep() = true;
@@ -699,8 +697,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
         }
         m_stepForwardShortcutHeld = true;
     }
-    else if (m_appMode == AppMode::PhysicsTrackedVehicle &&
-        (key == VK_CONTROL || key == VK_LCONTROL))
+    else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == VK_SPACE)
     {
         m_assaultFire = true;
     }
@@ -712,9 +709,10 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     else if (key == 'S') m_moveBackward = true;
     else if (key == 'A') m_turnRight = true;
     else if (key == 'D') m_turnLeft = true;
+    else if (key == 'Z') m_pivotTurnRight = true;
+    else if (key == 'C') m_pivotTurnLeft = true;
     else if (key == 'Q') m_rollLeft = true;
     else if (key == 'E') m_rollRight = true;
-    else if (key == VK_SHIFT) m_pivotTurnModifier = true;
     else if (key == 'B') m_brake = true;
 }
 
@@ -724,13 +722,13 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
     else if (key == 'S') m_moveBackward = false;
     else if (key == 'A') m_turnRight = false;
     else if (key == 'D') m_turnLeft = false;
+    else if (key == 'Z') m_pivotTurnRight = false;
+    else if (key == 'C') m_pivotTurnLeft = false;
     else if (key == 'Q') m_rollLeft = false;
     else if (key == 'E') m_rollRight = false;
-    else if (key == VK_SHIFT) m_pivotTurnModifier = false;
     else if (key == 'B') m_brake = false;
-    else if (key == VK_SPACE) m_pauseShortcutHeld = false;
     else if (key == 'F') m_stepForwardShortcutHeld = false;
-    else if (key == VK_CONTROL || key == VK_LCONTROL) m_assaultFire = false;
+    else if (key == VK_SPACE) m_assaultFire = false;
     else if (key == 'X') m_mortar = false;
 }
 
@@ -811,13 +809,13 @@ void TankSandboxApp::ClearVehicleInputState()
     m_moveBackward = false;
     m_turnLeft = false;
     m_turnRight = false;
-    m_pivotTurnModifier = false;
+    m_pivotTurnLeft = false;
+    m_pivotTurnRight = false;
     m_rollLeft = false;
     m_rollRight = false;
     m_brake = false;
     m_assaultFire = false;
     m_mortar = false;
-    m_pauseShortcutHeld = false;
     m_stepForwardShortcutHeld = false;
 }
 
@@ -951,7 +949,9 @@ void TankSandboxApp::OnIdle()
         m_trackedVehicleMode.UpdateInput(
             vehicleGamepadState,
             m_moveForward, m_moveBackward,
-            m_turnLeft, m_turnRight, m_pivotTurnModifier,
+            m_turnLeft || m_pivotTurnLeft,
+            m_turnRight || m_pivotTurnRight,
+            m_pivotTurnLeft || m_pivotTurnRight,
             scriptedRoll
                 ? (scriptedReturn ? m_rollCaptureSign > 0.0f
                                   : m_rollCaptureSign < 0.0f)
@@ -1453,20 +1453,26 @@ Tank::App::UiLayoutSettings TankSandboxApp::CaptureUiLayoutSettings()
 {
     return {
         m_cameraWindowVisible,
+        m_trackedVehicleMode.TelemetryWindowVisible(),
+        m_trackedVehicleMode.RollingParametersWindowVisible(),
         m_trackedVehicleMode.GamepadInputWindowVisible(),
         m_renderSettingsWindowVisible,
         m_outputPanel.open,
         m_trackedVehicleMode.RollingCheatWindowVisible(),
+        m_trackedVehicleMode.RollingCheatFontScale(),
     };
 }
 
 void TankSandboxApp::ApplyUiLayoutSettings(const Tank::App::UiLayoutSettings& settings)
 {
     m_cameraWindowVisible = settings.cameraWindowVisible;
+    m_trackedVehicleMode.TelemetryWindowVisible() = settings.telemetryWindowVisible;
+    m_trackedVehicleMode.RollingParametersWindowVisible() = settings.rollingParametersWindowVisible;
     m_trackedVehicleMode.GamepadInputWindowVisible() = settings.gamepadInputWindowVisible;
     m_renderSettingsWindowVisible = settings.renderSettingsWindowVisible;
     m_outputPanel.open = settings.outputWindowVisible;
     m_trackedVehicleMode.RollingCheatWindowVisible() = settings.rollingCheatWindowVisible;
+    m_trackedVehicleMode.RollingCheatFontScale() = settings.rollingCheatFontScale;
 }
 
 void TankSandboxApp::LoadUiLayoutSettings()

@@ -78,6 +78,8 @@ namespace Tank::Physics
         JPH::Ref<JPH::VehicleConstraint> vehicleConstraint;
         bool hasBody = false;
         bool rollInputLatched = false;
+        bool rollBrakingToStart = false;
+        float rollWaitingSeconds = 0.0f;
         float latchedRollCommand = 0.0f;
         float rollRotationSign = 0.0f;
         Tank::Physics::RollingPhase rollingPhase = RollingPhase::None;
@@ -95,12 +97,15 @@ namespace Tank::Physics
         float rollingDecisionInputSign = 0.0f;
         RollingTraceEvent lastRollingTraceEvent = RollingTraceEvent::None;
         std::uint64_t rollingTraceSequence = 0;
+        std::uint64_t rollingRunId = 0;
+        float rollAccumulatedAngleDegrees = 0.0f;
         float rollingTraceRequestSign = 0.0f;
         float rollingTraceCommandSign = 0.0f;
         float rollingTraceInputSign = 0.0f;
         bool rollChainAvailable = false;
         JPH::RVec3 rollStartPosition;
         JPH::Vec3 rollStartUp;
+        JPH::Vec3 rollStartForward;
         JPH::Vec3 rollDirection;
         bool accelerationTiming = false;
         float accelerationStartTime = 0.0f;
@@ -179,9 +184,9 @@ namespace Tank::Physics
             m_settings.rollAirBrakeTorqueNm, 0.0f, 300000.0f);
         m_settings.rollDistanceM = std::clamp(m_settings.rollDistanceM, 0.5f, 7.0f);
         m_settings.rollTravelVehicleWidths = std::clamp(
-            m_settings.rollTravelVehicleWidths, 1.0f, 2.0f);
+            m_settings.rollTravelVehicleWidths, 1.0f, 10.0f);
         m_settings.rollTorqueCutoffDegrees =
-            std::clamp(m_settings.rollTorqueCutoffDegrees, 45.0f, 120.0f);
+            std::clamp(m_settings.rollTorqueCutoffDegrees, 45.0f, 180.0f);
         m_settings.rollStabilizationTorqueNm =
             (std::max)(m_settings.rollStabilizationTorqueNm, 0.0f);
         m_settings.rollStabilizationDampingNms =
@@ -375,6 +380,8 @@ namespace Tank::Physics
         }
         controllerSettings->mTransmission.mClutchReleaseTime =
             std::clamp(m_settings.clutchReleaseTimeSeconds, 0.01f, 0.5f);
+        // Temporary response A/B experiment: Jolt's baseline is 0.5 seconds.
+        controllerSettings->mTransmission.mSwitchTime = 0.0f;
         vehicle.mController = controllerSettings;
 
         for (int t = 0; t < 2; ++t)
@@ -598,6 +605,18 @@ namespace Tank::Physics
         const auto scale = [rollSpeed](float atTwo) { return RollingSpeedScale(atTwo, rollSpeed); };
         const JPH::Vec3 bodyUp = bodyRotation * JPH::Vec3::sAxisY();
         const JPH::Vec3 bodyForward = bodyRotation * JPH::Vec3::sAxisZ();
+        auto& rollTorqueTelemetry = m_state.rollingTelemetry;
+        rollTorqueTelemetry.primaryTorqueNm = 0.0f;
+        rollTorqueTelemetry.approachDampingTorqueNm = 0.0f;
+        rollTorqueTelemetry.commitTorqueNm = 0.0f;
+        rollTorqueTelemetry.airBrakeTorqueNm = 0.0f;
+        rollTorqueTelemetry.stabilizationTorqueNm = 0.0f;
+        rollTorqueTelemetry.controllerTorqueSumNm = 0.0f;
+        const auto recordTorque = [&rollTorqueTelemetry](float& component, float value)
+        {
+            component += value;
+            rollTorqueTelemetry.controllerTorqueSumNm += value;
+        };
         const bool mortarActive =
             m_state.specialMove.state == SpecialMoveState::MortarStarting ||
             m_state.specialMove.state == SpecialMoveState::MortarAiming;
@@ -638,9 +657,9 @@ namespace Tank::Physics
         const bool canStartRoll =
             m_state.mobility.state == MobilityState::Stopped ||
             rollChainRequested;
-        const bool canRequestRoll =
-            m_state.mobility.state == MobilityState::Stopped ||
-            rollChainRequested;
+        // Accept a one-shot request while moving; RollStarting reserves the
+        // action until braking has satisfied the existing safe-stop gate.
+        const bool canRequestRoll = true;
         TankInput specialMoveInput = m_input;
         if (!m_settings.rollingInputEnabled &&
             specialMoveInput.leftLeverX * specialMoveInput.rightLeverX > 0.0f)
@@ -664,21 +683,24 @@ namespace Tank::Physics
         const RollingPhase rollingPhaseBefore = m_impl->rollingPhase;
         const bool wasRollingEvaluating =
             m_impl->rollingPhase == RollingPhase::Evaluating;
-        // A chained request starts immediately and replaces Settling. A
-        // normal request remains subject to the stopped mobility gate above.
-        // A phase may remain RollStarting for one frame while the FSM and
-        // physics synchronize. It is never a standing request: a roll can
-        // only begin in the same frame that the recognizer emitted a fresh
-        // paired-lever event. This prevents a landing from replaying an old
-        // request after the player has returned both levers to neutral.
+        // Only an accepted fresh request can reserve a delayed start. Inputs
+        // rejected during an active roll must never be replayed at landing.
         const bool rollStartEventThisFrame =
             m_state.specialMove.lastEvent ==
                 SpecialMoveEvent::RollLeftRequested ||
             m_state.specialMove.lastEvent ==
                 SpecialMoveEvent::RollRightRequested;
+        if (previousSpecialMove == SpecialMoveState::Idle &&
+            m_state.specialMove.state == SpecialMoveState::RollStarting &&
+            rollStartEventThisFrame && !canStartRoll)
+        {
+            m_impl->rollBrakingToStart = true;
+            m_impl->rollWaitingSeconds = 0.0f;
+        }
+        const bool preparingRollThisFrame = m_impl->rollBrakingToStart;
         const bool rollStartPending =
             m_state.specialMove.state == SpecialMoveState::RollStarting &&
-            rollStartEventThisFrame;
+            (rollStartEventThisFrame || m_impl->rollBrakingToStart);
         if (rollStartPending && m_impl->rollInputLatched &&
             m_impl->rollChainAvailable)
         {
@@ -688,8 +710,12 @@ namespace Tank::Physics
             m_impl->rollInputLatched = false;
             m_impl->rollingPhase = RollingPhase::None;
         }
-        if (rollStartPending && !m_impl->rollInputLatched && canStartRoll)
+        const bool startingRollThisFrame =
+            rollStartPending && !m_impl->rollInputLatched && canStartRoll;
+        if (startingRollThisFrame)
         {
+            ++m_impl->rollingRunId;
+            m_impl->rollBrakingToStart = false;
             m_impl->latchedRollCommand =
                 m_state.specialMove.requestedRollSign;
             // RollSign is the shared horizontal lever sign. It is applied
@@ -741,6 +767,11 @@ namespace Tank::Physics
             m_impl->rollStartPosition =
                 bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
             m_impl->rollStartUp = bodyUp;
+            m_impl->rollStartForward = bodyForward;
+            m_impl->rollStartForward.SetY(0.0f);
+            m_impl->rollStartForward = m_impl->rollStartForward.LengthSq() > 0.0001f
+                ? m_impl->rollStartForward.Normalized() : JPH::Vec3::sAxisZ();
+            m_impl->rollAccumulatedAngleDegrees = 0.0f;
             m_impl->rollDirection =
                 horizontalFallDirection.LengthSq() > 0.0001f
                 ? horizontalFallDirection.Normalized()
@@ -763,12 +794,15 @@ namespace Tank::Physics
                     : 0.0f;
                 const float physicsRollSign = ToJoltRollTorqueSign(
                     m_impl->rollRotationSign);
-                bodyInterface.AddTorque(
-                    m_impl->bodyId,
-                    bodyForward *
-                        (physicsRollSign * m_settings.rollTorqueNm *
-                                scale(tuning.driveTorque) -
-                            approachDamping * scale(tuning.approachDamping)));
+                const float primaryTorque = physicsRollSign * m_settings.rollTorqueNm *
+                    scale(tuning.driveTorque);
+                const float approachDampingTorque =
+                    -approachDamping * scale(tuning.approachDamping);
+                recordTorque(rollTorqueTelemetry.primaryTorqueNm, primaryTorque);
+                recordTorque(rollTorqueTelemetry.approachDampingTorqueNm,
+                    approachDampingTorque);
+                bodyInterface.AddTorque(m_impl->bodyId,
+                    bodyForward * (primaryTorque + approachDampingTorque));
                 const bool sameDirectionLevers =
                     std::abs(m_input.leftLeverX) >= 0.70f &&
                     std::abs(m_input.rightLeverX) >= 0.70f &&
@@ -849,12 +883,13 @@ namespace Tank::Physics
         {
             const float physicsRollSign = ToJoltRollTorqueSign(
                 m_impl->rollRotationSign);
+            const float commitTorque = physicsRollSign *
+                m_settings.rollCommitTorqueNm * scale(tuning.commitTorque) *
+                (std::min)(m_impl->rollCommitFramesRemaining, 1.0f);
+            recordTorque(rollTorqueTelemetry.commitTorqueNm, commitTorque);
             bodyInterface.AddTorque(
                 m_impl->bodyId,
-                    bodyForward *
-                    (physicsRollSign * m_settings.rollCommitTorqueNm *
-                        scale(tuning.commitTorque) *
-                        (std::min)(m_impl->rollCommitFramesRemaining, 1.0f)));
+                bodyForward * commitTorque);
             if (--m_impl->rollCommitFramesRemaining <= 0)
             {
                 m_impl->rollingPhase = RollingPhase::BallisticRoll;
@@ -895,12 +930,12 @@ namespace Tank::Physics
                 bodyUp.Dot(m_impl->rollStartUp) > airBrakeReleaseDot &&
                 rollAngularVelocity * physicsRollSign > 0.5f)
             {
+                const float airBrakeTorque = -physicsRollSign *
+                    m_settings.rollAirBrakeTorqueNm * scale(tuning.airBrakeTorque);
+                recordTorque(rollTorqueTelemetry.airBrakeTorqueNm, airBrakeTorque);
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
-                    bodyForward *
-                        (-physicsRollSign *
-                            m_settings.rollAirBrakeTorqueNm *
-                            scale(tuning.airBrakeTorque)));
+                    bodyForward * airBrakeTorque);
             }
             if (m_impl->rollReturningToStart &&
                 m_impl->rollingPhase == RollingPhase::BallisticRoll &&
@@ -910,14 +945,17 @@ namespace Tank::Physics
                 // action, not passive air-braked settling. Drive toward the
                 // original up direction until the normal settled gate takes
                 // over. This branch is unreachable for a forward roll.
-                const float returnTorque =
-                    physicsRollSign * (m_settings.rollTorqueNm * 0.35f *
-                        scale(tuning.driveTorque)) -
-                    rollAngularVelocity * m_settings.rollApproachDampingNms *
-                        scale(tuning.approachDamping);
+                const float returnPrimaryTorque = physicsRollSign *
+                    (m_settings.rollTorqueNm * 0.35f * scale(tuning.driveTorque));
+                const float returnDampingTorque =
+                    -rollAngularVelocity * m_settings.rollApproachDampingNms *
+                    scale(tuning.approachDamping);
+                recordTorque(rollTorqueTelemetry.primaryTorqueNm, returnPrimaryTorque);
+                recordTorque(rollTorqueTelemetry.approachDampingTorqueNm,
+                    returnDampingTorque);
                 bodyInterface.AddTorque(
                     m_impl->bodyId,
-                    bodyForward * returnTorque);
+                    bodyForward * (returnPrimaryTorque + returnDampingTorque));
             }
             const float rollAngleRadians = std::acos(std::clamp(
                 bodyUp.Dot(m_impl->rollStartUp),
@@ -987,6 +1025,41 @@ namespace Tank::Physics
             }
         }
 
+        if (m_impl->rollingPhase != RollingPhase::None)
+        {
+            // Keep the roll on the lateral line chosen at its start. Contact
+            // impulses may add forward slip and yaw even with neutral tracks.
+            const JPH::Vec3 startForward = m_impl->rollStartForward;
+            const JPH::RVec3 position =
+                bodyInterface.GetCenterOfMassPosition(m_impl->bodyId);
+            const JPH::Vec3 linearVelocity =
+                bodyInterface.GetLinearVelocity(m_impl->bodyId);
+            const float forwardError = static_cast<float>(
+                (position - m_impl->rollStartPosition).Dot(startForward));
+            const float forwardSpeed = linearVelocity.Dot(startForward);
+            const float forwardForce = std::clamp(
+                -forwardError * 40000.0f - forwardSpeed * 35000.0f,
+                -50000.0f, 50000.0f);
+            bodyInterface.AddForce(m_impl->bodyId, startForward * forwardForce);
+
+            JPH::Vec3 flatForward = bodyForward;
+            flatForward.SetY(0.0f);
+            if (flatForward.LengthSq() > 0.0001f)
+            {
+                flatForward = flatForward.Normalized();
+                const float headingError = std::atan2(
+                    flatForward.Cross(startForward).Dot(JPH::Vec3::sAxisY()),
+                    flatForward.Dot(startForward));
+                const float yawSpeed = bodyInterface.GetAngularVelocity(
+                    m_impl->bodyId).Dot(JPH::Vec3::sAxisY());
+                const float yawTorque = std::clamp(
+                    headingError * 150000.0f - yawSpeed * 60000.0f,
+                    -150000.0f, 150000.0f);
+                bodyInterface.AddTorque(m_impl->bodyId,
+                    JPH::Vec3::sAxisY() * yawTorque);
+            }
+        }
+
         if (m_impl->rollingPhase == RollingPhase::Settling)
         {
             const float lateralVelocity =
@@ -1047,14 +1120,18 @@ namespace Tank::Physics
             const float rollError = bodyUp.Cross(targetUp).Dot(bodyForward);
             const float rollAngularVelocity =
                 bodyInterface.GetAngularVelocity(m_impl->bodyId).Dot(bodyForward);
+            const float stabilizationTorque =
+                rollError * m_settings.rollStabilizationTorqueNm *
+                    (m_impl->rollingPhase == RollingPhase::None ? 1.0f :
+                        scale(tuning.stabilizationTorque)) -
+                rollAngularVelocity * m_settings.rollStabilizationDampingNms *
+                    (m_impl->rollingPhase == RollingPhase::None ? 1.0f :
+                        scale(tuning.stabilizationDamping));
+            recordTorque(rollTorqueTelemetry.stabilizationTorqueNm,
+                stabilizationTorque);
             bodyInterface.AddTorque(
                 m_impl->bodyId,
-                bodyForward *
-                    (rollError * m_settings.rollStabilizationTorqueNm *
-                            (m_impl->rollingPhase == RollingPhase::None ? 1.0f : scale(tuning.stabilizationTorque)) -
-                        rollAngularVelocity *
-                            m_settings.rollStabilizationDampingNms *
-                            (m_impl->rollingPhase == RollingPhase::None ? 1.0f : scale(tuning.stabilizationDamping))));
+                bodyForward * stabilizationTorque);
         }
 
         // Scale only this vehicle's gravity/suspension during a roll.
@@ -1069,8 +1146,7 @@ namespace Tank::Physics
             m_impl->rollingEnvironmentScale = environmentSpeed;
         }
 
-        if (rollingPhaseBefore == RollingPhase::None &&
-            m_impl->rollingPhase != RollingPhase::None &&
+        if (startingRollThisFrame &&
             m_state.specialMove.state == SpecialMoveState::RollStarting)
         {
             m_state.specialMove = m_specialMoveStateMachine.Update(
@@ -1127,6 +1203,12 @@ namespace Tank::Physics
             std::abs(forward) < 0.001f)
         {
             brake = (std::max)(brake, m_settings.neutralBrakeAmount);
+        }
+        if (preparingRollThisFrame)
+        {
+            forward = 0.0f;
+            leftRatio = rightRatio = 1.0f;
+            brake = 1.0f;
         }
         m_driverInput = {forward, leftRatio, rightRatio, brake};
 
@@ -1254,6 +1336,17 @@ namespace Tank::Physics
         m_state.engineRpm = controller->GetEngine().GetCurrentRPM();
         m_state.transmissionGear = controller->GetTransmission().GetCurrentGear();
         m_state.clutchFriction = controller->GetTransmission().GetClutchFriction();
+        m_state.transmissionSwitchingGear = controller->GetTransmission().IsSwitchingGear();
+        const JPH::VehicleTracks& tracks = controller->GetTracks();
+        const float transmissionTorque = m_state.clutchFriction *
+            controller->GetTransmission().GetCurrentRatio() *
+            controller->GetEngine().GetTorque(std::abs(m_driverInput.forward));
+        m_state.leftTrackAngularVelocityRadians = tracks[0].mAngularVelocity;
+        m_state.rightTrackAngularVelocityRadians = tracks[1].mAngularVelocity;
+        m_state.leftTrackDriveTorqueNm = tracks[0].mDifferentialRatio *
+            m_driverInput.leftRatio * transmissionTorque;
+        m_state.rightTrackDriveTorqueNm = tracks[1].mDifferentialRatio *
+            m_driverInput.rightRatio * transmissionTorque;
         m_state.angularVelocity = {
             static_cast<float>(angularVelocity.GetX()),
             static_cast<float>(angularVelocity.GetY()),
@@ -1378,13 +1471,53 @@ namespace Tank::Physics
             m_impl->rollChainAvailable &&
             std::abs(m_input.throttle) < 0.001f;
         const bool mobilityDriveRequested =
+            !m_impl->rollBrakingToStart && (
             std::abs(m_input.throttle) > 0.001f ||
             std::abs(m_input.leftTrack - 1.0f) > 0.001f ||
-            std::abs(m_input.rightTrack - 1.0f) > 0.001f;
+            std::abs(m_input.rightTrack - 1.0f) > 0.001f);
         m_state.mobility = m_mobilityStateMachine.Update(
             m_state.motionObservation,
             mobilityDriveRequested,
             deltaTimeSeconds);
+        auto& rolling = m_state.rollingTelemetry;
+        rolling.runId = m_impl->rollingRunId;
+        rolling.leftLeverX = m_input.leftLeverX;
+        rolling.rightLeverX = m_input.rightLeverX;
+        rolling.inputArmed = m_specialMoveInputProcessor.IsArmed();
+        rolling.brakingToStart = m_impl->rollBrakingToStart;
+        if (rolling.brakingToStart)
+        {
+            m_impl->rollWaitingSeconds += deltaTimeSeconds;
+        }
+        rolling.pendingSign = rolling.brakingToStart
+            ? m_state.specialMove.requestedRollSign : 0.0f;
+        rolling.waitingSeconds = m_impl->rollWaitingSeconds;
+        rolling.stopGateFailure = m_mobilityStateMachine.StopEntryFailure(
+            m_state.motionObservation, mobilityDriveRequested);
+        rolling.angularSpeedDegrees = JPH::RadiansToDegrees(
+            m_state.motionObservation.localAngularVelocity.z);
+        if (m_impl->rollingTraceSequence > 0 &&
+            m_impl->rollingPhase != RollingPhase::None)
+        {
+            const float physicsRollSign = ToJoltRollTorqueSign(
+                m_impl->rollRotationSign);
+            m_impl->rollAccumulatedAngleDegrees += JPH::RadiansToDegrees(
+                m_state.motionObservation.localAngularVelocity.z *
+                physicsRollSign * deltaTimeSeconds);
+        }
+        rolling.signedAccumulatedAngleDegrees = m_impl->rollAccumulatedAngleDegrees;
+        if (m_impl->rollingTraceSequence > 0)
+        {
+            const JPH::Vec3 up = bodyInterface.GetRotation(m_impl->bodyId) *
+                JPH::Vec3::sAxisY();
+            rolling.angleFromStartDegrees = JPH::RadiansToDegrees(std::acos(
+                std::clamp(up.Dot(m_impl->rollStartUp), -1.0f, 1.0f)));
+            const auto delta = bodyInterface.GetCenterOfMassPosition(m_impl->bodyId) -
+                m_impl->rollStartPosition;
+            rolling.actualTravelMeters = static_cast<float>(std::sqrt(
+                delta.GetX() * delta.GetX() + delta.GetZ() * delta.GetZ()));
+            rolling.targetTravelMeters = m_impl->rollTargetDistanceM;
+        }
     }
 
 }

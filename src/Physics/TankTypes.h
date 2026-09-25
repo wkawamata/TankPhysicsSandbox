@@ -8,6 +8,7 @@
 #include "AssaultWeapon.h"
 
 #include <array>
+#include <cstdint>
 
 namespace Tank::Physics
 {
@@ -223,6 +224,30 @@ namespace Tank::Physics
         bool allFinite = true;
     };
 
+    struct RollingTelemetry
+    {
+        std::uint64_t runId = 0;
+        float leftLeverX = 0.0f;
+        float rightLeverX = 0.0f;
+        bool inputArmed = true;
+        bool brakingToStart = false;
+        float pendingSign = 0.0f;
+        float waitingSeconds = 0.0f;
+        MobilityTransitionReason stopGateFailure = MobilityTransitionReason::None;
+        float angleFromStartDegrees = 0.0f;
+        float signedAccumulatedAngleDegrees = 0.0f;
+        float angularSpeedDegrees = 0.0f;
+        float actualTravelMeters = 0.0f;
+        float targetTravelMeters = 0.0f;
+        // Signed torque about the tank's local roll axis, in Nm.
+        float primaryTorqueNm = 0.0f;
+        float approachDampingTorqueNm = 0.0f;
+        float commitTorqueNm = 0.0f;
+        float airBrakeTorqueNm = 0.0f;
+        float stabilizationTorqueNm = 0.0f;
+        float controllerTorqueSumNm = 0.0f;
+    };
+
     struct TankState
     {
         int stepIndex = 0;
@@ -236,6 +261,11 @@ namespace Tank::Physics
         float engineRpm = 0.0f;
         int transmissionGear = 0;
         float clutchFriction = 0.0f;
+        bool transmissionSwitchingGear = false;
+        float leftTrackAngularVelocityRadians = 0.0f;
+        float rightTrackAngularVelocityRadians = 0.0f;
+        float leftTrackDriveTorqueNm = 0.0f;
+        float rightTrackDriveTorqueNm = 0.0f;
         float yawSpeedDegrees = 0.0f;
         bool yawSpeedLimited = false;
         std::array<TrackedWheelState, kTankWheelCount> wheels = {};
@@ -244,6 +274,7 @@ namespace Tank::Physics
         TankMotionObservation motionObservation = {};
         MobilityStateSnapshot mobility = {};
         RollingPhase rollingPhase = RollingPhase::None;
+        RollingTelemetry rollingTelemetry = {};
         RollingDecision lastRollingDecision = RollingDecision::None;
         std::uint64_t rollingDecisionCount = 0;
         float rollingDecisionCommandSign = 0.0f;

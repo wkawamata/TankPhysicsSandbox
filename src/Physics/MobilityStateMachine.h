@@ -33,6 +33,13 @@ namespace Tank::Physics
             float deltaTimeSeconds);
         const MobilityStateSnapshot& Snapshot() const;
 
+        // Current gate failure, unlike lastTransitionReason which is historical.
+        MobilityTransitionReason StopEntryFailure(
+            const TankMotionObservation& observation, bool driveRequested) const
+        {
+            return EvaluateEntryFailure(observation, driveRequested);
+        }
+
     private:
         MobilityTransitionReason EvaluateEntryFailure(
             const TankMotionObservation& observation,

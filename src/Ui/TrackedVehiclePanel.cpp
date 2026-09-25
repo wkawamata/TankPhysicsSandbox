@@ -388,6 +388,16 @@ namespace Ui
 			ImGui::End();
 			return;
 		}
+		if (ctx.rollingCheatFontScale != nullptr)
+		{
+			*ctx.rollingCheatFontScale = std::clamp(
+				*ctx.rollingCheatFontScale, 0.5f, 2.0f);
+			ImGui::SetWindowFontScale(*ctx.rollingCheatFontScale);
+			ImGui::SetNextItemWidth(180.0f);
+			ImGui::SliderFloat("Text Scale##RollingCheat", ctx.rollingCheatFontScale,
+				0.5f, 2.0f, "%.2f x", ImGuiSliderFlags_AlwaysClamp);
+			ImGui::Separator();
+		}
 		bool japanese = ctx.rollingCheatWindowJapanese != nullptr &&
 			*ctx.rollingCheatWindowJapanese;
 		if (ImGui::Button("日本語##RollingCheatLanguage"))
@@ -445,18 +455,22 @@ namespace Ui
 
 		if (ImGui::CollapsingHeader(japanese ? "開始と折り返し判断" : "Start and return decision", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			description(
+				description(
 				"Roll Speed Multiplier", IsPending(ctx.tankSettings->rollSpeedMultiplier, ctx.appliedTankSettings->rollSpeedMultiplier),
-				"Roll Speed Multiplier: scales the complete roll's time feel from 0.5 to 2.0. 1.0 preserves the current tuning; the return decision angle and travel distance stay unchanged.",
-				"Roll Speed Multiplier：ローリング全体の時間感を0.5〜2.0倍で調整します。1.0は現在の調整を維持し、復帰判断角と横移動距離は変わりません。");
+				"Scales the rolling motion using the internal coefficients below. 1.0 preserves the reference tuning; 0.5 is slower and 2.0 is faster. It does not change the configured travel target or return decision angle.",
+				"下記の内部係数を使ってRolling中の動きを倍率調整します。1.0は基準設定、0.5は遅く、2.0は速くなります。設定した移動目標距離や復帰判断角自体は変わりません。");
 			description(
 				"Rolling Input", ctx.tankSettings->rollingInputEnabled != ctx.appliedTankSettings->rollingInputEnabled,
-				"Rolling Input: enables paired-lever rolling. A new roll always requires a fresh lever action after neutral.",
-				"Rolling Input：左右レバーを同方向へ倒したローリング入力を有効にします。次のロールには、必ず一度中立へ戻してから新たに入力します。");
+				"Enables rolling requests. Use same-direction horizontal input on both levers, or press Q (left roll) / E (right roll). Release the input to neutral before requesting the next roll. When a request is made while moving, the tank brakes and starts the roll after meeting the stop conditions.",
+				"Rolling要求を有効にします。左右レバーを同方向へ倒すか、Q（左Rolling）／E（右Rolling）を押します。次のRollingには、一度入力を中立へ戻してください。走行中に要求した場合は制動し、停止条件を満たしてから開始します。");
 			description(
 				"Roll Torque", IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm),
-				"Roll Torque: primary torque from the start through the approach angle. Higher values make the initial rise faster.",
-				"Roll Torque：開始から Approach Start Angle までの主トルクです。高くすると初動から立ち上がりまでが速くなります。");
+				"Primary roll torque applied from the start until Torque Cutoff Angle. Higher values make the initial rise faster. Approach Damping is applied separately from Approach Start Angle.",
+				"開始から Torque Cutoff Angle まで加える主ロールトルクです。大きくすると立ち上がりが速くなります。Approach Start Angle以降はApproach Dampingも別に作用します。");
+			description(
+				"Torque Cutoff Angle", IsPending(ctx.tankSettings->rollTorqueCutoffDegrees, ctx.appliedTankSettings->rollTorqueCutoffDegrees),
+				"Angle from the starting pose at which the primary Roll Torque above ends (45 to 180 degrees). The roll then continues under the later phase controls; at 180 degrees the primary torque can remain active almost to the inverted attitude.",
+				"開始姿勢から測った角度で、直上の主Roll Torqueを終了します（45〜180度）。以降は後段の制御へ移ります。180度では反転姿勢の直前まで主トルクが作用し得ます。");
 			description(
 				"Return Decision Angle", IsPending(ctx.tankSettings->rollReturnDecisionDegrees, ctx.appliedTankSettings->rollReturnDecisionDegrees),
 				"Return Decision Angle: reverse paired levers are accepted at this angle or later and select ReturnToStart. Default: 75 deg.",
@@ -474,30 +488,67 @@ namespace Ui
 				"Approach Damping：開始角から90度まで、ロール角速度へ逆らう減衰です。高くすると行き過ぎを抑えます。");
 			description(
 				"Commit Torque", IsPending(ctx.tankSettings->rollCommitTorqueNm, ctx.appliedTankSettings->rollCommitTorqueNm),
-				"Commit Torque: short extra torque after the 90-degree decision. It makes the selected forward fall or return decisive.",
-				"Commit Torque：90度で判断した直後に短時間だけ加えるトルクです。前方への倒れ込み、または復帰を明確にします。");
+				"Commit Torque: a short positive torque in the selected rolling direction after the 90-degree decision. It drives either ContinueForward or ReturnToStart, whichever was selected.",
+				"Commit Torque：90度付近の判断後、選択されたRolling方向に対して正方向へ短時間加えるトルクです。ContinueForwardなら前方への回転、ReturnToStartなら開始姿勢への復帰方向へ作用します。");
 		}
 		if (ImGui::CollapsingHeader(japanese ? "横移動と着地" : "Travel and landing", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			description(
+				description(
 				"Roll Travel", IsPending(ctx.tankSettings->rollTravelVehicleWidths, ctx.appliedTankSettings->rollTravelVehicleWidths),
-				"Match Physical Vehicle Width and Roll Travel: target travel is the physical hull/track width multiplied by this value (1.0 to 2.0).",
-				"Match Physical Vehicle Width と Roll Travel：車体・履帯から求めた物理幅に倍率（1.0〜2.0）を掛け、横移動の目標距離にします。");
+				"When Match Physical Vehicle Width is enabled, target horizontal travel equals the displayed physical vehicle width multiplied by this value (effective range 1.0 to 10.0 vehicle widths).",
+				"Match Physical Vehicle WidthがONのとき、表示された物理車幅にこの倍率を掛けた距離を横移動の目標にします。有効範囲は車幅の1.0〜10.0倍です。");
 			description(
 				"Manual Roll Distance", IsPending(ctx.tankSettings->rollDistanceM, ctx.appliedTankSettings->rollDistanceM),
 				"Manual Roll Distance: used only when matching the physical vehicle width is disabled.",
 				"Manual Roll Distance：物理車幅への追従をOFFにした場合だけ使う、横移動の直接指定距離です。");
 			description(
+				"Match Physical Vehicle Width", ctx.tankSettings->rollDistanceMatchesVehicleWidth != ctx.appliedTankSettings->rollDistanceMatchesVehicleWidth,
+				"Selects how the roll travel target is calculated. On uses physical vehicle width x Roll Travel; off uses Manual Roll Distance. The inactive distance control is ignored.",
+				"Rollingの移動目標距離の決め方を選びます。ONでは物理車幅×Roll Travel、OFFではManual Roll Distanceを使います。選ばれていない側の距離設定は使いません。");
+			description(
 				"Post-90 Air Brake Torque", IsPending(ctx.tankSettings->rollAirBrakeTorqueNm, ctx.appliedTankSettings->rollAirBrakeTorqueNm),
-				"Post-90 Air Brake Torque and Air Brake Release Angle: brake rotational speed during the fall, then release near landing. Higher brake torque reduces airborne spin.",
-				"Post-90 Air Brake Torque と Air Brake Release Angle：倒れ込み中の回転を制動し、着地前に解除します。制動トルクを高くすると空中での回り過ぎを抑えます。");
+				"Braking torque (Nm) during the normal forward roll's BallisticRoll phase, after the commit torque. Opposes roll rotation while commanded-direction angular speed exceeds 0.5 rad/s (about 29 deg/s), until the release angle is reached. Higher values slow the fall more; 0 disables this brake. Not used for ReturnToStart. Roll Speed Multiplier also scales the effective torque.",
+				"通常の倒れ込みで、Commit Torque 後の BallisticRoll 中に加える回転制動トルク（Nm）です。指示方向の角速度が0.5 rad/s（約29度/秒）を超え、解除角に達する前に回転と逆向きに作用します。大きいほど倒れ込みの回転を強く抑え、0でこの制動を無効にします。ReturnToStart には使いません。実効トルクは Roll Speed Multiplier でも変化します。");
+			description(
+				"Air Brake Release Angle", IsPending(ctx.tankSettings->rollAirBrakeReleaseDegrees, ctx.appliedTankSettings->rollAirBrakeReleaseDegrees),
+				"Remaining angle to the 180-degree inverted target at which the air brake releases, not the angle from the starting pose. For 30 deg, braking ends at 150 deg from the start. Larger values release earlier and leave more rotation unbraked; smaller values brake closer to the final pose. Effective range: 0 to 89 deg. This is an attitude threshold, not a ground-contact check.",
+				"180度反転した目標姿勢までの残り角度で、Air Brake を解除する位置を指定します。開始姿勢からの回転角ではありません。30度なら開始から150度で解除します。大きいほど早く解除して残りの回転を制動せず、小さいほど最終姿勢近くまで制動します。実効範囲は0〜89度です。接地検出ではなく姿勢角による判定です。");
+		}
+		if (ImGui::CollapsingHeader(japanese ? "速度倍率の内部係数" : "Speed multiplier internal coefficients"))
+		{
+			ImGui::TextWrapped("%s", japanese
+				? "各係数はRoll Speed Multiplierが2.0のときの倍率です。1.0では全係数が実効1.0となり基準動作を保ちます。0.5では各係数の平方根の逆数が適用されます。つまり、基準速度から離れたときに各物理要素をどれだけ強く変化させるかを調整します。"
+				: "Each coefficient is the scale at Roll Speed Multiplier 2.0. At 1.0 all resolve to an effective scale of 1.0 and preserve reference motion. At 0.5 the inverse square root of each coefficient is applied. They control how strongly each physics element changes away from the reference speed.");
+			struct CoefficientHelp
+			{
+				const char* label;
+				const char* english;
+				const char* japanese;
+			};
+			static constexpr CoefficientHelp help[] = {
+				{ "Drive torque", "Scales the primary roll torque.", "主Roll Torqueを倍率調整します。" },
+				{ "Approach damping", "Scales damping before the 90-degree decision.", "90度判断前のApproach Dampingを倍率調整します。" },
+				{ "Commit torque", "Scales the short torque pulse after the roll decision.", "判断後に加える短時間のCommit Torqueを倍率調整します。" },
+				{ "Air brake torque", "Scales Post-90 Air Brake Torque during the forward fall.", "前方への倒れ込み中のPost-90 Air Brake Torqueを倍率調整します。" },
+				{ "Stabilization torque", "Scales hull attitude correction during the rolling phases, including settling.", "着地後のSettlingを含むRolling各段階で、車体姿勢を補正するトルクを倍率調整します。" },
+				{ "Stabilization damping", "Scales damping that opposes roll angular velocity during the rolling phases, including settling.", "着地後のSettlingを含むRolling各段階で、ロール角速度を抑える減衰を倍率調整します。" },
+				{ "Travel force (P/I)", "Scales the force driving the tank toward its lateral travel target.", "横移動目標へ車体を動かす力を倍率調整します。" },
+				{ "Travel damping", "Scales resistance to lateral velocity while approaching the travel target.", "横移動目標へ近づく間の横速度への減衰を倍率調整します。" },
+				{ "Travel force limit", "Scales the maximum allowed lateral travel force.", "横移動に使える力の上限を倍率調整します。" },
+				{ "Gravity", "Scales gravity while the rolling motion is active.", "Rolling動作中の重力を倍率調整します。" },
+				{ "Suspension frequency", "Scales suspension spring frequency while rolling.", "Rolling中のサスペンションばねの固有振動数を倍率調整します。" },
+				{ "Commit duration", "Scales how long the post-decision torque pulse lasts.", "判断後のCommit Torqueを加える時間を倍率調整します。" },
+			};
+			for (const CoefficientHelp& item : help)
+			{
+				ImGui::TextUnformatted(item.label);
+				ImGui::Indent();
+				ImGui::TextWrapped("%s", japanese ? item.japanese : item.english);
+				ImGui::Unindent();
+			}
 		}
 		if (ImGui::CollapsingHeader(japanese ? "最終姿勢の安定" : "Final attitude stabilization", ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			description(
-				"Torque Cutoff Angle", IsPending(ctx.tankSettings->rollTorqueCutoffDegrees, ctx.appliedTankSettings->rollTorqueCutoffDegrees),
-				"Torque Cutoff Angle: ends the primary Roll Torque. Normal forward rolling proceeds into the post-90 fall from this point.",
-				"Torque Cutoff Angle：主 Roll Torque を終了する角度です。通常の前方ロールは、この後に90度以降の倒れ込みへ移ります。");
 			description(
 				"Stabilization Torque / Damping",
 				IsPending(ctx.tankSettings->rollStabilizationTorqueNm, ctx.appliedTankSettings->rollStabilizationTorqueNm) ||
@@ -505,6 +556,7 @@ namespace Ui
 				"Stabilization Torque and Damping: keep the completed result upright or inverted and remove residual roll speed. These do not add travel distance after landing.",
 				"Stabilization Torque と Damping：完了姿勢（表または裏）を保ち、残った回転を止めます。着地後に横移動距離を後追い補正するものではありません。");
 		}
+		ImGui::SetWindowFontScale(1.0f);
 		ImGui::End();
 	}
 
@@ -670,16 +722,6 @@ namespace Ui
 		ImGui::TextDisabled("X axis: x1-equivalent seconds = actual seconds x multiplier");
 	}
 
-	struct RollingTravelTelemetry
-	{
-		Tank::Physics::Vec3 startPosition = {};
-		Tank::Physics::RollingPhase previousPhase = Tank::Physics::RollingPhase::None;
-		int previousStepIndex = 0;
-		float targetMeters = 0.0f;
-		float actualMeters = 0.0f;
-		std::vector<float> actualHistory;
-	};
-
 	DriveSpeedHistory& GetDriveSpeedTelemetry()
 	{
 		static DriveSpeedHistory telemetry;
@@ -704,15 +746,353 @@ namespace Ui
 	}
 
 	void UpdateDriveSpeedTelemetry(
+		const TrackedVehiclePanelContext& ctx,
 		const Tank::Physics::TrackedVehicleTestState& state,
 		const Tank::Physics::TrackedDriverInput& driverInput)
 	{
-		GetDriveSpeedTelemetry().Update(
+		int wheelContactCount = 0;
+		for (int i = 0; i < state.wheelCount; ++i)
+		{
+			wheelContactCount += state.wheels[static_cast<size_t>(i)].hasContact ? 1 : 0;
+		}
+		DriveTelemetryInput telemetry = {};
+		telemetry.sample = {
 			state.stepIndex,
 			state.timeSeconds,
 			state.speedMetersPerSecond,
 			ClassifyDriveSpeedState(driverInput.forward, driverInput.brake),
-			state.mobility.state == Tank::Physics::MobilityState::Stopped);
+			ctx.analogLeftTrack,
+			ctx.analogRightTrack,
+			driverInput.forward,
+			driverInput.leftRatio,
+			driverInput.rightRatio,
+			driverInput.brake,
+			state.engineRpm,
+			state.clutchFriction,
+			state.leftTrackAngularVelocityRadians,
+			state.rightTrackAngularVelocityRadians,
+			state.leftTrackDriveTorqueNm,
+			state.rightTrackDriveTorqueNm,
+			state.yawSpeedDegrees,
+			state.transmissionGear,
+			wheelContactCount,
+			state.transmissionSwitchingGear,
+			state.mobility.state == Tank::Physics::MobilityState::Stopped };
+		telemetry.stopped = state.mobility.state == Tank::Physics::MobilityState::Stopped;
+		const auto& roll = state.rollingTelemetry;
+		auto& sample = telemetry.sample;
+		sample.rollLeftLever = roll.leftLeverX;
+		sample.rollRightLever = roll.rightLeverX;
+		sample.rollInputArmed = roll.inputArmed;
+		sample.rollPendingSign = roll.pendingSign;
+		sample.rollPhase = static_cast<int>(state.rollingPhase);
+		sample.rollStopGate = static_cast<int>(roll.stopGateFailure);
+		sample.rollRejectReason = static_cast<int>(state.specialMove.lastRejectReason);
+		sample.stopProgress = state.mobility.stopCandidateProgress;
+		sample.angularSpeed = state.motionObservation.angularSpeedRadiansPerSecond;
+		sample.rollAngleDegrees = roll.angleFromStartDegrees;
+		sample.rollAccumulatedAngleDegrees = roll.signedAccumulatedAngleDegrees;
+		sample.rollSpeedDegrees = roll.angularSpeedDegrees;
+		sample.rollTravelMeters = roll.actualTravelMeters;
+		sample.rollTargetMeters = roll.targetTravelMeters;
+		for (const auto& track : state.motionObservation.tracks)
+		{
+			sample.maximumSlip = (std::max)(sample.maximumSlip,
+				track.maximumAbsoluteLongitudinalSlipMetersPerSecond);
+		sample.maximumSuspensionSpeed = (std::max)(sample.maximumSuspensionSpeed,
+				track.maximumAbsoluteSuspensionVelocityMetersPerSecond);
+		}
+		sample.rollPrimaryTorqueNm = roll.primaryTorqueNm;
+		sample.rollApproachDampingTorqueNm = roll.approachDampingTorqueNm;
+		sample.rollCommitTorqueNm = roll.commitTorqueNm;
+		sample.rollAirBrakeTorqueNm = roll.airBrakeTorqueNm;
+		sample.rollStabilizationTorqueNm = roll.stabilizationTorqueNm;
+		sample.rollControllerTorqueSumNm = roll.controllerTorqueSumNm;
+		sample.rollRunId = roll.runId;
+		GetDriveSpeedTelemetry().Update(telemetry);
+	}
+
+	void DrawTelemetryGraphValues(
+		const char* label,
+		float minimum,
+		float maximum,
+		const std::vector<float>& values,
+		const std::vector<DriveSpeedSample>& samples,
+		size_t firstSample)
+	{
+		if (values.empty())
+		{
+			ImGui::TextDisabled("Waiting for telemetry samples.");
+			return;
+		}
+		const DriveSpeedGraphSettings& settings = GetDriveSpeedGraphSettings();
+		const float endTime = samples.back().timeSeconds;
+		const float startTime = endTime - settings.historyDurationSeconds;
+		const ImVec2 size((std::max)(ImGui::GetContentRegionAvail().x, 1.0f), 72.0f);
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		ImGui::PushID(label);
+		ImGui::InvisibleButton("##TelemetryGraph", size);
+		ImGui::PopID();
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		drawList->AddRectFilled(origin, { origin.x + size.x, origin.y + size.y },
+			IM_COL32(20, 23, 28, 255));
+		for (int grid = 0; grid <= 4; ++grid)
+		{
+			const float x = origin.x + size.x * grid / 4.0f;
+			const float y = origin.y + size.y * grid / 4.0f;
+			drawList->AddLine({ x, origin.y }, { x, origin.y + size.y }, IM_COL32(70, 75, 82, 120));
+			drawList->AddLine({ origin.x, y }, { origin.x + size.x, y }, IM_COL32(70, 75, 82, 120));
+		}
+		const auto pointFor = [&](size_t index)
+		{
+			return ImVec2(
+				origin.x + size.x * std::clamp(
+					(samples[firstSample + index].timeSeconds - startTime) /
+						settings.historyDurationSeconds, 0.0f, 1.0f),
+				origin.y + size.y * (1.0f - std::clamp(
+					(values[index] - minimum) / (std::max)(maximum - minimum, 0.0001f), 0.0f, 1.0f)));
+		};
+		for (size_t index = 1; index < values.size(); ++index)
+		{
+			drawList->AddLine(pointFor(index - 1), pointFor(index), IM_COL32(90, 190, 255, 255), 1.5f);
+		}
+		char scaleLabel[48] = {};
+		std::snprintf(scaleLabel, sizeof(scaleLabel), "%s  %.0f..%.0f", label, minimum, maximum);
+		drawList->AddText({ origin.x + 4.0f, origin.y + 3.0f }, IM_COL32(215, 220, 230, 255), scaleLabel);
+		char durationLabel[16] = {};
+		std::snprintf(durationLabel, sizeof(durationLabel), "%.0f s", settings.historyDurationSeconds);
+		drawList->AddText({ origin.x + size.x - ImGui::CalcTextSize(durationLabel).x - 4.0f,
+			origin.y + size.y - ImGui::GetTextLineHeight() - 3.0f },
+			IM_COL32(195, 200, 210, 255), durationLabel);
+		if (ImGui::IsItemHovered())
+		{
+			const float time = startTime + settings.historyDurationSeconds *
+				std::clamp((ImGui::GetIO().MousePos.x - origin.x) / size.x, 0.0f, 1.0f);
+			size_t nearest = 0;
+			for (size_t i = 1; i < values.size(); ++i)
+				if (std::abs(samples[firstSample + i].timeSeconds - time) <
+					std::abs(samples[firstSample + nearest].timeSeconds - time)) nearest = i;
+			ImGui::SetTooltip("%s: %.3f\nTime: %.3f s", label, values[nearest],
+				samples[firstSample + nearest].timeSeconds);
+		}
+	}
+
+	template <typename Value>
+	void DrawTelemetryGraph(
+		const char* label,
+		float minimum,
+		float maximum,
+		Value DriveSpeedSample::* value)
+	{
+		const std::vector<DriveSpeedSample>& samples = GetDriveSpeedTelemetry().Samples();
+		if (samples.empty()) return;
+		const float startTime = samples.back().timeSeconds -
+			GetDriveSpeedGraphSettings().historyDurationSeconds;
+		size_t firstSample = 0;
+		while (firstSample + 1 < samples.size() && samples[firstSample].timeSeconds < startTime)
+			++firstSample;
+		std::vector<float> values;
+		values.reserve(samples.size() - firstSample);
+		for (size_t index = firstSample; index < samples.size(); ++index)
+			values.push_back(static_cast<float>(samples[index].*value));
+		DrawTelemetryGraphValues(label, minimum, maximum, values, samples, firstSample);
+	}
+
+	struct RollingTorqueGraphSettings
+	{
+		float angleStartDegrees = 0.0f;
+		float angleEndDegrees = 180.0f;
+		float torqueScaleNm = 250000.0f;
+		std::array<bool, 6> visible = { true, true, true, true, true, true };
+	};
+
+	RollingTorqueGraphSettings& GetRollingTorqueGraphSettings()
+	{
+		static RollingTorqueGraphSettings settings;
+		return settings;
+	}
+
+	void DrawRollingTorqueOverlay(bool angleAxis)
+	{
+		RollingTorqueGraphSettings& graphSettings =
+			GetRollingTorqueGraphSettings();
+		static constexpr std::array<float DriveSpeedSample::*, 6> channels = {
+			&DriveSpeedSample::rollPrimaryTorqueNm,
+			&DriveSpeedSample::rollApproachDampingTorqueNm,
+			&DriveSpeedSample::rollCommitTorqueNm,
+			&DriveSpeedSample::rollAirBrakeTorqueNm,
+			&DriveSpeedSample::rollStabilizationTorqueNm,
+			&DriveSpeedSample::rollControllerTorqueSumNm };
+		static constexpr std::array<const char*, 6> labels = {
+			"Roll", "Approach", "Commit", "Air brake", "Stabilization", "Controller sum" };
+		static constexpr std::array<ImU32, 6> colors = {
+			IM_COL32(80, 180, 255, 255),
+			IM_COL32(255, 170, 60, 255),
+			IM_COL32(80, 220, 125, 255),
+			IM_COL32(205, 110, 255, 255),
+			IM_COL32(50, 220, 220, 255),
+			IM_COL32(255, 245, 130, 255) };
+		for (size_t i = 0; i < labels.size(); ++i)
+		{
+			if (i % 3 != 0) ImGui::SameLine();
+			ImGui::PushStyleColor(ImGuiCol_Text,
+				ImGui::ColorConvertU32ToFloat4(colors[i]));
+			ImGui::Checkbox(labels[i], &graphSettings.visible[i]);
+			ImGui::PopStyleColor();
+		}
+		const std::vector<DriveSpeedSample>& samples = GetDriveSpeedTelemetry().Samples();
+		if (samples.empty())
+		{
+			ImGui::TextDisabled("Waiting for torque samples.");
+			return;
+		}
+
+		const DriveSpeedGraphSettings& settings = GetDriveSpeedGraphSettings();
+		size_t firstSample = 0;
+		size_t endSample = samples.size();
+		float axisMinimum = 0.0f;
+		float axisMaximum = 0.0f;
+		if (angleAxis)
+		{
+			while (endSample > 0 && samples[endSample - 1].rollPhase == 0)
+			{
+				--endSample;
+			}
+			if (endSample == 0)
+			{
+				ImGui::TextDisabled("No rolling run in the current history.");
+				return;
+			}
+			const std::uint64_t latestRunId = samples[endSample - 1].rollRunId;
+			while (firstSample < endSample &&
+				(samples[firstSample].rollRunId != latestRunId ||
+					samples[firstSample].rollPhase == 0))
+			{
+				++firstSample;
+			}
+			axisMinimum = graphSettings.angleStartDegrees;
+			axisMaximum = graphSettings.angleEndDegrees;
+		}
+		else
+		{
+			const float startTime = samples.back().timeSeconds -
+				settings.historyDurationSeconds;
+			while (firstSample + 1 < endSample &&
+				samples[firstSample].timeSeconds < startTime)
+			{
+				++firstSample;
+			}
+			axisMinimum = startTime;
+			axisMaximum = samples.back().timeSeconds;
+		}
+		const float torqueLimit = graphSettings.torqueScaleNm;
+
+		const ImVec2 size((std::max)(ImGui::GetContentRegionAvail().x, 1.0f), 144.0f);
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		ImGui::InvisibleButton("##RollingTorqueOverlay", size);
+		ImDrawList* drawList = ImGui::GetWindowDrawList();
+		drawList->AddRectFilled(origin, { origin.x + size.x, origin.y + size.y },
+			IM_COL32(20, 23, 28, 255));
+		for (int grid = 0; grid <= 4; ++grid)
+		{
+			const float x = origin.x + size.x * grid / 4.0f;
+			const float y = origin.y + size.y * grid / 4.0f;
+			drawList->AddLine({ x, origin.y }, { x, origin.y + size.y },
+				IM_COL32(70, 75, 82, 120));
+			drawList->AddLine({ origin.x, y }, { origin.x + size.x, y },
+				grid == 2 ? IM_COL32(150, 155, 165, 200) : IM_COL32(70, 75, 82, 120));
+		}
+		const auto pointFor = [&](size_t sampleIndex, float value)
+		{
+			return ImVec2(
+				origin.x + size.x * std::clamp(
+				((angleAxis ? samples[sampleIndex].rollAccumulatedAngleDegrees :
+					samples[sampleIndex].timeSeconds) - axisMinimum) /
+						(std::max)(axisMaximum - axisMinimum, 0.0001f),
+					0.0f, 1.0f),
+				origin.y + size.y * std::clamp(
+					0.5f - 0.5f * value / torqueLimit, 0.0f, 1.0f));
+		};
+		for (size_t channelIndex = 0; channelIndex < channels.size(); ++channelIndex)
+		{
+			if (!graphSettings.visible[channelIndex]) continue;
+			const auto channel = channels[channelIndex];
+			for (size_t i = firstSample + 1; i < endSample; ++i)
+			{
+				if (angleAxis)
+				{
+					const float previousAngle = samples[i - 1].rollAccumulatedAngleDegrees;
+					const float currentAngle = samples[i].rollAccumulatedAngleDegrees;
+					if ((previousAngle < axisMinimum && currentAngle < axisMinimum) ||
+						(previousAngle > axisMaximum && currentAngle > axisMaximum))
+					{
+						continue;
+					}
+				}
+				drawList->AddLine(
+					pointFor(i - 1, samples[i - 1].*channel),
+					pointFor(i, samples[i].*channel),
+					colors[channelIndex],
+					channelIndex == 5 ? 2.5f : 1.7f);
+			}
+		}
+		char scaleLabel[64] = {};
+		std::snprintf(scaleLabel, sizeof(scaleLabel),
+			"Roll torque (Nm)  +/-%.0f", torqueLimit);
+		drawList->AddText({ origin.x + 4.0f, origin.y + 3.0f },
+			IM_COL32(215, 220, 230, 255), scaleLabel);
+		char axisLabel[64] = {};
+		std::snprintf(axisLabel, sizeof(axisLabel), "%s  %.0f..%.0f",
+			angleAxis ? "Angle from start (deg)" : "Time (s)",
+			axisMinimum, axisMaximum);
+		drawList->AddText({ origin.x + 4.0f,
+				origin.y + size.y - ImGui::GetTextLineHeight() - 3.0f },
+			IM_COL32(195, 200, 210, 255), axisLabel);
+		char durationLabel[16] = {};
+		if (!angleAxis)
+		{
+			std::snprintf(durationLabel, sizeof(durationLabel), "%.0f s",
+				settings.historyDurationSeconds);
+			drawList->AddText(
+				{ origin.x + size.x - ImGui::CalcTextSize(durationLabel).x - 4.0f,
+					origin.y + size.y - ImGui::GetTextLineHeight() - 3.0f },
+				IM_COL32(195, 200, 210, 255), durationLabel);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			const float axisValue = axisMinimum + (axisMaximum - axisMinimum) *
+				std::clamp((ImGui::GetIO().MousePos.x - origin.x) / size.x, 0.0f, 1.0f);
+			size_t nearest = firstSample;
+			for (size_t i = firstSample + 1; i < endSample; ++i)
+			{
+				const float sampleAxis = angleAxis
+					? samples[i].rollAccumulatedAngleDegrees : samples[i].timeSeconds;
+				const float nearestAxis = angleAxis
+					? samples[nearest].rollAccumulatedAngleDegrees : samples[nearest].timeSeconds;
+				if (std::abs(sampleAxis - axisValue) <
+					std::abs(nearestAxis - axisValue))
+				{
+					nearest = i;
+				}
+			}
+			const DriveSpeedSample& sample = samples[nearest];
+			ImGui::BeginTooltip();
+			ImGui::Text("%s %.3f  Time %.3f s  Phase %d",
+				angleAxis ? "Angle" : "Time",
+				angleAxis ? sample.rollAccumulatedAngleDegrees : sample.timeSeconds,
+				sample.timeSeconds, sample.rollPhase);
+			for (size_t i = 0; i < channels.size(); ++i)
+			{
+				if (graphSettings.visible[i])
+				{
+					ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(colors[i]),
+						"%s %+.0f Nm", labels[i], sample.*channels[i]);
+				}
+			}
+			ImGui::EndTooltip();
+		}
+		ImGui::Spacing();
+		ImGui::TextWrapped("Signed components about the tank's local forward roll axis. Controller sum includes these explicit controller torques; ground-contact and gravity moments are not included.");
 	}
 
 	void DrawDriveSpeedGraph()
@@ -800,42 +1180,6 @@ namespace Ui
 		const TrackedVehiclePanelContext& ctx,
 		const Tank::Physics::TrackedVehicleTestState& state)
 	{
-		static RollingTravelTelemetry telemetry;
-		if (state.stepIndex < telemetry.previousStepIndex)
-		{
-			telemetry = {};
-		}
-		const bool rolling = state.rollingPhase != Tank::Physics::RollingPhase::None;
-		if (rolling && telemetry.previousPhase == Tank::Physics::RollingPhase::None)
-		{
-			telemetry.startPosition = state.bodyPosition;
-			telemetry.actualMeters = 0.0f;
-			telemetry.actualHistory.clear();
-			if (ctx.appliedTankSettings != nullptr)
-			{
-				const Tank::Physics::TankSettings& settings = *ctx.appliedTankSettings;
-				const float vehicleWidth = (std::max)(settings.chassisWidthM,
-					settings.trackSpacingM + settings.trackWidthM);
-				telemetry.targetMeters = settings.rollDistanceMatchesVehicleWidth
-					? vehicleWidth * settings.rollTravelVehicleWidths
-					: settings.rollDistanceM;
-			}
-		}
-		if (rolling || !telemetry.actualHistory.empty())
-		{
-			const float deltaX = state.bodyPosition.x - telemetry.startPosition.x;
-			const float deltaZ = state.bodyPosition.z - telemetry.startPosition.z;
-			telemetry.actualMeters = std::sqrt(deltaX * deltaX + deltaZ * deltaZ);
-			if (rolling)
-			{
-				telemetry.actualHistory.push_back(telemetry.actualMeters);
-				if (telemetry.actualHistory.size() > 600)
-					telemetry.actualHistory.erase(telemetry.actualHistory.begin());
-			}
-		}
-		telemetry.previousPhase = state.rollingPhase;
-		telemetry.previousStepIndex = state.stepIndex;
-
         if (ImGui::CollapsingHeader("Frame Timing"))
         {
             ImGui::Text("Total CPU: %.2f ms  peak %.2f ms",
@@ -858,15 +1202,126 @@ namespace Ui
         }
 
 		const Tank::Physics::TrackedDriverInput& driverInput = *ctx.driverInput;
-		UpdateDriveSpeedTelemetry(state, driverInput);
-		if (ImGui::CollapsingHeader("Drive Telemetry"))
+		UpdateDriveSpeedTelemetry(ctx, state, driverInput);
+		if (ctx.telemetryWindowVisible != nullptr && *ctx.telemetryWindowVisible)
         {
+			ImGui::SetNextWindowSize(ImVec2(560.0f, 620.0f), ImGuiCond_FirstUseEver);
+			if (!ImGui::Begin("Vehicle Telemetry", ctx.telemetryWindowVisible))
+			{
+				ImGui::End();
+			}
+			else
+			{
+            if (ImGui::CollapsingHeader("Rolling"))
+            {
+                const auto& roll = state.rollingTelemetry;
+                ImGui::Text("Phase: %s  Input: %s", RollingPhaseName(state.rollingPhase),
+                    roll.inputArmed ? "armed" : "release both levers to rearm");
+                ImGui::Text("Pending: %+.0f  Braking: %s  Wait: %.2f s",
+                    roll.pendingSign, roll.brakingToStart ? "yes" : "no", roll.waitingSeconds);
+                ImGui::Text("Stop gate: %s  Confirmation: %.0f%%",
+                    MobilityReasonName(roll.stopGateFailure), state.mobility.stopCandidateProgress * 100.0f);
+                ImGui::SliderFloat("Time Window##Rolling", &GetDriveSpeedGraphSettings().historyDurationSeconds,
+                    5.0f, 60.0f, "%.0f s");
+                if (ImGui::BeginTabBar("RollingDiagnostics"))
+                {
+                    if (ImGui::BeginTabItem("Input / Start"))
+                    {
+                        ImGui::TextWrapped("Pair threshold: +/-0.70. Release both to +/-0.20 to rearm.");
+                        DrawTelemetryGraph("Left lever X", -1.0f, 1.0f, &DriveSpeedSample::rollLeftLever);
+                        DrawTelemetryGraph("Right lever X", -1.0f, 1.0f, &DriveSpeedSample::rollRightLever);
+                        DrawTelemetryGraph("Input armed", 0.0f, 1.0f, &DriveSpeedSample::rollInputArmed);
+                        DrawTelemetryGraph("Pending roll sign", -1.0f, 1.0f, &DriveSpeedSample::rollPendingSign);
+                        DrawTelemetryGraph("Brake", 0.0f, 1.0f, &DriveSpeedSample::brakeInput);
+                        DrawTelemetryGraph("Phase", 0.0f, 6.0f, &DriveSpeedSample::rollPhase);
+                        DrawTelemetryGraph("Request rejection", 0.0f, 4.0f, &DriveSpeedSample::rollRejectReason);
+                        ImGui::TextWrapped("Reject: 0=None, 1=Not stopped, 2=Already active, 3=Invalid, 4=Blocked");
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem("Stop gate"))
+                    {
+                        const auto& settings = ctx.appliedTankSettings != nullptr
+                            ? *ctx.appliedTankSettings : *ctx.tankSettings;
+                        ImGui::TextWrapped("Start limits: speed < %.2f m/s, angular < %.2f rad/s, slip < %.2f m/s, suspension < %.2f m/s; confirm %.2f s.",
+                            settings.stoppedEnterLinearSpeedMetersPerSecond,
+                            settings.stoppedEnterAngularSpeedRadiansPerSecond,
+                            settings.stoppedEnterTrackSlipMetersPerSecond,
+                            settings.stoppedEnterSuspensionSpeedMetersPerSecond, settings.stoppedConfirmSeconds);
+                        DrawTelemetryGraph("Speed m/s", 0.0f, 10.0f, &DriveSpeedSample::speedMetersPerSecond);
+                        DrawTelemetryGraph("Angular speed rad/s", 0.0f, 2.0f, &DriveSpeedSample::angularSpeed);
+                        DrawTelemetryGraph("Max slip m/s", 0.0f, 2.0f, &DriveSpeedSample::maximumSlip);
+                        DrawTelemetryGraph("Max suspension m/s", 0.0f, 1.0f, &DriveSpeedSample::maximumSuspensionSpeed);
+                        DrawTelemetryGraph("Stop confirmation", 0.0f, 1.0f, &DriveSpeedSample::stopProgress);
+                        DrawTelemetryGraph("Stop gate reason", 0.0f, 10.0f, &DriveSpeedSample::rollStopGate);
+                        ImGui::TextWrapped("0=None, 3=Drive, 4=Speed, 5=Angular, 6=Slip, 7=Suspension, 8=Contact, 9=Pose, 10=Invalid");
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem("Motion / Travel"))
+                    {
+                        ImGui::Text("Rolling Travel: %.2f / %.2f m", roll.actualTravelMeters, roll.targetTravelMeters);
+                        ImGui::TextWrapped("Travel is horizontal displacement from roll start, not path length. Angle is unsigned from start up-vector.");
+                        float maximumTravel = 1.0f;
+                        for (const auto& sample : GetDriveSpeedTelemetry().Samples())
+                            maximumTravel = (std::max)(maximumTravel,
+                                (std::max)(sample.rollTravelMeters, sample.rollTargetMeters) * 1.1f);
+                        DrawTelemetryGraph("Actual travel m", 0.0f, maximumTravel, &DriveSpeedSample::rollTravelMeters);
+                        DrawTelemetryGraph("Target travel m", 0.0f, maximumTravel, &DriveSpeedSample::rollTargetMeters);
+                        DrawTelemetryGraph("Roll angle deg", 0.0f, 180.0f, &DriveSpeedSample::rollAngleDegrees);
+                        DrawTelemetryGraph("Roll speed deg/s", -720.0f, 720.0f, &DriveSpeedSample::rollSpeedDegrees);
+                        DrawTelemetryGraph("Phase", 0.0f, 6.0f, &DriveSpeedSample::rollPhase);
+                        ImGui::TextWrapped("0=None, 1=Windup, 2=Powered, 3=Evaluating, 4=Commit, 5=Ballistic, 6=Settling");
+                        ImGui::EndTabItem();
+                    }
+                    if (ImGui::BeginTabItem("Torque"))
+                    {
+                        static bool torqueAngleAxis = false;
+                        auto& graphSettings = GetRollingTorqueGraphSettings();
+                        if (ImGui::RadioButton("Time", !torqueAngleAxis))
+                            torqueAngleAxis = false;
+                        ImGui::SameLine();
+                        if (ImGui::RadioButton("Roll angle", torqueAngleAxis))
+                            torqueAngleAxis = true;
+                        ImGui::SetNextItemWidth(190.0f);
+                        ImGui::SliderFloat("Torque Range (+/- Nm)",
+                            &graphSettings.torqueScaleNm, 1000.0f, 1000000.0f,
+                            "%.0f Nm", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_AlwaysClamp);
+                        if (torqueAngleAxis)
+                        {
+                            graphSettings.angleStartDegrees = std::clamp(
+                                graphSettings.angleStartDegrees, 0.0f, 359.0f);
+                            graphSettings.angleEndDegrees = std::clamp(
+                                graphSettings.angleEndDegrees,
+                                graphSettings.angleStartDegrees + 1.0f, 360.0f);
+                            ImGui::SetNextItemWidth(190.0f);
+                            ImGui::SliderFloat("Start (deg)##TorqueAngleStart",
+                                &graphSettings.angleStartDegrees, 0.0f, 359.0f, "%.0f deg");
+                            ImGui::SetNextItemWidth(190.0f);
+                            ImGui::SliderFloat("End (deg)##TorqueAngleEnd",
+                                &graphSettings.angleEndDegrees,
+                                (std::min)(graphSettings.angleStartDegrees + 1.0f, 360.0f),
+                                360.0f, "%.0f deg");
+                            if (graphSettings.angleEndDegrees <=
+                                graphSettings.angleStartDegrees)
+                            {
+                                graphSettings.angleEndDegrees =
+                                    (std::min)(graphSettings.angleStartDegrees + 1.0f, 360.0f);
+                            }
+                        }
+                        ImGui::TextWrapped("All colored components and their signed sum share the fixed +/- Nm range above. Values outside it stop at the graph edge; hover for actual values. Angle view uses signed accumulated rotation and continues past 180 degrees; a return roll traces back toward 0. The sum includes explicit tank-controller roll-axis torques, not ground-contact or gravity moments.");
+                        DrawRollingTorqueOverlay(torqueAngleAxis);
+                        ImGui::EndTabItem();
+                    }
+                    ImGui::EndTabBar();
+                }
+            }
             const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
             int wheelContactCount = 0;
             for (int i = 0; i < state.wheelCount; ++i)
             {
                 wheelContactCount += state.wheels[static_cast<size_t>(i)].hasContact ? 1 : 0;
             }
+			if (ImGui::CollapsingHeader("Speed", ImGuiTreeNodeFlags_DefaultOpen))
+			{
             ImGui::Text("Step: %d  Time: %.2f s", state.stepIndex, state.timeSeconds);
             ImGui::Text("Position: %.2f, %.2f, %.2f",
                 state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
@@ -885,15 +1340,30 @@ namespace Ui
             {
                 ImGui::TextUnformatted("0-10 m/s: measuring");
             }
+				DrawDriveSpeedGraph();
+			}
+			if (ImGui::CollapsingHeader("Powertrain", ImGuiTreeNodeFlags_DefaultOpen))
+			{
             ImGui::Text("Engine: %.0f rpm", state.engineRpm); ImGui::SameLine();
             ImGui::Text("Gear: %d", state.transmissionGear); ImGui::SameLine();
-            ImGui::Text("Clutch: %.0f%%", state.clutchFriction * 100.0f);
-            if (ImGui::TreeNode("Speed Graph##DriveTelemetry"))
-			{
-				DrawDriveSpeedGraph();
-				ImGui::TreePop();
+				ImGui::Text("Clutch: %.0f%%  Switching: %s", state.clutchFriction * 100.0f,
+					state.transmissionSwitchingGear ? "yes" : "no");
+				ImGui::Text("Track torque estimate: L %+.0f  R %+.0f Nm",
+					state.leftTrackDriveTorqueNm, state.rightTrackDriveTorqueNm);
+				DrawTelemetryGraph("Engine RPM", 0.0f, 6000.0f,
+					&DriveSpeedSample::engineRpm);
+				DrawTelemetryGraph("Gear", -2.0f, 5.0f,
+					&DriveSpeedSample::gear);
+				DrawTelemetryGraph("Clutch", 0.0f, 1.0f,
+					&DriveSpeedSample::clutchFriction);
+				DrawTelemetryGraph("L drive torque est.", -40000.0f, 40000.0f,
+					&DriveSpeedSample::leftTrackDriveTorqueNm);
+				DrawTelemetryGraph("R drive torque est.", -40000.0f, 40000.0f,
+					&DriveSpeedSample::rightTrackDriveTorqueNm);
+				DrawTelemetryGraph("Shift active", 0.0f, 1.0f,
+					&DriveSpeedSample::switchingGear);
 			}
-			if (ImGui::TreeNode("Input##DriveTelemetry"))
+			if (ImGui::CollapsingHeader("Input"))
 			{
             ImGui::Text(
                 "Analog track axes 1 / 3: %s",
@@ -940,9 +1410,20 @@ namespace Ui
 			{
 				ImGui::TextUnformatted("Gamepad Brake: no input-device profile");
 			}
-				ImGui::TreePop();
+				DrawTelemetryGraph("Analog left track", -1.0f, 1.0f,
+					&DriveSpeedSample::analogLeftTrack);
+				DrawTelemetryGraph("Analog right track", -1.0f, 1.0f,
+					&DriveSpeedSample::analogRightTrack);
+				DrawTelemetryGraph("SetDriverInput forward", -1.0f, 1.0f,
+					&DriveSpeedSample::forwardInput);
+				DrawTelemetryGraph("SetDriverInput left ratio", -1.0f, 1.0f,
+					&DriveSpeedSample::leftRatio);
+				DrawTelemetryGraph("SetDriverInput right ratio", -1.0f, 1.0f,
+					&DriveSpeedSample::rightRatio);
+				DrawTelemetryGraph("SetDriverInput brake", 0.0f, 1.0f,
+					&DriveSpeedSample::brakeInput);
 			}
-			if (ImGui::TreeNode("Traction##DriveTelemetry"))
+			if (ImGui::CollapsingHeader("Tracks"))
 			{
                 ImGui::Text("Wheel contacts: %d / %d  Is Jolt sleeping: %s",
                     wheelContactCount, state.wheelCount, state.sleeping ? "yes" : "no");
@@ -1049,24 +1530,21 @@ namespace Ui
                     }
 				    ImGui::TreePop();
 			    }
-			    ImGui::TreePop();
-		    }
+				DrawTelemetryGraph("Left track angular velocity", -150.0f, 150.0f,
+					&DriveSpeedSample::leftTrackAngularVelocityRadians);
+				DrawTelemetryGraph("Right track angular velocity", -150.0f, 150.0f,
+					&DriveSpeedSample::rightTrackAngularVelocityRadians);
+				DrawTelemetryGraph("Yaw speed", -180.0f, 180.0f,
+					&DriveSpeedSample::yawSpeedDegrees);
+				DrawTelemetryGraph("Wheel contacts", 0.0f,
+					static_cast<float>(state.wheelCount), &DriveSpeedSample::wheelContactCount);
+				DrawTelemetryGraph("Stopped", 0.0f, 1.0f, &DriveSpeedSample::stopped);
+			}
+				ImGui::End();
+			}
 		}
 
 
-		if (!ImGui::CollapsingHeader("Rolling Travel", ImGuiTreeNodeFlags_DefaultOpen)) return;
-		ImGui::Text("Actual / target: %.2f / %.2f m  (%.0f%%)",
-			telemetry.actualMeters, telemetry.targetMeters,
-			telemetry.targetMeters > 0.001f
-				? telemetry.actualMeters / telemetry.targetMeters * 100.0f : 0.0f);
-		ImGui::TextDisabled("Actual is horizontal chassis displacement from the roll start.");
-		if (!telemetry.actualHistory.empty())
-		{
-			ImGui::PlotLines("Actual travel (m)", telemetry.actualHistory.data(),
-				static_cast<int>(telemetry.actualHistory.size()), 0, nullptr, 0.0f,
-				(std::max)(telemetry.targetMeters * 1.25f, telemetry.actualMeters * 1.1f),
-				ImVec2(-1.0f, 80.0f));
-		}
 	}
 
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
@@ -1098,6 +1576,15 @@ namespace Ui
 				ImGui::Checkbox("Camera##SubWindowOnOff", ctx.cameraWindowVisible);
 			}
 			ImGui::SameLine();
+			if (ctx.telemetryWindowVisible != nullptr)
+			{
+				ImGui::Checkbox("Vehicle Telemetry##SubWindowOnOff", ctx.telemetryWindowVisible);
+			}
+			if (ctx.rollingParametersWindowVisible != nullptr)
+			{
+				ImGui::Checkbox("Rolling Parameters##SubWindowOnOff", ctx.rollingParametersWindowVisible);
+			}
+			ImGui::SameLine();
 			if (ctx.renderSettingsWindowVisible != nullptr)
 			{
 				ImGui::Checkbox("Render Settings##SubWindowOnOff", ctx.renderSettingsWindowVisible);
@@ -1112,6 +1599,32 @@ namespace Ui
 			{
 				ImGui::Checkbox("Output##SubWindowOnOff", ctx.outputWindowVisible);
 			}
+		}
+		if (ImGui::CollapsingHeader("Simulation", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			if (ImGui::Button(
+				*ctx.trackedVehiclePaused ? "Resume [P]" : "Pause [P]"))
+			{
+				*ctx.trackedVehiclePaused = !*ctx.trackedVehiclePaused;
+			}
+			ImGui::SameLine();
+			ImGui::BeginDisabled(!*ctx.trackedVehiclePaused);
+			if (ImGui::Button("Step 1 Frame [F]"))
+			{
+				*ctx.trackedVehicleSingleStep = true;
+			}
+			ImGui::EndDisabled();
+			ImGui::SameLine();
+			if (ImGui::Button("Fire Assault [Space]"))
+			{
+				if (ctx.fireAssault) ctx.fireAssault();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Apply Recoil"))
+			{
+				if (ctx.fireRecoil) ctx.fireRecoil();
+			}
+			ImGui::TextDisabled("P: pause/resume   F: advance one frame while paused");
 		}
 
 		DrawStateSummary(ctx, state);
@@ -1316,29 +1829,6 @@ namespace Ui
 		if (ctx.tankSettingsStatus && !ctx.tankSettingsStatus->empty())
 		{
 			ImGui::TextWrapped("%s", ctx.tankSettingsStatus->c_str());
-		}
-		ImGui::SeparatorText("Simulation");
-		if (ImGui::Button(
-			*ctx.trackedVehiclePaused ? "Resume [Space]" : "Pause [Space]"))
-		{
-			*ctx.trackedVehiclePaused = !*ctx.trackedVehiclePaused;
-		}
-		ImGui::SameLine();
-		ImGui::BeginDisabled(!*ctx.trackedVehiclePaused);
-		if (ImGui::Button("Step Fwd [F]"))
-		{
-			*ctx.trackedVehicleSingleStep = true;
-		}
-		ImGui::EndDisabled();
-		ImGui::SameLine();
-		if (ImGui::Button("Fire Assault [Left Ctrl / RT]"))
-		{
-			if (ctx.fireAssault) ctx.fireAssault();
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Apply Recoil"))
-		{
-			if (ctx.fireRecoil) ctx.fireRecoil();
 		}
 		ImGui::TextDisabled("Press ESC to return to the top menu.");
 
@@ -1554,8 +2044,12 @@ namespace Ui
             ImGui::TextDisabled("Load && Apply / Reset applies pending mortar changes.");
         }
 
-        if (ImGui::CollapsingHeader("Rolling Parameters"))
-		{
+        if (ctx.rollingParametersWindowVisible != nullptr &&
+            *ctx.rollingParametersWindowVisible)
+        {
+            ImGui::SetNextWindowSize(ImVec2(620.0f, 760.0f), ImGuiCond_FirstUseEver);
+            if (ImGui::Begin("Rolling Parameters", ctx.rollingParametersWindowVisible))
+            {
 			if (ctx.rollingProfileSlot != nullptr)
 			{
 				ImGui::TextUnformatted("Rolling Profile Slot");
@@ -1746,6 +2240,17 @@ namespace Ui
 				"%.0f N m",
 				IsPending(ctx.tankSettings->rollTorqueNm, ctx.appliedTankSettings->rollTorqueNm));
 			SliderFloatWithPendingColor(
+				"Torque Cutoff Angle",
+				&ctx.tankSettings->rollTorqueCutoffDegrees,
+				45.0f,
+				180.0f,
+				5.0f,
+				90.0f,
+				"%.0f deg",
+				IsPending(
+					ctx.tankSettings->rollTorqueCutoffDegrees,
+					ctx.appliedTankSettings->rollTorqueCutoffDegrees));
+			SliderFloatWithPendingColor(
 				"Return Decision Angle",
 				&ctx.tankSettings->rollReturnDecisionDegrees,
 				45.0f,
@@ -1795,9 +2300,9 @@ namespace Ui
 			if (ctx.tankSettings->rollDistanceMatchesVehicleWidth)
 			{
 				SliderFloatWithPendingColor(
-					"Roll Travel",
+				"Roll Travel",
 					&ctx.tankSettings->rollTravelVehicleWidths,
-					0.5f,
+					1.0f,
 					10.0f,
 					0.05f,
 					1.0f,
@@ -1842,21 +2347,10 @@ namespace Ui
 				60.0f,
 				5.0f,
 				30.0f,
-				"%.0f deg before landing",
+				"%.0f deg remaining",
 				IsPending(
 					ctx.tankSettings->rollAirBrakeReleaseDegrees,
 					ctx.appliedTankSettings->rollAirBrakeReleaseDegrees));
-			SliderFloatWithPendingColor(
-				"Torque Cutoff Angle",
-				&ctx.tankSettings->rollTorqueCutoffDegrees,
-				45.0f,
-				120.0f,
-				5.0f,
-				90.0f,
-				"%.0f deg",
-				IsPending(
-					ctx.tankSettings->rollTorqueCutoffDegrees,
-					ctx.appliedTankSettings->rollTorqueCutoffDegrees));
 			SliderFloatWithPendingColor(
 				"Stabilization Torque",
 				&ctx.tankSettings->rollStabilizationTorqueNm,
@@ -1880,7 +2374,9 @@ namespace Ui
 					ctx.tankSettings->rollStabilizationDampingNms,
 					ctx.appliedTankSettings->rollStabilizationDampingNms));
 
-		}
+			}
+            ImGui::End();
+        }
 
 		if (ImGui::CollapsingHeader("Turn Traction"))
 		{
@@ -2415,8 +2911,8 @@ namespace Ui
             {
                 ImGui::TextUnformatted("Cyan: suspension  Green/Orange: contact  Yellow: normal");
             }
-            ImGui::Text("Controls: W/S drive, A/D skid turn, Shift+A/D pivot");
-            ImGui::Text("Q/E roll, X mortar, Left Ctrl fire, B brake, Space pause, F step fwd");
+            ImGui::Text("Controls: W/S drive, A/D skid turn, Z left / C right pivot");
+            ImGui::Text("Q/E roll, Space fire, X mortar, B brake, P pause, F step fwd");
 
 		}
 

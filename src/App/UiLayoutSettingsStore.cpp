@@ -1,6 +1,8 @@
 #include "UiLayoutSettingsStore.h"
 
 #include <fstream>
+#include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <nlohmann/json.hpp>
 #include <system_error>
@@ -55,10 +57,21 @@ namespace Tank::App
 
         UiLayoutSettings loaded = settings;
         ReadBool(json, "cameraWindowVisible", loaded.cameraWindowVisible);
+        ReadBool(json, "telemetryWindowVisible", loaded.telemetryWindowVisible);
+        ReadBool(json, "rollingParametersWindowVisible", loaded.rollingParametersWindowVisible);
         ReadBool(json, "gamepadInputWindowVisible", loaded.gamepadInputWindowVisible);
         ReadBool(json, "renderSettingsWindowVisible", loaded.renderSettingsWindowVisible);
         ReadBool(json, "outputWindowVisible", loaded.outputWindowVisible);
         ReadBool(json, "rollingCheatWindowVisible", loaded.rollingCheatWindowVisible);
+        const auto cheatFontScale = json.find("rollingCheatFontScale");
+        if (cheatFontScale != json.end() && cheatFontScale->is_number())
+        {
+            const float scale = cheatFontScale->get<float>();
+            if (std::isfinite(scale))
+            {
+                loaded.rollingCheatFontScale = std::clamp(scale, 0.5f, 2.0f);
+            }
+        }
         settings = loaded;
         status = "Loaded: " + m_path.string();
         return true;
@@ -78,10 +91,13 @@ namespace Tank::App
         const nlohmann::json json = {
             { "version", kUiLayoutSettingsVersion },
             { "cameraWindowVisible", settings.cameraWindowVisible },
+            { "telemetryWindowVisible", settings.telemetryWindowVisible },
+            { "rollingParametersWindowVisible", settings.rollingParametersWindowVisible },
             { "gamepadInputWindowVisible", settings.gamepadInputWindowVisible },
             { "renderSettingsWindowVisible", settings.renderSettingsWindowVisible },
             { "outputWindowVisible", settings.outputWindowVisible },
             { "rollingCheatWindowVisible", settings.rollingCheatWindowVisible },
+            { "rollingCheatFontScale", settings.rollingCheatFontScale },
         };
         std::string jsonText = json.dump(2);
         std::string crlfJsonText;

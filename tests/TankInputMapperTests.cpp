@@ -25,6 +25,29 @@ int main()
 {
     bool passed = true;
 
+    for (float padLever : { 0.0f, -1.0f, 1.0f })
+    {
+        Tank::Physics::TankInput mixed;
+        mixed.throttle = 0.7f;
+        mixed.leftLeverX = padLever;
+        mixed.rightLeverX = -padLever;
+        Tank::Input::ApplyKeyboardRollingInput(mixed, true, false);
+        passed &= Check(mixed.leftLeverX == -1.0f && mixed.rightLeverX == -1.0f,
+            "Q must override neutral or active pad rolling axes");
+        Tank::Input::ApplyKeyboardRollingInput(mixed, false, true);
+        passed &= Check(mixed.leftLeverX == 1.0f && mixed.rightLeverX == 1.0f,
+            "E must override neutral or active pad rolling axes");
+        passed &= Check(mixed.throttle == 0.7f, "rolling keys must preserve drive input");
+        for (bool bothKeys : { false, true })
+        {
+            mixed.leftLeverX = padLever;
+            mixed.rightLeverX = -padLever;
+            Tank::Input::ApplyKeyboardRollingInput(mixed, bothKeys, bothKeys);
+            passed &= Check(mixed.leftLeverX == padLever && mixed.rightLeverX == -padLever,
+                "released or conflicting keys must retain the current analog pair");
+        }
+    }
+
     Tank::Input::GamepadState disconnected;
     const Tank::Physics::TankInput disconnectedInput =
         Tank::Input::MapGamepadToTankInput(disconnected);

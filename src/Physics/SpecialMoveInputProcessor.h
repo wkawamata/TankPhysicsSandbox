@@ -40,6 +40,7 @@ namespace Tank::Physics
         }
 
         void Reset() { m_recognizer.Reset(); }
+        bool IsArmed() const { return m_recognizer.IsArmed(); }
 
     private:
         SpecialActionRecognizer m_recognizer;

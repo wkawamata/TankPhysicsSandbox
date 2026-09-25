@@ -5,6 +5,19 @@
 
 namespace Tank::Input
 {
+    // Explicit keyboard rolling overrides the pad's horizontal lever pair.
+    // With neither key (or both keys) held, retain the analog pair.
+    inline void ApplyKeyboardRollingInput(
+        Physics::TankInput& input, bool rollLeft, bool rollRight)
+    {
+        if (rollLeft != rollRight)
+        {
+            const float sign = rollLeft ? -1.0f : 1.0f;
+            input.leftLeverX = sign;
+            input.rightLeverX = sign;
+        }
+    }
+
     struct TankInputMappingSettings
     {
         float stickDeadzone = 0.15f;

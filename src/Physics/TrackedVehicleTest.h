@@ -35,6 +35,11 @@ namespace Tank::Physics
         float engineRpm = 0.0f;
         int transmissionGear = 0;
         float clutchFriction = 0.0f;
+        bool transmissionSwitchingGear = false;
+        float leftTrackAngularVelocityRadians = 0.0f;
+        float rightTrackAngularVelocityRadians = 0.0f;
+        float leftTrackDriveTorqueNm = 0.0f;
+        float rightTrackDriveTorqueNm = 0.0f;
         float yawSpeedDegrees = 0.0f;
         bool yawSpeedLimited = false;
         std::array<TrackedWheelState, kTankWheelCount> wheels = {};
@@ -43,6 +48,7 @@ namespace Tank::Physics
         TankMotionObservation motionObservation = {};
         MobilityStateSnapshot mobility = {};
         RollingPhase rollingPhase = RollingPhase::None;
+        RollingTelemetry rollingTelemetry = {};
         RollingDecision lastRollingDecision = RollingDecision::None;
         std::uint64_t rollingDecisionCount = 0;
         float rollingDecisionCommandSign = 0.0f;

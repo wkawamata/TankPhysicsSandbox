@@ -86,7 +86,10 @@ public:
     bool& SingleStep() { return m_singleStep; }
     bool& RollingCheatWindowVisible() { return m_rollingCheatWindowVisible; }
     bool& RollingCheatWindowJapanese() { return m_rollingCheatWindowJapanese; }
+    float& RollingCheatFontScale() { return m_rollingCheatFontScale; }
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
+    bool& TelemetryWindowVisible() { return m_telemetryWindowVisible; }
+    bool& RollingParametersWindowVisible() { return m_rollingParametersWindowVisible; }
     bool& GamepadInputWindowVisible() { return m_gamepadInputWindowVisible; }
     bool& MapHitMeshOverlay() { return m_mapHitMeshOverlay; }
     bool& MapVisualMeshes() { return m_mapVisualMeshes; }
@@ -189,11 +192,14 @@ private:
     bool m_singleStep = false;
     bool m_rollingCheatWindowVisible = false;
     bool m_rollingCheatWindowJapanese = true;
+    float m_rollingCheatFontScale = 1.0f;
     bool m_showTrackProxies = false;
     bool m_showGltfBody = true;
     bool m_showGltfCannon = true;
     bool m_showGltfSide = true;
     bool m_physicsDebugOverlay = false;
+    bool m_telemetryWindowVisible = true;
+    bool m_rollingParametersWindowVisible = true;
     bool m_gamepadInputWindowVisible = true;
     bool m_mapHitMeshOverlay = false;
     bool m_mapVisualMeshes = true;
