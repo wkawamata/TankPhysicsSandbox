@@ -1,85 +1,23 @@
 # Tank Physics Sandbox
 
-## Project Overview
+Develop convincing tank physics before gameplay, with portability to Godot and a custom DirectX 12 engine.
 
-Tank Physics Sandbox is a physics-system development project for a future tank game.
+## Development
 
-The priority is not gameplay. The first goal is to build realistic and convincing vehicle behavior.
-
-The project is intended to be migrated into a custom DirectX 12 engine later, so physics and rendering must remain fully separated.
-
-## Development Policy
-
-- Use Jolt Physics.
-- Use C++20.
-- Use CMake.
-- Target Visual Studio 2022.
-- Target Windows.
-- Actively use Codex.
-- Build the project through small incremental changes.
-- Keep the project buildable at all times.
+- Use Jolt Physics, C++20, CMake, Visual Studio 2022, and Windows.
 - Strictly use CRLF line endings for project text and source files.
+- Make small incremental changes, explain why, add tests, and keep the project buildable.
+- Keep refactoring separate from functional changes.
+- Ask questions instead of guessing when something is unclear.
 
 ## Architecture
 
-- Physics must not depend on Rendering.
-- Design around `TankController`.
-- Tuning parameters should be editable through JSON.
-- Debug rendering belongs in a separate module.
-- Structure the code so it can later be ported to Godot and to a custom engine.
+- Physics must not depend on Rendering; keep debug rendering in a separate module.
+- Design around `TankController` and keep tuning parameters editable through JSON.
 
-## Initial Investigation
+## Documentation and Task-Specific Rules
 
-Consider adding `RtPbrSurvey` as a Git submodule and using it as a test rendering system while modifying it as needed:
-
-- Repository: https://github.com/wkawamata/RtPbrSurvey.git
-
-## Initial Goal
-
-Build a Tank Sandbox using Jolt's official `TrackedVehicleController`.
-
-The initial sandbox should support:
-
-- Driving on flat ground.
-- Turning left and right.
-- Pivot turning in place.
-
-## AI Rules (All AIs)
-
-- Do not make large changes at once.
-- Explain why each change is made.
-- Add tests.
-- Keep refactoring separate from functional changes.
-- Do not leave build errors behind.
-- Ask questions instead of guessing when something is unclear.
-- When integrating RtPbrSurvey from CMake, verify runtime assets before debugging renderer code:
-  - `D3D12/D3D12Core.dll`
-  - `D3D12/D3D12SDKLayers.dll`
-  - required `*.cso` shader files next to the executable
-  - required runtime DLLs such as `dxcompiler.dll`, `dxil.dll`, and `WinPixEventRuntime.dll` when used.
-- If `D3D12CreateDevice` returns `D3D12_ERROR_INVALID_REDIST`, compare the Tank executable output folder with the working RtPbrSurvey output folder before changing adapter-selection code.
-- If `ReadDataFromFile` fails for a shader `.cso`, check shader generation/copy rules before changing renderer resource-loading code.
-- Prefer `scripts/run.bat` for local GUI verification because it selects the CMake build directory as the working directory while forwarding command-line arguments.
-- Direct executable launches remain supported. When saved development settings under `build/Config` are expected, explicitly use the CMake build directory as the working directory. Otherwise renderer settings can fall back to defaults and camera slots will not load.
-- For Visual Studio launches, preserve `VS_DEBUGGER_WORKING_DIRECTORY` as `${CMAKE_BINARY_DIR}` in CMake.
-
-Read `OPENCODE_RULES.md` only when the user explicitly instructs you to use OpenCode.
-
-## Codex Rules
-
-### Documents
-
-- Codex treats `Docs/opencode/` as readonly. Do not edit files under `Docs/opencode/` from Codex.
-- Codex-authored documentation must go outside `Docs/opencode/`.
-
-## Roadmap
-
-1. Introduce Jolt.
-2. Build the Tank Sandbox.
-3. Add suspension.
-4. Add track control.
-5. Test steps and slopes.
-6. Add terrain friction.
-7. Add recoil.
-8. Add turret behavior.
-9. Add track animation.
+- Codex must not edit or delete `Docs/opencode/`; write Codex-authored documents elsewhere.
+- For RtPbrSurvey integration, renderer troubleshooting, GUI verification, or CMake runtime/deployment changes, read `Docs/renderer-development.md`.
+- For goal or roadmap planning, read `Docs/project-roadmap.md` and relevant human-written documents under `Docs/roadmap/`.
+- Read `OPENCODE_RULES.md` only when the user explicitly instructs you to use OpenCode.
