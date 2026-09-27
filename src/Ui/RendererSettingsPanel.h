@@ -17,6 +17,7 @@ namespace Ui
         std::function<void()> loadSettings;
         std::function<void()> resetSettings;
         std::function<void()> requestScreenshot;
+        std::function<void()> drawCaptureSession;
         std::function<void()> drawRendererDebugContents;
     };
 

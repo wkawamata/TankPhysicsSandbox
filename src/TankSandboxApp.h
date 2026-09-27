@@ -21,6 +21,7 @@
 #include "Runtime/SceneRenderer.h"
 #include "Runtime/SceneRendererDebugUi.h"
 #include "Runtime/SceneRendererSettings.h"
+#include "Runtime/CaptureSessionUi.h"
 #include "Rendering/CameraSettings.h"
 #include "Rendering/MapEditorScenePresenter.h"
 #include "Ui/ImGuiSystem.h"
@@ -81,6 +82,9 @@ private:
     void RequestScreenshot();
     void RequestScreenshot(const std::filesystem::path& path);
     void UpdateScreenshotResult();
+    void DrawCaptureSessionUi();
+    void StartCommandLineCapture();
+    void UpdateCaptureSession();
     void CaptureRollTestFrame();
     bool SaveRendererSettings();
     bool LoadRendererSettings();
@@ -196,6 +200,15 @@ private:
     RtPbrSurvey::EnvironmentMappingUiState m_environmentMappingUi;
     std::string m_rendererSettingsStatus;
     std::string m_screenshotStatus;
+    RtPbrSurvey::CaptureSessionUiState m_captureUi;
+    std::chrono::steady_clock::time_point m_captureClockStart = std::chrono::steady_clock::now();
+    double m_captureSimulationSeconds = 0.0;
+    std::uint64_t m_captureRenderFrame = 0;
+    bool m_captureCliRunning = false;
+    bool m_captureWasActive = false;
+    bool m_captureClosePending = false;
+    std::optional<RtPbrSurvey::CaptureSessionConfig> m_cliCaptureConfig;
+    std::size_t m_legacyScreenshotsPending = 0;
 
     // Auto scene entry and screenshot for CLI.
     std::optional<AppMode> m_autoSceneMode;

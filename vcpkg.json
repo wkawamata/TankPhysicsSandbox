@@ -8,6 +8,7 @@
       "features": ["dx12-binding", "win32-binding"]
     },
     "tinygltf",
+    "tinyexr",
     "nlohmann-json",
     "winpixevent"
   ],
