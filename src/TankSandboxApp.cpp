@@ -46,8 +46,10 @@
 #include <fstream>
 #include <ios>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <string>
+#include <stdexcept>
 #include <system_error>
 #include <vector>
 
@@ -245,6 +247,27 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
             m_benchmarkReflectionsOn = true;
         }
     }
+    if (m_commandLineOptions.captureSessionEnabled)
+    {
+        if (m_rollCaptureEnabled || m_autoCaptureFrameCount > 0 || m_benchmarkMeasureFrames > 0 ||
+            !m_commandLineOptions.capturePath.empty())
+        {
+            throw std::invalid_argument("Capture Session cannot be combined with legacy capture or benchmark automation.");
+        }
+        if (!m_autoSceneMode)
+        {
+            m_autoSceneMode = AppMode::PhysicsTrackedVehicle;
+        }
+        RtPbrSurvey::CaptureSessionConfig config;
+        std::string error;
+        RtPbrSurvey::CaptureSession validation;
+        if (!Platform::BuildCaptureSessionConfig(m_commandLineOptions, config, error) ||
+            !validation.Start(config, error))
+        {
+            throw std::invalid_argument("Capture Session: " + error);
+        }
+        m_cliCaptureConfig = config;
+    }
 }
 
 void TankSandboxApp::OnInit()
@@ -408,13 +431,13 @@ void TankSandboxApp::OnInit()
     m_rendererPanelCtx.loadSettings = [this]() { LoadRendererSettings(); };
     m_rendererPanelCtx.resetSettings = [this]() { ResetRendererSettings(); };
     m_rendererPanelCtx.requestScreenshot = [this]() { RequestScreenshot(); };
+    m_rendererPanelCtx.drawCaptureSession = [this]() { DrawCaptureSessionUi(); };
     m_rendererPanelCtx.drawRendererDebugContents = [this]()
     {
         const RtPbrSurveyEngine::LightingParams currentLighting =
             m_sceneRenderer.GetLightingParams();
-        m_environmentMappingUi.lighting.lightDirection = currentLighting.lightDirection;
-        m_environmentMappingUi.lighting.lightColor = currentLighting.lightColor;
-        m_environmentMappingUi.lighting.diffuseIntensity = currentLighting.diffuseIntensity;
+        m_environmentMappingUi.lighting.lights = currentLighting.lights;
+        m_environmentMappingUi.lighting.primaryShadowLightId = currentLighting.primaryShadowLightId;
         m_environmentMappingUi.lighting.directLightEnabled = currentLighting.directLightEnabled;
         m_environmentMappingUi.lighting.emissiveEnabled = currentLighting.emissiveEnabled;
         RtPbrSurvey::SceneRendererDebugUi::DrawContents(
@@ -592,6 +615,10 @@ void TankSandboxApp::OnInit()
             m_autoMapPath && !LoadAutoMap())
         {
             m_autoSceneMode.reset();
+            if (m_cliCaptureConfig)
+            {
+                throw std::runtime_error("Capture Session: unable to load the requested map.");
+            }
             return;
         }
         switch (*m_autoSceneMode)
@@ -607,6 +634,109 @@ void TankSandboxApp::OnInit()
                 fflush(m_logFile);
             }
             break;
+        }
+    }
+    StartCommandLineCapture();
+}
+
+void TankSandboxApp::StartCommandLineCapture()
+{
+    if (!m_cliCaptureConfig)
+    {
+        return;
+    }
+    const auto& config = *m_cliCaptureConfig;
+    std::string error;
+    if (!m_sceneRenderer.StartCaptureSession(config, error))
+    {
+        throw std::runtime_error("Capture Session: " + error);
+    }
+    m_captureCliRunning = true;
+    m_captureUi.outputDirectory = config.outputDirectory.string();
+    m_captureUi.baseName = config.baseName;
+    m_captureUi.outputFormat = static_cast<int>(config.outputFormat);
+    const auto uiInt = [](std::uint64_t value)
+    {
+        return static_cast<int>((std::min)(value,
+            static_cast<std::uint64_t>((std::numeric_limits<int>::max)())));
+    };
+    m_captureUi.framesPerSecond = uiInt(config.framesPerSecond);
+    m_captureUi.warmupFrames = uiInt(config.warmupFrames);
+    m_captureUi.fixedStep = config.clock == RtPbrSurvey::CaptureSessionClock::FixedStep;
+    m_captureUi.useFrameLimit = config.frameLimit.has_value();
+    m_captureUi.frameLimit = uiInt(config.frameLimit.value_or(60));
+    m_captureUi.useDurationLimit = config.durationSeconds.has_value();
+    m_captureUi.durationSeconds = static_cast<float>(config.durationSeconds.value_or(1.0));
+    m_captureUi.useRegion = config.region.has_value();
+    if (config.region)
+    {
+        m_captureUi.regionX = uiInt(config.region->x);
+        m_captureUi.regionY = uiInt(config.region->y);
+        m_captureUi.regionWidth = uiInt(config.region->width);
+        m_captureUi.regionHeight = uiInt(config.region->height);
+    }
+}
+
+void TankSandboxApp::DrawCaptureSessionUi()
+{
+    const bool legacyCapture = m_legacyScreenshotsPending > 0 || m_rollCaptureEnabled ||
+        m_autoCaptureFrameCount > 0 || m_benchmarkMeasureFrames > 0;
+    if (legacyCapture)
+    {
+        ImGui::TextWrapped("Capture Session is unavailable while legacy capture or benchmark automation is running.");
+    }
+    ImGui::BeginDisabled(legacyCapture || m_captureClosePending);
+    RtPbrSurvey::CaptureSessionUi::Draw(m_sceneRenderer, m_captureUi);
+    ImGui::EndDisabled();
+    ImGui::TextWrapped("Fixed-step follows the 60 Hz host simulation. Pausing vehicle physics also pauses its capture clock.");
+}
+
+void TankSandboxApp::UpdateCaptureSession()
+{
+    const bool active = RtPbrSurvey::CaptureSessionUi::IsActive(m_sceneRenderer.GetCaptureSessionStatus());
+    if (!m_captureCliRunning && !m_captureClosePending && !m_captureWasActive && !active)
+    {
+        return;
+    }
+    m_captureWasActive = active;
+    const double elapsed = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - m_captureClockStart).count();
+    const auto previousAccepted = m_sceneRenderer.GetCaptureSessionStatus().acceptedFrameCount;
+    RtPbrSurvey::CaptureSessionUi::Update(m_sceneRenderer,
+        {m_captureRenderFrame, elapsed, m_captureSimulationSeconds});
+    const auto& status = m_sceneRenderer.GetCaptureSessionStatus();
+    if (m_logFile && status.acceptedFrameCount != previousAccepted)
+    {
+        fprintf(m_logFile, "[CAPTURE_FRAME] index=%llu simulation=%.9f render=%llu\n",
+            static_cast<unsigned long long>(status.acceptedFrameCount - 1),
+            m_captureSimulationSeconds, static_cast<unsigned long long>(m_captureRenderFrame));
+    }
+    if (status.state == RtPbrSurvey::CaptureSessionState::Completed ||
+        status.state == RtPbrSurvey::CaptureSessionState::Failed)
+    {
+        const bool failed = status.state == RtPbrSurvey::CaptureSessionState::Failed;
+        const std::string message = failed ? "Capture failed: " + status.error :
+            "Capture completed: saved " + std::to_string(status.savedFrameCount) +
+            ", dropped " + std::to_string(status.droppedFrameCount);
+        m_screenshotStatus = message;
+        Tank::Diagnostics::Write(failed ? Tank::Diagnostics::LogLevel::Error :
+            Tank::Diagnostics::LogLevel::Info, "Capture", message.c_str());
+        if (m_logFile)
+        {
+            fprintf(m_logFile, "[CAPTURE] %s\n", message.c_str());
+            fflush(m_logFile);
+        }
+        if (m_captureCliRunning &&
+            (m_commandLineOptions.exitAfterCapture || m_quitAfterCapture))
+        {
+            PostQuitMessage(failed ? 1 : 0);
+        }
+        m_captureCliRunning = false;
+        m_captureWasActive = false;
+        if (m_captureClosePending)
+        {
+            m_captureClosePending = false;
+            PostMessage(Win32Application::GetHwnd(), WM_CLOSE, 0, 0);
         }
     }
 }
@@ -630,6 +760,12 @@ bool TankSandboxApp::OnCloseRequested()
     if (m_windowCloseApproved || m_appMode != AppMode::MapEditor ||
         !m_mapEditorMode.HasUnsavedChanges())
     {
+        if (RtPbrSurvey::CaptureSessionUi::IsActive(m_sceneRenderer.GetCaptureSessionStatus()))
+        {
+            m_captureClosePending = true;
+            m_sceneRenderer.StopCaptureSession();
+            return false;
+        }
         return true;
     }
 
@@ -877,17 +1013,21 @@ void TankSandboxApp::OnWindowSizeChanged(UINT width, UINT height)
 
 void TankSandboxApp::OnIdle()
 {
+    // Readback may span multiple render frames. Keep rendering/polling while
+    // holding the host's simulation and camera pose for fixed-step captures.
+    const bool advanceSimulation = m_sceneRenderer.CanAdvanceCaptureSessionFixedStep();
     const bool hasInputFocus = HasInputFocus();
     if (!hasInputFocus)
     {
         ClearVehicleInputState();
     }
 
-    if (m_appMode == AppMode::PhysicsBoxDrop)
+    if (advanceSimulation && m_appMode == AppMode::PhysicsBoxDrop)
     {
         m_boxDropMode.Update(m_sceneRenderer);
+        m_captureSimulationSeconds += 1.0 / 60.0;
     }
-    else if (m_appMode == AppMode::PhysicsTrackedVehicle)
+    else if (advanceSimulation && m_appMode == AppMode::PhysicsTrackedVehicle)
     {
         m_gamepad.Poll();
         const Tank::Input::GamepadState neutralGamepadState;
@@ -963,7 +1103,12 @@ void TankSandboxApp::OnIdle()
             m_rollCaptureEnabled ? false : m_brake,
             m_assaultFire || m_debugAssaultFire,
             m_mortar);
+        const int previousStep = m_trackedVehicleMode.TestState().stepIndex;
         m_trackedVehicleMode.Step(m_sceneRenderer, m_cameraController);
+        if (m_trackedVehicleMode.TestState().stepIndex != previousStep)
+        {
+            m_captureSimulationSeconds += 1.0 / 60.0;
+        }
         if (m_rollCaptureEnabled)
         {
             if (scriptedRoll)
@@ -995,20 +1140,31 @@ void TankSandboxApp::OnIdle()
         }
 
     }
-    if (Engine::CameraState* camera = ActiveCamera())
+    if (advanceSimulation)
     {
-        m_cameraController.UpdateTransition(TrackedVehicleMode::kPhysicsFixedDt, *camera);
-        m_cameraController.UpdateSlotCache(*camera);
-        ApplyActiveCameraScene();
+        if (m_appMode == AppMode::TopMenu || m_appMode == AppMode::MapEditor)
+        {
+            m_captureSimulationSeconds += 1.0 / 60.0;
+        }
+        if (Engine::CameraState* camera = ActiveCamera())
+        {
+            m_cameraController.UpdateTransition(TrackedVehicleMode::kPhysicsFixedDt, *camera);
+            m_cameraController.UpdateSlotCache(*camera);
+            ApplyActiveCameraScene();
+        }
     }
 
     UpdateUiFrame();
+
+    // Schedule only after the host has published the scene pose for this frame.
+    UpdateCaptureSession();
 
     m_sceneRenderer.RunFrame(
         [this](ID3D12GraphicsCommandList* commandList)
         {
             m_imguiSystem.Render(commandList);
         });
+    ++m_captureRenderFrame;
     m_peakCpuFrameTimeMs = (std::max)(
         m_peakCpuFrameTimeMs,
         m_sceneRenderer.CpuFrameTimeMs());
@@ -1288,6 +1444,11 @@ void TankSandboxApp::UpdateUiFrame()
 
 void TankSandboxApp::RequestScreenshot()
 {
+    if (RtPbrSurvey::CaptureSessionUi::IsActive(m_sceneRenderer.GetCaptureSessionStatus()))
+    {
+        m_screenshotStatus = "Stop the capture session before taking a screenshot.";
+        return;
+    }
     SYSTEMTIME localTime = {};
     GetLocalTime(&localTime);
 
@@ -1319,15 +1480,21 @@ void TankSandboxApp::RequestScreenshot()
 void TankSandboxApp::RequestScreenshot(const std::filesystem::path& path)
 {
     m_sceneRenderer.RequestScreenshot({ path });
+    ++m_legacyScreenshotsPending;
 }
 
 void TankSandboxApp::UpdateScreenshotResult()
 {
+    if (m_legacyScreenshotsPending == 0)
+    {
+        return;
+    }
     const std::optional<RtPbrSurvey::ScreenshotResult> result = m_sceneRenderer.ConsumeScreenshotResult();
     if (!result)
     {
         return;
     }
+    --m_legacyScreenshotsPending;
 
     if (result->succeeded)
     {
@@ -1488,6 +1655,11 @@ void TankSandboxApp::LoadUiLayoutSettings()
 
 void TankSandboxApp::SaveUiLayoutSettings()
 {
+    // Automated capture must not rewrite the user's interactive window layout.
+    if (m_cliCaptureConfig)
+    {
+        return;
+    }
     const Tank::App::UiLayoutSettings settings = CaptureUiLayoutSettings();
     Tank::App::UiLayoutSettingsStore store(TANK_SOURCE_CONFIG_DIR);
     std::string status;

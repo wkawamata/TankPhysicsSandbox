@@ -73,6 +73,11 @@ namespace Ui
             ImGui::TextWrapped("%s", ctx.screenshotStatus->c_str());
         }
 
+        if (ctx.drawCaptureSession && ImGui::CollapsingHeader("Capture Session"))
+        {
+            ctx.drawCaptureSession();
+        }
+
         ImGui::Separator();
         if (ImGui::BeginChild(
             "RtPbrSurveyDebugContents",
