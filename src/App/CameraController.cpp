@@ -59,6 +59,8 @@ namespace Tank::App
         settings.up[2] = camera.up.z;
         settings.projection = static_cast<int>(camera.projection);
         settings.fovDegrees = camera.fov;
+        settings.perspectiveLensShiftX = camera.lensShiftX;
+        settings.perspectiveLensShiftY = camera.lensShiftY;
         settings.orthographicHeight = camera.orthographicHeight;
         settings.followTank = followTank;
         settings.followDistance = m_followDistance;
@@ -90,6 +92,8 @@ namespace Tank::App
             camera.projection = static_cast<Engine::CameraProjection>(
                 m_projectionTransitionStart.projection);
             camera.fov = m_projectionTransitionStart.fovDegrees;
+            camera.lensShiftX = m_projectionTransitionStart.perspectiveLensShiftX;
+            camera.lensShiftY = m_projectionTransitionStart.perspectiveLensShiftY;
             camera.orthographicHeight =
                 m_projectionTransitionStart.orthographicHeight;
             if (m_projectionTransitionStart.projection ==
@@ -141,6 +145,8 @@ namespace Tank::App
             ? Engine::CameraProjection::Orthographic
             : Engine::CameraProjection::Perspective;
         camera.fov = std::clamp(settings.fovDegrees, 0.1f, 179.0f);
+        camera.lensShiftX = std::clamp(settings.perspectiveLensShiftX, -1.0f, 1.0f);
+        camera.lensShiftY = std::clamp(settings.perspectiveLensShiftY, -1.0f, 1.0f);
         m_fovTarget = camera.fov;
         m_fovVelocity = 0.0f;
         m_fovSpringActive = false;
@@ -284,6 +290,12 @@ namespace Tank::App
             camera.orthographicHeight = interpolatedHeight;
             camera.fov = Engine::PerspectiveFovYFromOrthographicHeight(
                 interpolatedHeight, currentDistance);
+            camera.lensShiftX = std::lerp(
+                m_projectionTransitionStart.perspectiveLensShiftX,
+                m_projectionTransitionTarget.perspectiveLensShiftX, t);
+            camera.lensShiftY = std::lerp(
+                m_projectionTransitionStart.perspectiveLensShiftY,
+                m_projectionTransitionTarget.perspectiveLensShiftY, t);
             const bool transitionsToOrthographic =
                 m_projectionTransitionStart.projection ==
                     static_cast<int>(Engine::CameraProjection::Perspective) &&
@@ -298,6 +310,8 @@ namespace Tank::App
                 camera.projection = static_cast<Engine::CameraProjection>(
                     m_projectionTransitionTarget.projection);
                 camera.fov = m_projectionTransitionTarget.fovDegrees;
+                camera.lensShiftX = m_projectionTransitionTarget.perspectiveLensShiftX;
+                camera.lensShiftY = m_projectionTransitionTarget.perspectiveLensShiftY;
                 camera.orthographicHeight =
                     m_projectionTransitionTarget.orthographicHeight;
                 m_projectionTransitionActive = false;
@@ -359,6 +373,12 @@ namespace Tank::App
         blended.orthographicHeight = interpolatedHeight;
         blended.fovDegrees = Engine::PerspectiveFovYFromOrthographicHeight(
             interpolatedHeight, currentDistance);
+        blended.perspectiveLensShiftX = std::lerp(
+            m_transitionStart.perspectiveLensShiftX,
+            m_transitionTarget.perspectiveLensShiftX, t);
+        blended.perspectiveLensShiftY = std::lerp(
+            m_transitionStart.perspectiveLensShiftY,
+            m_transitionTarget.perspectiveLensShiftY, t);
         blended.followDistance = std::lerp(
             m_transitionStart.followDistance,
             m_transitionTarget.followDistance, t);

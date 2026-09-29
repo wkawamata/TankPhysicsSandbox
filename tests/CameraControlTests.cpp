@@ -330,6 +330,72 @@ namespace
             !controller.IsSlotDirty(2);
     }
 
+    bool TestLensShiftInterpolatesAndPersistsAcrossTransitions()
+    {
+        Tank::App::CameraController controller;
+        Engine::CameraState camera = {};
+        camera.pos = { 0.0f, 10.0f, -10.0f };
+        camera.gazePoint = {};
+        camera.lensShiftX = -0.4f;
+        camera.lensShiftY = 0.2f;
+
+        Tank::Rendering::CameraSettings target =
+            controller.CaptureSettings(camera, false);
+        target.perspectiveLensShiftX = 0.6f;
+        target.perspectiveLensShiftY = -0.8f;
+        controller.ApplySettings(target, true, camera);
+        controller.UpdateTransition(0.375f, camera);
+        const bool interpolated =
+            NearlyEqual(camera.lensShiftX, 0.1f) &&
+            NearlyEqual(camera.lensShiftY, -0.3f);
+        controller.UpdateTransition(0.375f, camera);
+        const Tank::Rendering::CameraSettings captured =
+            controller.CaptureSettings(camera, false);
+        return interpolated && !controller.IsTransitioning() &&
+            NearlyEqual(camera.lensShiftX, 0.6f) &&
+            NearlyEqual(camera.lensShiftY, -0.8f) &&
+            NearlyEqual(captured.perspectiveLensShiftX, 0.6f) &&
+            NearlyEqual(captured.perspectiveLensShiftY, -0.8f);
+    }
+
+    bool TestCameraSlotsKeepIndependentAsymmetricPerspectives()
+    {
+        Tank::App::CameraController controller;
+        Engine::CameraState camera = {};
+        camera.lensShiftX = -0.5f;
+        camera.lensShiftY = 0.25f;
+        Tank::Rendering::CameraSettings slot1 =
+            controller.CaptureSettings(camera, false);
+
+        camera.lensShiftX = 0.75f;
+        camera.lensShiftY = -0.5f;
+        Tank::Rendering::CameraSettings slot2 =
+            controller.CaptureSettings(camera, false);
+        controller.SetSlotSettings(0, slot1);
+        controller.SetSlotSettings(1, slot2);
+
+        controller.SelectSlot(0, false);
+        controller.ApplySettings(slot1, false, camera);
+        controller.SelectSlot(1, false);
+        const Tank::Rendering::CameraSettings* selected =
+            controller.GetCachedSettings();
+        if (selected == nullptr)
+        {
+            return false;
+        }
+        controller.ApplySettings(*selected, true, camera);
+        controller.UpdateTransition(0.375f, camera);
+        const bool midpoint =
+            NearlyEqual(camera.lensShiftX, 0.125f) &&
+            NearlyEqual(camera.lensShiftY, -0.125f);
+        controller.UpdateTransition(0.375f, camera);
+        return midpoint && !controller.IsTransitioning() &&
+            NearlyEqual(camera.lensShiftX, 0.75f) &&
+            NearlyEqual(camera.lensShiftY, -0.5f) &&
+            NearlyEqual(slot1.perspectiveLensShiftX, -0.5f) &&
+            NearlyEqual(slot1.perspectiveLensShiftY, 0.25f);
+    }
+
     bool TestDebugCameraKeepsTankFocusAcrossRepeatedResets()
     {
         Tank::App::CameraController controller;
@@ -404,6 +470,10 @@ int main()
         TestPerspectiveToOrthographicSwitchesAtTransitionEnd();
     const bool projectionCachePreserved =
         TestProjectionTransitionDoesNotOverwriteSlotCache();
+    const bool lensShiftTransition =
+        TestLensShiftInterpolatesAndPersistsAcrossTransitions();
+    const bool slotAsymmetricPerspective =
+        TestCameraSlotsKeepIndependentAsymmetricPerspectives();
     const bool debugResetFocus =
         TestDebugCameraKeepsTankFocusAcrossRepeatedResets();
     const bool chaseOrbitOffset = TestChaseOrbitOffsetReturnsToRear();
@@ -412,7 +482,9 @@ int main()
         !nearPolarHorizontal || !nearPolarVertical ||
         !positionOnlyFollow || !tankOrbitPivot || !lookDownLimit ||
         !orthoToPerspective || !perspectiveToOrtho ||
-        !projectionCachePreserved || !debugResetFocus || !chaseOrbitOffset)
+        !projectionCachePreserved || !lensShiftTransition ||
+        !slotAsymmetricPerspective ||
+        !debugResetFocus || !chaseOrbitOffset)
     {
         std::cerr << "Camera control contract failed:"
                   << " camera2Horizontal=" << camera2Horizontal
@@ -425,6 +497,8 @@ int main()
                   << " orthoToPerspective=" << orthoToPerspective
                   << " perspectiveToOrtho=" << perspectiveToOrtho
                   << " projectionCachePreserved=" << projectionCachePreserved
+                  << " lensShiftTransition=" << lensShiftTransition
+                  << " slotAsymmetricPerspective=" << slotAsymmetricPerspective
                   << " debugResetFocus=" << debugResetFocus
                   << " chaseOrbitOffset=" << chaseOrbitOffset
                   << '\n';

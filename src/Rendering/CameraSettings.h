@@ -11,6 +11,8 @@ namespace Tank::Rendering
         float up[3] = {0.0f, 1.0f, 0.0f};
         int projection = 0;
         float fovDegrees = 45.0f;
+        float perspectiveLensShiftX = 0.0f;
+        float perspectiveLensShiftY = 0.0f;
         float orthographicHeight = 10.0f;
         bool followTank = false;
         float followDistance = 16.0f;
