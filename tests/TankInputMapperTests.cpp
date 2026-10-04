@@ -74,7 +74,7 @@ int main()
 
     Tank::Input::GamepadState movingLeft;
     movingLeft.connected = true;
-    movingLeft.leftStickX = -0.5f;
+    movingLeft.leftStickX = 0.5f;
     movingLeft.leftStickY = 1.0f;
     const Tank::Physics::TankInput movingLeftInput =
         Tank::Input::MapGamepadToTankInput(movingLeft);
@@ -84,7 +84,7 @@ int main()
 
     Tank::Input::GamepadState pivotLeft;
     pivotLeft.connected = true;
-    pivotLeft.leftStickX = -1.0f;
+    pivotLeft.leftStickX = 1.0f;
     const Tank::Physics::TankInput pivotLeftInput =
         Tank::Input::MapGamepadToTankInput(pivotLeft);
     passed &= Check(NearlyEqual(pivotLeftInput.throttle, 1.0f), "full pivot must use full throttle");

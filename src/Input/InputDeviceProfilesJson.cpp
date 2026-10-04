@@ -4,6 +4,19 @@ namespace Tank::Input
 {
     namespace
     {
+        GamepadControlType LoadControlType(const nlohmann::json& json)
+        {
+            const std::string value = json.value("controlType", std::string("typeA"));
+            return value == "typeB" || value == "singleStick"
+                ? GamepadControlType::TypeB
+                : GamepadControlType::TypeA;
+        }
+
+        const char* SaveControlType(GamepadControlType controlType)
+        {
+            return controlType == GamepadControlType::TypeB ? "typeB" : "typeA";
+        }
+
         InputDeviceProfile LoadProfile(const nlohmann::json& json)
         {
             InputDeviceProfile profile;
@@ -11,6 +24,7 @@ namespace Tank::Input
             profile.name = json.value("name", profile.name);
             profile.vendorId = json.value("vendorId", profile.vendorId);
             profile.productId = json.value("productId", profile.productId);
+            profile.controlType = LoadControlType(json);
             profile.leftTrackAxis = json.value("leftTrackAxis", profile.leftTrackAxis);
             profile.rightTrackAxis = json.value("rightTrackAxis", profile.rightTrackAxis);
             profile.leftRollAxis = json.value("leftRollAxis", profile.leftRollAxis);
@@ -36,6 +50,7 @@ namespace Tank::Input
                 {"name", profile.name},
                 {"vendorId", profile.vendorId},
                 {"productId", profile.productId},
+                {"controlType", SaveControlType(profile.controlType)},
                 {"leftTrackAxis", profile.leftTrackAxis},
                 {"rightTrackAxis", profile.rightTrackAxis},
                 {"leftRollAxis", profile.leftRollAxis},

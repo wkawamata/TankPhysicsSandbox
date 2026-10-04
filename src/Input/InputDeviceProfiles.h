@@ -7,12 +7,19 @@
 
 namespace Tank::Input
 {
+    enum class GamepadControlType
+    {
+        TypeA,
+        TypeB,
+    };
+
     struct InputDeviceProfile
     {
         std::string id;
         std::string name;
         std::uint16_t vendorId = 0;
         std::uint16_t productId = 0;
+        GamepadControlType controlType = GamepadControlType::TypeA;
         std::size_t leftTrackAxis = 3;
         std::size_t rightTrackAxis = 1;
         std::size_t leftRollAxis = 0;

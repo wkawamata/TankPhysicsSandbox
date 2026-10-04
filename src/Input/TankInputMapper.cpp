@@ -45,7 +45,7 @@ namespace Tank::Input
         const StickState stick =
             ApplyCircularDeadzone(state.leftStickX, state.leftStickY, settings.stickDeadzone);
         input.throttle = stick.y;
-        input.steering = stick.x;
+        input.steering = -stick.x;
         input.brake = state.brakePressed;
         input.fireAssault =
             state.buttonCount > GamepadState::AssaultFireButtonIndex &&
