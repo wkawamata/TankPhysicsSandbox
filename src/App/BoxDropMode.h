@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Physics/BoxDropTest.h"
+#include "App/BoxDropPlayback.h"
 #include "Rendering/BoxDropScenePresenter.h"
 
 #include <cstdint>
@@ -15,6 +16,10 @@ public:
     void Update(RtPbrSurvey::SceneRenderer& renderer);
     void DrawUi(RtPbrSurvey::SceneRenderer& renderer, float cpuFrameTimeMs);
     void Reset(RtPbrSurvey::SceneRenderer& renderer);
+    void TogglePaused();
+    bool Paused() const;
+    void RequestSingleStep();
+    bool ConsumeSimulationStep();
     void Exit();
     Engine::CameraState* ActiveCamera();
     Engine::Scene& GetScene();
@@ -24,4 +29,5 @@ public:
 private:
     BoxDropScenePresenter m_presenter;
     Tank::Physics::BoxDropTest m_test;
+    BoxDropPlayback m_playback;
 };
