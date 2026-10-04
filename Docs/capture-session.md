@@ -14,9 +14,18 @@ pending save before completing. Closing the window also drains an active session
 The panel shows accepted/saved/dropped counts, last output path, and errors.
 
 Press **F8** to start a session with the current panel settings, or to stop an
-active session. With numeric ROI enabled, **Show ROI overlay** previews the
-selected rectangle; it is hidden during capture so it is not written into PNG or
-GIF output.
+active session. **Select ROI with mouse** enters selection mode: drag with the
+left mouse button and release to apply the rectangle. A crosshair, live outline,
+and output-pixel dimensions help place the selection. Dragging in any direction
+works; edges outside the window are clipped. **Esc** or right-click cancels and
+keeps the previous ROI. Selection automatically enables **Use ROI** and updates
+the X/Y/Width/Height fields, which remain available for precise adjustment.
+
+**Show ROI overlay** toggles the rectangle and dimension label, including when
+the settings panel is closed. The overlay is hidden during capture so it is not
+written into PNG or GIF output. Mouse selection also blocks camera mouse controls
+and application shortcuts until it is applied or cancelled. The same selection
+UI is available in the standalone RtPbrSurvey application.
 
 In Box Drop, **F7** resets the boxes, **P** pauses/resumes physics, and **N**
 advances one physics step while paused. Camera-slot keys **1** through **4** are
@@ -32,8 +41,7 @@ specified number of additional plays. The GIF settings use the format's native
 centisecond frame timing; FPS controls that delay. **Frame disposal** controls
 whether the next frame keeps the prior composition, restores the background, or
 restores the prior frame.
-MP4 remains unavailable until its shared encoder arrives. Mouse ROI selection is
-not implemented.
+MP4 remains unavailable until its shared encoder arrives.
 
 F12 and the existing Screen Shot button remain single-PNG operations. They cannot
 be used during a capture session. Starting a session is disabled while legacy
