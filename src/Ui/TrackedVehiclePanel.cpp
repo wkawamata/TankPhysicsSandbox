@@ -318,6 +318,19 @@ namespace Ui
 				auto& profile = *ctx.inputDeviceProfile;
 				ImGui::Text("Profile: %s", profile.id.c_str());
 				ImGui::Text("VID: %04X  PID: %04X", profile.vendorId, profile.productId);
+				int controlType = profile.controlType == Tank::Input::GamepadControlType::TypeA
+					? 0
+					: 1;
+				const char* controlTypes[] = {
+					"Type A - Dual Lever",
+					"Type B - Single Stick",
+				};
+				if (ImGui::Combo("Control Type", &controlType, controlTypes, 2))
+				{
+					profile.controlType = controlType == 0
+						? Tank::Input::GamepadControlType::TypeA
+						: Tank::Input::GamepadControlType::TypeB;
+				}
 				int leftTrackAxis = static_cast<int>(profile.leftTrackAxis);
 				int rightTrackAxis = static_cast<int>(profile.rightTrackAxis);
 				int leftRollAxis = static_cast<int>(profile.leftRollAxis);
@@ -1569,7 +1582,16 @@ namespace Ui
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
 
-		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
+		if (ctx.cpuFrameTimeMs > 0.0f)
+		{
+			ImGui::Text("Frame: %.1f ms (%.1f FPS)",
+				ctx.cpuFrameTimeMs,
+				1000.0f / ctx.cpuFrameTimeMs);
+		}
+		else
+		{
+			ImGui::TextUnformatted("Frame: unavailable");
+		}
 
 		if (ImGui::CollapsingHeader(
 			"Sub Windows", ImGuiTreeNodeFlags_DefaultOpen))

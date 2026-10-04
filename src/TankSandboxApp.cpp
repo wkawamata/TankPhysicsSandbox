@@ -654,8 +654,12 @@ void TankSandboxApp::StartCommandLineCapture()
     }
     m_captureCliRunning = true;
     m_captureUi.outputDirectory = config.outputDirectory.string();
+    m_captureUi.outputSubdirectory = config.outputSubdirectory.string();
     m_captureUi.baseName = config.baseName;
     m_captureUi.outputFormat = static_cast<int>(config.outputFormat);
+    m_captureUi.gifRepeatMode = static_cast<int>(config.gifRepeatMode);
+    m_captureUi.gifRepeatCount = config.gifRepeatCount;
+    m_captureUi.gifDisposal = static_cast<int>(config.gifDisposal);
     const auto uiInt = [](std::uint64_t value)
     {
         return static_cast<int>((std::min)(value,
@@ -689,7 +693,56 @@ void TankSandboxApp::DrawCaptureSessionUi()
     ImGui::BeginDisabled(legacyCapture || m_captureClosePending);
     RtPbrSurvey::CaptureSessionUi::Draw(m_sceneRenderer, m_captureUi);
     ImGui::EndDisabled();
+    DrawCaptureRoiOverlay();
+    ImGui::TextUnformatted("F8: Start Capture Session / Stop active session");
     ImGui::TextWrapped("Fixed-step follows the 60 Hz host simulation. Pausing vehicle physics also pauses its capture clock.");
+}
+
+void TankSandboxApp::ToggleCaptureSessionShortcut()
+{
+    const RtPbrSurvey::CaptureSessionStatus& status = m_sceneRenderer.GetCaptureSessionStatus();
+    if (RtPbrSurvey::CaptureSessionUi::IsActive(status))
+    {
+        m_sceneRenderer.StopCaptureSession();
+        m_captureUi.message = "Capture session is draining queued output.";
+        return;
+    }
+
+    const bool legacyCapture = m_legacyScreenshotsPending > 0 || m_rollCaptureEnabled ||
+        m_autoCaptureFrameCount > 0 || m_benchmarkMeasureFrames > 0;
+    if (legacyCapture || m_captureClosePending)
+    {
+        m_captureUi.message = "Capture session is unavailable while another capture operation is running.";
+        return;
+    }
+
+    std::string error;
+    m_captureUi.message = m_sceneRenderer.StartCaptureSession(
+        RtPbrSurvey::CaptureSessionUi::BuildConfig(m_captureUi), error) ?
+        "Capture session started." : "Unable to start capture session: " + error;
+}
+
+void TankSandboxApp::DrawCaptureRoiOverlay() const
+{
+    const RtPbrSurvey::CaptureSessionStatus& status = m_sceneRenderer.GetCaptureSessionStatus();
+    if (!m_captureUi.useRegion || !m_captureUi.showRegionOverlay ||
+        RtPbrSurvey::CaptureSessionUi::IsActive(status) ||
+        m_captureUi.regionWidth <= 0 || m_captureUi.regionHeight <= 0 ||
+        m_windowInfo.width == 0 || m_windowInfo.height == 0)
+    {
+        return;
+    }
+
+    const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+    const float xScale = displaySize.x / static_cast<float>(m_windowInfo.width);
+    const float yScale = displaySize.y / static_cast<float>(m_windowInfo.height);
+    const ImVec2 minimum(
+        static_cast<float>(m_captureUi.regionX) * xScale,
+        static_cast<float>(m_captureUi.regionY) * yScale);
+    const ImVec2 maximum(
+        static_cast<float>(m_captureUi.regionX + m_captureUi.regionWidth) * xScale,
+        static_cast<float>(m_captureUi.regionY + m_captureUi.regionHeight) * yScale);
+    ImGui::GetForegroundDrawList()->AddRect(minimum, maximum, IM_COL32(255, 196, 0, 255), 0.0f, 0, 2.0f);
 }
 
 void TankSandboxApp::UpdateCaptureSession()
@@ -781,7 +834,9 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
         m_outputPanel.open = !m_outputPanel.open;
         return;
     }
-    if (m_appMode != AppMode::TopMenu && key >= '1' && key <= '4')
+    if (m_appMode != AppMode::TopMenu &&
+        m_appMode != AppMode::PhysicsBoxDrop &&
+        key >= '1' && key <= '4')
     {
         const int slot = static_cast<int>(key - '1');
         if (m_cameraController.SelectSlot(slot, true))
@@ -794,6 +849,14 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     if (key == VK_F12)
     {
         RequestScreenshot();
+    }
+    else if (key == VK_F8)
+    {
+        ToggleCaptureSessionShortcut();
+    }
+    else if (key == VK_F7 && m_appMode == AppMode::PhysicsBoxDrop)
+    {
+        m_boxDropMode.Reset(m_sceneRenderer);
     }
     else if (key == VK_ESCAPE)
     {
@@ -817,6 +880,14 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'R')
     {
         m_trackedVehicleMode.Reset(m_sceneRenderer, m_cameraController);
+    }
+    else if (m_appMode == AppMode::PhysicsBoxDrop && key == 'P')
+    {
+        m_boxDropMode.TogglePaused();
+    }
+    else if (m_appMode == AppMode::PhysicsBoxDrop && key == 'N' && m_boxDropMode.Paused())
+    {
+        m_boxDropMode.RequestSingleStep();
     }
     else if (m_appMode == AppMode::PhysicsTrackedVehicle && key == 'P')
     {
@@ -1023,7 +1094,7 @@ void TankSandboxApp::OnIdle()
         ClearVehicleInputState();
     }
 
-    if (advanceSimulation && m_appMode == AppMode::PhysicsBoxDrop)
+    if (advanceSimulation && m_appMode == AppMode::PhysicsBoxDrop && m_boxDropMode.ConsumeSimulationStep())
     {
         m_boxDropMode.Update(m_sceneRenderer);
         m_captureSimulationSeconds += 1.0 / 60.0;

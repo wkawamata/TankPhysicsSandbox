@@ -570,6 +570,7 @@ void TrackedVehicleMode::UpdateInput(
         return axis < gamepadState.axisCount && axis < gamepadState.rawAxes.size();
     };
     m_analogTracksConnected = gamepadState.connected && profile != nullptr &&
+        profile->controlType == Tank::Input::GamepadControlType::TypeA &&
         hasAxis(profile->leftTrackAxis) && hasAxis(profile->rightTrackAxis) &&
         hasAxis(profile->leftRollAxis) && hasAxis(profile->rightRollAxis);
     if (!m_analogTracksConnected)

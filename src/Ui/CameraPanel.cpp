@@ -315,6 +315,38 @@ namespace Ui
             {
                 ctx.cameraController->ResetFollowState();
             }
+            changed |= ImGuiWidgets::SliderFloatWithControls(
+                "Horizontal Lens Shift", &ctx.camera->lensShiftX,
+                -1.0f, 1.0f, 0.01f, 0.0f, "%.2f");
+            changed |= ImGuiWidgets::SliderFloatWithControls(
+                "Vertical Lens Shift", &ctx.camera->lensShiftY,
+                -1.0f, 1.0f, 0.01f, 0.0f, "%.2f");
+            ImGui::TextDisabled("Offsets the projection centre; 0.00 is symmetric.");
+
+            const float halfFovRadians = DirectX::XMConvertToRadians(
+                std::clamp(ctx.camera->fov, 0.1f, 179.0f)) * 0.5f;
+            const float halfHeight = std::tan(halfFovRadians);
+            float upFovDegrees = DirectX::XMConvertToDegrees(std::atan(
+                halfHeight * (1.0f + ctx.camera->lensShiftY)));
+            float downFovDegrees = DirectX::XMConvertToDegrees(std::atan(
+                halfHeight * (1.0f - ctx.camera->lensShiftY)));
+            ImGui::SeparatorText("Advanced Vertical Frustum");
+            const bool upChanged = ImGuiWidgets::SliderFloatWithControls(
+                "Up FOV", &upFovDegrees, 0.1f, 89.9f, 0.1f, 30.0f, "%.1f deg");
+            const bool downChanged = ImGuiWidgets::SliderFloatWithControls(
+                "Down FOV", &downFovDegrees, 0.1f, 89.9f, 0.1f, 30.0f, "%.1f deg");
+            if (upChanged || downChanged)
+            {
+                const float top = std::tan(DirectX::XMConvertToRadians(upFovDegrees));
+                const float bottom = std::tan(DirectX::XMConvertToRadians(downFovDegrees));
+                const float total = std::atan(top) + std::atan(bottom);
+                ctx.camera->fov = std::clamp(
+                    DirectX::XMConvertToDegrees(total), 0.1f, 179.0f);
+                ctx.camera->lensShiftY = std::clamp(
+                    (top - bottom) / std::max(top + bottom, 0.0001f), -1.0f, 1.0f);
+                changed = true;
+                ctx.cameraController->ResetFollowState();
+            }
         }
         else
         {

@@ -6,7 +6,7 @@ namespace Tank::Rendering
 {
     namespace
     {
-        constexpr int kSchemaVersion = 1;
+        constexpr int kSchemaVersion = 2;
 
         void ReadFloat(const nlohmann::json& object, const char* name, float& value)
         {
@@ -43,6 +43,8 @@ namespace Tank::Rendering
             { "up", settings.up },
             { "projection", settings.projection },
             { "fovDegrees", settings.fovDegrees },
+            { "perspectiveLensShiftX", settings.perspectiveLensShiftX },
+            { "perspectiveLensShiftY", settings.perspectiveLensShiftY },
             { "orthographicHeight", settings.orthographicHeight },
             { "followTank", settings.followTank },
             { "followDistance", settings.followDistance },
@@ -73,7 +75,7 @@ namespace Tank::Rendering
         }
         const auto version = json.find("version");
         if (version == json.end() || !version->is_number_integer() ||
-            version->get<int>() != kSchemaVersion)
+            (version->get<int>() != 1 && version->get<int>() != kSchemaVersion))
         {
             if (error != nullptr)
             {
@@ -92,6 +94,8 @@ namespace Tank::Rendering
             loaded.projection = projection->get<int>();
         }
         ReadFloat(json, "fovDegrees", loaded.fovDegrees);
+        ReadFloat(json, "perspectiveLensShiftX", loaded.perspectiveLensShiftX);
+        ReadFloat(json, "perspectiveLensShiftY", loaded.perspectiveLensShiftY);
         ReadFloat(json, "orthographicHeight", loaded.orthographicHeight);
         const auto followTank = json.find("followTank");
         if (followTank != json.end() && followTank->is_boolean())

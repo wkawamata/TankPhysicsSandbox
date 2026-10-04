@@ -85,6 +85,8 @@ private:
     void DrawCaptureSessionUi();
     void StartCommandLineCapture();
     void UpdateCaptureSession();
+    void ToggleCaptureSessionShortcut();
+    void DrawCaptureRoiOverlay() const;
     void CaptureRollTestFrame();
     bool SaveRendererSettings();
     bool LoadRendererSettings();
