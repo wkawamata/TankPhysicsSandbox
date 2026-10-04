@@ -247,7 +247,7 @@ JSONロード・Save、マップ配置、砲塔ごとの実際の旋回・発射
 
 - 原因: RtPbrSurveyがa6b9472（Capture Session対応前）に切り替わっていた一方、TankSandboxAppはCaptureSessionUi等の対応済みAPIを使用していた。
 - 修復: サブモジュール内のcodex/wd2-renderer-compatブランチで、元の対応済みコミット8968337を現在のa6b9472へ統合。マージコミット710307e。a6b9472のデバッグライン変更は履歴ごと維持した。
-- 対応履歴は別のローカルcheckoutから取得した。サブモジュールのマージコミットはローカルのみで、まだpushしていない。親リポジトリのPRを公開する前に、このコミットをリモートで参照可能にする必要がある。
+- 対応履歴は別のローカルcheckoutから取得した。その後、最新origin/mainと統合し、RtPbrSurvey PR #89をRemote mainへマージ済み（2146d13）。Capture/GIF対応とデバッグライン変更を維持した。
 - build-working2のvcpkg manifest installを有効にし、既存vcpkg.jsonに記載済みのtinyexr/minizを導入した。プロジェクト依存定義の変更は不要だった。
 - TankSandbox / Releaseの全体ビルド成功。D3D12Core.dll・SDKLayersと41個のcsoを出力先で確認した。
 - build-working2を作業ディレクトリに、Release/TankSandbox.exe --scene tracked-vehicleで起動した。
@@ -256,3 +256,5 @@ JSONロード・Save、マップ配置、砲塔ごとの実際の旋回・発射
 - 保存後に3つ目の攻撃タイプを追加し、Loadで保存時の2件へ戻ることを確認。2つの砲台とAttack 1の割り当てもGUIで復元確認した。
 - 関連CTestは修復後も8/8成功。git diff --check成功。
 - 敵エディターはTracked Vehicleパネル内にある。上部State Summaryや他の補助ウィンドウを閉じ、下部スクロール領域で設定を操作できる。
+
+- Remote公開前にTank本体の最新origin/mainも統合。最終構成のReleaseビルドと関連CTest 8/8成功。通常弾射程40 m・同時弾数64を採用し、それ以外の既存調整はこの変更に含めない。
