@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "maximumHitPoints": 100.0,
+  "startingLives": 3,
+  "enemyContactDamage": 100.0
+}
