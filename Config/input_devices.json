@@ -2,6 +2,7 @@
     "profiles": [
         {
             "brakeButton": 3,
+            "controlType": "typeA",
             "deadzone": 0.029999999329447746,
             "fireButton": 13,
             "id": "elecom-056e-200a",
@@ -21,6 +22,7 @@
         },
         {
             "brakeButton": 1,
+            "controlType": "typeA",
             "cameraNextButton": 4,
             "cameraPreviousButton": 5,
             "deadzone": 0.1,
@@ -42,6 +44,7 @@
         },
         {
             "brakeButton": 1,
+            "controlType": "typeA",
             "cameraNextButton": 4,
             "cameraPreviousButton": 5,
             "deadzone": 0.1,
