@@ -698,6 +698,12 @@ if(BUILD_TESTING)
         target_compile_options(PhysicsWorldTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(BoxDropPlaybackTests tests/BoxDropPlaybackTests.cpp)
+    target_include_directories(BoxDropPlaybackTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(BoxDropPlaybackTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(TankSettingsJsonTests
         tests/TankSettingsJsonTests.cpp
     )
@@ -724,6 +730,8 @@ if(BUILD_TESTING)
     set_tests_properties(TankPhysics.BoxDrop PROPERTIES
         PASS_REGULAR_EXPRESSION "PASS box-drop"
     )
+
+    add_test(NAME TankPhysics.BoxDropPlayback COMMAND BoxDropPlaybackTests)
 
     add_test(
         NAME TankPhysics.TopologyMapCli

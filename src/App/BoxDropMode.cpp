@@ -10,6 +10,7 @@ void BoxDropMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
     m_presenter.BuildScene();
     Engine::Scene& scene = m_presenter.GetScene();
 
+    m_playback.Reset();
     m_test.Initialize();
 
     renderer.SetScene(scene);
@@ -34,12 +35,24 @@ void BoxDropMode::DrawUi(RtPbrSurvey::SceneRenderer& renderer, float cpuFrameTim
     ImGui::Text("Sleeping: %s", state.boxSleeping ? "yes" : "no");
     ImGui::Separator();
     ImGui::Text("Frame: %.1f ms", cpuFrameTimeMs);
-    if (ImGui::Button("Reset"))
+    if (ImGui::Button("Reset (F7)"))
     {
         Reset(renderer);
     }
+    ImGui::SameLine();
+    if (ImGui::Button(m_playback.IsPaused() ? "Resume (P)" : "Pause (P)"))
+    {
+        m_playback.TogglePaused();
+    }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!m_playback.IsPaused());
+    if (ImGui::Button("Step (N)"))
+    {
+        m_playback.RequestSingleStep();
+    }
+    ImGui::EndDisabled();
     ImGui::Separator();
-    ImGui::Text("Press ESC to return to the top menu.");
+    ImGui::Text("F7: Reset  |  P: Pause/Resume  |  N: Step  |  ESC: Top menu");
     ImGui::End();
 }
 
@@ -48,6 +61,26 @@ void BoxDropMode::Reset(RtPbrSurvey::SceneRenderer& renderer)
     m_test.Initialize();
     m_presenter.UpdateScene(m_test.State());
     renderer.SetScene(m_presenter.GetScene());
+}
+
+void BoxDropMode::TogglePaused()
+{
+    m_playback.TogglePaused();
+}
+
+bool BoxDropMode::Paused() const
+{
+    return m_playback.IsPaused();
+}
+
+void BoxDropMode::RequestSingleStep()
+{
+    m_playback.RequestSingleStep();
+}
+
+bool BoxDropMode::ConsumeSimulationStep()
+{
+    return m_playback.ConsumeSimulationStep();
 }
 
 void BoxDropMode::Exit()
