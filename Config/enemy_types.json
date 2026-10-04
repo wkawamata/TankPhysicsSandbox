@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "attackTypes": [
+    {
+      "name": "Type 0",
+      "detectionRangeMeters": 50.0,
+      "reachMeters": 30.0,
+      "firingRangeMeters": 25.0,
+      "projectileSpeedMetersPerSecond": 1.0,
+      "firingIntervalSeconds": 3.0,
+      "maximumYawSpeedDegreesPerSecond": 5.0,
+      "firingToleranceDegrees": 3.0
+    }
+  ],
+  "unitTypes": [
+    {
+      "name": "Fixed turret",
+      "attackMounts": [
+        {
+          "attackType": "Type 0",
+          "localPosition": [0.0, 0.0, 0.0]
+        }
+      ]
+    }
+  ]
+}

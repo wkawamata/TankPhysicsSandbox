@@ -21,6 +21,14 @@ namespace Tank::Physics
         Vec3 size = {};
     };
 
+    // Box collision proxy for the first stationary enemy. HP is explicit tuning.
+    struct FixedTurretState
+    {
+        CombatTarget target = {};
+        Vec3 position = {};
+        Vec3 size = {};
+    };
+
     struct TrackedVehicleTestState
     {
         int stepIndex = 0;
@@ -64,6 +72,7 @@ namespace Tank::Physics
         ImpactMarkBuffer assaultImpactMarks;
         std::uint64_t assaultHitTargetId = 0;
         std::vector<DestructibleBoxState> destructibleBoxes;
+        std::vector<FixedTurretState> fixedTurrets;
         SpecialMoveStateSnapshot specialMove = {};
         bool rollingObstructionSuspected = false;
         bool rollingRecoveryActive = false;
@@ -98,6 +107,7 @@ namespace Tank::Physics
         void SetAssaultProjectileSettings(const AssaultProjectileSettings& settings);
         const AssaultProjectileSettings& ProjectileSettings() const;
         bool AddDestructibleBox(const Vec3& position, const Vec3& size, float hitPoints = 60.0f);
+        bool AddFixedTurret(const Vec3& position, const Vec3& size, float hitPoints);
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
