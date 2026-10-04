@@ -1579,7 +1579,16 @@ namespace Ui
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
 
-		ImGui::Text("Frame: %.1f ms", ctx.cpuFrameTimeMs);
+		if (ctx.cpuFrameTimeMs > 0.0f)
+		{
+			ImGui::Text("Frame: %.1f ms (%.1f FPS)",
+				ctx.cpuFrameTimeMs,
+				1000.0f / ctx.cpuFrameTimeMs);
+		}
+		else
+		{
+			ImGui::TextUnformatted("Frame: unavailable");
+		}
 
 		if (ImGui::CollapsingHeader(
 			"Sub Windows", ImGuiTreeNodeFlags_DefaultOpen))
