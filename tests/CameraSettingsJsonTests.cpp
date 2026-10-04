@@ -19,6 +19,8 @@ int main()
     source.up[0] = 0.25f;
     source.up[1] = 0.75f;
     source.projection = 1;
+    source.perspectiveLensShiftX = -0.25f;
+    source.perspectiveLensShiftY = 0.40f;
     source.followTank = true;
     source.lookDownDegrees = 42.0f;
     source.followYawOffsetDegrees = -35.0f;
@@ -37,12 +39,23 @@ int main()
         NearlyEqual(loaded.up[0], 0.25f) &&
         NearlyEqual(loaded.up[1], 0.75f) &&
         loaded.projection == 1 &&
+        NearlyEqual(loaded.perspectiveLensShiftX, -0.25f) &&
+        NearlyEqual(loaded.perspectiveLensShiftY, 0.40f) &&
         loaded.followTank &&
         NearlyEqual(loaded.lookDownDegrees, 42.0f) &&
         NearlyEqual(loaded.followYawOffsetDegrees, -35.0f) &&
         NearlyEqual(loaded.yawSpeedLimitDegrees, 120.0f) &&
         NearlyEqual(loaded.yawDamping, 6.0f);
-    if (!passed)
+    Tank::Rendering::CameraSettings legacy;
+    const bool legacyPassed =
+        Tank::Rendering::DeserializeCameraSettings(
+            R"({"version":1,"fovDegrees":55.0})",
+            legacy,
+            &error) &&
+        NearlyEqual(legacy.fovDegrees, 55.0f) &&
+        NearlyEqual(legacy.perspectiveLensShiftX, 0.0f) &&
+        NearlyEqual(legacy.perspectiveLensShiftY, 0.0f);
+    if (!passed || !legacyPassed)
     {
         std::cerr << "FAIL CameraSettings JSON: " << error << "\n";
         return 1;

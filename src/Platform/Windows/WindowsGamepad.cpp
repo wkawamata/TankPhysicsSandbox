@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <utility>
 
 using Microsoft::WRL::ComPtr;
 using namespace GameInput::v3;
@@ -46,6 +47,16 @@ namespace Tank::Platform::Windows
         float NormalizeDirectInputAxis(LONG value)
         {
             return std::clamp(static_cast<float>(value) / 65535.0f, 0.0f, 1.0f);
+        }
+
+        float NormalizeMappedAxis(float value)
+        {
+            return std::clamp(value * 0.5f + 0.5f, 0.0f, 1.0f);
+        }
+
+        float NormalizeMappedVerticalAxis(float value)
+        {
+            return std::clamp(0.5f - value * 0.5f, 0.0f, 1.0f);
         }
 
         GameInputSwitchPosition ConvertPov(DWORD pov)
@@ -230,6 +241,98 @@ namespace Tank::Platform::Windows
             return true;
         }
 
+        bool PollGameInput()
+        {
+            if (!gameInput)
+            {
+                return false;
+            }
+
+            ComPtr<IGameInputReading> reading;
+            if (FAILED(gameInput->GetCurrentReading(
+                    GameInputKindGamepad,
+                    nullptr,
+                    reading.ReleaseAndGetAddressOf())) ||
+                !reading)
+            {
+                return false;
+            }
+
+            GameInputGamepadState gamepad = {};
+            if (!reading->GetGamepadState(&gamepad))
+            {
+                return false;
+            }
+
+            Input::GamepadState mappedState;
+            mappedState.connected = true;
+            mappedState.hasGamepadMapping = true;
+
+            IGameInputDevice* rawDevice = nullptr;
+            reading->GetDevice(&rawDevice);
+            ComPtr<IGameInputDevice> device;
+            device.Attach(rawDevice);
+            const GameInputDeviceInfo* deviceInfo = nullptr;
+            if (device && SUCCEEDED(device->GetDeviceInfo(&deviceInfo)) && deviceInfo != nullptr)
+            {
+                mappedState.deviceName = CopyGameInputString(deviceInfo->displayName);
+                mappedState.vendorId = deviceInfo->vendorId;
+                mappedState.productId = deviceInfo->productId;
+            }
+
+            mappedState.leftStickX = gamepad.leftThumbstickX;
+            mappedState.leftStickY = gamepad.leftThumbstickY;
+            mappedState.rightTrigger = gamepad.rightTrigger;
+            mappedState.dpadUp = (gamepad.buttons & GameInputGamepadDPadUp) != 0;
+            mappedState.dpadDown = (gamepad.buttons & GameInputGamepadDPadDown) != 0;
+            mappedState.dpadLeft = (gamepad.buttons & GameInputGamepadDPadLeft) != 0;
+            mappedState.dpadRight = (gamepad.buttons & GameInputGamepadDPadRight) != 0;
+            mappedState.brakePressed = (gamepad.buttons & GameInputGamepadA) != 0;
+
+            // Preserve the existing two-lever profile contract when GameInput
+            // supplies a standardized controller mapping. DirectInput exposes
+            // these axes in the order left X/Y, right X/Y with a [0, 1] range.
+            mappedState.axisCount = 4;
+            mappedState.rawAxes[0] = NormalizeMappedAxis(gamepad.leftThumbstickX);
+            mappedState.rawAxes[1] = NormalizeMappedVerticalAxis(gamepad.leftThumbstickY);
+            mappedState.rawAxes[2] = NormalizeMappedAxis(gamepad.rightThumbstickX);
+            mappedState.rawAxes[3] = NormalizeMappedVerticalAxis(gamepad.rightThumbstickY);
+
+            mappedState.buttonCount = 12;
+            mappedState.rawButtons[0] = (gamepad.buttons & GameInputGamepadX) != 0;
+            mappedState.rawButtons[1] = (gamepad.buttons & GameInputGamepadA) != 0;
+            mappedState.rawButtons[2] = (gamepad.buttons & GameInputGamepadB) != 0;
+            mappedState.rawButtons[3] = (gamepad.buttons & GameInputGamepadY) != 0;
+            mappedState.rawButtons[4] =
+                (gamepad.buttons & GameInputGamepadLeftShoulder) != 0;
+            mappedState.rawButtons[5] =
+                (gamepad.buttons & GameInputGamepadRightShoulder) != 0;
+            mappedState.rawButtons[6] =
+                (gamepad.buttons & GameInputGamepadLeftTriggerButton) != 0;
+            mappedState.rawButtons[7] =
+                (gamepad.buttons & GameInputGamepadRightTriggerButton) != 0;
+            mappedState.rawButtons[8] = (gamepad.buttons & GameInputGamepadView) != 0;
+            mappedState.rawButtons[9] = (gamepad.buttons & GameInputGamepadMenu) != 0;
+            mappedState.rawButtons[10] =
+                (gamepad.buttons & GameInputGamepadLeftThumbstick) != 0;
+            mappedState.rawButtons[11] =
+                (gamepad.buttons & GameInputGamepadRightThumbstick) != 0;
+
+            GameInputSwitchPosition dpad = GameInputSwitchCenter;
+            if (mappedState.dpadUp && mappedState.dpadRight) dpad = GameInputSwitchUpRight;
+            else if (mappedState.dpadDown && mappedState.dpadRight) dpad = GameInputSwitchDownRight;
+            else if (mappedState.dpadDown && mappedState.dpadLeft) dpad = GameInputSwitchDownLeft;
+            else if (mappedState.dpadUp && mappedState.dpadLeft) dpad = GameInputSwitchUpLeft;
+            else if (mappedState.dpadUp) dpad = GameInputSwitchUp;
+            else if (mappedState.dpadDown) dpad = GameInputSwitchDown;
+            else if (mappedState.dpadLeft) dpad = GameInputSwitchLeft;
+            else if (mappedState.dpadRight) dpad = GameInputSwitchRight;
+            mappedState.switchCount = 1;
+            mappedState.rawSwitches[0] = static_cast<std::uint32_t>(dpad);
+            state = std::move(mappedState);
+            return true;
+        }
+
         ComPtr<IGameInput> gameInput;
         ComPtr<IDirectInput8W> directInput;
         ComPtr<IDirectInputDevice8W> directInputDevice;
@@ -262,54 +365,14 @@ namespace Tank::Platform::Windows
     void WindowsGamepad::Poll()
     {
         m_impl->state = {};
+        if (m_impl->PollGameInput())
+        {
+            return;
+        }
         if (m_impl->PollDirectInput())
         {
             return;
         }
-        if (!m_impl->gameInput)
-        {
-            return;
-        }
-
-        ComPtr<IGameInputReading> reading;
-        if (FAILED(m_impl->gameInput->GetCurrentReading(
-                GameInputKindGamepad,
-                nullptr,
-                reading.ReleaseAndGetAddressOf())) ||
-            !reading)
-        {
-            return;
-        }
-
-        Input::GamepadState& state = m_impl->state;
-        state.connected = true;
-
-        IGameInputDevice* rawDevice = nullptr;
-        reading->GetDevice(&rawDevice);
-        ComPtr<IGameInputDevice> device;
-        device.Attach(rawDevice);
-        const GameInputDeviceInfo* deviceInfo = nullptr;
-        if (device && SUCCEEDED(device->GetDeviceInfo(&deviceInfo)) && deviceInfo != nullptr)
-        {
-            state.deviceName = CopyGameInputString(deviceInfo->displayName);
-            state.vendorId = deviceInfo->vendorId;
-            state.productId = deviceInfo->productId;
-        }
-
-        GameInputGamepadState gamepad = {};
-        state.hasGamepadMapping = reading->GetGamepadState(&gamepad);
-        if (!state.hasGamepadMapping)
-        {
-            return;
-        }
-
-        state.leftStickX = gamepad.leftThumbstickX;
-        state.leftStickY = gamepad.leftThumbstickY;
-        state.rightTrigger = gamepad.rightTrigger;
-        state.dpadUp = (gamepad.buttons & GameInputGamepadDPadUp) != 0;
-        state.dpadDown = (gamepad.buttons & GameInputGamepadDPadDown) != 0;
-        state.dpadLeft = (gamepad.buttons & GameInputGamepadDPadLeft) != 0;
-        state.dpadRight = (gamepad.buttons & GameInputGamepadDPadRight) != 0;
     }
 
     bool WindowsGamepad::IsAvailable() const
