@@ -826,6 +826,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     }
     if (m_appMode != AppMode::TopMenu &&
         m_appMode != AppMode::PhysicsBoxDrop &&
+        !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantTextInput &&
         key >= '1' && key <= '4')
     {
         const int slot = static_cast<int>(key - '1');
