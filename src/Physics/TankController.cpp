@@ -1022,6 +1022,11 @@ namespace Tank::Physics
                             SpecialMoveEvent::MoveCompleted,
                             true);
                 }
+                // A completed roll may immediately chain while its paired
+                // lever command remains held. Re-arm only at this physical
+                // completion point: neutral input still remains idle, while
+                // the next PreStep turns the held command into one new roll.
+                m_specialMoveInputProcessor.Reset();
             }
         }
 

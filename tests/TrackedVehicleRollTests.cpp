@@ -291,8 +291,9 @@ int main()
             returnTest.State().rollingDecisionInputSign < 0.0f,
         "reverse decision diagnostics must record command and input signs");
 
-    // Holding the same paired lever command across the 90 degree decision
-    // must remain ContinueForward. It must never become a silent reverse.
+    // Holding the same paired lever command must remain ContinueForward and
+    // automatically chain after each completed roll. It must never become a
+    // silent reverse while it is held.
     Tank::Physics::TrackedVehicleTest heldInputTest;
     heldInputTest.Initialize(settings);
     for (int i = 0; i < 180; ++i)
@@ -304,9 +305,19 @@ int main()
     heldInput.leftLeverX = -1.0f;
     heldInput.rightLeverX = -1.0f;
     heldInputTest.SetInput(heldInput);
+    std::uint64_t heldInputLastSequence =
+        heldInputTest.State().rollingTraceSequence;
+    int heldInputStartCount = 0;
     for (int i = 0; i < 720; ++i)
     {
-        heldInputTest.Step(dt);
+        const auto heldInputState = heldInputTest.Step(dt);
+        if (heldInputState.rollingTraceSequence != heldInputLastSequence &&
+            heldInputState.lastRollingTraceEvent ==
+                Tank::Physics::RollingTraceEvent::StartLatched)
+        {
+            ++heldInputStartCount;
+        }
+        heldInputLastSequence = heldInputState.rollingTraceSequence;
     }
     const float heldInputDisplacementX =
         heldInputTest.State().bodyPosition.x - heldInputStart.x;
@@ -317,6 +328,8 @@ int main()
         "same paired levers at 90 degrees must remain ContinueForward");
     passed &= Check(heldInputDisplacementX < -5.0f,
         "same paired levers must not reverse their roll travel before landing");
+    passed &= Check(heldInputStartCount >= 2,
+        "held same-direction paired levers must continuously chain rolls");
 
     // A new left request after a completed left roll must retain its sign;
     // MoveCompleted used to overwrite lastEvent and silently selected +1.
