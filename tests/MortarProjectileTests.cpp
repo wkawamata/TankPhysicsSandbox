@@ -237,6 +237,53 @@ int main()
     passed &= Check(driftXZ < 0.5f,
         "throttle during the wheelie does not move the tank");
 
+    // Z-rolled entry: after a 180-degree roll the tank must be able to
+    // enter the mortar sequence while upside down, and the wheelie stance
+    // must hold the flipped pose instead of righting the tank into the
+    // opposite heading.
+    TankSettings rolledSettings = settings;
+    rolledSettings.rollingInputEnabled = true;
+    rolledSettings.chassisWidthM = 2.4f;
+    rolledSettings.chassisLengthM = 3.92f;
+    rolledSettings.trackSpacingM = 4.63f;
+    rolledSettings.trackWidthM = 0.63f;
+    rolledSettings.roadWheelCount = 4;
+    rolledSettings.rideHeightScale = 1.1f;
+    rolledSettings.rollTorqueNm = 200000.0f;
+    world.Initialize(rolledSettings);
+    Advance(world, 180);
+    TankInput rollInput;
+    rollInput.leftLeverX = 1.0f;
+    rollInput.rightLeverX = 1.0f;
+    world.SetInput(rollInput);
+    world.Step(dt);
+    world.SetInput({});
+    Advance(world, 600);
+    const Quat& rolledRotation = world.State().bodyRotation;
+    const float rolledUpY = 1.0f - 2.0f *
+        (rolledRotation.x * rolledRotation.x + rolledRotation.z * rolledRotation.z);
+    passed &= Check(rolledUpY < -0.9f, "roll leaves the tank upside down");
+    passed &= Check(world.State().mobility.state == MobilityState::Stopped,
+        "upside down tank settles to Stopped");
+    world.SetInput(input);
+    Advance(world, 10);
+    passed &= Check(world.State().specialMove.state == SpecialMoveState::MortarAiming,
+        "mortar gesture accepted while upside down");
+    Advance(world, 120);
+    const Quat& stanceRotation = world.State().bodyRotation;
+    const float stanceUpY = 1.0f - 2.0f *
+        (stanceRotation.x * stanceRotation.x + stanceRotation.z * stanceRotation.z);
+    const float stanceForwardZ = 1.0f - 2.0f *
+        (stanceRotation.x * stanceRotation.x + stanceRotation.y * stanceRotation.y);
+    const float stanceForwardY = 2.0f *
+        (stanceRotation.y * stanceRotation.z - stanceRotation.x * stanceRotation.w);
+    passed &= Check(stanceUpY < -0.5f,
+        "wheelie stance keeps the tank upside down instead of righting it");
+    passed &= Check(stanceForwardZ > 0.5f,
+        "wheelie stance does not reverse the heading");
+    passed &= Check(stanceForwardY > 0.15f,
+        "wheelie raises the front end in world terms while flipped");
+
     if (!passed) return 1;
     std::cout << "PASS MortarProjectile\n";
     return 0;

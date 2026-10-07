@@ -147,12 +147,37 @@ Stance の間）。
 - 回帰テスト: MortarProjectile の最終シナリオで MortarAiming 中に
   スロットル全開 60 ステップを与え、車体の変位が 0.5 m 未満であることを確認。
 
+## 9. Z ロール（反転）状態からの迫撃進入: 姿勢ターゲットのミラー
+
+- 仕様: Rolling（180 度の Z ロール）後の反転状態でも Rolling 前と
+  同じ操作が可能でなければならない。迫撃姿勢で反転を元に戻して
+  逆向きになってはいけない。ホイーリーは反転状態でも**ワールド基準で
+  前部が上がる**（後部が上がってはいけない）。
+- 原因: 姿勢トルクのターゲット `targetUp` が常にワールド +Y 基準
+  （直立 + ピッチ）で構成されていた。反転した車体では `pitchError` の
+  `bodyRight` への射影がワールド +X 周りのトルクとなり、車体を横軸
+  周り 180 度回転させて直立・逆向きに戻していた。
+- 修正: `bodyUp.Dot(Y)` の符号 `upSign` で `targetUp` **全体**を反転する
+  （`(Y * cos - flatForward * sin) * upSign`）。反転車体は反転姿勢と
+  向きを保ったまま、車体前部をワールド上方向（空側）へ持ち上げる。
+  直立時は従来と同一のターゲット。姿勢ピッチが 90 度未満のあいだ
+  符号は安定で、ゲートや他経路は不変。
+- 他経路は変更不要（検証済み）: mobility の Stopped 判定は
+  `abs(bodyUp・接触法線)` を使い、駆動接触判定はトラック上面接触を
+  含むため反転でも停止到達できる。発射解は bodyForward の水平射影と
+  ワールド上向きの仰角のみを使うため、反転しても弾道は同じ。
+- 回帰テスト: MortarProjectile にシナリオ追加 — ロールで反転着地し
+  Stopped 安定後にジェスチャが MortarAiming を受理し、姿勢トルク
+  120 ステップ後も `upY < -0.5`（反転維持）、`forwardZ > 0.5`
+  （向き維持）、`forwardY > 0.15`（前部がワールド上方向へ上昇）を
+  確認。修正前は各チェックが失敗することを再現済み。
+
 ## 変更ファイル
 
 | ファイル | 内容 |
 |---|---|
 | `src/Physics/TankTypes.h` | `MortarShotRequest`、設定 `mortarMaximumProjectileCount` / `mortarExplosionDamage` / `mortarMuzzleVelocityAuto` / `mortarMuzzleVelocityMetersPerSecond` / `mortarEmergencyBrakeAmount` / `rollEmergencyBrakeAmount`、状態 `pendingMortarShot` / `mortarShotsFired` |
-| `src/Physics/TankController.h/.cpp` | `FireMortarShell()`（弾道解と時間スケーリング）、発射トリガー、`m_fireConsumedByMortar`、`IsMortarBraking()`（受理時ラッチ `m_mortarBrakingPending`）、緊急ブレーキ上書き（mortar / roll 両方）、ホイーリー中の駆動入力ロック、mortar の drive-request 抑止 |
+| `src/Physics/TankController.h/.cpp` | `FireMortarShell()`（弾道解と時間スケーリング）、発射トリガー、`m_fireConsumedByMortar`、`IsMortarBraking()`（受理時ラッチ `m_mortarBrakingPending`）、緊急ブレーキ上書き（mortar / roll 両方）、ホイーリー中の駆動入力ロック、mortar の drive-request 抑止、Z ロール姿勢での `targetUp` ミラー（`upSign`） |
 | `src/Physics/SpecialMoveInputProcessor.h` | mortar リクエスト専用ゲート `mortarStartAllowed`（走行中受理を許可） |
 | `src/Physics/TrackedVehicleTest.h/.cpp` | `MortarProjectileState`（`gravityScale` 含む）/ `MortarBlastState`、弾の進捗（時間スケーリング重力）・爆発適用・ショット引き継ぎ |
 | `src/Rendering/TrackedVehicleScenePresenter.h/.cpp` | 弾/爆発プール `EnsureMortarCapacity`、円筒の速度方向合わせ、爆発スケールエンベロープ |
@@ -181,6 +206,9 @@ Stance の間）。
 - [x] 弾速 5 m/s では同一弧のまま滞空時間が自動より長い（着弾点は照準中心 +-2 m）
 - [x] MortarAiming 中にスロットル全開 60 ステップでも車体変位 0.5 m 未満
       （ホイーリー中の駆動入力ロックの回帰テスト）
+- [x] ロールで反転着地 -> Stopped 安定 -> ジェスチャ受理 -> 姿勢トルク
+      120 ステップ後も反転姿勢・向きを維持し、前部がワールド上方向へ
+      上昇（Z ロール進入の回帰テスト）
 
 `tests/TrackedVehicleRollTests.cpp`（既存ブレーキ開始テストに追加）:
 
@@ -188,7 +216,7 @@ Stance の間）。
       スロットル上書き（forward = 0）が効く
 - [x] 弱い緊急ブレーキでも予約済みロールは停止後に開始する
 
-実行結果: 全 80 テスト成功（HEAD 時点の既知の失敗
+実行結果: 全 85 テスト成功（HEAD 時点の既知の失敗
 `MobilityStepCli` / `MobilityAllCli` / `RollingSpeedOptimization` を除く）。
 
 ## GUI 確認状況
@@ -200,5 +228,7 @@ Stance の間）。
 - [ ] ホイーリー中のスロットル無効（駆動ロック）（ユーザー実機確認待ち）
 - [ ] Auto Muzzle Velocity チェックボックスとスライダーのグレーアウト、
       Auto OFF での弾速挙動（ユーザー実機確認待ち）
+- [ ] Z 反転状態からの迫撃進入: 反転姿勢・向きを保ち、前部が上がる
+      （ユーザー実機確認待ち）
 
 Status: done

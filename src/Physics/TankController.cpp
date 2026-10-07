@@ -722,9 +722,16 @@ namespace Tank::Physics
                 flatForward = flatForward.Normalized();
                 const float pitchRadians = JPH::DegreesToRadians(
                     m_state.mortarAim.angleDegrees);
+                // The wheelie always raises the front end in world terms.
+                // For a Z-rolled (upside down) hull mirror the whole pitch
+                // target through the hull's up direction: the tank keeps its
+                // flipped heading, never rights itself into the opposite
+                // direction, and still lifts its nose toward the sky.
+                const float upSign =
+                    bodyUp.Dot(JPH::Vec3::sAxisY()) >= 0.0f ? 1.0f : -1.0f;
                 const JPH::Vec3 targetUp =
-                    JPH::Vec3::sAxisY() * std::cos(pitchRadians) -
-                    flatForward * std::sin(pitchRadians);
+                    (JPH::Vec3::sAxisY() * std::cos(pitchRadians) -
+                        flatForward * std::sin(pitchRadians)) * upSign;
                 const JPH::Vec3 bodyRight = bodyUp.Cross(bodyForward).Normalized();
                 const float pitchError = bodyUp.Cross(targetUp).Dot(bodyRight);
                 const float pitchVelocity = bodyInterface.GetAngularVelocity(
