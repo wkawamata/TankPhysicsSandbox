@@ -507,6 +507,7 @@ void TankSandboxApp::OnInit()
         &m_trackedVehicleMode.TankModelExportStatus();
     m_trackedVehiclePanelCtx.tankModelExportBinary =
         &m_trackedVehicleMode.TankModelExportBinary();
+    m_trackedVehiclePanelCtx.enemyEditor = &m_trackedVehicleMode.EnemyEditor();
     m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleMode.Settings();
     m_trackedVehiclePanelCtx.inputMappingSettings = &m_trackedVehicleMode.InputMappingSettings();
     m_trackedVehiclePanelCtx.inputMappingStatus =
@@ -700,7 +701,6 @@ void TankSandboxApp::DrawCaptureSessionUi()
     ImGui::BeginDisabled(legacyCapture || m_captureClosePending);
     RtPbrSurvey::CaptureSessionUi::Draw(m_sceneRenderer, m_captureUi);
     ImGui::EndDisabled();
-    DrawCaptureRoiOverlay();
     ImGui::TextUnformatted("F8: Start Capture Session / Stop active session");
     ImGui::TextWrapped("Fixed-step follows the 60 Hz host simulation. Pausing vehicle physics also pauses its capture clock.");
 }
@@ -729,27 +729,10 @@ void TankSandboxApp::ToggleCaptureSessionShortcut()
         "Capture session started." : "Unable to start capture session: " + error;
 }
 
-void TankSandboxApp::DrawCaptureRoiOverlay() const
+void TankSandboxApp::DrawCaptureRoiOverlay()
 {
-    const RtPbrSurvey::CaptureSessionStatus& status = m_sceneRenderer.GetCaptureSessionStatus();
-    if (!m_captureUi.useRegion || !m_captureUi.showRegionOverlay ||
-        RtPbrSurvey::CaptureSessionUi::IsActive(status) ||
-        m_captureUi.regionWidth <= 0 || m_captureUi.regionHeight <= 0 ||
-        m_windowInfo.width == 0 || m_windowInfo.height == 0)
-    {
-        return;
-    }
-
-    const ImVec2 displaySize = ImGui::GetIO().DisplaySize;
-    const float xScale = displaySize.x / static_cast<float>(m_windowInfo.width);
-    const float yScale = displaySize.y / static_cast<float>(m_windowInfo.height);
-    const ImVec2 minimum(
-        static_cast<float>(m_captureUi.regionX) * xScale,
-        static_cast<float>(m_captureUi.regionY) * yScale);
-    const ImVec2 maximum(
-        static_cast<float>(m_captureUi.regionX + m_captureUi.regionWidth) * xScale,
-        static_cast<float>(m_captureUi.regionY + m_captureUi.regionHeight) * yScale);
-    ImGui::GetForegroundDrawList()->AddRect(minimum, maximum, IM_COL32(255, 196, 0, 255), 0.0f, 0, 2.0f);
+    RtPbrSurvey::CaptureSessionUi::DrawRegionOverlay(m_sceneRenderer.GetCaptureSessionStatus(), m_captureUi,
+                                                   m_windowInfo.width, m_windowInfo.height);
 }
 
 void TankSandboxApp::UpdateCaptureSession()
@@ -836,6 +819,14 @@ bool TankSandboxApp::OnCloseRequested()
 
 void TankSandboxApp::OnKeyDown(UINT8 key)
 {
+    if (m_captureUi.selectingRegion)
+    {
+        if (key == VK_ESCAPE)
+        {
+            RtPbrSurvey::CaptureSessionUi::CancelRegionSelection(m_captureUi);
+        }
+        return;
+    }
     if (key == VK_F9)
     {
         m_outputPanel.open = !m_outputPanel.open;
@@ -843,6 +834,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     }
     if (m_appMode != AppMode::TopMenu &&
         m_appMode != AppMode::PhysicsBoxDrop &&
+        !ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantTextInput &&
         key >= '1' && key <= '4')
     {
         const int slot = static_cast<int>(key - '1');
@@ -949,7 +941,7 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
 
 bool TankSandboxApp::EnsureDebugCameraForMouse()
 {
-    if (m_appMode == AppMode::TopMenu ||
+    if (m_captureUi.selectingRegion || m_appMode == AppMode::TopMenu ||
         (m_toolUiVisible && ImGui::GetIO().WantCaptureMouse))
     {
         return false;
@@ -1498,6 +1490,7 @@ void TankSandboxApp::UpdateUiFrame()
 
     if (m_appMode == AppMode::MapEditor)
     {
+        DrawCaptureRoiOverlay();
         m_imguiSystem.EndFrame();
         PersistUiLayoutSettingsIfChanged();
         return;
@@ -1530,6 +1523,7 @@ void TankSandboxApp::UpdateUiFrame()
         RtPbrSurvey::SceneRendererDebugUi::DrawAuxiliaryWindows(m_sceneRenderer);
     }
 
+    DrawCaptureRoiOverlay();
     m_imguiSystem.EndFrame();
     PersistUiLayoutSettingsIfChanged();
 }

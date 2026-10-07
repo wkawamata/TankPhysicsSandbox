@@ -32,6 +32,8 @@ namespace Tank::Physics
         JPH::BodyID floorBodyId;
         std::vector<JPH::BodyID> obstacleBodyIds;
         std::vector<JPH::BodyID> destructibleBodyIds;
+        std::vector<JPH::BodyID> turretBodyIds;
+        std::uint64_t nextCombatTargetId = 1;
         std::uint64_t resolvedAssaultRounds = 0;
         std::uint64_t resolvedMortarShots = 0;
         AssaultProjectileSettings projectileSettings = {};
@@ -41,6 +43,12 @@ namespace Tank::Physics
         {
             JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
             for (const JPH::BodyID id : destructibleBodyIds)
+            {
+                if (id.IsInvalid()) continue;
+                bodyInterface.RemoveBody(id);
+                bodyInterface.DestroyBody(id);
+            }
+            for (const JPH::BodyID id : turretBodyIds)
             {
                 if (id.IsInvalid()) continue;
                 bodyInterface.RemoveBody(id);
@@ -332,7 +340,29 @@ namespace Tank::Physics
         bodies.AddBody(id, JPH::EActivation::DontActivate);
         m_impl->destructibleBodyIds.push_back(id);
         m_state.destructibleBoxes.push_back({
-            {m_state.destructibleBoxes.size() + 1, CombatTargetKind::Destructible, hitPoints, true},
+            {m_impl->nextCombatTargetId++, CombatTargetKind::Destructible, hitPoints, true},
+            position, size});
+        return true;
+    }
+
+    bool TrackedVehicleTest::AddFixedTurret(const Vec3& position, const Vec3& size, float hitPoints)
+    {
+        if (!m_impl || !std::isfinite(hitPoints) || hitPoints <= 0.0f ||
+            !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
+            !std::isfinite(size.x) || !std::isfinite(size.y) || !std::isfinite(size.z) ||
+            size.x < 0.1f || size.y < 0.1f || size.z < 0.1f) return false;
+        JPH::BodyCreationSettings settings(
+            new JPH::BoxShape(JPH::Vec3(size.x, size.y, size.z) * 0.5f),
+            JPH::RVec3(position.x, position.y, position.z), JPH::Quat::sIdentity(),
+            JPH::EMotionType::Static, Layers::NonMoving);
+        auto& bodies = m_impl->world.GetBodyInterface();
+        JPH::Body* body = bodies.CreateBody(settings);
+        if (!body) return false;
+        const auto id = body->GetID();
+        bodies.AddBody(id, JPH::EActivation::DontActivate);
+        m_impl->turretBodyIds.push_back(id);
+        m_state.fixedTurrets.push_back({
+            {m_impl->nextCombatTargetId++, CombatTargetKind::Enemy, hitPoints, true},
             position, size});
         return true;
     }
@@ -384,7 +414,10 @@ namespace Tank::Physics
                     { return !id.IsInvalid() && id.GetIndexAndSequenceNumber() == hitBodyId; });
                 // Static Map geometry and the ground retain surface marks. Dynamic
                 // destructible targets deliberately remain free of persistent marks.
-                if (staticSurface && !destructible)
+                const bool turret = std::any_of(m_impl->turretBodyIds.begin(),
+                    m_impl->turretBodyIds.end(), [hitBodyId](const auto id)
+                    { return !id.IsInvalid() && id.GetIndexAndSequenceNumber() == hitBodyId; });
+                if (staticSurface && !destructible && !turret)
                     m_state.assaultImpactMarks.Add(end, normal);
                 ApplyAssaultImpact(hitBodyId, projectile.damage);
                 return true;
@@ -412,6 +445,22 @@ namespace Tank::Physics
             auto& id = m_impl->destructibleBodyIds[i];
             if (id.IsInvalid() || id.GetIndexAndSequenceNumber() != hitBodyId) continue;
             auto& target = m_state.destructibleBoxes[i].target;
+            const auto result = AssaultWeapon({damage, 8.0f}).ApplyHit(target);
+            if (result.hit) m_state.assaultHitTargetId = target.id;
+            if (result.destroyed)
+            {
+                auto& bodies = m_impl->world.GetBodyInterface();
+                bodies.RemoveBody(id);
+                bodies.DestroyBody(id);
+                id = JPH::BodyID();
+            }
+            break;
+        }
+        for (size_t i = 0; i < m_impl->turretBodyIds.size(); ++i)
+        {
+            auto& id = m_impl->turretBodyIds[i];
+            if (id.IsInvalid() || id.GetIndexAndSequenceNumber() != hitBodyId) continue;
+            auto& target = m_state.fixedTurrets[i].target;
             const auto result = AssaultWeapon({damage, 8.0f}).ApplyHit(target);
             if (result.hit) m_state.assaultHitTargetId = target.id;
             if (result.destroyed)

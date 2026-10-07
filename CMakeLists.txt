@@ -69,6 +69,13 @@ if(MSVC)
 endif()
 
 add_library(TankPhysicsCore STATIC
+    src/Physics/EnemyAttackType.h
+    src/Physics/EnemyEditorJson.cpp
+    src/Physics/EnemyEditorJson.h
+    src/Physics/CombatSettings.cpp
+    src/Physics/CombatSettings.h
+    src/Physics/PlayerCombatState.cpp
+    src/Physics/PlayerCombatState.h
     src/Physics/AssaultWeapon.cpp
     src/Physics/AssaultWeapon.h
     src/Physics/BoxDropTest.cpp
@@ -1328,4 +1335,15 @@ if(BUILD_TESTING)
         NAME TankPhysics.TrackedVehicleStep
         COMMAND TrackedVehicleStepTests
     )
+endif()
+
+if(BUILD_TESTING)
+    foreach(combat_test IN ITEMS CombatSettings PlayerCombatState FixedTurret EnemyAttackType EnemyEditorJson)
+        add_executable(${combat_test}Tests tests/${combat_test}Tests.cpp)
+        target_link_libraries(${combat_test}Tests PRIVATE TankPhysicsCore)
+        if(MSVC)
+            target_compile_options(${combat_test}Tests PRIVATE /W4 /permissive-)
+        endif()
+        add_test(NAME TankPhysics.${combat_test} COMMAND ${combat_test}Tests)
+    endforeach()
 endif()

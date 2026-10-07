@@ -8,6 +8,7 @@
 #include "Physics/MapDefinition.h"
 #include "Physics/MapDefinitionJson.h"
 #include "Physics/TankTypes.h"
+#include "Physics/EnemyAttackType.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "Map/MapManifest.h"
 #include "Map/GltfHitMesh.h"
@@ -73,6 +74,7 @@ public:
     const Tank::Physics::TrackedDriverInput& DriverInput() const { return m_test.DriverInput(); }
     Tank::Rendering::MortarRangeCue MortarRangeCue() const;
 
+    Tank::Physics::EnemyEditorSettings& EnemyEditor() { return m_enemyEditor; }
     Tank::Physics::TankSettings& Settings() { return m_settings; }
     const Tank::Physics::TankSettings& AppliedSettings() const { return m_appliedSettings; }
     Tank::Physics::PhysicsEnvironmentSettings& EnvSettings() { return m_environmentSettings; }
@@ -189,6 +191,7 @@ private:
     uint32_t m_mapClearedAreaMaterial = 0;
     Tank::Rendering::TankVisualSettings m_visualSettings;
 
+    Tank::Physics::EnemyEditorSettings m_enemyEditor;
     bool m_paused = false;
     bool m_singleStep = false;
     bool m_rollingCheatWindowVisible = false;

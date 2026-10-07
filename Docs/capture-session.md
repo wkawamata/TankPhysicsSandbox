@@ -6,7 +6,7 @@ CaptureSessionUi. Physics remains host-owned and has no renderer dependency.
 ## GUI
 
 Open **Render Settings > Capture Session**. Select the output folder, optional
-relative **Subfolder**, base name, PNG, EXR, or GIF, full frame or numeric ROI, FPS,
+relative **Subfolder**, base name, PNG, EXR, GIF, or MP4, full frame or numeric ROI, FPS,
 warmup, and frame/duration limit. For example, output directory `Screenshots`
 and subfolder `tank\take01` saves under `Screenshots\tank\take01`.
 Use **Start Capture Session** / **Stop Capture Session**. Stop finishes the
@@ -14,9 +14,18 @@ pending save before completing. Closing the window also drains an active session
 The panel shows accepted/saved/dropped counts, last output path, and errors.
 
 Press **F8** to start a session with the current panel settings, or to stop an
-active session. With numeric ROI enabled, **Show ROI overlay** previews the
-selected rectangle; it is hidden during capture so it is not written into PNG or
-GIF output.
+active session. **Select ROI with mouse** enters selection mode: drag with the
+left mouse button and release to apply the rectangle. A crosshair, live outline,
+and output-pixel dimensions help place the selection. Dragging in any direction
+works; edges outside the window are clipped. **Esc** or right-click cancels and
+keeps the previous ROI. Selection automatically enables **Use ROI** and updates
+the X/Y/Width/Height fields, which remain available for precise adjustment.
+
+**Show ROI overlay** toggles the rectangle and dimension label, including when
+the settings panel is closed. The overlay is hidden during capture so it is not
+written into PNG or GIF output. Mouse selection also blocks camera mouse controls
+and application shortcuts until it is applied or cancelled. The same selection
+UI is available in the standalone RtPbrSurvey application.
 
 In Box Drop, **F7** resets the boxes, **P** pauses/resumes physics, and **N**
 advances one physics step while paused. Camera-slot keys **1** through **4** are
@@ -32,8 +41,17 @@ specified number of additional plays. The GIF settings use the format's native
 centisecond frame timing; FPS controls that delay. **Frame disposal** controls
 whether the next frame keeps the prior composition, restores the background, or
 restores the prior frame.
-MP4 remains unavailable until its shared encoder arrives. Mouse ROI selection is
-not implemented.
+MP4 writes an H.264 Main-profile video without audio through Windows Media
+Foundation. **Bitrate (Mbps)** controls quality/file size (1-100, default 12);
+MP4 supports 1-240 FPS. Video frames use the final composed output, including UI,
+with HDR output converted to SDR. Odd ROI dimensions are rounded up to even
+dimensions by repeating the final column/row, preserving the selected content.
+Existing files receive the same numeric suffix policy as GIF. Stop and window
+close finalize pending video output; failed encoding removes the incomplete MP4.
+Fixed-step video uses the requested constant frame rate. Real-time MP4 preserves
+the capture timestamps: when frames are dropped, the previous image stays on
+screen until the next captured frame. Playback duration/speed therefore follows
+the capture clock instead of speeding up. Use fixed-step for complete frames.
 
 F12 and the existing Screen Shot button remain single-PNG operations. They cannot
 be used during a capture session. Starting a session is disabled while legacy
@@ -56,7 +74,7 @@ The scene defaults to tracked-vehicle for session CLI requests. `--scene box-dro
 is also supported. `-CaptureSessionSubfolder` is optional and must be a relative
 path below `-CaptureSessionOutputDir`. Filenames are `tank_000000.png`,
 `tank_000001.png`, etc. PNG and EXR sequences can overwrite matching files;
-GIF never overwrites its base name and instead receives the next numeric suffix.
+GIF and MP4 never overwrite their base name and instead receive the next numeric suffix.
 For GIF, `-CaptureSessionGifRepeat none`, `infinite`, or `1` through `65535`
 selects one play, an infinite loop, or that many additional repeats.
 `-CaptureSessionGifDisposal keep`, `background`, or `previous` selects the
@@ -70,6 +88,13 @@ Invalid CLI settings or failed output return a nonzero process exit code.
 must launch `build/Debug/TankSandbox.exe` directly with `build/` as its working
 directory and wait for it. Do not combine session CLI with Tank's legacy
 `--capture-after-frames`, `--roll-capture-dir`, or benchmark automation.
+
+For MP4, select `-CaptureSessionFormat mp4`; optionally use
+`-CaptureSessionMp4BitrateMbps 8` (default 12). For example:
+
+```bat
+scripts\run.bat --scene box-drop -CaptureSessionOutputDir Screenshots -CaptureSessionSubfolder videos -CaptureSessionBaseName boxes -CaptureSessionFormat mp4 -CaptureSessionMp4BitrateMbps 12 -CaptureSessionRoi 810 390 300 300 -CaptureSessionFrames 120 -CaptureSessionFps 60 -CaptureSessionClock fixed-step -ExitAfterCapture
+```
 
 ## Timing
 
@@ -117,3 +142,22 @@ multiple render frames. GUI checks covered start/stop, PNG and EXR selection,
 full frame and 317x239 ROI, and closing during recording. Closing drained the
 pending save and completed with zero dropped frames. The shared UI keeps the
 Start/Stop controls stable while status text changes.
+
+MP4 validation uses `RtPbrSurvey.Mp4EncoderTests` for a real encode/decode
+round-trip, color/orientation, exact frame cadence, odd-size padding, Unicode
+paths, collision protection, and failure cleanup. After building that target and
+TankSandbox, run `tests/Mp4CaptureSmoke.ps1` to validate full-frame H.264 capture,
+odd-size ROI, subfolders, collision numbering, and decoding all saved frames.
+
+Verified on 2026-10-05: both application Debug builds and the shared capture/MP4
+tests passed. Three GPU smoke runs produced decodable H.264 videos: 1920x1080
+at 60 FPS, and two 318x240 outputs from a 317x239 ROI at 30 FPS. Each contained
+exactly three frames with the expected duration; the second ROI take preserved
+the first file's hash. No D3D12 errors were reported. Outputs are retained at
+`build/Mp4CaptureSmoke/9c73a1d351bd43d486c945d9d0d2ceb1/`.
+
+After the real-time timing fix, the same fixed-step cases and a 0.75-second
+real-time capture passed. The real-time run saved two frames and reported 28
+drops, but the decoded video's duration still matched 0.75 seconds. This covers
+the speed-up regression under substantial readback/encoding delays. Outputs are
+retained at `build/Mp4CaptureSmoke/53dd278d0b164f519a3cd4fcfb6b1f43/`.

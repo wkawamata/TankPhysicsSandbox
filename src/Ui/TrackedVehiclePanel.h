@@ -5,6 +5,7 @@
 #include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TankTypes.h"
+#include "Physics/EnemyAttackType.h"
 #include "Rendering/TankVisualSettings.h"
 
 #include <functional>
@@ -92,6 +93,7 @@ namespace Ui
         std::string* tankModelExportStatus = nullptr;
         bool* tankModelExportBinary = nullptr;
 
+        Tank::Physics::EnemyEditorSettings* enemyEditor = nullptr;
         Tank::Physics::TankSettings* tankSettings = nullptr;
         Tank::Input::TankInputMappingSettings* inputMappingSettings = nullptr;
         Tank::Input::InputDeviceProfile* inputDeviceProfile = nullptr;
