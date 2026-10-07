@@ -2053,6 +2053,8 @@ namespace Ui
             if (ctx.loadMortarProfile && ImGui::Button("Load Mortar Profile")) ctx.loadMortarProfile();
             ImGui::SameLine();
             if (ctx.loadAndApplyMortarProfile && ImGui::Button("Load && Apply Mortar Profile")) ctx.loadAndApplyMortarProfile();
+            ImGui::SameLine();
+            if (ctx.resetTrackedVehicle && ImGui::Button("Reset Tank##MortarParameters")) ctx.resetTrackedVehicle();
             if (ctx.mortarProfileStatus && !ctx.mortarProfileStatus->empty()) ImGui::TextWrapped("%s", ctx.mortarProfileStatus->c_str());
             ImGui::Separator();
             SliderFloatWithPendingColor("Min Fire Angle", &ctx.tankSettings->mortarMinimumFireAngleDegrees, 1.0f, 35.0f, 1.0f, 18.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMinimumFireAngleDegrees, ctx.appliedTankSettings->mortarMinimumFireAngleDegrees));
