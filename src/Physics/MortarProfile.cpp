@@ -11,6 +11,12 @@ namespace Tank::Physics
             const auto entry = json.find(name);
             if (entry != json.end() && entry->is_number()) value = entry->get<float>();
         }
+
+        void ReadBool(const nlohmann::json& json, const char* name, bool& value)
+        {
+            const auto entry = json.find(name);
+            if (entry != json.end() && entry->is_boolean()) value = entry->get<bool>();
+        }
     }
 
     MortarProfile ExtractMortarProfile(const TankSettings& s)
@@ -19,7 +25,10 @@ namespace Tank::Physics
             s.mortarRaiseRateDegreesPerSecond, s.mortarReturnRateDegreesPerSecond,
             s.mortarMinimumRangeMeters, s.mortarMaximumRangeMeters,
             s.mortarMinimumAttackRadiusMeters, s.mortarMaximumAttackRadiusMeters,
-            s.mortarStanceTorqueNm, s.mortarStanceDampingNms};
+            s.mortarStanceTorqueNm, s.mortarStanceDampingNms,
+            s.mortarEmergencyBrakeAmount,
+            s.mortarMuzzleVelocityMetersPerSecond, s.mortarMuzzleVelocityAuto,
+            s.mortarExplosionDamage};
     }
 
     void ApplyMortarProfile(const MortarProfile& p, TankSettings& s)
@@ -34,6 +43,10 @@ namespace Tank::Physics
         s.mortarMaximumAttackRadiusMeters = p.maximumAttackRadiusMeters;
         s.mortarStanceTorqueNm = p.stanceTorqueNm;
         s.mortarStanceDampingNms = p.stanceDampingNms;
+        s.mortarEmergencyBrakeAmount = p.emergencyBrakeAmount;
+        s.mortarMuzzleVelocityMetersPerSecond = p.muzzleVelocityMetersPerSecond;
+        s.mortarMuzzleVelocityAuto = p.muzzleVelocityAuto;
+        s.mortarExplosionDamage = p.explosionDamage;
     }
 
     std::string SerializeMortarProfile(const MortarProfile& p)
@@ -48,7 +61,11 @@ namespace Tank::Physics
             {"minimumAttackRadiusMeters", p.minimumAttackRadiusMeters},
             {"maximumAttackRadiusMeters", p.maximumAttackRadiusMeters},
             {"stanceTorqueNm", p.stanceTorqueNm},
-            {"stanceDampingNms", p.stanceDampingNms}};
+            {"stanceDampingNms", p.stanceDampingNms},
+            {"emergencyBrakeAmount", p.emergencyBrakeAmount},
+            {"muzzleVelocityMetersPerSecond", p.muzzleVelocityMetersPerSecond},
+            {"muzzleVelocityAuto", p.muzzleVelocityAuto},
+            {"explosionDamage", p.explosionDamage}};
         return json.dump(2);
     }
 
@@ -71,6 +88,10 @@ namespace Tank::Physics
         ReadFloat(json, "maximumAttackRadiusMeters", loaded.maximumAttackRadiusMeters);
         ReadFloat(json, "stanceTorqueNm", loaded.stanceTorqueNm);
         ReadFloat(json, "stanceDampingNms", loaded.stanceDampingNms);
+        ReadFloat(json, "emergencyBrakeAmount", loaded.emergencyBrakeAmount);
+        ReadFloat(json, "muzzleVelocityMetersPerSecond", loaded.muzzleVelocityMetersPerSecond);
+        ReadBool(json, "muzzleVelocityAuto", loaded.muzzleVelocityAuto);
+        ReadFloat(json, "explosionDamage", loaded.explosionDamage);
         profile = loaded; if (error) error->clear(); return true;
     }
 }

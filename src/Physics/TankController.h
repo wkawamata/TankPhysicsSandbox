@@ -47,6 +47,9 @@ namespace Tank::Physics
     private:
         struct Impl;
 
+        void FireMortarShell();
+        bool IsMortarBraking() const;
+
         TankInput m_input = {};
         TrackedDriverInput m_driverInput = {};
         TankState m_state = {};
@@ -58,6 +61,9 @@ namespace Tank::Physics
         MortarAimController m_mortarAimController;
         AssaultWeapon m_assaultWeapon;
         bool m_assaultCapacityAvailable = true;
+        bool m_prevFireAssault = false;
+        bool m_fireConsumedByMortar = false;
+        bool m_mortarBrakingPending = false;
         std::unique_ptr<Impl> m_impl;
     };
 }

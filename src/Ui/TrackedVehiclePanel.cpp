@@ -242,6 +242,9 @@ namespace Ui
 				state.mortarAim.rangeMeters);
 			ImGui::Text("Assault rounds fired: %llu",
 				static_cast<unsigned long long>(state.assaultWeapon.roundsFired));
+			ImGui::Text("Mortar shells fired: %llu  in flight: %d",
+				static_cast<unsigned long long>(state.mortarShotsFired),
+				static_cast<int>(state.mortarProjectiles.size()));
 			for (const auto& box : state.destructibleBoxes)
 			{
 				ImGui::Text("Box %llu: %s / HP %.0f",
@@ -2068,16 +2071,29 @@ namespace Ui
             if (ctx.resetTrackedVehicle && ImGui::Button("Reset Tank##MortarParameters")) ctx.resetTrackedVehicle();
             if (ctx.mortarProfileStatus && !ctx.mortarProfileStatus->empty()) ImGui::TextWrapped("%s", ctx.mortarProfileStatus->c_str());
             ImGui::Separator();
-            SliderFloatWithPendingColor("Min Fire Angle", &ctx.tankSettings->mortarMinimumFireAngleDegrees, 1.0f, 35.0f, 1.0f, 18.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMinimumFireAngleDegrees, ctx.appliedTankSettings->mortarMinimumFireAngleDegrees));
+            ImGui::SeparatorText("Fire Angle");
+            SliderFloatWithPendingColor("Min Fire Angle", &ctx.tankSettings->mortarMinimumFireAngleDegrees, 0.0f, 35.0f, 1.0f, 18.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMinimumFireAngleDegrees, ctx.appliedTankSettings->mortarMinimumFireAngleDegrees));
             SliderFloatWithPendingColor("Max Wheelie Angle", &ctx.tankSettings->mortarMaximumAngleDegrees, 10.0f, 60.0f, 1.0f, 40.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMaximumAngleDegrees, ctx.appliedTankSettings->mortarMaximumAngleDegrees));
             SliderFloatWithPendingColor("Raise Rate", &ctx.tankSettings->mortarRaiseRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 12.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarRaiseRateDegreesPerSecond, ctx.appliedTankSettings->mortarRaiseRateDegreesPerSecond));
             SliderFloatWithPendingColor("Return Rate", &ctx.tankSettings->mortarReturnRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 10.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarReturnRateDegreesPerSecond, ctx.appliedTankSettings->mortarReturnRateDegreesPerSecond));
+            ImGui::SeparatorText("Center Distance");
             SliderFloatWithPendingColor("Minimum Center Distance", &ctx.tankSettings->mortarMinimumRangeMeters, 0.5f, 100.0f, 0.5f, 8.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMinimumRangeMeters, ctx.appliedTankSettings->mortarMinimumRangeMeters));
-            SliderFloatWithPendingColor("Radius at Minimum Distance", &ctx.tankSettings->mortarMinimumAttackRadiusMeters, 0.5f, 25.0f, 0.5f, 2.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMinimumAttackRadiusMeters, ctx.appliedTankSettings->mortarMinimumAttackRadiusMeters));
             SliderFloatWithPendingColor("Maximum Center Distance", &ctx.tankSettings->mortarMaximumRangeMeters, 1.0f, 200.0f, 1.0f, 40.0f, "%.0f m", IsPending(ctx.tankSettings->mortarMaximumRangeMeters, ctx.appliedTankSettings->mortarMaximumRangeMeters));
+            ImGui::SeparatorText("Attack Radius");
+            SliderFloatWithPendingColor("Radius at Minimum Distance", &ctx.tankSettings->mortarMinimumAttackRadiusMeters, 0.5f, 25.0f, 0.5f, 2.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMinimumAttackRadiusMeters, ctx.appliedTankSettings->mortarMinimumAttackRadiusMeters));
             SliderFloatWithPendingColor("Radius at Maximum Distance", &ctx.tankSettings->mortarMaximumAttackRadiusMeters, 0.5f, 50.0f, 0.5f, 6.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMaximumAttackRadiusMeters, ctx.appliedTankSettings->mortarMaximumAttackRadiusMeters));
+            ImGui::SeparatorText("Warhead");
+            ImGui::Checkbox("Auto Muzzle Velocity", &ctx.tankSettings->mortarMuzzleVelocityAuto);
+            ImGui::BeginDisabled(ctx.tankSettings->mortarMuzzleVelocityAuto);
+            SliderFloatWithPendingColor("Muzzle Velocity", &ctx.tankSettings->mortarMuzzleVelocityMetersPerSecond, 1.0f, 50.0f, 1.0f, 20.0f, "%.1f m/s", IsPending(ctx.tankSettings->mortarMuzzleVelocityMetersPerSecond, ctx.appliedTankSettings->mortarMuzzleVelocityMetersPerSecond));
+            ImGui::EndDisabled();
+            ImGui::TextDisabled("Auto computes the launch speed from range and angle. With Auto off the fixed speed traverses the same trajectory faster or slower (time scaling); the landing point stays on the cue center.");
+            SliderFloatWithPendingColor("Explosion Damage", &ctx.tankSettings->mortarExplosionDamage, 0.0f, 500.0f, 5.0f, 80.0f, "%.0f", IsPending(ctx.tankSettings->mortarExplosionDamage, ctx.appliedTankSettings->mortarExplosionDamage));
+            ImGui::SeparatorText("Stance");
             SliderFloatWithPendingColor("Stance Torque", &ctx.tankSettings->mortarStanceTorqueNm, 10000.0f, 1000000.0f, 10000.0f, 500000.0f, "%.0f Nm", IsPending(ctx.tankSettings->mortarStanceTorqueNm, ctx.appliedTankSettings->mortarStanceTorqueNm));
             SliderFloatWithPendingColor("Stance Damping", &ctx.tankSettings->mortarStanceDampingNms, 1000.0f, 250000.0f, 1000.0f, 80000.0f, "%.0f Nms", IsPending(ctx.tankSettings->mortarStanceDampingNms, ctx.appliedTankSettings->mortarStanceDampingNms));
+            SliderFloatWithPendingColor("Emergency Brake", &ctx.tankSettings->mortarEmergencyBrakeAmount, 0.0f, 1.0f, 0.05f, 1.0f, "%.2f", IsPending(ctx.tankSettings->mortarEmergencyBrakeAmount, ctx.appliedTankSettings->mortarEmergencyBrakeAmount));
+            ImGui::TextDisabled("A mortar gesture while driving applies this emergency brake until the tank stops.");
             ImGui::TextDisabled("Load && Apply / Reset applies pending mortar changes.");
             ImGui::End();
             }
@@ -2390,6 +2406,20 @@ namespace Ui
 				IsPending(
 					ctx.tankSettings->rollAirBrakeReleaseDegrees,
 					ctx.appliedTankSettings->rollAirBrakeReleaseDegrees));
+			SliderFloatWithPendingColor(
+				"Emergency Brake",
+				&ctx.tankSettings->rollEmergencyBrakeAmount,
+				0.0f,
+				1.0f,
+				0.05f,
+				1.0f,
+				"%.2f",
+				IsPending(
+					ctx.tankSettings->rollEmergencyBrakeAmount,
+					ctx.appliedTankSettings->rollEmergencyBrakeAmount));
+			ImGui::TextDisabled(
+				"A roll request while driving applies this emergency brake "
+				"until the tank stops.");
 			SliderFloatWithPendingColor(
 				"Stabilization Torque",
 				&ctx.tankSettings->rollStabilizationTorqueNm,

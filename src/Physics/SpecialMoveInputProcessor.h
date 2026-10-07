@@ -12,7 +12,8 @@ namespace Tank::Physics
             SpecialMoveStateMachine& stateMachine,
             const TankInput& input,
             bool mobilityStopped,
-            bool rollStartAllowed)
+            bool rollStartAllowed,
+            bool mortarStartAllowed = false)
         {
             const SpecialAction action =
                 SpecialActionInputAdapter::Update(m_recognizer, input);
@@ -35,7 +36,8 @@ namespace Tank::Physics
                 action == SpecialAction::RollLeftRequested ||
                     action == SpecialAction::RollRightRequested
                 ? rollStartAllowed
-                : mobilityStopped;
+                : (mobilityStopped ||
+                    (action == SpecialAction::MortarRequested && mortarStartAllowed));
             return stateMachine.Update(event, actionAllowed);
         }
 

@@ -191,6 +191,8 @@ namespace Tank::Physics
             (std::max)(m_settings.rollStabilizationTorqueNm, 0.0f);
         m_settings.rollStabilizationDampingNms =
             (std::max)(m_settings.rollStabilizationDampingNms, 0.0f);
+        m_settings.rollEmergencyBrakeAmount = std::clamp(
+            m_settings.rollEmergencyBrakeAmount, 0.0f, 1.0f);
         m_settings.neutralBrakeAmount = std::clamp(
             m_settings.neutralBrakeAmount,
             0.0f,
@@ -276,7 +278,7 @@ namespace Tank::Physics
         m_settings.suspensionDamping =
             std::clamp(m_settings.suspensionDamping, 0.0f, 2.0f);
         m_settings.mortarMinimumFireAngleDegrees = std::clamp(
-            m_settings.mortarMinimumFireAngleDegrees, 1.0f, 35.0f);
+            m_settings.mortarMinimumFireAngleDegrees, 0.0f, 35.0f);
         m_settings.mortarMaximumAngleDegrees = std::clamp(
             m_settings.mortarMaximumAngleDegrees,
             m_settings.mortarMinimumFireAngleDegrees,
@@ -299,6 +301,12 @@ namespace Tank::Physics
             m_settings.mortarStanceTorqueNm, 10000.0f, 1000000.0f);
         m_settings.mortarStanceDampingNms = std::clamp(
             m_settings.mortarStanceDampingNms, 1000.0f, 250000.0f);
+        m_settings.mortarEmergencyBrakeAmount = std::clamp(
+            m_settings.mortarEmergencyBrakeAmount, 0.0f, 1.0f);
+        m_settings.mortarMuzzleVelocityMetersPerSecond = std::clamp(
+            m_settings.mortarMuzzleVelocityMetersPerSecond, 0.0f, 100.0f);
+        m_settings.mortarExplosionDamage = std::clamp(
+            m_settings.mortarExplosionDamage, 0.0f, 1000.0f);
         m_mortarAimController.Configure({
             m_settings.mortarMinimumFireAngleDegrees,
             m_settings.mortarMaximumAngleDegrees,
@@ -495,9 +503,91 @@ namespace Tank::Physics
     bool TankController::FireAssault()
     {
         if (!m_assaultCapacityAvailable) return false;
+        if (m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+            m_state.specialMove.state == SpecialMoveState::MortarAiming) return false;
         const bool fired = m_assaultWeapon.TryFire();
         m_state.assaultWeapon = m_assaultWeapon.Snapshot();
         return fired;
+    }
+
+    bool TankController::IsMortarBraking() const
+    {
+        // A mortar gesture accepted while driving emergency-brakes until
+        // mobility is Stopped. The sub-phase is latched on acceptance: once
+        // Stopped is reached the stance torque must not re-trigger braking by
+        // momentarily destabilizing the suspension gate.
+        return m_mortarBrakingPending &&
+            m_state.specialMove.state == SpecialMoveState::MortarStarting;
+    }
+
+    void TankController::FireMortarShell()
+    {
+        if (!m_impl || !m_impl->hasBody) return;
+        const Vec3 muzzle = AssaultMuzzlePosition(
+            m_settings.assaultProjectiles.muzzleLocalPosition);
+        const Vec3 forward = AssaultForwardDirection();
+        float forwardX = forward.x;
+        float forwardZ = forward.z;
+        const float horizontal = std::sqrt(forwardX * forwardX + forwardZ * forwardZ);
+        if (horizontal < 0.001f) return;
+        forwardX /= horizontal;
+        forwardZ /= horizontal;
+
+        const JPH::RVec3 bodyPosition =
+            m_impl->world.GetBodyInterface().GetCenterOfMassPosition(m_impl->bodyId);
+        const float range = std::clamp(m_state.mortarAim.rangeMeters, 1.0f, 200.0f);
+        const float dx = static_cast<float>(bodyPosition.GetX()) + forwardX * range - muzzle.x;
+        const float dz = static_cast<float>(bodyPosition.GetZ()) + forwardZ * range - muzzle.z;
+        const float horizontalRange = (std::max)(std::sqrt(dx * dx + dz * dz), 1.0f);
+
+        // Ballistic solution for the chosen elevation: pick v0 so the shell
+        // launched at muzzle height lands at ground level on the cue center.
+        // With launchHeight = 0 this reduces to v0 = sqrt(g * R / sin(2 * theta)).
+        // A configured muzzle velocity time-scales that trajectory instead:
+        // launching k times faster while scaling gravity by k^2 keeps the
+        // parabola geometrically identical but traversed in 1/k of the time,
+        // so the shell still lands on the cue center, sooner or later.
+        constexpr float kGravityMetersPerSecondSquared = 9.81f;
+        const float launchHeight = (std::max)(muzzle.y, 0.0f);
+        const float elevation =
+            std::clamp(m_state.mortarAim.angleDegrees, 10.0f, 80.0f) *
+            JPH::JPH_PI / 180.0f;
+        const float cosElevation = std::cos(elevation);
+        const float sinElevation = std::sin(elevation);
+        const float denominator = 2.0f * cosElevation *
+            (horizontalRange * sinElevation + launchHeight * cosElevation);
+        if (denominator <= 0.001f) return;
+        float speed = std::sqrt(kGravityMetersPerSecondSquared *
+            horizontalRange * horizontalRange / denominator);
+        float gravityScale = 1.0f;
+        const float configuredSpeed = m_settings.mortarMuzzleVelocityMetersPerSecond;
+        if (!m_settings.mortarMuzzleVelocityAuto && configuredSpeed > 0.0f)
+        {
+            const float timeScale = std::clamp(configuredSpeed / speed, 0.25f, 5.0f);
+            speed *= timeScale;
+            gravityScale = timeScale * timeScale;
+        }
+
+        m_state.pendingMortarShot = {
+            m_state.mortarShotsFired + 1,
+            muzzle,
+            {forwardX * cosElevation * speed,
+             sinElevation * speed,
+             forwardZ * cosElevation * speed},
+            m_state.mortarAim.attackRadiusMeters,
+            gravityScale};
+        m_state.mortarShotsFired++;
+        // The fire press that launched the shell must not also trigger an
+        // assault round once the wheelie releases on the next step.
+        m_fireConsumedByMortar = true;
+
+        // One shell per gesture: release the wheelie. The action recognizer
+        // stays disarmed while the levers are held, so the gesture must return
+        // to neutral before another mortar sequence can start.
+        m_state.specialMove = m_specialMoveStateMachine.Update(
+            SpecialMoveEvent::MoveCompleted, true);
+        m_mortarAimController.Reset();
+        m_state.mortarAim = m_mortarAimController.Snapshot();
     }
 
     Vec3 TankController::AssaultMuzzlePosition(const Vec3& localPosition) const
@@ -618,8 +708,9 @@ namespace Tank::Physics
             rollTorqueTelemetry.controllerTorqueSumNm += value;
         };
         const bool mortarActive =
-            m_state.specialMove.state == SpecialMoveState::MortarStarting ||
-            m_state.specialMove.state == SpecialMoveState::MortarAiming;
+            (m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+                m_state.specialMove.state == SpecialMoveState::MortarAiming) &&
+            !IsMortarBraking();
         if (mortarActive)
         {
             // Mortar stance is a physical pitch target, never a pose override.
@@ -660,6 +751,10 @@ namespace Tank::Physics
         // Accept a one-shot request while moving; RollStarting reserves the
         // action until braking has satisfied the existing safe-stop gate.
         const bool canRequestRoll = true;
+        // A mortar gesture while driving is accepted immediately; the
+        // MortarStarting state then emergency-brakes until mobility is
+        // Stopped before the aim sequence begins.
+        const bool canRequestMortar = true;
         TankInput specialMoveInput = m_input;
         if (!m_settings.rollingInputEnabled &&
             specialMoveInput.leftLeverX * specialMoveInput.rightLeverX > 0.0f)
@@ -672,13 +767,15 @@ namespace Tank::Physics
             m_specialMoveStateMachine,
             specialMoveInput,
             m_state.mobility.state == MobilityState::Stopped,
-            canRequestRoll);
+            canRequestRoll,
+            canRequestMortar);
         if (previousSpecialMove != SpecialMoveState::MortarStarting &&
             previousSpecialMove != SpecialMoveState::MortarAiming &&
             m_state.specialMove.state == SpecialMoveState::MortarStarting)
         {
             m_mortarAimController.Reset();
             m_state.mortarAim = m_mortarAimController.Snapshot();
+            m_mortarBrakingPending = m_state.mobility.state != MobilityState::Stopped;
         }
         const RollingPhase rollingPhaseBefore = m_impl->rollingPhase;
         const bool wasRollingEvaluating =
@@ -1211,9 +1308,31 @@ namespace Tank::Physics
         }
         if (preparingRollThisFrame)
         {
+            // Emergency brake while a roll request waits for the safe-stop
+            // gate; strength is tunable via rollEmergencyBrakeAmount.
             forward = 0.0f;
             leftRatio = rightRatio = 1.0f;
-            brake = 1.0f;
+            brake = (std::max)(brake, m_settings.rollEmergencyBrakeAmount);
+        }
+        else if (IsMortarBraking())
+        {
+            // Emergency brake so the mortar stance gate opens as fast as
+            // possible; strength is tunable via mortarEmergencyBrakeAmount.
+            forward = 0.0f;
+            leftRatio = rightRatio = 1.0f;
+            brake = (std::max)(brake, m_settings.mortarEmergencyBrakeAmount);
+        }
+        else if (m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+            m_state.specialMove.state == SpecialMoveState::MortarAiming)
+        {
+            // The wheelie stance locks drive input for the whole mortar
+            // sequence; only braking remains available.
+            forward = 0.0f;
+            leftRatio = rightRatio = 1.0f;
+            if (m_settings.neutralBrakeEnabled)
+            {
+                brake = (std::max)(brake, m_settings.neutralBrakeAmount);
+            }
         }
         m_driverInput = {forward, leftRatio, rightRatio, brake};
 
@@ -1232,15 +1351,26 @@ namespace Tank::Physics
 
         m_state.stepIndex++;
         m_state.timeSeconds += deltaTimeSeconds;
+        if (m_mortarBrakingPending &&
+            (m_state.specialMove.state != SpecialMoveState::MortarStarting ||
+                m_state.mobility.state == MobilityState::Stopped))
+        {
+            m_mortarBrakingPending = false;
+        }
+        const bool mortarActive =
+            m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+            m_state.specialMove.state == SpecialMoveState::MortarAiming;
         m_assaultWeapon.Update(deltaTimeSeconds);
-        if (m_input.fireAssault && m_assaultCapacityAvailable)
+        if (m_input.fireAssault && m_assaultCapacityAvailable && !mortarActive &&
+            !m_fireConsumedByMortar)
         {
             m_assaultWeapon.TryFire();
         }
         m_state.assaultWeapon = m_assaultWeapon.Snapshot();
 
-        if (m_state.specialMove.state == SpecialMoveState::MortarStarting ||
-            m_state.specialMove.state == SpecialMoveState::MortarAiming)
+        if ((m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+                m_state.specialMove.state == SpecialMoveState::MortarAiming) &&
+            !IsMortarBraking())
         {
             m_state.mortarAim =
                 m_mortarAimController.Update(
@@ -1260,7 +1390,15 @@ namespace Tank::Physics
                     SpecialMoveEvent::MoveCompleted, true);
                 m_specialMoveInputProcessor.Reset();
             }
+            else if (m_state.specialMove.state == SpecialMoveState::MortarAiming &&
+                m_state.mortarAim.canFire &&
+                m_input.fireAssault && !m_prevFireAssault)
+            {
+                FireMortarShell();
+            }
         }
+        m_prevFireAssault = m_input.fireAssault;
+        if (!m_input.fireAssault) m_fireConsumedByMortar = false;
 
         if (m_impl == nullptr)
         {
@@ -1475,8 +1613,14 @@ namespace Tank::Physics
         m_state.rollChainAvailable =
             m_impl->rollChainAvailable &&
             std::abs(m_input.throttle) < 0.001f;
+        // While a mortar sequence owns the tank, driver throttle must not
+        // keep the mobility state machine out of Stopped; otherwise the
+        // emergency-brake entry could never complete while the stick is held.
+        const bool mortarHoldsMobility =
+            m_state.specialMove.state == SpecialMoveState::MortarStarting ||
+            m_state.specialMove.state == SpecialMoveState::MortarAiming;
         const bool mobilityDriveRequested =
-            !m_impl->rollBrakingToStart && (
+            !m_impl->rollBrakingToStart && !mortarHoldsMobility && (
             std::abs(m_input.throttle) > 0.001f ||
             std::abs(m_input.leftTrack - 1.0f) > 0.001f ||
             std::abs(m_input.rightTrack - 1.0f) > 0.001f);

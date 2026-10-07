@@ -69,6 +69,7 @@ public:
         bool showGltfSide);
     void AppendDestructibleBoxes(const Tank::Physics::TrackedVehicleTestState& state);
     bool EnsureImpactMarkCapacity(size_t capacity);
+    bool EnsureMortarCapacity(size_t shellCapacity, size_t blastCapacity);
     size_t ImpactMarkInstanceCount() const { return m_impactMarkInstances.size(); }
     void SetMortarRangeCue(const Tank::Rendering::MortarRangeCue& cue)
     {
@@ -93,6 +94,12 @@ private:
     std::vector<size_t> m_impactMarkInstances;
     std::optional<Engine::SceneMeshId> m_impactMarkMesh;
     uint32_t m_impactMarkMaterial = 0;
+    std::vector<size_t> m_mortarShellInstances;
+    std::optional<Engine::SceneMeshId> m_mortarShellMesh;
+    uint32_t m_mortarShellMaterial = 0;
+    std::vector<size_t> m_mortarBlastInstances;
+    std::optional<Engine::SceneMeshId> m_mortarBlastMesh;
+    uint32_t m_mortarBlastMaterial = 0;
     std::array<float, Tank::Physics::kTankTrackCount> m_trackShoeDistances = {};
     float m_trackShoeLastTimeSeconds = 0.0f;
 };

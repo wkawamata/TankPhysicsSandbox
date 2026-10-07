@@ -45,6 +45,7 @@ namespace Tank::Physics
             settings.rollTorqueCutoffDegrees,
             settings.rollStabilizationTorqueNm,
             settings.rollStabilizationDampingNms,
+            settings.rollEmergencyBrakeAmount,
             settings.rollSpeedTuning,
         };
     }
@@ -67,6 +68,7 @@ namespace Tank::Physics
         settings.rollTorqueCutoffDegrees = profile.torqueCutoffDegrees;
         settings.rollStabilizationTorqueNm = profile.stabilizationTorqueNm;
         settings.rollStabilizationDampingNms = profile.stabilizationDampingNms;
+        settings.rollEmergencyBrakeAmount = profile.emergencyBrakeAmount;
     }
 
     std::string SerializeRollingProfile(const RollingProfile& profile)
@@ -88,6 +90,7 @@ namespace Tank::Physics
         json["torqueCutoffDegrees"] = profile.torqueCutoffDegrees;
         json["stabilizationTorqueNm"] = profile.stabilizationTorqueNm;
         json["stabilizationDampingNms"] = profile.stabilizationDampingNms;
+        json["emergencyBrakeAmount"] = profile.emergencyBrakeAmount;
         const auto tuning = SanitizeRollingSpeedTuning(profile.speedTuning);
         for (const auto& coefficient : kRollingSpeedCoefficients)
             json["speedTuning"][coefficient.key] = tuning.*(coefficient.member);
@@ -129,6 +132,7 @@ namespace Tank::Physics
         ReadFloat(json, "torqueCutoffDegrees", loaded.torqueCutoffDegrees);
         ReadFloat(json, "stabilizationTorqueNm", loaded.stabilizationTorqueNm);
         ReadFloat(json, "stabilizationDampingNms", loaded.stabilizationDampingNms);
+        ReadFloat(json, "emergencyBrakeAmount", loaded.emergencyBrakeAmount);
         // Old profiles must restore the historical coefficients, even if a
         // different optimized profile was previously loaded.
         loaded.speedTuning = {};

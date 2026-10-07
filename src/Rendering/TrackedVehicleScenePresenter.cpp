@@ -454,6 +454,10 @@ void TrackedVehicleScenePresenter::BuildScene(
     m_destructibleBoxInstances.clear();
     m_impactMarkInstances.clear();
     m_impactMarkMesh.reset();
+    m_mortarShellInstances.clear();
+    m_mortarShellMesh.reset();
+    m_mortarBlastInstances.clear();
+    m_mortarBlastMesh.reset();
 
     uint32_t floorMaterial = 0;
     if (envSettings.gridEnabled)
@@ -714,6 +718,38 @@ bool TrackedVehicleScenePresenter::EnsureImpactMarkCapacity(size_t capacity)
     return true;
 }
 
+bool TrackedVehicleScenePresenter::EnsureMortarCapacity(size_t shellCapacity, size_t blastCapacity)
+{
+    shellCapacity = (std::min)(shellCapacity, size_t{64});
+    blastCapacity = (std::min)(blastCapacity, size_t{32});
+    bool changed = false;
+    if (!m_mortarShellMesh && shellCapacity > 0)
+    {
+        m_mortarShellMesh = m_sceneBuilder.AddCylinder(
+            0.12f, 0.5f, 12, Engine::CylinderCapMode::Both);
+        m_mortarShellMaterial = m_sceneBuilder.AddSolidColorMaterial(45, 45, 50, 255);
+    }
+    while (m_mortarShellInstances.size() < shellCapacity)
+    {
+        m_mortarShellInstances.push_back(m_sceneBuilder.GetScene().instances.size());
+        m_sceneBuilder.AddInstance(*m_mortarShellMesh, XMMatrixScaling(0, 0, 0), m_mortarShellMaterial);
+        changed = true;
+    }
+    if (!m_mortarBlastMesh && blastCapacity > 0)
+    {
+        m_mortarBlastMesh = m_sceneBuilder.AddSphere(1.0f, 8, 12);
+        m_mortarBlastMaterial = m_sceneBuilder.AddSolidColorMaterial(255, 140, 40, 255);
+        m_sceneBuilder.GetMesh().materials[m_mortarBlastMaterial].emissiveScale = 3.0f;
+    }
+    while (m_mortarBlastInstances.size() < blastCapacity)
+    {
+        m_mortarBlastInstances.push_back(m_sceneBuilder.GetScene().instances.size());
+        m_sceneBuilder.AddInstance(*m_mortarBlastMesh, XMMatrixScaling(0, 0, 0), m_mortarBlastMaterial);
+        changed = true;
+    }
+    return changed;
+}
+
 void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
     const Tank::Physics::TrackedVehicleTestState& state)
 {
@@ -747,6 +783,55 @@ void TrackedVehicleScenePresenter::UpdateScene(
     for (size_t i = 0; i < m_impactMarkInstances.size(); ++i)
         SetInstanceWorld(scene.instances[m_impactMarkInstances[i]], i < marks.size() && marks[i].sequence != 0
             ? Tank::Rendering::ImpactMarkGeometry::World(marks[i]) : XMMatrixScaling(0, 0, 0));
+    const auto& mortarShells = state.mortarProjectiles;
+    for (size_t i = 0; i < m_mortarShellInstances.size(); ++i)
+    {
+        XMMATRIX world = XMMatrixScaling(0.0f, 0.0f, 0.0f);
+        if (i < mortarShells.size())
+        {
+            const auto& shell = mortarShells[i];
+            // The cylinder mesh axis is local +Y; rotate it onto the velocity.
+            const XMVECTOR velocity = XMVectorSet(
+                shell.velocity.x, shell.velocity.y, shell.velocity.z, 0.0f);
+            const float speed = XMVectorGetX(XMVector3Length(velocity));
+            XMMATRIX orientation = XMMatrixIdentity();
+            if (speed > 0.001f)
+            {
+                const XMVECTOR direction = XMVector3Normalize(velocity);
+                const XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+                const float alignment = std::clamp(XMVectorGetX(XMVector3Dot(up, direction)), -1.0f, 1.0f);
+                const XMVECTOR axis = XMVector3Cross(up, direction);
+                const float axisLengthSq = XMVectorGetX(XMVector3LengthSq(axis));
+                if (axisLengthSq > 1e-8f)
+                    orientation = XMMatrixRotationAxis(
+                        XMVector3Normalize(axis), std::acos(alignment));
+                else if (alignment < 0.0f)
+                    orientation = XMMatrixRotationX(3.14159265f);
+            }
+            world = orientation *
+                XMMatrixTranslation(shell.position.x, shell.position.y, shell.position.z);
+        }
+        SetInstanceWorld(scene.instances[m_mortarShellInstances[i]], world);
+    }
+    const auto& mortarBlasts = state.mortarBlasts;
+    for (size_t i = 0; i < m_mortarBlastInstances.size(); ++i)
+    {
+        XMMATRIX world = XMMatrixScaling(0.0f, 0.0f, 0.0f);
+        if (i < mortarBlasts.size())
+        {
+            const auto& blast = mortarBlasts[i];
+            const float duration = (std::max)(blast.durationSeconds, 0.01f);
+            const float progress = std::clamp(blast.ageSeconds / duration, 0.0f, 1.0f);
+            // Expand quickly, then shrink away.
+            const float envelope = progress < 0.25f
+                ? progress / 0.25f
+                : 1.0f - (progress - 0.25f) / 0.75f;
+            const float scale = (std::max)(blast.radiusMeters * envelope, 0.0f);
+            world = XMMatrixScaling(scale, scale, scale) *
+                XMMatrixTranslation(blast.position.x, blast.position.y + 0.05f, blast.position.z);
+        }
+        SetInstanceWorld(scene.instances[m_mortarBlastInstances[i]], world);
+    }
     for (size_t i = 0; i < m_destructibleBoxInstances.size() && i < state.destructibleBoxes.size(); ++i)
     {
         const auto& box = state.destructibleBoxes[i];
@@ -1028,6 +1113,10 @@ void TrackedVehicleScenePresenter::Clear()
     m_destructibleBoxInstances.clear();
     m_impactMarkInstances.clear();
     m_impactMarkMesh.reset();
+    m_mortarShellInstances.clear();
+    m_mortarShellMesh.reset();
+    m_mortarBlastInstances.clear();
+    m_mortarBlastMesh.reset();
 }
 
 Engine::SceneBuilder& TrackedVehicleScenePresenter::SceneBuilder()

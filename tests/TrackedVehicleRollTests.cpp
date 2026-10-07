@@ -136,6 +136,39 @@ int main()
         }
         passed &= Check(extraStarts == 0, "consumed pending request must not replay at landing");
     }
+    // The emergency brake while a roll request waits for the safe-stop gate
+    // is tunable; a weaker setting must still complete the reserved roll.
+    {
+        auto brakeSettings = settings;
+        brakeSettings.rollEmergencyBrakeAmount = 0.4f;
+        Tank::Physics::TrackedVehicleTest brakeTest;
+        brakeTest.Initialize(brakeSettings);
+        for (int i = 0; i < 180; ++i) brakeTest.Step(dt);
+        Tank::Physics::TankInput brakeInput;
+        brakeInput.throttle = 1.0f;
+        brakeTest.SetInput(brakeInput);
+        for (int i = 0; i < 90; ++i) brakeTest.Step(dt);
+        brakeInput.leftLeverX = brakeInput.rightLeverX = -1.0f;
+        brakeTest.SetInput(brakeInput);
+        brakeTest.Step(dt);
+        passed &= Check(brakeTest.State().rollingTelemetry.brakingToStart &&
+                brakeTest.DriverInput().brake == 0.4f &&
+                brakeTest.DriverInput().forward == 0.0f,
+            "roll emergency brake must apply the configured strength");
+        brakeInput.leftLeverX = brakeInput.rightLeverX = 0.0f;
+        brakeTest.SetInput(brakeInput);
+        bool brakeRollStarted = false;
+        for (int i = 0; i < 900; ++i)
+        {
+            brakeTest.Step(dt);
+            if (brakeTest.State().rollingPhase != Tank::Physics::RollingPhase::None)
+            {
+                brakeRollStarted = true;
+                break;
+            }
+        }
+        passed &= Check(brakeRollStarted, "weaker emergency brake must still reach roll start");
+    }
     passed &= Check(earlyUpY > 0.9f,
         "roll must be rejected before mobility reaches Stopped");
     earlyInput.roll = 0.0f;
