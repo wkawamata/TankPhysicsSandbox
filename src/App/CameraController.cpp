@@ -71,6 +71,9 @@ namespace Tank::App
         settings.damping = m_damping;
         settings.yawSpeedLimitDegrees = m_yawSpeedLimitDegrees;
         settings.yawDamping = m_yawDamping;
+        settings.mortarPitchOffsetDegrees = m_mortarMaximumPitchOffsetDegrees;
+        settings.mortarDistanceOffsetMeters = m_mortarMaximumDistanceOffsetMeters;
+        settings.mortarResponseSpeed = m_mortarResponseSpeed;
         return settings;
     }
 
@@ -163,6 +166,9 @@ namespace Tank::App
         m_damping = std::clamp(settings.damping, 0.1f, 2.0f);
         m_yawSpeedLimitDegrees = std::clamp(settings.yawSpeedLimitDegrees, 15.0f, 720.0f);
         m_yawDamping = std::clamp(settings.yawDamping, 0.5f, 30.0f);
+        SetMortarPitchOffsetDegrees(settings.mortarPitchOffsetDegrees);
+        SetMortarDistanceOffsetMeters(settings.mortarDistanceOffsetMeters);
+        SetMortarResponseSpeed(settings.mortarResponseSpeed);
         ResetFollowState();
     }
 
@@ -540,10 +546,14 @@ namespace Tank::App
         }
 
         using namespace DirectX;
-        const float cueAlpha = 1.0f - std::exp(-6.0f * dt);
+        const float cueAlpha = 1.0f - std::exp(-m_mortarResponseSpeed * std::max(dt, 0.0f));
+        const float mortarProgress = std::clamp(m_mortarCameraCue.progress, 0.0f, 1.0f);
         m_mortarPitchOffsetDegrees +=
-            (m_mortarCameraCue.pitchOffsetDegrees -
+            (m_mortarMaximumPitchOffsetDegrees * mortarProgress -
                 m_mortarPitchOffsetDegrees) * cueAlpha;
+        m_mortarDistanceOffsetMeters +=
+            (m_mortarMaximumDistanceOffsetMeters * mortarProgress -
+                m_mortarDistanceOffsetMeters) * cueAlpha;
 
         const XMVECTOR bodyRotation = XMQuaternionNormalize(XMVectorSet(
             state.bodyRotation.x,
@@ -630,10 +640,12 @@ namespace Tank::App
                     m_mortarPitchOffsetDegrees,
                 0.0f,
                 kMaximumLookDownDegrees));
+        const float followDistance = std::clamp(
+            m_followDistance + m_mortarDistanceOffsetMeters, 4.0f, 250.0f);
         const float horizontalDistance =
-            std::cos(lookDownRadians) * m_followDistance;
+            std::cos(lookDownRadians) * followDistance;
         const float verticalDistance =
-            std::sin(lookDownRadians) * m_followDistance;
+            std::sin(lookDownRadians) * followDistance;
         const XMVECTOR desiredPosition =
             pivot + XMVectorSet(
                 std::sin(m_orbitYaw) * horizontalDistance,

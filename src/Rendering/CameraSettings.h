@@ -23,6 +23,9 @@ namespace Tank::Rendering
         float damping = 1.0f;
         float yawSpeedLimitDegrees = 180.0f;
         float yawDamping = 8.0f;
+        float mortarPitchOffsetDegrees = 18.0f;
+        float mortarDistanceOffsetMeters = 0.0f;
+        float mortarResponseSpeed = 6.0f;
     };
 
     std::string SerializeCameraSettings(const CameraSettings& settings);

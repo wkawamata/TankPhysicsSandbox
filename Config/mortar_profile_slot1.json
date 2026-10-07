@@ -1,13 +1,17 @@
 {
-  "version": 1,
-  "minimumFireAngleDegrees": 18.0,
-  "maximumAngleDegrees": 40.0,
-  "raiseRateDegreesPerSecond": 12.0,
-  "returnRateDegreesPerSecond": 20.0,
-  "minimumRangeMeters": 8.0,
-  "maximumRangeMeters": 50.0,
-  "minimumAttackRadiusMeters": 2.0,
-  "maximumAttackRadiusMeters": 10.0,
+  "emergencyBrakeAmount": 1.0,
+  "explosionDamage": 80.0,
+  "maximumAngleDegrees": 28.0,
+  "maximumAttackRadiusMeters": 14.0,
+  "maximumRangeMeters": 40.0,
+  "minimumAttackRadiusMeters": 3.0,
+  "minimumFireAngleDegrees": 1.0,
+  "minimumRangeMeters": 11.0,
+  "muzzleVelocityAuto": false,
+  "muzzleVelocityMetersPerSecond": 30.899999618530273,
+  "raiseRateDegreesPerSecond": 25.0,
+  "returnRateDegreesPerSecond": 38.0,
+  "stanceDampingNms": 80000.0,
   "stanceTorqueNm": 500000.0,
-  "stanceDampingNms": 80000.0
+  "version": 1
 }

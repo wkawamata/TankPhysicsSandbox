@@ -88,6 +88,12 @@ namespace Tank::App
         float FollowDistance() const { return m_followDistance; }
         void SetFollowDistance(float d) { m_followDistance = d; }
         float LookDownDegrees() const { return m_lookDownDegrees; }
+        float MortarPitchOffsetDegrees() const { return m_mortarMaximumPitchOffsetDegrees; }
+        void SetMortarPitchOffsetDegrees(float value) { m_mortarMaximumPitchOffsetDegrees = std::clamp(value, -60.0f, 60.0f); }
+        float MortarDistanceOffsetMeters() const { return m_mortarMaximumDistanceOffsetMeters; }
+        void SetMortarDistanceOffsetMeters(float value) { m_mortarMaximumDistanceOffsetMeters = std::clamp(value, -100.0f, 100.0f); }
+        float MortarResponseSpeed() const { return m_mortarResponseSpeed; }
+        void SetMortarResponseSpeed(float value) { m_mortarResponseSpeed = std::clamp(value, 0.1f, 30.0f); }
         void SetMortarCameraCue(const Tank::Physics::MortarCameraCue& cue)
         {
             m_mortarCameraCue = cue;
@@ -209,6 +215,10 @@ namespace Tank::App
         bool m_button7WasPressed = false;
         Tank::Physics::MortarCameraCue m_mortarCameraCue = {};
         float m_mortarPitchOffsetDegrees = 0.0f;
+        float m_mortarDistanceOffsetMeters = 0.0f;
+        float m_mortarMaximumPitchOffsetDegrees = 18.0f;
+        float m_mortarMaximumDistanceOffsetMeters = 0.0f;
+        float m_mortarResponseSpeed = 6.0f;
     };
 
 }

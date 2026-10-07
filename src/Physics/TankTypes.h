@@ -65,6 +65,11 @@ namespace Tank::Physics
         float mortarMaximumAttackRadiusMeters = 6.0f;
         float mortarStanceTorqueNm = 500000.0f;
         float mortarStanceDampingNms = 80000.0f;
+        float mortarEmergencyBrakeAmount = 1.0f;
+        int mortarMaximumProjectileCount = 8;
+        float mortarExplosionDamage = 80.0f;
+        bool mortarMuzzleVelocityAuto = true;
+        float mortarMuzzleVelocityMetersPerSecond = 20.0f;
         bool rollingInputEnabled = true;
         // Time-feel multiplier for the complete roll. 1.0 preserves the
         // authored tuning; torque and damping are scaled internally.
@@ -83,6 +88,7 @@ namespace Tank::Physics
         float rollTorqueCutoffDegrees = 90.0f;
         float rollStabilizationTorqueNm = 30000.0f;
         float rollStabilizationDampingNms = 10000.0f;
+        float rollEmergencyBrakeAmount = 1.0f;
         float trackWidthM = 0.3f;
         float trackSpacingM = 2.4f;
         float trackLongitudinalFriction = 4.0f;
@@ -248,6 +254,17 @@ namespace Tank::Physics
         float controllerTorqueSumNm = 0.0f;
     };
 
+    // One-shot handoff from the controller to the world adapter. The sequence
+    // increments for every fired shell so the consumer can detect new shots.
+    struct MortarShotRequest
+    {
+        std::uint64_t sequence = 0; // Zero means no pending shot.
+        Vec3 origin = {};
+        Vec3 velocity = {};
+        float blastRadiusMeters = 0.0f;
+        float gravityScale = 1.0f; // Time-scaled trajectory compensation.
+    };
+
     struct TankState
     {
         int stepIndex = 0;
@@ -286,6 +303,8 @@ namespace Tank::Physics
         float rollingTraceInputSign = 0.0f;
         SpecialMoveStateSnapshot specialMove = {};
         MortarAimSnapshot mortarAim = {};
+        MortarShotRequest pendingMortarShot = {};
+        std::uint64_t mortarShotsFired = 0;
         AssaultWeaponSnapshot assaultWeapon = {};
         bool trackInputSwapped = false;
         bool rollChainAvailable = false;

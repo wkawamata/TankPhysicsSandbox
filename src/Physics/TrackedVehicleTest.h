@@ -21,6 +21,25 @@ namespace Tank::Physics
         Vec3 size = {};
     };
 
+    struct MortarProjectileState
+    {
+        Vec3 position = {};
+        Vec3 velocity = {};
+        float blastRadiusMeters = 0.0f;
+        float damage = 0.0f;
+        float ageSeconds = 0.0f;
+        float gravityScale = 1.0f; // Keeps a time-scaled launch on the same arc.
+    };
+
+    // Transient visual record of one detonation; aged by the physics step.
+    struct MortarBlastState
+    {
+        Vec3 position = {};
+        float radiusMeters = 0.0f;
+        float ageSeconds = 0.0f;
+        float durationSeconds = 0.0f;
+    };
+
     // Box collision proxy for the first stationary enemy. HP is explicit tuning.
     struct FixedTurretState
     {
@@ -71,6 +90,10 @@ namespace Tank::Physics
         std::vector<AssaultProjectileState> assaultProjectiles;
         ImpactMarkBuffer assaultImpactMarks;
         std::uint64_t assaultHitTargetId = 0;
+        std::vector<MortarProjectileState> mortarProjectiles;
+        std::vector<MortarBlastState> mortarBlasts;
+        std::uint64_t mortarShotsFired = 0;
+        std::uint64_t mortarHitTargetId = 0;
         std::vector<DestructibleBoxState> destructibleBoxes;
         std::vector<FixedTurretState> fixedTurrets;
         SpecialMoveStateSnapshot specialMove = {};
@@ -120,6 +143,9 @@ namespace Tank::Physics
         void SpawnAssaultRound();
         void AdvanceAssaultProjectiles(float deltaTimeSeconds);
         void ApplyAssaultImpact(std::uint32_t hitBodyId, float damage);
+        void SpawnMortarShell();
+        void AdvanceMortarProjectiles(float deltaTimeSeconds);
+        void ApplyMortarBlast(const Vec3& center, float radius, float damage);
         bool InitializeInternal(
             const TankSettings& settings,
             const PhysicsEnvironmentSettings& environmentSettings,

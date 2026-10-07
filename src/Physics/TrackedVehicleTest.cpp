@@ -35,6 +35,7 @@ namespace Tank::Physics
         std::vector<JPH::BodyID> turretBodyIds;
         std::uint64_t nextCombatTargetId = 1;
         std::uint64_t resolvedAssaultRounds = 0;
+        std::uint64_t resolvedMortarShots = 0;
         AssaultProjectileSettings projectileSettings = {};
         bool hasFloorBody = false;
 
@@ -473,6 +474,99 @@ namespace Tank::Physics
         }
     }
 
+    void TrackedVehicleTest::SpawnMortarShell()
+    {
+        const auto& shot = m_impl->controller.State().pendingMortarShot;
+        m_impl->resolvedMortarShots = shot.sequence;
+        const int maximumCount = (std::max)(
+            0, m_impl->controller.Settings().mortarMaximumProjectileCount);
+        if (m_state.mortarProjectiles.size() >= static_cast<size_t>(maximumCount))
+            return;
+        m_state.mortarProjectiles.push_back({
+            shot.origin,
+            shot.velocity,
+            shot.blastRadiusMeters,
+            (std::max)(0.0f, m_impl->controller.Settings().mortarExplosionDamage),
+            0.0f,
+            shot.gravityScale});
+    }
+
+    void TrackedVehicleTest::AdvanceMortarProjectiles(float deltaTimeSeconds)
+    {
+        m_state.mortarHitTargetId = 0;
+        for (auto& blast : m_state.mortarBlasts)
+            blast.ageSeconds += deltaTimeSeconds;
+        std::erase_if(m_state.mortarBlasts, [](const MortarBlastState& blast)
+            { return blast.ageSeconds >= blast.durationSeconds; });
+
+        // Semi-implicit Euler integration; the shell is not a Jolt body.
+        constexpr float kGravityMetersPerSecondSquared = 9.81f;
+        constexpr float kMaximumFlightSeconds = 30.0f;
+        auto& projectiles = m_state.mortarProjectiles;
+        size_t survivors = 0;
+        for (size_t i = 0; i < projectiles.size(); ++i)
+        {
+            auto projectile = projectiles[i];
+            projectile.velocity.y -= kGravityMetersPerSecondSquared *
+                projectile.gravityScale * deltaTimeSeconds;
+            Vec3 end = {
+                projectile.position.x + projectile.velocity.x * deltaTimeSeconds,
+                projectile.position.y + projectile.velocity.y * deltaTimeSeconds,
+                projectile.position.z + projectile.velocity.z * deltaTimeSeconds};
+            std::uint32_t hitBodyId = JPH::BodyID::cInvalidBodyID;
+            Vec3 normal;
+            bool staticSurface = false;
+            if (m_impl->controller.CastAssaultSegment(
+                projectile.position, end, hitBodyId, normal, staticSurface))
+            {
+                ApplyMortarBlast(end, projectile.blastRadiusMeters, projectile.damage);
+                if (staticSurface) m_state.assaultImpactMarks.Add(end, normal);
+            }
+            else
+            {
+                projectile.position = end;
+                projectile.ageSeconds += deltaTimeSeconds;
+                if (projectile.ageSeconds < kMaximumFlightSeconds && end.y > -50.0f)
+                    projectiles[survivors++] = projectile;
+            }
+        }
+        projectiles.resize(survivors);
+    }
+
+    void TrackedVehicleTest::ApplyMortarBlast(const Vec3& center, float radius, float damage)
+    {
+        constexpr float kBlastEffectSeconds = 0.5f;
+        if (radius > 0.0f)
+            m_state.mortarBlasts.push_back({center, radius, 0.0f, kBlastEffectSeconds});
+        const float safeRadius = (std::max)(radius, 0.01f);
+        for (size_t i = 0; i < m_impl->destructibleBodyIds.size(); ++i)
+        {
+            auto& id = m_impl->destructibleBodyIds[i];
+            if (id.IsInvalid()) continue;
+            const auto& box = m_state.destructibleBoxes[i];
+            // Distance from the blast center to the closest point on the box AABB.
+            const float dx = center.x - std::clamp(center.x,
+                box.position.x - 0.5f * box.size.x, box.position.x + 0.5f * box.size.x);
+            const float dy = center.y - std::clamp(center.y,
+                box.position.y - 0.5f * box.size.y, box.position.y + 0.5f * box.size.y);
+            const float dz = center.z - std::clamp(center.z,
+                box.position.z - 0.5f * box.size.z, box.position.z + 0.5f * box.size.z);
+            const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+            if (distance > radius) continue;
+            const float falloff = (std::max)(1.0f - distance / safeRadius, 0.1f);
+            auto& target = m_state.destructibleBoxes[i].target;
+            const auto result = AssaultWeapon({damage * falloff, 8.0f}).ApplyHit(target);
+            if (result.hit) m_state.mortarHitTargetId = target.id;
+            if (result.destroyed)
+            {
+                auto& bodies = m_impl->world.GetBodyInterface();
+                bodies.RemoveBody(id);
+                bodies.DestroyBody(id);
+                id = JPH::BodyID();
+            }
+        }
+    }
+
     bool TrackedVehicleTest::ApplyRecoilImpulse(float impulseNewtonSeconds)
     {
         if (m_impl == nullptr)
@@ -496,6 +590,7 @@ namespace Tank::Physics
         }
 
         AdvanceAssaultProjectiles(deltaTimeSeconds);
+        AdvanceMortarProjectiles(deltaTimeSeconds);
         m_impl->controller.SetAssaultCapacityAvailable(
             m_state.assaultProjectiles.size() < static_cast<size_t>(m_impl->projectileSettings.maximumCount));
         m_impl->controller.PreStep();
@@ -561,6 +656,12 @@ namespace Tank::Physics
         if (m_state.assaultWeapon.roundsFired != m_impl->resolvedAssaultRounds)
         {
             SpawnAssaultRound();
+        }
+        m_state.mortarShotsFired = m_impl->controller.State().mortarShotsFired;
+        if (m_impl->controller.State().pendingMortarShot.sequence != 0 &&
+            m_impl->controller.State().pendingMortarShot.sequence != m_impl->resolvedMortarShots)
+        {
+            SpawnMortarShell();
         }
         m_state.trackInputSwapped =
             m_impl->controller.State().trackInputSwapped;

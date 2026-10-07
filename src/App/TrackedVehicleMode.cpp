@@ -315,6 +315,8 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
     m_presenter.AppendDestructibleBoxes(m_test.State());
     ApplyAssaultProjectileSettings();
     m_presenter.EnsureImpactMarkCapacity(m_test.State().assaultImpactMarks.Capacity());
+    m_presenter.EnsureMortarCapacity(
+        static_cast<size_t>((std::max)(0, m_settings.mortarMaximumProjectileCount)), 8);
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_paused = false;
@@ -354,6 +356,8 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
 {
     const Tank::Physics::TrackedVehicleTestState& state = m_test.State();
     const bool impactMarkPoolChanged = m_presenter.EnsureImpactMarkCapacity(state.assaultImpactMarks.Capacity());
+    m_presenter.EnsureMortarCapacity(
+        static_cast<size_t>((std::max)(0, m_test.Settings().mortarMaximumProjectileCount)), 8);
     if (state.assaultWeapon.roundsFired != m_lastAssaultRoundsFired)
     {
         m_lastAssaultRoundsFired = state.assaultWeapon.roundsFired;
@@ -426,7 +430,7 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
         line.visible = cue.visible;
         line.color = cue.canFire
             ? DirectX::XMFLOAT4(1.0f, 0.2f, 0.1f, 1.0f)
-            : DirectX::XMFLOAT4(1.0f, 0.8f, 0.1f, 1.0f);
+            : DirectX::XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f);
         line.depthMode = RtPbrSurvey::DebugLineDepthMode::Overlay;
         if (m_mortarRangeLines[i] == RtPbrSurvey::kInvalidDebugLineHandle)
             m_mortarRangeLines[i] = renderer.AddDebugLine(line);

@@ -23,6 +23,9 @@ namespace Ui
         std::function<void()> loadCamera;
 
         bool telemetryWasTransitioning = false;
+        bool mortarCheatWindowVisible = false;
+        bool mortarCheatWindowJapanese = true;
+        float mortarCheatFontScale = 1.0f;
         bool telemetryHasSample = false;
         float telemetryMinimumPositionY = 0.0f;
         float telemetryMinimumFocusDistance = 0.0f;

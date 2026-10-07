@@ -28,3 +28,13 @@ RtPbrSurvey の `Engine::CameraState` は `lensShiftX` と `lensShiftY` を持�
 Tank の Camera Slot は `perspectiveLensShiftX` / `perspectiveLensShiftY` として保存する。JSON schema v1 を読んだ場合は両方をゼロに補完し、次の Save では schema v2 として書き出す。
 
 フレームごとの TAA jitter は、保存する Lens Shift には混ぜない。将来追加する場合は、レンダラーが一時的な jitter を加えた effective projection を作る。VR の眼ごとの視錐台も、この低レベルの off-center projection 境界へ直接入力する。
+
+## 迫撃中のカメラ調整
+
+Cameraウィンドウの `Mortar Camera` で、Follow Tankが有効なときの迫撃カメラを調整できる。
+
+- `Mortar Pitch Offset`: 最大仰角時に追加する俯角。初期値は18度。
+- `Mortar Distance Offset`: 最大仰角時に追加する追従距離。正値で遠ざかり、負値で近づく。初期値は0 m。合計距離は4〜250 mに制限される。
+- `Mortar Response Speed`: 迫撃開始・終了時の変化への応答速度。大きい値ほど速い。初期値は6 /s。
+
+追加量は迫撃の仰角進行度に比例する。編集は即時反映され、迫撃を解除すると通常の俯角・距離に戻る。`Save Camera`で選択中のカメラスロットへ保存する。これらはMortar ProfileではなくCamera Profileの設定である。旧カメラJSONでは従来と同じ初期値を使用する。

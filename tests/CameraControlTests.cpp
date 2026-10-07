@@ -457,6 +457,39 @@ namespace
 
 int main()
 {
+    const bool mortarCamera = [] {
+        using namespace DirectX;
+        Tank::App::CameraController controller;
+        Engine::CameraState camera;
+        Tank::Rendering::CameraSettings settings;
+        settings.followTank = true;
+        settings.mortarPitchOffsetDegrees = 30.0f;
+        settings.mortarDistanceOffsetMeters = 12.0f;
+        settings.mortarResponseSpeed = 10.0f;
+        controller.ApplySettings(settings, false, camera);
+        Tank::Physics::TrackedVehicleTestState state;
+        state.bodyRotation.w = 1.0f;
+        controller.SetMortarCameraCue(Tank::Physics::MortarCameraCue::FromWheelieProgress(1.0f));
+        for (int frame = 0; frame < 600; ++frame)
+            controller.UpdateFollowCamera(state, 1.0f / 60.0f, camera);
+        auto distance = [&] {
+            const auto delta = DirectX::XMLoadFloat3(&camera.pos) - DirectX::XMLoadFloat3(&camera.gazePoint);
+            return DirectX::XMVectorGetX(DirectX::XMVector3Length(delta));
+        };
+        const float raisedDistance = distance();
+        const float raisedPitch = DirectX::XMConvertToDegrees(std::asin(
+            (camera.pos.y - camera.gazePoint.y) / raisedDistance));
+        const auto captured = controller.CaptureSettings(camera, true);
+        controller.SetMortarCameraCue({});
+        for (int frame = 0; frame < 600; ++frame)
+            controller.UpdateFollowCamera(state, 1.0f / 60.0f, camera);
+        return NearlyEqual(raisedDistance, 28.0f, 0.02f) &&
+            NearlyEqual(raisedPitch, 55.0f, 0.02f) &&
+            NearlyEqual(distance(), 16.0f, 0.02f) &&
+            NearlyEqual(captured.mortarPitchOffsetDegrees, 30.0f) &&
+            NearlyEqual(captured.mortarDistanceOffsetMeters, 12.0f) &&
+            NearlyEqual(captured.mortarResponseSpeed, 10.0f);
+    }();
     const bool camera2Horizontal = TestHorizontalDragUsesWorldYaw(0.5f);
     const bool camera2Vertical = TestVerticalDragPreservesWorldYaw(0.5f, 20);
     const bool nearPolarHorizontal = TestHorizontalDragUsesWorldYaw(1.39f);
@@ -478,7 +511,7 @@ int main()
         TestDebugCameraKeepsTankFocusAcrossRepeatedResets();
     const bool chaseOrbitOffset = TestChaseOrbitOffsetReturnsToRear();
 
-    if (!camera2Horizontal || !camera2Vertical ||
+    if (!mortarCamera || !camera2Horizontal || !camera2Vertical ||
         !nearPolarHorizontal || !nearPolarVertical ||
         !positionOnlyFollow || !tankOrbitPivot || !lookDownLimit ||
         !orthoToPerspective || !perspectiveToOrtho ||
@@ -487,6 +520,7 @@ int main()
         !debugResetFocus || !chaseOrbitOffset)
     {
         std::cerr << "Camera control contract failed:"
+                  << " mortarCamera=" << mortarCamera
                   << " camera2Horizontal=" << camera2Horizontal
                   << " camera2Vertical=" << camera2Vertical
                   << " nearPolarHorizontal=" << nearPolarHorizontal

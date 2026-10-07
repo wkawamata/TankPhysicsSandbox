@@ -25,6 +25,7 @@ namespace Tank::Physics
         float torqueCutoffDegrees = 90.0f;
         float stabilizationTorqueNm = 30000.0f;
         float stabilizationDampingNms = 10000.0f;
+        float emergencyBrakeAmount = 1.0f;
         RollingSpeedTuning speedTuning;
     };
 

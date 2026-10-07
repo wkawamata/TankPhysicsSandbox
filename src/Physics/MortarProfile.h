@@ -18,6 +18,10 @@ namespace Tank::Physics
         float maximumAttackRadiusMeters = 6.0f;
         float stanceTorqueNm = 500000.0f;
         float stanceDampingNms = 80000.0f;
+        float emergencyBrakeAmount = 1.0f;
+        float muzzleVelocityMetersPerSecond = 20.0f;
+        bool muzzleVelocityAuto = true;
+        float explosionDamage = 80.0f;
     };
 
     MortarProfile ExtractMortarProfile(const TankSettings& settings);

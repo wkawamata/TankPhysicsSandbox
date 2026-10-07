@@ -657,6 +657,14 @@ if(BUILD_TESTING)
         target_compile_options(MortarAimIntegrationTests PRIVATE /W4 /permissive-)
     endif()
 
+    add_executable(MortarProjectileTests
+        tests/MortarProjectileTests.cpp
+    )
+    target_link_libraries(MortarProjectileTests PRIVATE TankPhysicsCore)
+    if (MSVC)
+        target_compile_options(MortarProjectileTests PRIVATE /W4 /permissive-)
+    endif()
+
     add_executable(SpecialActionInputAdapterTests
         tests/SpecialActionInputAdapterTests.cpp
     )
@@ -895,6 +903,10 @@ if(BUILD_TESTING)
     add_test(
         NAME TankPhysics.MortarAimIntegration
         COMMAND MortarAimIntegrationTests
+    )
+    add_test(
+        NAME TankPhysics.MortarProjectile
+        COMMAND MortarProjectileTests
     )
     add_test(
         NAME TankPhysics.SpecialActionInputAdapter
