@@ -346,7 +346,13 @@ void TankSandboxApp::OnInit()
         fflush(m_logFile);
     }
 
-    m_sceneRenderer.SetToolUiHandler([this]() { DrawToolUi(); });
+    m_sceneRenderer.SetToolUiHandler([this]()
+        {
+            if (m_toolUiVisible)
+            {
+                DrawToolUi();
+            }
+        });
 
     Engine::SceneBuilder builder;
     // SceneRenderer currently requires non-empty geometry when resources are loaded.
@@ -453,6 +459,8 @@ void TankSandboxApp::OnInit()
         &m_trackedVehicleMode.TelemetryWindowVisible();
     m_trackedVehiclePanelCtx.rollingParametersWindowVisible =
         &m_trackedVehicleMode.RollingParametersWindowVisible();
+    m_trackedVehiclePanelCtx.mortarParametersWindowVisible =
+        &m_trackedVehicleMode.MortarParametersWindowVisible();
     m_trackedVehiclePanelCtx.gamepadInputWindowVisible =
         &m_trackedVehicleMode.GamepadInputWindowVisible();
     m_trackedVehiclePanelCtx.renderSettingsWindowVisible = &m_renderSettingsWindowVisible;
@@ -941,7 +949,8 @@ void TankSandboxApp::OnKeyUp(UINT8 key)
 
 bool TankSandboxApp::EnsureDebugCameraForMouse()
 {
-    if (m_appMode == AppMode::TopMenu || ImGui::GetIO().WantCaptureMouse)
+    if (m_appMode == AppMode::TopMenu ||
+        (m_toolUiVisible && ImGui::GetIO().WantCaptureMouse))
     {
         return false;
     }
@@ -1084,6 +1093,15 @@ void TankSandboxApp::OnWindowSizeChanged(UINT width, UINT height)
 
 void TankSandboxApp::OnIdle()
 {
+    const bool toolUiToggleChordDown =
+        (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0 &&
+        (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+    if (toolUiToggleChordDown && !m_toolUiToggleChordHeld)
+    {
+        m_toolUiVisible = !m_toolUiVisible;
+    }
+    m_toolUiToggleChordHeld = toolUiToggleChordDown;
+
     // Readback may span multiple render frames. Keep rendering/polling while
     // holding the host's simulation and camera pose for fixed-step captures.
     const bool advanceSimulation = m_sceneRenderer.CanAdvanceCaptureSessionFixedStep();
@@ -1472,8 +1490,11 @@ void TankSandboxApp::InitializeImGui()
 void TankSandboxApp::UpdateUiFrame()
 {
     m_imguiSystem.BeginFrame();
-    DrawToolUi();
-    m_outputPanel.Draw();
+    if (m_toolUiVisible)
+    {
+        DrawToolUi();
+        m_outputPanel.Draw();
+    }
 
     if (m_appMode == AppMode::MapEditor)
     {

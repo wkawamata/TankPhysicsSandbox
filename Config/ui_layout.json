@@ -1,11 +1,11 @@
 {
-  "cameraWindowVisible": false,
-  "gamepadInputWindowVisible": false,
+  "cameraWindowVisible": true,
+  "gamepadInputWindowVisible": true,
   "outputWindowVisible": false,
-  "renderSettingsWindowVisible": false,
+  "renderSettingsWindowVisible": true,
   "rollingCheatFontScale": 1.3300000429153442,
-  "rollingCheatWindowVisible": true,
-  "rollingParametersWindowVisible": true,
-  "telemetryWindowVisible": true,
+  "rollingCheatWindowVisible": false,
+  "rollingParametersWindowVisible": false,
+  "telemetryWindowVisible": false,
   "version": 1
 }

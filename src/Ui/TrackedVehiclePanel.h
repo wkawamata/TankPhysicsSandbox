@@ -49,6 +49,7 @@ namespace Ui
         bool* cameraWindowVisible = nullptr;
         bool* telemetryWindowVisible = nullptr;
         bool* rollingParametersWindowVisible = nullptr;
+        bool* mortarParametersWindowVisible = nullptr;
         bool* gamepadInputWindowVisible = nullptr;
         bool* renderSettingsWindowVisible = nullptr;
         bool* outputWindowVisible = nullptr;

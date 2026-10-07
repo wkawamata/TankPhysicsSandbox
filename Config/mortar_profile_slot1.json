@@ -1,13 +1,13 @@
 {
-  "version": 1,
-  "minimumFireAngleDegrees": 18.0,
   "maximumAngleDegrees": 40.0,
+  "maximumAttackRadiusMeters": 10.0,
+  "maximumRangeMeters": 25.0,
+  "minimumAttackRadiusMeters": 2.0,
+  "minimumFireAngleDegrees": 18.0,
+  "minimumRangeMeters": 15.0,
   "raiseRateDegreesPerSecond": 12.0,
   "returnRateDegreesPerSecond": 20.0,
-  "minimumRangeMeters": 8.0,
-  "maximumRangeMeters": 50.0,
-  "minimumAttackRadiusMeters": 2.0,
-  "maximumAttackRadiusMeters": 10.0,
+  "stanceDampingNms": 80000.0,
   "stanceTorqueNm": 500000.0,
-  "stanceDampingNms": 80000.0
+  "version": 1
 }

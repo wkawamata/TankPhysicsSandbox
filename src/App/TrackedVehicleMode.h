@@ -90,6 +90,7 @@ public:
     bool& PhysicsDebugOverlay() { return m_physicsDebugOverlay; }
     bool& TelemetryWindowVisible() { return m_telemetryWindowVisible; }
     bool& RollingParametersWindowVisible() { return m_rollingParametersWindowVisible; }
+    bool& MortarParametersWindowVisible() { return m_mortarParametersWindowVisible; }
     bool& GamepadInputWindowVisible() { return m_gamepadInputWindowVisible; }
     bool& MapHitMeshOverlay() { return m_mapHitMeshOverlay; }
     bool& MapVisualMeshes() { return m_mapVisualMeshes; }
@@ -200,6 +201,7 @@ private:
     bool m_physicsDebugOverlay = false;
     bool m_telemetryWindowVisible = true;
     bool m_rollingParametersWindowVisible = true;
+    bool m_mortarParametersWindowVisible = false;
     bool m_gamepadInputWindowVisible = true;
     bool m_mapHitMeshOverlay = false;
     bool m_mapVisualMeshes = true;

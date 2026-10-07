@@ -124,6 +124,10 @@ private:
     Engine::ImGuiSystem m_imguiSystem;
     RtPbrSurvey::SceneRenderer m_sceneRenderer;
     RtPbrSurvey::DebugCameraController m_debugCameraController;
+    // The UI frame continues while hidden so application shortcuts and
+    // renderer frame state remain active.
+    bool m_toolUiVisible = true;
+    bool m_toolUiToggleChordHeld = false;
     AppMode m_appMode = AppMode::TopMenu;
     Tank::Physics::MapId m_selectedMap =
         Tank::Physics::MapId::ObstacleField;

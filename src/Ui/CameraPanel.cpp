@@ -14,6 +14,52 @@
 
 namespace Ui
 {
+    namespace
+    {
+        void DrawMortarCameraCheatWindow(CameraPanelContext& ctx)
+        {
+            if (!ctx.mortarCheatWindowVisible) return;
+            ImGui::SetNextWindowSize(ImVec2(560.0f, 620.0f), ImGuiCond_FirstUseEver);
+            if (!ImGui::Begin("CheatWindow: Mortar Camera", &ctx.mortarCheatWindowVisible))
+            {
+                ImGui::End();
+                return;
+            }
+            ImGui::SetWindowFontScale(ctx.mortarCheatFontScale);
+            ImGui::SliderFloat("Text Scale##MortarCamera", &ctx.mortarCheatFontScale,
+                0.5f, 2.0f, "%.2f x", ImGuiSliderFlags_AlwaysClamp);
+            if (ImGui::Button(reinterpret_cast<const char*>(u8"日本語##MortarCameraLanguage")))
+                ctx.mortarCheatWindowJapanese = true;
+            ImGui::SameLine();
+            if (ImGui::Button("English##MortarCameraLanguage"))
+                ctx.mortarCheatWindowJapanese = false;
+            const bool jp = ctx.mortarCheatWindowJapanese;
+            auto explain = [jp](const char* english, const char8_t* japanese) {
+                ImGui::TextWrapped("%s", jp ? reinterpret_cast<const char*>(japanese) : english);
+            };
+            explain("These settings control the follow camera during mortar elevation. Enable Follow Tank to see their effect. Values apply immediately; Reset Tank is not required.",
+                u8"迫撃時の車体仰角に応じた追従カメラの変化を調整します。Follow TankをONにすると有効になります。変更は即時反映され、Reset Tankは不要です。");
+            ImGui::Separator();
+            ImGui::Text("Mortar Pitch Offset: %.1f deg", ctx.cameraController->MortarPitchOffsetDegrees());
+            explain("Extra look-down angle at maximum mortar elevation. Positive values look down more; negative values reduce the angle. Default: 18 degrees. Range: -60 to +60 degrees. The total angle is limited by the normal camera look-down limit.",
+                u8"最大仰角時に通常の俯角へ追加する角度です。正値でより見下ろし、負値で俯角を減らします。初期値18度、設定範囲-60〜+60度。合計角度は通常カメラの俯角上限に制限されます。");
+            ImGui::Spacing();
+            ImGui::Text("Mortar Distance Offset: %.1f m", ctx.cameraController->MortarDistanceOffsetMeters());
+            explain("Extra distance from the tank at maximum mortar elevation. Positive values move away; negative values move closer. Default: 0 m. Range: -100 to +100 m. Follow Distance plus this offset is limited to 4-250 m.",
+                u8"最大仰角時にFollow Distanceへ追加する距離です。正値で遠ざかり、負値で近づきます。初期値0 m、設定範囲-100〜+100 m。合計距離は4〜250 mに制限されます。");
+            ImGui::Spacing();
+            ImGui::Text("Mortar Response Speed: %.1f /s", ctx.cameraController->MortarResponseSpeed());
+            explain("How quickly the extra angle and distance approach their targets, including return after mortar release. Larger values respond faster. Default: 6 /s. Range: 0.1-30 /s. Normal Position Speed and Damping also affect the final camera motion.",
+                u8"俯角と距離の追加量が目標値へ近づく速さです。迫撃解除後の復帰にも適用されます。大きいほど速く反応します。初期値6 /s、設定範囲0.1〜30 /s。最終的なカメラ移動には通常のPosition SpeedとDampingも影響します。");
+            ImGui::Separator();
+            explain("Offsets scale with mortar elevation progress: at 50% progress, the target offsets are half their configured values. After release, they return smoothly to zero as the stance lowers.",
+                u8"追加量は迫撃の仰角進行度に比例します。進行度50%では設定値の半分が目標になります。解除後は車体の復帰に合わせて追加量が滑らかに0へ戻ります。");
+            explain("Save Camera stores these settings in the selected Camera Slot. Load Camera restores them. They are camera settings, not Mortar Profile settings. Unsaved changes are lost when the app closes.",
+                u8"Save Cameraで選択中のCamera Slotへ保存し、Load Cameraで復元します。保存先はCamera設定で、Mortar Profileではありません。未保存の変更はアプリ終了時に失われます。");
+            ImGui::End();
+        }
+    }
+
     void DrawCameraPanel(CameraPanelContext& ctx)
     {
         if (ctx.camera == nullptr)
@@ -238,6 +284,27 @@ namespace Ui
                 }
             }
             ImGui::EndDisabled();
+            if (ImGui::CollapsingHeader("Mortar Camera"))
+            {
+                if (ImGui::Button("Open Mortar Camera CheatWindow"))
+                    ctx.mortarCheatWindowVisible = true;
+                ImGui::TextWrapped("Offsets at maximum mortar elevation. Changes apply immediately to Follow Tank; Save Camera stores them in the selected camera slot.");
+                ImGui::BeginDisabled(!ctx.cameraController->FollowEnabled());
+                float pitch = ctx.cameraController->MortarPitchOffsetDegrees();
+                if (ImGuiWidgets::SliderFloatWithControls("Mortar Pitch Offset", &pitch,
+                    -60.0f, 60.0f, 1.0f, 18.0f, "%.1f deg"))
+                    ctx.cameraController->SetMortarPitchOffsetDegrees(pitch);
+                float distance = ctx.cameraController->MortarDistanceOffsetMeters();
+                if (ImGuiWidgets::SliderFloatWithControls("Mortar Distance Offset", &distance,
+                    -100.0f, 100.0f, 0.5f, 0.0f, "%.1f m"))
+                    ctx.cameraController->SetMortarDistanceOffsetMeters(distance);
+                float response = ctx.cameraController->MortarResponseSpeed();
+                if (ImGuiWidgets::SliderFloatWithControls("Mortar Response Speed", &response,
+                    0.1f, 30.0f, 0.1f, 6.0f, "%.1f /s"))
+                    ctx.cameraController->SetMortarResponseSpeed(response);
+                ImGui::TextDisabled("Higher response speed = faster change and return.");
+                ImGui::EndDisabled();
+            }
             ImGui::BeginDisabled(ctx.cameraController->FollowEnabled());
             ImGui::SeparatorText("Angle");
             if (ImGui::Button("Rear High"))
@@ -360,5 +427,6 @@ namespace Ui
             ctx.setCamera(*ctx.camera);
         }
         ImGui::End();
+        DrawMortarCameraCheatWindow(ctx);
     }
 }

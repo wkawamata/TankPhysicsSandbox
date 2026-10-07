@@ -55,6 +55,9 @@ namespace Tank::Rendering
             { "damping", settings.damping },
             { "yawSpeedLimitDegrees", settings.yawSpeedLimitDegrees },
             { "yawDamping", settings.yawDamping },
+            { "mortarPitchOffsetDegrees", settings.mortarPitchOffsetDegrees },
+            { "mortarDistanceOffsetMeters", settings.mortarDistanceOffsetMeters },
+            { "mortarResponseSpeed", settings.mortarResponseSpeed },
         }.dump(2);
     }
 
@@ -110,6 +113,12 @@ namespace Tank::Rendering
         ReadFloat(json, "damping", loaded.damping);
         ReadFloat(json, "yawSpeedLimitDegrees", loaded.yawSpeedLimitDegrees);
         ReadFloat(json, "yawDamping", loaded.yawDamping);
+        loaded.mortarPitchOffsetDegrees = 18.0f;
+        loaded.mortarDistanceOffsetMeters = 0.0f;
+        loaded.mortarResponseSpeed = 6.0f;
+        ReadFloat(json, "mortarPitchOffsetDegrees", loaded.mortarPitchOffsetDegrees);
+        ReadFloat(json, "mortarDistanceOffsetMeters", loaded.mortarDistanceOffsetMeters);
+        ReadFloat(json, "mortarResponseSpeed", loaded.mortarResponseSpeed);
         settings = loaded;
         if (error != nullptr)
         {

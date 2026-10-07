@@ -26,6 +26,9 @@ int main()
     source.followYawOffsetDegrees = -35.0f;
     source.yawSpeedLimitDegrees = 120.0f;
     source.yawDamping = 6.0f;
+    source.mortarPitchOffsetDegrees = 30.0f;
+    source.mortarDistanceOffsetMeters = 12.0f;
+    source.mortarResponseSpeed = 4.0f;
 
     Tank::Rendering::CameraSettings loaded;
     std::string error;
@@ -45,8 +48,14 @@ int main()
         NearlyEqual(loaded.lookDownDegrees, 42.0f) &&
         NearlyEqual(loaded.followYawOffsetDegrees, -35.0f) &&
         NearlyEqual(loaded.yawSpeedLimitDegrees, 120.0f) &&
-        NearlyEqual(loaded.yawDamping, 6.0f);
+        NearlyEqual(loaded.yawDamping, 6.0f) &&
+        NearlyEqual(loaded.mortarPitchOffsetDegrees, 30.0f) &&
+        NearlyEqual(loaded.mortarDistanceOffsetMeters, 12.0f) &&
+        NearlyEqual(loaded.mortarResponseSpeed, 4.0f);
     Tank::Rendering::CameraSettings legacy;
+    legacy.mortarPitchOffsetDegrees = 50.0f;
+    legacy.mortarDistanceOffsetMeters = 20.0f;
+    legacy.mortarResponseSpeed = 15.0f;
     const bool legacyPassed =
         Tank::Rendering::DeserializeCameraSettings(
             R"({"version":1,"fovDegrees":55.0})",
@@ -54,7 +63,10 @@ int main()
             &error) &&
         NearlyEqual(legacy.fovDegrees, 55.0f) &&
         NearlyEqual(legacy.perspectiveLensShiftX, 0.0f) &&
-        NearlyEqual(legacy.perspectiveLensShiftY, 0.0f);
+        NearlyEqual(legacy.perspectiveLensShiftY, 0.0f) &&
+        NearlyEqual(legacy.mortarPitchOffsetDegrees, 18.0f) &&
+        NearlyEqual(legacy.mortarDistanceOffsetMeters, 0.0f) &&
+        NearlyEqual(legacy.mortarResponseSpeed, 6.0f);
     if (!passed || !legacyPassed)
     {
         std::cerr << "FAIL CameraSettings JSON: " << error << "\n";

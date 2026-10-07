@@ -1621,6 +1621,10 @@ namespace Ui
 			{
 				ImGui::Checkbox("Output##SubWindowOnOff", ctx.outputWindowVisible);
 			}
+			if (ctx.mortarParametersWindowVisible != nullptr)
+			{
+				ImGui::Checkbox("Mortar Parameters##SubWindowOnOff", ctx.mortarParametersWindowVisible);
+			}
 		}
 		if (ImGui::CollapsingHeader("Simulation", ImGuiTreeNodeFlags_DefaultOpen))
 		{
@@ -2028,8 +2032,15 @@ namespace Ui
 
 		}
 
-        if (ImGui::CollapsingHeader("Mortar Parameters"))
+        if (ctx.mortarParametersWindowVisible && *ctx.mortarParametersWindowVisible)
         {
+            ImGui::SetNextWindowSize(ImVec2(620.0f, 620.0f), ImGuiCond_FirstUseEver);
+            if (!ImGui::Begin("Mortar Parameters", ctx.mortarParametersWindowVisible))
+            {
+                ImGui::End();
+            }
+            else
+            {
             if (ctx.mortarProfileSlot)
             {
                 ImGui::TextUnformatted("Mortar Profile Slot");
@@ -2061,11 +2072,15 @@ namespace Ui
             SliderFloatWithPendingColor("Max Wheelie Angle", &ctx.tankSettings->mortarMaximumAngleDegrees, 10.0f, 60.0f, 1.0f, 40.0f, "%.0f deg", IsPending(ctx.tankSettings->mortarMaximumAngleDegrees, ctx.appliedTankSettings->mortarMaximumAngleDegrees));
             SliderFloatWithPendingColor("Raise Rate", &ctx.tankSettings->mortarRaiseRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 12.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarRaiseRateDegreesPerSecond, ctx.appliedTankSettings->mortarRaiseRateDegreesPerSecond));
             SliderFloatWithPendingColor("Return Rate", &ctx.tankSettings->mortarReturnRateDegreesPerSecond, 1.0f, 60.0f, 1.0f, 10.0f, "%.0f deg/s", IsPending(ctx.tankSettings->mortarReturnRateDegreesPerSecond, ctx.appliedTankSettings->mortarReturnRateDegreesPerSecond));
-            SliderFloatWithPendingColor("Maximum Range", &ctx.tankSettings->mortarMaximumRangeMeters, 1.0f, 200.0f, 1.0f, 40.0f, "%.0f m", IsPending(ctx.tankSettings->mortarMaximumRangeMeters, ctx.appliedTankSettings->mortarMaximumRangeMeters));
-            SliderFloatWithPendingColor("Maximum Attack Radius", &ctx.tankSettings->mortarMaximumAttackRadiusMeters, 0.5f, 50.0f, 0.5f, 6.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMaximumAttackRadiusMeters, ctx.appliedTankSettings->mortarMaximumAttackRadiusMeters));
+            SliderFloatWithPendingColor("Minimum Center Distance", &ctx.tankSettings->mortarMinimumRangeMeters, 0.5f, 100.0f, 0.5f, 8.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMinimumRangeMeters, ctx.appliedTankSettings->mortarMinimumRangeMeters));
+            SliderFloatWithPendingColor("Radius at Minimum Distance", &ctx.tankSettings->mortarMinimumAttackRadiusMeters, 0.5f, 25.0f, 0.5f, 2.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMinimumAttackRadiusMeters, ctx.appliedTankSettings->mortarMinimumAttackRadiusMeters));
+            SliderFloatWithPendingColor("Maximum Center Distance", &ctx.tankSettings->mortarMaximumRangeMeters, 1.0f, 200.0f, 1.0f, 40.0f, "%.0f m", IsPending(ctx.tankSettings->mortarMaximumRangeMeters, ctx.appliedTankSettings->mortarMaximumRangeMeters));
+            SliderFloatWithPendingColor("Radius at Maximum Distance", &ctx.tankSettings->mortarMaximumAttackRadiusMeters, 0.5f, 50.0f, 0.5f, 6.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMaximumAttackRadiusMeters, ctx.appliedTankSettings->mortarMaximumAttackRadiusMeters));
             SliderFloatWithPendingColor("Stance Torque", &ctx.tankSettings->mortarStanceTorqueNm, 10000.0f, 1000000.0f, 10000.0f, 500000.0f, "%.0f Nm", IsPending(ctx.tankSettings->mortarStanceTorqueNm, ctx.appliedTankSettings->mortarStanceTorqueNm));
             SliderFloatWithPendingColor("Stance Damping", &ctx.tankSettings->mortarStanceDampingNms, 1000.0f, 250000.0f, 1000.0f, 80000.0f, "%.0f Nms", IsPending(ctx.tankSettings->mortarStanceDampingNms, ctx.appliedTankSettings->mortarStanceDampingNms));
             ImGui::TextDisabled("Load && Apply / Reset applies pending mortar changes.");
+            ImGui::End();
+            }
         }
 
         if (ctx.rollingParametersWindowVisible != nullptr &&
