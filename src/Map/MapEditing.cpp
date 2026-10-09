@@ -12,7 +12,9 @@ namespace Tank::Map
                 [&candidate](const Instance& instance) { return instance.id == candidate; });
             const bool usedByArea = std::any_of(manifest.clearAreas.begin(), manifest.clearAreas.end(),
                 [&candidate](const ClearArea& area) { return area.id == candidate; });
-            return usedByInstance || usedByArea;
+            const bool usedByEnemy = std::any_of(manifest.enemies.begin(), manifest.enemies.end(),
+                [&candidate](const EnemyPlacement& enemy) { return enemy.id == candidate; });
+            return usedByInstance || usedByArea || usedByEnemy;
         }
     }
 
@@ -43,6 +45,27 @@ namespace Tank::Map
             [&instanceId](const Instance& instance) { return instance.id == instanceId; });
         if (remove == manifest.instances.end()) return false;
         manifest.instances.erase(remove);
+        return true;
+    }
+
+    std::string AddEnemy(Manifest& manifest, const std::string& unitType)
+    {
+        if (unitType.empty()) return {};
+        for (size_t number = 1;; ++number)
+        {
+            const std::string id = "enemy-" + std::to_string(number);
+            if (IdIsUsed(manifest, id)) continue;
+            manifest.enemies.push_back({ id, unitType, {}, {} });
+            return id;
+        }
+    }
+
+    bool RemoveEnemy(Manifest& manifest, const std::string& enemyId)
+    {
+        const auto selected = std::find_if(manifest.enemies.begin(), manifest.enemies.end(),
+            [&enemyId](const EnemyPlacement& enemy) { return enemy.id == enemyId; });
+        if (selected == manifest.enemies.end()) return false;
+        manifest.enemies.erase(selected);
         return true;
     }
 

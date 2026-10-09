@@ -14,7 +14,7 @@ if(MSVC)
     add_compile_options(/FS)
 endif()
 
-# ── Jolt Physics ──────────────────────────────────────────────
+# â”€â”€ Jolt Physics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 set(DOUBLE_PRECISION OFF)
 set(GENERATE_DEBUG_SYMBOLS ON)
 set(INTERPROCEDURAL_OPTIMIZATION ON)
@@ -35,7 +35,7 @@ set(OVERRIDE_CXX_FLAGS OFF)
 set(JPH_USE_DX12 OFF CACHE BOOL "Disable Jolt's optional DX12 debug renderer." FORCE)
 add_subdirectory(External/JoltPhysics/Build External/JoltPhysics)
 
-# ── RtPbrSurvey (D3D12 renderer) ──────────────────────────────
+# â”€â”€ RtPbrSurvey (D3D12 renderer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 add_subdirectory(External/RtPbrSurvey)
 
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -210,7 +210,7 @@ target_link_libraries(TankWindowsInput
         dxguid
 )
 
-# ── TankSandbox executable ─────────────────────────────────────
+# â”€â”€ TankSandbox executable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 add_executable(TankSandbox
     src/App/MapEditorMode.cpp
     src/App/MapEditorMode.h
@@ -319,7 +319,7 @@ if(MSVC)
     target_compile_options(TankSandbox PRIVATE /W4 /permissive /utf-8)
 endif()
 
-# ── D3D12 Agility SDK ─────────────────────────────────────────
+# â”€â”€ D3D12 Agility SDK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 rtpbrsurvey_copy_runtime_files(TankSandbox)
 
 add_custom_command(TARGET TankSandbox POST_BUILD
@@ -1338,7 +1338,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-    foreach(combat_test IN ITEMS CombatSettings PlayerCombatState FixedTurret EnemyAttackType EnemyEditorJson)
+    foreach(combat_test IN ITEMS CombatSettings PlayerCombatState FixedTurret EnemyAttackType EnemyEditorJson EnemyCombat MortarEnemy)
         add_executable(${combat_test}Tests tests/${combat_test}Tests.cpp)
         target_link_libraries(${combat_test}Tests PRIVATE TankPhysicsCore)
         if(MSVC)

@@ -1659,6 +1659,15 @@ namespace Ui
 			ImGui::TextDisabled("P: pause/resume   F: advance one frame while paused");
 		}
 
+        if (state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::GameOver &&
+            ImGui::Button("Continue") && ctx.continueGame) ctx.continueGame();
+        if (state.respawnSecondsRemaining > 0) ImGui::Text("Respawn in %.1f s", state.respawnSecondsRemaining);
+        if (state.invulnerabilitySecondsRemaining > 0) ImGui::Text("Invulnerable %.1f s", state.invulnerabilitySecondsRemaining);
+        ImGui::Text("HP %.0f  Lives %d  Enemy rounds %zu", state.playerCombat.hitPoints,
+            state.playerCombat.lives, state.enemyProjectiles.size());
+        if (state.playerCombat.phase != Tank::Physics::PlayerCombatPhase::Alive)
+            ImGui::TextUnformatted(state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::Lost
+                ? "Lost" : "GameOver");
 		DrawStateSummary(ctx, state);
 
 		UpdateAndDrawRollingTravelTelemetry(ctx, state);

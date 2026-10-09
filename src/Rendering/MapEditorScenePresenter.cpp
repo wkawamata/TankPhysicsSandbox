@@ -224,6 +224,21 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
         AppendSelectionWireframe(*next, gridMesh, *selectedInstance, *selectionBounds, selectionMaterial);
         selectedFocusTarget = MakeFocusTarget(*selectedInstance, *selectionBounds);
     }
+    const uint32_t enemyMaterial = next->AddSolidColorMaterial(235, 65, 65, 255);
+    for (const auto& enemy : manifest.enemies)
+    {
+        const Map::Transform transform = { enemy.position, enemy.rotationDegrees };
+        const auto world = ToWorld(transform);
+        const bool selected = enemy.id == preview.selectedEnemyId;
+        const uint32_t material = selected ? selectionMaterial : enemyMaterial;
+        next->AddInstance(gridMesh, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f) * world, material);
+        next->AddInstance(gridMesh, DirectX::XMMatrixScaling(0.12f, 0.12f, 1.5f) *
+            DirectX::XMMatrixTranslation(0.0f, 0.0f, 1.0f) * world, material);
+        next->AddInstance(gridMesh, DirectX::XMMatrixScaling(0.35f, 0.16f, 0.35f) *
+            DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4) *
+            DirectX::XMMatrixTranslation(0.0f, 0.0f, 1.75f) * world, material);
+        if (selected) selectedFocusTarget = MapEditorFocusTarget{ enemy.position, 2.0f };
+    }
     std::vector<size_t> markerInstances;
     AppendMapMarkers(*next, gridMesh, manifest, spawnMaterial,
         clearAreaMaterial, markerInstances);

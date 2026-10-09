@@ -69,6 +69,7 @@ int main()
         changed.playerSpawn.rotationDegrees = { 5, 90, 10 };
         changed.instances.push_back({ "model-1", "Models/House.glb", { { 2, 3, 4 }, { 5, 6, 7 } } });
         changed.clearAreas.push_back({ "goal-1", "Goal", { 3, 4, 5 }, { 6, 7, 8 } });
+        changed.enemies.push_back({ "enemy-1", "Type 0", { 20, 1, 30 }, { 0, 90, 0 } });
         Check(session.SetManifest(changed, error) && session.IsDirty(), "Editing marks dirty");
         Check(Read(path) == original, "Editing does not auto-save");
         Check(session.Save(error) && !session.IsDirty(), "Save clears dirty state");

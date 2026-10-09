@@ -160,6 +160,7 @@ private:
     void UpdateSceneInternal(RtPbrSurvey::SceneRenderer& renderer);
     void UpdateClearCondition();
     void InitializeDestructibleTargets();
+    bool InitializeManifestEnemies();
     void ApplyAssaultProjectileSettings();
 
     Tank::App::RollingSpeedOptimizationSession m_rollingOptimizer;

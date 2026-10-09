@@ -91,6 +91,9 @@ private:
     PhysicsDebugOverlay m_physicsDebugOverlay{m_sceneBuilder};
     TrackedVehicleModel m_model;
     std::vector<size_t> m_destructibleBoxInstances;
+    std::vector<size_t> m_fixedTurretInstances;
+    std::vector<std::vector<size_t>> m_fixedTurretDirectionInstances;
+    std::vector<size_t> m_enemyProjectileInstances;
     std::vector<size_t> m_impactMarkInstances;
     std::optional<Engine::SceneMeshId> m_impactMarkMesh;
     uint32_t m_impactMarkMaterial = 0;

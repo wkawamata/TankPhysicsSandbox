@@ -22,6 +22,15 @@ namespace Tank::Map
         Transform transform;
     };
 
+    struct EnemyPlacement
+    {
+        std::string id;
+        // Name in the enemy unit catalog; resolved when loading gameplay.
+        std::string unitType;
+        std::array<float, 3> position = { 0.0f, 0.0f, 0.0f };
+        std::array<float, 3> rotationDegrees = { 0.0f, 0.0f, 0.0f };
+    };
+
     struct ClearArea
     {
         std::string id;
@@ -36,6 +45,7 @@ namespace Tank::Map
         Transform playerSpawn = { { 0.0f, 2.0f, 0.0f }, {} };
         std::vector<Instance> instances;
         std::vector<ClearArea> clearAreas;
+        std::vector<EnemyPlacement> enemies;
     };
 
     // Failed operations leave the output unchanged and provide an error.

@@ -7,6 +7,9 @@
 #include "MortarAimController.h"
 #include "Map/GltfHitMesh.h"
 #include "ImpactMarkBuffer.h"
+#include "EnemyAttackType.h"
+#include "EnemyCombat.h"
+#include "PlayerCombatState.h"
 
 #include <array>
 #include <memory>
@@ -46,6 +49,10 @@ namespace Tank::Physics
         CombatTarget target = {};
         Vec3 position = {};
         Vec3 size = {};
+        Quat rotation = {};
+        std::string placementId;
+        EnemyUnitType unitType;
+        std::vector<EnemyMountState> mounts;
     };
 
     struct TrackedVehicleTestState
@@ -96,6 +103,11 @@ namespace Tank::Physics
         std::uint64_t mortarHitTargetId = 0;
         std::vector<DestructibleBoxState> destructibleBoxes;
         std::vector<FixedTurretState> fixedTurrets;
+        std::vector<EnemyProjectileState> enemyProjectiles;
+        PlayerCombatSnapshot playerCombat;
+        float respawnSecondsRemaining = 0;
+        float invulnerabilitySecondsRemaining = 0;
+        std::uint64_t respawnCount = 0;
         SpecialMoveStateSnapshot specialMove = {};
         bool rollingObstructionSuspected = false;
         bool rollingRecoveryActive = false;
@@ -130,7 +142,10 @@ namespace Tank::Physics
         void SetAssaultProjectileSettings(const AssaultProjectileSettings& settings);
         const AssaultProjectileSettings& ProjectileSettings() const;
         bool AddDestructibleBox(const Vec3& position, const Vec3& size, float hitPoints = 60.0f);
-        bool AddFixedTurret(const Vec3& position, const Vec3& size, float hitPoints);
+        bool AddFixedTurret(const Vec3& position, const Vec3& size, float hitPoints, const Quat& rotation = {},
+            const std::string& placementId = {}, const EnemyUnitType& unitType = {});
+        void RequireNeutralInput();
+        bool ConfigureEnemyAttacks(const std::vector<EnemyAttackType>& types);
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         TrackedVehicleTestState Step(float deltaTimeSeconds);
@@ -142,6 +157,8 @@ namespace Tank::Physics
     private:
         void SpawnAssaultRound();
         void AdvanceAssaultProjectiles(float deltaTimeSeconds);
+        void UpdateEnemyAttacks(float deltaTimeSeconds);
+        void AdvanceEnemyProjectiles(float deltaTimeSeconds);
         void ApplyAssaultImpact(std::uint32_t hitBodyId, float damage);
         void SpawnMortarShell();
         void AdvanceMortarProjectiles(float deltaTimeSeconds);

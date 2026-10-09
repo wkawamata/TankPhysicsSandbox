@@ -34,6 +34,10 @@ int main()
             { "goal-001", "Goal", { 0.0f, 2.0f, 50.0f }, { 10.0f, 4.0f, 10.0f } },
             { "goal-002", "Second goal", { 20.0f, 2.0f, 50.0f }, { 5.0f, 4.0f, 5.0f } }
         };
+        source.enemies = {
+            { "enemy-001", "Type 0", { 12.0f, 1.0f, -25.0f }, { 0.0f, 135.0f, 0.0f } },
+            { "enemy-002", "Type 0", { -12.0f, 1.0f, 25.0f }, {} }
+        };
         std::string error;
         std::string text;
         Check(SerializeManifest(source, text, error), "Serialize populated map");
@@ -46,6 +50,10 @@ int main()
         Check(loaded.instances[0].transform.scale == 1.75f,
             "Instance scale survives round trip");
 
+        Check(loaded.enemies.size() == 2 && loaded.enemies[0].unitType == "Type 0" &&
+            loaded.enemies[0].position == source.enemies[0].position &&
+            loaded.enemies[0].rotationDegrees == source.enemies[0].rotationDegrees,
+            "Enemy placement fields survive round trip");
         const Json valid = Json::parse(text);
         auto Reject = [&](const std::string& invalid)
         {
@@ -53,6 +61,40 @@ int main()
             std::string after;
             Check(SerializeManifest(loaded, after, error) && after == text, "Failure preserves the entire previous map");
         };
+        for (const Json enemies : { Json(nullptr), Json::object(), Json(3) })
+        {
+            auto bad = valid;
+            bad["enemies"] = enemies;
+            Reject(bad.dump());
+        }
+        for (const char* field : { "id", "unitType", "position", "rotationDegrees" })
+        {
+            auto bad = valid;
+            bad["enemies"][0].erase(field);
+            Reject(bad.dump());
+        }
+        for (const Json type : { Json(""), Json(nullptr), Json(1) })
+        {
+            auto bad = valid;
+            bad["enemies"][0]["unitType"] = type;
+            Reject(bad.dump());
+        }
+        for (const char* id : { "", "enemy-001", "building-001", "goal-001" })
+        {
+            auto bad = valid;
+            bad["enemies"][1]["id"] = id;
+            Reject(bad.dump());
+        }
+        for (const char* field : { "position", "rotationDegrees" })
+        {
+            for (const Json vector : { Json::array({ 0, 0 }), Json::array({ 0, "1", 2 }),
+                Json::array({ 0, 1e100, 2 }) })
+            {
+                auto bad = valid;
+                bad["enemies"][0][field] = vector;
+                Reject(bad.dump());
+            }
+        }
         Reject("{");
         Reject("[]");
         Reject("{}");
@@ -109,6 +151,15 @@ int main()
             bad["instances"][0]["scale"] = scale;
             Reject(bad.dump());
         }
+        auto withoutEnemies = valid;
+        withoutEnemies.erase("enemies");
+        Check(DeserializeManifest(withoutEnemies.dump(), loaded, error) && loaded.enemies.empty(),
+            "Legacy manifest clears previous enemies");
+        auto invalidEnemy = source;
+        invalidEnemy.enemies[0].rotationDegrees[1] = std::numeric_limits<float>::infinity();
+        std::string preserved = "previous output";
+        Check(!SerializeManifest(invalidEnemy, preserved, error) && preserved == "previous output",
+            "Nonfinite enemy rotation preserves saved output");
         auto legacy = valid;
         legacy["instances"][0].erase("scale");
         Check(DeserializeManifest(legacy.dump(), loaded, error) && loaded.instances[0].transform.scale == 1.0f,
@@ -119,7 +170,7 @@ int main()
         Check(!SerializeManifest(invalid, unchanged, error) && unchanged == "previous output" && !error.empty(),
             "Invalid in-memory data must not produce a saved manifest");
         Check(SerializeManifest({}, roundTrip, error) && DeserializeManifest(roundTrip, loaded, error) &&
-            loaded.instances.empty() && loaded.clearAreas.empty() && loaded.playerSpawn.position[1] == 2.0f &&
+            loaded.instances.empty() && loaded.clearAreas.empty() && loaded.enemies.empty() && loaded.playerSpawn.position[1] == 2.0f &&
             error.empty(), "New empty map clears previous state and errors");
         std::cout << "PASS MapManifest\n";
         return 0;

@@ -10,6 +10,12 @@
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/Shape/SphereShape.h>
 
 #include <algorithm>
 #include <cmath>
@@ -37,6 +43,10 @@ namespace Tank::Physics
         std::uint64_t resolvedAssaultRounds = 0;
         std::uint64_t resolvedMortarShots = 0;
         AssaultProjectileSettings projectileSettings = {};
+        std::vector<EnemyAttackType> enemyAttackTypes;
+        PlayerCombatState playerCombat;
+        float lostYaw = 0;
+        bool requireNeutralInput = false;
         bool hasFloorBody = false;
 
         ~Impl()
@@ -112,6 +122,8 @@ namespace Tank::Physics
 
         m_impl = std::make_unique<Impl>();
         m_impl->world.Initialize();
+        std::string combatError;
+        m_impl->playerCombat.Initialize({}, combatError);
 
         JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
 
@@ -230,6 +242,8 @@ namespace Tank::Physics
         }
 
         m_impl->controller.Initialize(m_impl->world, settings, spawn);
+        m_state.bodyPosition = spawn.position;
+        m_state.bodyRotation = {0, std::sin(spawn.yawRadians*0.5f), 0, std::cos(spawn.yawRadians*0.5f)};
         SetAssaultProjectileSettings(settings.assaultProjectiles);
         if (error != nullptr) error->clear();
         return true;
@@ -260,7 +274,14 @@ namespace Tank::Physics
             Initialize();
         }
 
-        m_impl->controller.SetInput(input);
+        if (m_impl->requireNeutralInput)
+        {
+            const bool neutral = std::abs(input.throttle)<0.001f && std::abs(input.steering)<0.001f &&
+                std::abs(input.roll)<0.001f && std::abs(input.leftLeverX)<0.001f && std::abs(input.rightLeverX)<0.001f && !input.fireAssault;
+            if (!neutral) { m_impl->controller.SetInput({}); return; }
+            m_impl->requireNeutralInput = false;
+        }
+        m_impl->controller.SetInput(m_impl->playerCombat.Snapshot().phase == PlayerCombatPhase::Alive ? input : TankInput{});
     }
 
     bool TrackedVehicleTest::ApplyConfiguredRecoil()
@@ -270,7 +291,7 @@ namespace Tank::Physics
             Initialize();
         }
 
-        return m_impl->controller.ApplyConfiguredRecoil();
+        return m_impl->playerCombat.Snapshot().phase == PlayerCombatPhase::Alive && m_impl->controller.ApplyConfiguredRecoil();
     }
 
     bool TrackedVehicleTest::FireAssault()
@@ -280,6 +301,7 @@ namespace Tank::Physics
             Initialize();
         }
 
+        if (m_impl->requireNeutralInput || m_impl->playerCombat.Snapshot().phase != PlayerCombatPhase::Alive) return false;
         m_impl->controller.SetAssaultCapacityAvailable(
             m_state.assaultProjectiles.size() < static_cast<size_t>(m_impl->projectileSettings.maximumCount));
         if (!m_impl->controller.FireAssault()) return false;
@@ -345,15 +367,22 @@ namespace Tank::Physics
         return true;
     }
 
-    bool TrackedVehicleTest::AddFixedTurret(const Vec3& position, const Vec3& size, float hitPoints)
+    bool TrackedVehicleTest::AddFixedTurret(const Vec3& position, const Vec3& size, float hitPoints, const Quat& rotation,
+        const std::string& placementId, const EnemyUnitType& unitType)
     {
+        if (m_impl && !m_impl->enemyAttackTypes.empty())
+            for (const auto& mount : unitType.attackMounts)
+                if (mount.attackTypeIndex < 0 || static_cast<size_t>(mount.attackTypeIndex) >= m_impl->enemyAttackTypes.size()) return false;
+        const float lengthSquared = rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z + rotation.w * rotation.w;
+        if (!std::isfinite(lengthSquared) || std::abs(lengthSquared - 1.0f) > 0.001f) return false;
+
         if (!m_impl || !std::isfinite(hitPoints) || hitPoints <= 0.0f ||
             !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
             !std::isfinite(size.x) || !std::isfinite(size.y) || !std::isfinite(size.z) ||
             size.x < 0.1f || size.y < 0.1f || size.z < 0.1f) return false;
         JPH::BodyCreationSettings settings(
             new JPH::BoxShape(JPH::Vec3(size.x, size.y, size.z) * 0.5f),
-            JPH::RVec3(position.x, position.y, position.z), JPH::Quat::sIdentity(),
+            JPH::RVec3(position.x, position.y, position.z), JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w),
             JPH::EMotionType::Static, Layers::NonMoving);
         auto& bodies = m_impl->world.GetBodyInterface();
         JPH::Body* body = bodies.CreateBody(settings);
@@ -363,7 +392,32 @@ namespace Tank::Physics
         m_impl->turretBodyIds.push_back(id);
         m_state.fixedTurrets.push_back({
             {m_impl->nextCombatTargetId++, CombatTargetKind::Enemy, hitPoints, true},
-            position, size});
+            position, size, rotation, placementId, unitType, {}});
+        auto& turret = m_state.fixedTurrets.back();
+        const auto forward = JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w) * JPH::Vec3::sAxisZ();
+        if (!m_impl->enemyAttackTypes.empty())
+            for (const auto& mount : unitType.attackMounts)
+            {
+                const auto& type = m_impl->enemyAttackTypes[static_cast<size_t>(mount.attackTypeIndex)];
+                const auto offset = JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w) *
+                    JPH::Vec3(mount.localPosition.x, mount.localPosition.y, mount.localPosition.z);
+                turret.mounts.push_back({type, mount.localPosition,
+                    {position.x+offset.GetX(), position.y+offset.GetY(), position.z+offset.GetZ()},
+                    {std::atan2(forward.GetX(), forward.GetZ()), type.firingIntervalSeconds}});
+            }
+        return true;
+    }
+
+    void TrackedVehicleTest::RequireNeutralInput()
+    {
+        if (m_impl) m_impl->requireNeutralInput = true;
+    }
+
+    bool TrackedVehicleTest::ConfigureEnemyAttacks(const std::vector<EnemyAttackType>& types)
+    {
+        if (!m_impl || !m_state.fixedTurrets.empty() || types.empty() ||
+            std::any_of(types.begin(), types.end(), [](const auto& type) { return !IsValidEnemyAttackType(type); })) return false;
+        m_impl->enemyAttackTypes = types;
         return true;
     }
 
@@ -407,7 +461,27 @@ namespace Tank::Physics
             std::uint32_t hitBodyId = JPH::BodyID::cInvalidBodyID;
             Vec3 normal;
             bool staticSurface = false;
-            if (m_impl->controller.CastAssaultSegment(projectile.position, end, hitBodyId, normal, staticSurface))
+            const Vec3 fullEnd = end;
+            const bool worldHit = m_impl->controller.CastAssaultSegment(projectile.position, end, hitBodyId, normal, staticSurface);
+            const float worldFraction = worldHit && speed > 0 ? std::sqrt(
+                (end.x-projectile.position.x)*(end.x-projectile.position.x) +
+                (end.y-projectile.position.y)*(end.y-projectile.position.y) +
+                (end.z-projectile.position.z)*(end.z-projectile.position.z)) / (speed * flightTime) : 1.0f;
+            float closest = worldFraction;
+            EnemyProjectileState* intercepted = nullptr;
+            for (auto& enemy : m_state.enemyProjectiles)
+            {
+                if (!enemy.target.active) continue;
+                const float t = EnemyInterceptionFraction(projectile.position, fullEnd, enemy, flightTime);
+                if (t < closest) { closest = t; intercepted = &enemy; }
+            }
+            if (intercepted)
+            {
+                AssaultWeapon({projectile.damage, 8}).ApplyHit(intercepted->target);
+                m_state.assaultHitTargetId = intercepted->target.id;
+                return true;
+            }
+            if (worldHit)
             {
                 const bool destructible = std::any_of(m_impl->destructibleBodyIds.begin(),
                     m_impl->destructibleBodyIds.end(), [hitBodyId](const auto id)
@@ -436,6 +510,76 @@ namespace Tank::Physics
             if (!advance(projectile)) projectiles[survivors++] = projectile;
         }
         projectiles.resize(survivors);
+    }
+
+    void TrackedVehicleTest::UpdateEnemyAttacks(float dt)
+    {
+        const auto player = m_impl->controller.State().body.position;
+        for (size_t i = 0; i < m_state.fixedTurrets.size(); ++i)
+        {
+            auto& turret = m_state.fixedTurrets[i];
+            const auto& q = turret.rotation;
+            for (auto& mount : turret.mounts)
+            {
+                const auto local = JPH::Quat(q.x, q.y, q.z, q.w) * JPH::Vec3(
+                    mount.localPosition.x, mount.localPosition.y, mount.localPosition.z);
+                const Vec3 origin = {turret.position.x + local.GetX(), turret.position.y + local.GetY(), turret.position.z + local.GetZ()};
+                mount.worldPosition = origin;
+                bool visible = false;
+                if (turret.target.active)
+                {
+                    const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z),
+                        JPH::Vec3(player.x-origin.x, player.y-origin.y, player.z-origin.z));
+                    JPH::RayCastResult hit;
+                    visible = !m_impl->world.GetPhysicsSystem().GetNarrowPhaseQuery().CastRay(ray, hit, {}, {},
+                        JPH::IgnoreSingleBodyFilter(m_impl->turretBodyIds[i])) ||
+                        m_impl->controller.IsTankBody(hit.mBodyID.GetIndexAndSequenceNumber());
+                }
+                const bool active = turret.target.active && m_impl->playerCombat.Snapshot().phase == PlayerCombatPhase::Alive;
+                if (!UpdateEnemyAim(mount.aim, mount.attackType, origin, player, dt, visible, active)) continue;
+                if (m_state.enemyProjectiles.size() >= kMaximumEnemyProjectiles)
+                { --mount.aim.shotsFired; continue; }
+                const float horizontal = std::hypot(player.x-origin.x, player.z-origin.z);
+                const float pitch = std::atan2(player.y-origin.y, horizontal);
+                const float speed = mount.attackType.projectileSpeedMetersPerSecond;
+                const Vec3 velocity = {std::sin(mount.aim.yawRadians)*std::cos(pitch)*speed,
+                    std::sin(pitch)*speed, std::cos(mount.aim.yawRadians)*std::cos(pitch)*speed};
+                m_state.enemyProjectiles.push_back({{m_impl->nextCombatTargetId++, CombatTargetKind::EnemyProjectile, 1, true},
+                    turret.target.id, origin, velocity, mount.attackType.reachMeters});
+            }
+        }
+    }
+
+    void TrackedVehicleTest::AdvanceEnemyProjectiles(float dt)
+    {
+        const JPH::SphereShape shape(0.25f);
+        for (auto& bullet : m_state.enemyProjectiles)
+        {
+            if (!bullet.target.active) continue;
+            const float speed = std::sqrt(bullet.velocity.x*bullet.velocity.x + bullet.velocity.y*bullet.velocity.y + bullet.velocity.z*bullet.velocity.z);
+            const float travelTime = speed > 0 ? std::min(dt, bullet.remainingDistance / speed) : 0;
+            JPH::BodyID owner;
+            for (size_t i = 0; i < m_state.fixedTurrets.size(); ++i)
+                if (m_state.fixedTurrets[i].target.id == bullet.ownerId) owner = m_impl->turretBodyIds[i];
+            const auto& p = bullet.position;
+            const JPH::RShapeCast cast(&shape, JPH::Vec3::sReplicate(1),
+                JPH::RMat44::sTranslation(JPH::RVec3(p.x, p.y, p.z)),
+                JPH::Vec3(bullet.velocity.x*travelTime, bullet.velocity.y*travelTime, bullet.velocity.z*travelTime));
+            JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> hit;
+            m_impl->world.GetPhysicsSystem().GetNarrowPhaseQuery().CastShape(cast, {}, JPH::RVec3::sZero(), hit,
+                {}, {}, JPH::IgnoreSingleBodyFilter(owner));
+            if (hit.HadHit())
+            {
+                if (m_state.invulnerabilitySecondsRemaining <= 0 && m_impl->controller.IsTankBody(hit.mHit.mBodyID2.GetIndexAndSequenceNumber()))
+                    m_impl->playerCombat.ApplyDamage(bullet.damage, m_impl->controller.State().body.position);
+                bullet.target.active = false;
+                continue;
+            }
+            bullet.position = {p.x+bullet.velocity.x*travelTime, p.y+bullet.velocity.y*travelTime, p.z+bullet.velocity.z*travelTime};
+            bullet.remainingDistance -= speed*travelTime;
+            if (bullet.remainingDistance <= 1.0e-5f || speed <= 0) bullet.target.active = false;
+        }
+        std::erase_if(m_state.enemyProjectiles, [](const auto& bullet) { return !bullet.target.active; });
     }
 
     void TrackedVehicleTest::ApplyAssaultImpact(std::uint32_t hitBodyId, float damage)
@@ -565,6 +709,40 @@ namespace Tank::Physics
                 id = JPH::BodyID();
             }
         }
+        for (size_t i = 0; i < m_impl->turretBodyIds.size(); ++i)
+        {
+            auto& id = m_impl->turretBodyIds[i];
+            if (id.IsInvalid()) continue;
+            auto& turret = m_state.fixedTurrets[i];
+            // Measure blast distance to the rotated collision box, in its local space.
+            const auto& q = turret.rotation;
+            const auto local = JPH::Quat(q.x, q.y, q.z, q.w).Conjugated() * JPH::Vec3(
+                center.x-turret.position.x, center.y-turret.position.y, center.z-turret.position.z);
+            const float dx = (std::max)(std::abs(local.GetX())-0.5f*turret.size.x, 0.0f);
+            const float dy = (std::max)(std::abs(local.GetY())-0.5f*turret.size.y, 0.0f);
+            const float dz = (std::max)(std::abs(local.GetZ())-0.5f*turret.size.z, 0.0f);
+            const float distance = std::sqrt(dx*dx+dy*dy+dz*dz);
+            if (distance > radius) continue;
+            const float falloff = (std::max)(1.0f-distance/safeRadius, 0.1f);
+            const auto result = AssaultWeapon({damage*falloff, 8.0f}).ApplyHit(turret.target);
+            if (result.hit) m_state.mortarHitTargetId = turret.target.id;
+            if (result.destroyed)
+            {
+                auto& bodies = m_impl->world.GetBodyInterface();
+                bodies.RemoveBody(id);
+                bodies.DestroyBody(id);
+                id = JPH::BodyID();
+            }
+        }
+        for (auto& bullet : m_state.enemyProjectiles)
+        {
+            if (!bullet.target.active || bullet.target.kind != CombatTargetKind::EnemyProjectile) continue;
+            const float dx=bullet.position.x-center.x, dy=bullet.position.y-center.y, dz=bullet.position.z-center.z;
+            const float combinedRadius = radius+bullet.radius;
+            if (radius <= 0 || dx*dx+dy*dy+dz*dz > combinedRadius*combinedRadius) continue;
+            const auto result = AssaultWeapon({damage, 8.0f}).ApplyHit(bullet.target);
+            if (result.hit) m_state.mortarHitTargetId = bullet.target.id;
+        }
     }
 
     bool TrackedVehicleTest::ApplyRecoilImpulse(float impulseNewtonSeconds)
@@ -589,8 +767,48 @@ namespace Tank::Physics
             return m_state;
         }
 
+        const auto phase = m_impl->playerCombat.Snapshot().phase;
+        if (phase == PlayerCombatPhase::GameOver) return m_state;
+        if (phase == PlayerCombatPhase::Lost)
+        {
+            m_state.respawnSecondsRemaining = std::max(0.0f, m_state.respawnSecondsRemaining - deltaTimeSeconds);
+            if (m_state.respawnSecondsRemaining > 0.00001f) return m_state;
+            m_state.respawnSecondsRemaining = 0;
+            const auto position = m_impl->playerCombat.Snapshot().lostPosition;
+            const auto settings = m_impl->controller.Settings();
+            m_impl->controller.Initialize(m_impl->world, settings, {position, m_impl->lostYaw});
+            m_impl->resolvedAssaultRounds = 0;
+            m_impl->resolvedMortarShots = 0;
+            m_state.mortarShotsFired = 0;
+            m_state.assaultWeapon = {};
+            m_impl->playerCombat.Respawn();
+            m_state.playerCombat = m_impl->playerCombat.Snapshot();
+            m_state.bodyPosition = position;
+            m_state.bodyRotation = {0, std::sin(m_impl->lostYaw*0.5f), 0, std::cos(m_impl->lostYaw*0.5f)};
+            m_impl->requireNeutralInput = true;
+            m_state.linearVelocity = {};
+            m_state.angularVelocity = {};
+            m_state.invulnerabilitySecondsRemaining = 2;
+            ++m_state.respawnCount;
+            return m_state;
+        }
+        m_state.invulnerabilitySecondsRemaining = std::max(0.0f, m_state.invulnerabilitySecondsRemaining - deltaTimeSeconds);
         AdvanceAssaultProjectiles(deltaTimeSeconds);
         AdvanceMortarProjectiles(deltaTimeSeconds);
+        AdvanceEnemyProjectiles(deltaTimeSeconds);
+        if (m_impl->playerCombat.Snapshot().phase != PlayerCombatPhase::Alive)
+        {
+            m_state.playerCombat = m_impl->playerCombat.Snapshot();
+            m_state.respawnSecondsRemaining = m_state.playerCombat.phase == PlayerCombatPhase::Lost ? 1.0f : 0;
+            const auto q = m_impl->controller.State().body.rotation;
+            m_impl->lostYaw = std::atan2(2*(q.x*q.z+q.y*q.w), 1-2*(q.x*q.x+q.y*q.y));
+            m_state.assaultProjectiles.clear();
+            m_state.enemyProjectiles.clear();
+            m_state.mortarProjectiles.clear();
+            m_state.mortarBlasts.clear();
+            m_impl->controller.SetInput({});
+            return m_state;
+        }
         m_impl->controller.SetAssaultCapacityAvailable(
             m_state.assaultProjectiles.size() < static_cast<size_t>(m_impl->projectileSettings.maximumCount));
         m_impl->controller.PreStep();
@@ -668,6 +886,8 @@ namespace Tank::Physics
         m_state.rollChainAvailable =
             m_impl->controller.State().rollChainAvailable;
 
+        UpdateEnemyAttacks(deltaTimeSeconds);
+        m_state.playerCombat = m_impl->playerCombat.Snapshot();
         return m_state;
     }
 }

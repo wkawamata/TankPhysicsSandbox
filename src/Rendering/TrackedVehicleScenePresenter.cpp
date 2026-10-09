@@ -452,6 +452,9 @@ void TrackedVehicleScenePresenter::BuildScene(
     m_sceneBuilder.Clear();
     m_model = {};
     m_destructibleBoxInstances.clear();
+    m_fixedTurretInstances.clear();
+    m_fixedTurretDirectionInstances.clear();
+    m_enemyProjectileInstances.clear();
     m_impactMarkInstances.clear();
     m_impactMarkMesh.reset();
     m_mortarShellInstances.clear();
@@ -753,6 +756,30 @@ bool TrackedVehicleScenePresenter::EnsureMortarCapacity(size_t shellCapacity, si
 void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
     const Tank::Physics::TrackedVehicleTestState& state)
 {
+    const auto enemyMaterial = m_sceneBuilder.AddSolidColorMaterial(220, 45, 35, 255);
+    const auto enemyCube = m_sceneBuilder.AddCube(1.0f);
+    for (const auto& enemy : state.fixedTurrets)
+    {
+        m_fixedTurretInstances.push_back(m_sceneBuilder.GetScene().instances.size());
+        m_sceneBuilder.AddInstance(enemyCube, XMMatrixIdentity(), enemyMaterial);
+        std::vector<size_t> directions;
+        for (size_t i = 0; i < std::max(size_t{1}, enemy.mounts.size()); ++i)
+        {
+            directions.push_back(m_sceneBuilder.GetScene().instances.size());
+            m_sceneBuilder.AddInstance(enemyCube, XMMatrixIdentity(), enemyMaterial);
+        }
+        m_fixedTurretDirectionInstances.push_back(std::move(directions));
+    }
+    if (!state.fixedTurrets.empty())
+    {
+        const auto bullet = m_sceneBuilder.AddSphere(0.25f, 8, 12);
+        const auto bulletMaterial = m_sceneBuilder.AddSolidColorMaterial(255, 125, 25, 255);
+        for (size_t i = 0; i < Tank::Physics::kMaximumEnemyProjectiles; ++i)
+        {
+            m_enemyProjectileInstances.push_back(m_sceneBuilder.GetScene().instances.size());
+            m_sceneBuilder.AddInstance(bullet, XMMatrixScaling(0, 0, 0), bulletMaterial);
+        }
+    }
     if (state.destructibleBoxes.empty()) return;
     const uint32_t material = m_sceneBuilder.AddSolidColorMaterial(175, 100, 35, 255);
     const auto cube = m_sceneBuilder.AddCube(1.0f);
@@ -839,6 +866,37 @@ void TrackedVehicleScenePresenter::UpdateScene(
             ? XMMatrixScaling(box.size.x, box.size.y, box.size.z) *
                 XMMatrixTranslation(box.position.x, box.position.y, box.position.z)
             : XMMatrixScaling(0.0f, 0.0f, 0.0f));
+    }
+    for (size_t i = 0; i < m_fixedTurretInstances.size() && i < state.fixedTurrets.size(); ++i)
+    {
+        const auto& enemy = state.fixedTurrets[i];
+        const auto& q = enemy.rotation;
+        for (size_t j = 0; j < m_fixedTurretDirectionInstances[i].size(); ++j)
+        {
+            auto transform = XMMatrixTranslation(0, 0, 0.6f) *
+                XMMatrixRotationQuaternion(XMVectorSet(q.x, q.y, q.z, q.w)) *
+                XMMatrixTranslation(enemy.position.x, enemy.position.y, enemy.position.z);
+            if (j < enemy.mounts.size())
+            {
+                const auto& mount = enemy.mounts[j];
+                transform = XMMatrixTranslation(0, 0, 0.6f) * XMMatrixRotationY(mount.aim.yawRadians) *
+                    XMMatrixTranslation(mount.worldPosition.x, mount.worldPosition.y, mount.worldPosition.z);
+            }
+            SetInstanceWorld(scene.instances[m_fixedTurretDirectionInstances[i][j]], enemy.target.active
+                ? XMMatrixScaling(0.15f, 0.15f, 0.8f) * transform : XMMatrixScaling(0, 0, 0));
+        }
+        SetInstanceWorld(scene.instances[m_fixedTurretInstances[i]], enemy.target.active
+            ? XMMatrixScaling(enemy.size.x, enemy.size.y, enemy.size.z) *
+                XMMatrixRotationQuaternion(XMVectorSet(q.x, q.y, q.z, q.w)) *
+                XMMatrixTranslation(enemy.position.x, enemy.position.y, enemy.position.z)
+            : XMMatrixScaling(0, 0, 0));
+    }
+    for (size_t i = 0; i < m_enemyProjectileInstances.size(); ++i)
+    {
+        const bool visible = i < state.enemyProjectiles.size() && state.enemyProjectiles[i].target.active;
+        const auto p = visible ? state.enemyProjectiles[i].position : Tank::Physics::Vec3{};
+        SetInstanceWorld(scene.instances[m_enemyProjectileInstances[i]], visible
+            ? XMMatrixTranslation(p.x, p.y, p.z) : XMMatrixScaling(0, 0, 0));
     }
     const XMVECTOR rotation = XMVectorSet(
         state.bodyRotation.x, state.bodyRotation.y, state.bodyRotation.z, state.bodyRotation.w);
@@ -1111,6 +1169,9 @@ void TrackedVehicleScenePresenter::Clear()
 {
     m_sceneBuilder.Clear();
     m_destructibleBoxInstances.clear();
+    m_fixedTurretInstances.clear();
+    m_fixedTurretDirectionInstances.clear();
+    m_enemyProjectileInstances.clear();
     m_impactMarkInstances.clear();
     m_impactMarkMesh.reset();
     m_mortarShellInstances.clear();
