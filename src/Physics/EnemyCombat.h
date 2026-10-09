@@ -33,7 +33,22 @@ namespace Tank::Physics
         float remainingDistance = 30;
         float radius = 0.25f;
         float damage = 100;
+        EnemyProjectileShape shape = EnemyProjectileShape::Sphere;
+        Vec3 boxSizeMeters = {1, 1, 1};
+        Quat rotation;
+
     };
+    // Rotate the local +Z flight axis toward the shot's direction. Fixed after launch.
+    inline Quat EnemyProjectileRotation(const Vec3& velocity)
+    {
+        const float length = std::hypot(velocity.x, velocity.y, velocity.z);
+        if (length < 0.000001f) return {};
+        const float x=velocity.x/length, y=velocity.y/length, z=velocity.z/length;
+        if (z < -0.999999f) return {0, 1, 0, 0};
+        const float w=1+z;
+        const float scale=1/std::sqrt(x*x+y*y+w*w);
+        return {-y*scale, x*scale, 0, w*scale};
+    }
     inline float WrapEnemyAngle(float angle) { return std::atan2(std::sin(angle), std::cos(angle)); }
     inline bool UpdateEnemyAim(EnemyAimState& state, const EnemyAttackType& type,
         const Vec3& origin, const Vec3& player, float dt, bool visible, bool active)

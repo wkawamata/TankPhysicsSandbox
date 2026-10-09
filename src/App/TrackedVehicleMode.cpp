@@ -77,6 +77,7 @@ namespace
 }
 
 TrackedVehicleMode::TrackedVehicleMode()
+    : m_enemyEditorJsonPath(TANK_SOURCE_CONFIG_DIR "/enemy_types.json")
 {
 }
 
@@ -187,9 +188,9 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
         return false;
     }
     Tank::Physics::EnemyEditorSettings catalog;
+    auto catalogPath = folder / "enemy_types.json";
     if (!manifest.enemies.empty())
     {
-        auto catalogPath = folder / "enemy_types.json";
         if (!std::filesystem::exists(catalogPath))
             catalogPath = std::filesystem::path(TANK_SOURCE_CONFIG_DIR) / "enemy_types.json";
         std::ifstream input(catalogPath, std::ios::binary);
@@ -207,7 +208,12 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
                 return false;
             }
     }
-    if (!manifest.enemies.empty()) m_enemyEditor = std::move(catalog);
+    if (!manifest.enemies.empty())
+    {
+        m_enemyEditor = std::move(catalog);
+        const auto utf8 = catalogPath.u8string();
+        m_enemyEditorJsonPath.assign(utf8.begin(), utf8.end());
+    }
     m_customMap.reset();
     m_manifestMap = manifest;
     m_manifestMapFolder = folder;

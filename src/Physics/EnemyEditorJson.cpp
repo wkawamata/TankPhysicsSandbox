@@ -39,7 +39,11 @@ namespace Tank::Physics
                     {"projectileSpeedMetersPerSecond", type.projectileSpeedMetersPerSecond},
                     {"firingIntervalSeconds", type.firingIntervalSeconds},
                     {"maximumYawSpeedDegreesPerSecond", type.maximumYawSpeedDegreesPerSecond},
-                    {"firingToleranceDegrees", type.firingToleranceDegrees}});
+                    {"firingToleranceDegrees", type.firingToleranceDegrees},
+                    {"projectileKind", type.projectileKind == EnemyProjectileKind::Special ? "special" : "ordinary"},
+                    {"projectileRadiusMeters", type.projectileRadiusMeters},
+                    {"projectileShape", type.projectileShape == EnemyProjectileShape::Box ? "box" : "sphere"},
+                    {"projectileBoxSizeMeters", {type.projectileBoxSizeMeters.x, type.projectileBoxSizeMeters.y, type.projectileBoxSizeMeters.z}}});
             for (const auto& unit : settings.unitTypes)
             {
                 nlohmann::json entry = {{"name", unit.name}, {"attackMounts", nlohmann::json::array()}};
@@ -82,6 +86,26 @@ namespace Tank::Physics
                 read("firingIntervalSeconds", type.firingIntervalSeconds);
                 read("maximumYawSpeedDegreesPerSecond", type.maximumYawSpeedDegreesPerSecond);
                 read("firingToleranceDegrees", type.firingToleranceDegrees);
+                read("projectileRadiusMeters", type.projectileRadiusMeters);
+                if (entry.contains("projectileKind"))
+                {
+                    const auto kind = entry.at("projectileKind").get<std::string>();
+                    if (kind == "special") type.projectileKind = EnemyProjectileKind::Special;
+                    else if (kind != "ordinary") throw std::runtime_error("Unknown projectile kind: " + kind);
+                }
+                if (entry.contains("projectileShape"))
+                {
+                    const auto shape = entry.at("projectileShape").get<std::string>();
+                    if (shape == "box") type.projectileShape = EnemyProjectileShape::Box;
+                    else if (shape != "sphere") throw std::runtime_error("Unknown projectile shape: " + shape);
+                }
+                if (entry.contains("projectileBoxSizeMeters"))
+                {
+                    const auto& size = entry.at("projectileBoxSizeMeters");
+                    if (!size.is_array() || size.size()!=3) throw std::runtime_error("Expected three box dimensions");
+                    for (const auto& dimension : size) if (!dimension.is_number()) throw std::runtime_error("Box dimensions must be numeric");
+                    type.projectileBoxSizeMeters = {size[0].get<float>(), size[1].get<float>(), size[2].get<float>()};
+                }
                 candidate.attackTypes.push_back(type);
             }
             for (const auto& entry : root.at("unitTypes"))

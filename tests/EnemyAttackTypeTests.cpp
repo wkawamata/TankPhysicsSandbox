@@ -22,6 +22,26 @@ int main()
     invalid = type;
     invalid.projectileSpeedMetersPerSecond = std::numeric_limits<float>::infinity();
     ok &= !IsValidEnemyAttackType(invalid);
+    invalid = type;
+    invalid.projectileRadiusMeters = -1;
+    ok &= !IsValidEnemyAttackType(invalid);
+    invalid.projectileRadiusMeters = std::numeric_limits<float>::quiet_NaN();
+    ok &= !IsValidEnemyAttackType(invalid);
+    invalid = type;
+    invalid.projectileKind = static_cast<EnemyProjectileKind>(99);
+    ok &= !IsValidEnemyAttackType(invalid);
+    invalid = type;
+    invalid.projectileShape = EnemyProjectileShape::Box;
+    ok &= !IsValidEnemyAttackType(invalid); // Ordinary bullets remain spherical.
+    invalid.projectileKind = EnemyProjectileKind::Special;
+    ok &= IsValidEnemyAttackType(invalid);
+    invalid.projectileBoxSizeMeters.x = 0;
+    ok &= !IsValidEnemyAttackType(invalid);
+    invalid.projectileBoxSizeMeters = {1, 1, std::numeric_limits<float>::infinity()};
+    ok &= !IsValidEnemyAttackType(invalid);
+    invalid = type;
+    invalid.projectileShape = static_cast<EnemyProjectileShape>(99);
+    ok &= !IsValidEnemyAttackType(invalid);
     editor.attackTypes.push_back(type);
     editor.attackTypes[1].projectileSpeedMetersPerSecond = 2;
     editor.unitTypes[0].attackMounts.push_back({{1, 0, 0}, 1});

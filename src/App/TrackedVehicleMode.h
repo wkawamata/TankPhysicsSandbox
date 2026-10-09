@@ -75,6 +75,7 @@ public:
     Tank::Rendering::MortarRangeCue MortarRangeCue() const;
 
     Tank::Physics::EnemyEditorSettings& EnemyEditor() { return m_enemyEditor; }
+    std::string& EnemyEditorJsonPath() { return m_enemyEditorJsonPath; }
     Tank::Physics::TankSettings& Settings() { return m_settings; }
     const Tank::Physics::TankSettings& AppliedSettings() const { return m_appliedSettings; }
     Tank::Physics::PhysicsEnvironmentSettings& EnvSettings() { return m_environmentSettings; }
@@ -193,6 +194,7 @@ private:
     Tank::Rendering::TankVisualSettings m_visualSettings;
 
     Tank::Physics::EnemyEditorSettings m_enemyEditor;
+    std::string m_enemyEditorJsonPath;
     bool m_paused = false;
     bool m_singleStep = false;
     bool m_rollingCheatWindowVisible = false;

@@ -1338,7 +1338,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-    foreach(combat_test IN ITEMS CombatSettings PlayerCombatState FixedTurret EnemyAttackType EnemyEditorJson EnemyCombat MortarEnemy)
+    foreach(combat_test IN ITEMS CombatSettings PlayerCombatState FixedTurret EnemyAttackType EnemyEditorJson EnemyCombat MortarEnemy EnemySpecialProjectile EnemyMapIntegration)
         add_executable(${combat_test}Tests tests/${combat_test}Tests.cpp)
         target_link_libraries(${combat_test}Tests PRIVATE TankPhysicsCore)
         if(MSVC)

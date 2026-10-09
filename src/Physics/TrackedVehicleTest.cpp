@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <optional>
 
 JPH_SUPPRESS_WARNINGS
 
@@ -471,7 +472,7 @@ namespace Tank::Physics
             EnemyProjectileState* intercepted = nullptr;
             for (auto& enemy : m_state.enemyProjectiles)
             {
-                if (!enemy.target.active) continue;
+                if (!enemy.target.active || enemy.target.kind != CombatTargetKind::EnemyProjectile) continue;
                 const float t = EnemyInterceptionFraction(projectile.position, fullEnd, enemy, flightTime);
                 if (t < closest) { closest = t; intercepted = &enemy; }
             }
@@ -544,26 +545,35 @@ namespace Tank::Physics
                 const float speed = mount.attackType.projectileSpeedMetersPerSecond;
                 const Vec3 velocity = {std::sin(mount.aim.yawRadians)*std::cos(pitch)*speed,
                     std::sin(pitch)*speed, std::cos(mount.aim.yawRadians)*std::cos(pitch)*speed};
-                m_state.enemyProjectiles.push_back({{m_impl->nextCombatTargetId++, CombatTargetKind::EnemyProjectile, 1, true},
-                    turret.target.id, origin, velocity, mount.attackType.reachMeters});
+                const auto kind = mount.attackType.projectileKind == EnemyProjectileKind::Special
+                    ? CombatTargetKind::EnemySpecialProjectile : CombatTargetKind::EnemyProjectile;
+                m_state.enemyProjectiles.push_back({{m_impl->nextCombatTargetId++, kind, 1, true},
+                    turret.target.id, origin, velocity, mount.attackType.reachMeters, mount.attackType.projectileRadiusMeters, 100,
+                    mount.attackType.projectileShape, mount.attackType.projectileBoxSizeMeters, EnemyProjectileRotation(velocity)});
             }
         }
     }
 
     void TrackedVehicleTest::AdvanceEnemyProjectiles(float dt)
     {
-        const JPH::SphereShape shape(0.25f);
         for (auto& bullet : m_state.enemyProjectiles)
         {
             if (!bullet.target.active) continue;
+            std::optional<JPH::SphereShape> sphere;
+            std::optional<JPH::BoxShape> box;
+            if (bullet.shape == EnemyProjectileShape::Box)
+                box.emplace(JPH::Vec3(bullet.boxSizeMeters.x, bullet.boxSizeMeters.y, bullet.boxSizeMeters.z)*0.5f, 0.0f);
+            else sphere.emplace(bullet.radius);
+            const JPH::Shape* shape = box ? static_cast<const JPH::Shape*>(&*box) : static_cast<const JPH::Shape*>(&*sphere);
             const float speed = std::sqrt(bullet.velocity.x*bullet.velocity.x + bullet.velocity.y*bullet.velocity.y + bullet.velocity.z*bullet.velocity.z);
             const float travelTime = speed > 0 ? std::min(dt, bullet.remainingDistance / speed) : 0;
             JPH::BodyID owner;
             for (size_t i = 0; i < m_state.fixedTurrets.size(); ++i)
                 if (m_state.fixedTurrets[i].target.id == bullet.ownerId) owner = m_impl->turretBodyIds[i];
             const auto& p = bullet.position;
-            const JPH::RShapeCast cast(&shape, JPH::Vec3::sReplicate(1),
-                JPH::RMat44::sTranslation(JPH::RVec3(p.x, p.y, p.z)),
+            const auto& q = bullet.rotation;
+            const JPH::RShapeCast cast(shape, JPH::Vec3::sReplicate(1),
+                JPH::RMat44::sRotationTranslation(JPH::Quat(q.x, q.y, q.z, q.w), JPH::RVec3(p.x, p.y, p.z)),
                 JPH::Vec3(bullet.velocity.x*travelTime, bullet.velocity.y*travelTime, bullet.velocity.z*travelTime));
             JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> hit;
             m_impl->world.GetPhysicsSystem().GetNarrowPhaseQuery().CastShape(cast, {}, JPH::RVec3::sZero(), hit,

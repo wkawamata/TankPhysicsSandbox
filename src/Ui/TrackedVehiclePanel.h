@@ -94,6 +94,7 @@ namespace Ui
         bool* tankModelExportBinary = nullptr;
 
         Tank::Physics::EnemyEditorSettings* enemyEditor = nullptr;
+        std::string* enemyEditorJsonPath = nullptr;
         Tank::Physics::TankSettings* tankSettings = nullptr;
         Tank::Input::TankInputMappingSettings* inputMappingSettings = nullptr;
         Tank::Input::InputDeviceProfile* inputDeviceProfile = nullptr;

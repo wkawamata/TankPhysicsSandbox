@@ -40,6 +40,10 @@ int main()
     passed &= Check(interception.interceptedProjectile && interception.destroyed && !projectile.active,
         "enemy projectiles must be interceptable");
 
+    Tank::Physics::CombatTarget special {4, Tank::Physics::CombatTargetKind::EnemySpecialProjectile, 1.0f, true};
+    const auto rejected = weapon.ApplyHit(special);
+    passed &= Check(!rejected.hit && !rejected.destroyed && special.active && special.hitPoints==1,
+        "special enemy projectiles reject weapon damage");
     if (!passed) return 1;
     std::cout << "PASS AssaultWeapon rounds=" << weapon.Snapshot().roundsFired << "\n";
     return 0;

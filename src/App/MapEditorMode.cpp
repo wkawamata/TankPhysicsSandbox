@@ -36,7 +36,9 @@ void MapEditorMode::RefreshAvailableMaps()
     for (const std::filesystem::directory_entry& entry :
          std::filesystem::directory_iterator(root, error))
     {
-        if (error || !entry.is_directory()) continue;
+        // A folder without a Manifest must not suppress later map folders.
+        error.clear();
+        if (!entry.is_directory(error) || error) continue;
         if (std::filesystem::is_regular_file(entry.path() / "Manifest.json", error))
             m_availableMaps.push_back(entry.path());
     }
@@ -59,6 +61,15 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     m_hiddenInstanceIds.clear();
     m_selectedClearAreaId.clear();
     m_selectedEnemyId.clear();
+    auto catalogPath = m_map.Folder() / "enemy_types.json";
+    if (!std::filesystem::exists(catalogPath))
+        catalogPath = std::filesystem::path(TANK_SOURCE_CONFIG_DIR) / "enemy_types.json";
+    const auto catalogUtf8 = catalogPath.u8string();
+    m_enemyCatalogPath.assign(catalogUtf8.begin(), catalogUtf8.end());
+    m_enemyCatalogInitialized = true;
+    m_enemyTypes.clear();
+    m_selectedEnemyType.clear();
+    LoadEnemyCatalog();
     RefreshAssets();
     RefreshAvailableMaps();
     m_selectedAvailableMap = m_map.Folder();

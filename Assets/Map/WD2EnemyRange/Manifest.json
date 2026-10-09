@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "playerSpawn": {
+    "position": [
+      0,
+      2,
+      -20
+    ],
+    "rotationDegrees": [
+      0,
+      0,
+      0
+    ]
+  },
+  "instances": [
+    {
+      "id": "ground",
+      "asset": "Models/Ground.gltf",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotationDegrees": [
+        0,
+        0,
+        0
+      ],
+      "scale": 10
+    }
+  ],
+  "clearAreas": [],
+  "enemies": [
+    {
+      "id": "turret-0",
+      "unitType": "TurretA",
+      "position": [
+        0,
+        1.5,
+        0
+      ],
+      "rotationDegrees": [
+        0,
+        180,
+        0
+      ]
+    },
+    {
+      "id": "turret-1",
+      "unitType": "TurretB",
+      "position": [
+        -10,
+        1.5,
+        0
+      ],
+      "rotationDegrees": [
+        0,
+        180,
+        0
+      ]
+    },
+    {
+      "id": "turret-2",
+      "unitType": "TurretC",
+      "position": [
+        10,
+        1.5,
+        0
+      ],
+      "rotationDegrees": [
+        0,
+        180,
+        0
+      ]
+    },
+    {
+      "id": "turret-3",
+      "unitType": "TurretMixed",
+      "position": [
+        30,
+        1.5,
+        20
+      ],
+      "rotationDegrees": [
+        0,
+        180,
+        0
+      ]
+    }
+  ]
+}

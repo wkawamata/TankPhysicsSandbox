@@ -43,7 +43,7 @@ namespace Tank::Physics
     AssaultHitResult AssaultWeapon::ApplyHit(CombatTarget& target) const
     {
         AssaultHitResult result;
-        if (!target.active)
+        if (!target.active || target.kind == CombatTargetKind::EnemySpecialProjectile)
         {
             return result;
         }
