@@ -26,10 +26,21 @@ int main()
         loaded.attackTypes[1].projectileBoxSizeMeters.z == 3 && loaded.unitTypes[0].attackMounts.size() == 2 &&
         loaded.unitTypes[0].attackMounts[1].attackTypeIndex == 1 && loaded.unitTypes[0].attackMounts[1].localPosition.z == -3,
         "multiple templates and mounts survive round trip");
+    original.attackTypes[1].detectionMode = EnemyDetectionMode::RangeOnly;
+    original.attackTypes[1].alertReleaseSeconds = 12.5f;
+    check(SerializeEnemyEditor(original, text, error) && DeserializeEnemyEditor(text, loaded, error) &&
+        loaded.attackTypes[1].detectionMode == EnemyDetectionMode::RangeOnly && loaded.attackTypes[1].alertReleaseSeconds == 12.5f,
+        "detection mode and editable alert delay round trip");
+    for (const auto invalid : {R"({"version":1,"attackTypes":[{"name":"A","detectionMode":"unknown"}],"unitTypes":[]})",
+        R"({"version":1,"attackTypes":[{"name":"A","alertReleaseSeconds":-1}],"unitTypes":[]})"})
+        check(!DeserializeEnemyEditor(invalid, loaded, error) && loaded.attackTypes[1].alertReleaseSeconds == 12.5f,
+            "invalid detection settings preserve catalog");
     const std::string reordered = R"({"version":1,"attackTypes":[{"name":"B"},{"name":"A"}],"unitTypes":[{"name":"Tank","attackMounts":[{"attackType":"A","localPosition":[0,0,0]}]}]})";
     check(DeserializeEnemyEditor(reordered, loaded, error) && loaded.unitTypes[0].attackMounts[0].attackTypeIndex == 1 &&
         loaded.attackTypes[0].detectionRangeMeters == 50 && loaded.attackTypes[0].projectileKind == EnemyProjectileKind::Ordinary &&
         loaded.attackTypes[0].projectileRadiusMeters == 0.25f && loaded.attackTypes[0].projectileShape == EnemyProjectileShape::Sphere, "named references survive reordering; missing parameters use defaults");
+    check(loaded.attackTypes[0].detectionMode == EnemyDetectionMode::Optical && loaded.attackTypes[0].alertReleaseSeconds == 5,
+        "old catalogs default to optical and five second alert");
     for (const auto invalid : {"{}", "[]", "{", R"({"version":2,"attackTypes":[],"unitTypes":[]})",
         R"({"version":1,"attackTypes":[],"unitTypes":[]})",
         R"({"version":1,"attackTypes":[{"name":"A","projectileKind":"unknown"}],"unitTypes":[]})",

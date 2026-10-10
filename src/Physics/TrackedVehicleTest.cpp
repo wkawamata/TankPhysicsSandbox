@@ -405,6 +405,7 @@ namespace Tank::Physics
                 turret.mounts.push_back({type, mount.localPosition,
                     {position.x+offset.GetX(), position.y+offset.GetY(), position.z+offset.GetZ()},
                     {std::atan2(forward.GetX(), forward.GetZ()), type.firingIntervalSeconds}});
+                turret.mounts.back().aim.initialYawRadians = turret.mounts.back().aim.yawRadians;
             }
         return true;
     }
@@ -527,7 +528,7 @@ namespace Tank::Physics
                 const Vec3 origin = {turret.position.x + local.GetX(), turret.position.y + local.GetY(), turret.position.z + local.GetZ()};
                 mount.worldPosition = origin;
                 bool visible = false;
-                if (turret.target.active)
+                if (turret.target.active && mount.attackType.detectionMode == EnemyDetectionMode::Optical)
                 {
                     const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z),
                         JPH::Vec3(player.x-origin.x, player.y-origin.y, player.z-origin.z));
