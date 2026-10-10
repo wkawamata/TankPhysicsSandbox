@@ -11,12 +11,15 @@
 #include <utility>
 
 struct HWND__;
+namespace Engine { struct CameraState; }
 
 class MapEditorMode
 {
 public:
     // Returns true when the user has completed a request to return to the menu.
     bool DrawUi(HWND__* owner);
+    void DrawEnemyGizmo(const Engine::CameraState& camera, float aspectRatio);
+    bool EnemyGizmoCapturesMouse() const;
     void RequestExit();
     void RequestApplicationExit();
     using AssetValidator = std::function<bool(const std::filesystem::path&, const Tank::Map::GltfRoles&, std::string&)>;
@@ -34,6 +37,7 @@ public:
     bool ShowVisualMeshes() const { return m_showVisualMeshes; }
     bool ShowHitMeshes() const { return m_showHitMeshes; }
     const std::array<float, 3>& VisualMeshColor() const { return m_visualMeshColor; }
+    const std::string& SelectedEnemyId() const { return m_selectedEnemyId; }
     const std::string& SelectedInstanceId() const { return m_selectedInstanceId; }
     const std::unordered_set<std::string>& HiddenInstanceIds() const { return m_hiddenInstanceIds; }
     void SetPreviewError(const std::string& error) { m_status = "Preview failed: " + error; }
@@ -58,6 +62,11 @@ private:
     bool AddClearArea();
     bool UpdateSelectedClearArea(const Tank::Map::ClearArea& area);
     bool RemoveSelectedClearArea();
+    void DrawEnemies();
+    bool LoadEnemyCatalog();
+    bool AddSelectedEnemy();
+    bool UpdateSelectedEnemy(const Tank::Map::EnemyPlacement& enemy);
+    bool RemoveSelectedEnemy();
     void DrawCheatSheet();
 
     Tank::Map::MapFolder m_map;
@@ -78,6 +87,15 @@ private:
     std::string m_selectedInstanceId;
     std::unordered_set<std::string> m_hiddenInstanceIds;
     std::string m_selectedClearAreaId;
+    std::string m_selectedEnemyId;
+    std::string m_enemyCatalogPath;
+    std::string m_enemyCatalogError;
+    std::vector<std::string> m_enemyTypes;
+    std::string m_selectedEnemyType;
+    bool m_enemyCatalogInitialized = false;
+    bool m_enemyGizmoEnabled = true;
+    bool m_enemyGizmoRotate = false;
+    bool m_enemyGizmoLocal = false;
     bool m_sceneReloadRequested = false;
     bool m_focusSelectedRequested = false;
     bool m_applicationExitApproved = false;

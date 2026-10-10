@@ -1,4 +1,5 @@
 #include "App/TrackedVehicleMode.h"
+#include "App/ManifestEnemySpawner.h"
 #include "Diagnostics/Log.h"
 #include "Input/TankInputMappingJson.h"
 #include "Input/InputDeviceProfilesJson.h"
@@ -13,6 +14,7 @@
 #include "Map/MapClearCondition.h"
 #include "Physics/PhysicsEnvironmentSettingsJson.h"
 #include "Physics/TankSettingsJson.h"
+#include "Physics/EnemyEditorJson.h"
 #include "Rendering/TankVisualSettingsJson.h"
 #include "Rendering/TankModelExporter.h"
 #include "Rendering/MortarRangeGeometry.h"
@@ -75,6 +77,7 @@ namespace
 }
 
 TrackedVehicleMode::TrackedVehicleMode()
+    : m_enemyEditorJsonPath(TANK_SOURCE_CONFIG_DIR "/enemy_types.json")
 {
 }
 
@@ -183,6 +186,33 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     {
         error = "Manifest contains no model instances.";
         return false;
+    }
+    Tank::Physics::EnemyEditorSettings catalog;
+    auto catalogPath = folder / "enemy_types.json";
+    if (!manifest.enemies.empty())
+    {
+        if (!std::filesystem::exists(catalogPath))
+            catalogPath = std::filesystem::path(TANK_SOURCE_CONFIG_DIR) / "enemy_types.json";
+        std::ifstream input(catalogPath, std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(input)), {});
+        if (!input || !Tank::Physics::DeserializeEnemyEditor(text, catalog, error))
+        {
+            error = "Cannot load enemy catalog '" + catalogPath.string() + "': " + error;
+            return false;
+        }
+        for (const auto& enemy : manifest.enemies)
+            if (std::none_of(catalog.unitTypes.begin(), catalog.unitTypes.end(),
+                [&](const auto& type) { return type.name == enemy.unitType; }))
+            {
+                error = "Unknown enemy type '" + enemy.unitType + "' for " + enemy.id;
+                return false;
+            }
+    }
+    if (!manifest.enemies.empty())
+    {
+        m_enemyEditor = std::move(catalog);
+        const auto utf8 = catalogPath.u8string();
+        m_enemyEditorJsonPath.assign(utf8.begin(), utf8.end());
     }
     m_customMap.reset();
     m_manifestMap = manifest;
@@ -312,6 +342,12 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
             m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
     }
     InitializeDestructibleTargets();
+    if (!InitializeManifestEnemies())
+    {
+        m_presenter.Clear();
+        m_active = false;
+        return false;
+    }
     m_presenter.AppendDestructibleBoxes(m_test.State());
     ApplyAssaultProjectileSettings();
     m_presenter.EnsureImpactMarkCapacity(m_test.State().assaultImpactMarks.Capacity());
@@ -731,7 +767,10 @@ void TrackedVehicleMode::Step(
     if (!m_paused || m_singleStep)
     {
         const auto physicsStart = std::chrono::steady_clock::now();
+        const auto beforeStep = m_test.State();
         m_test.Step(kPhysicsFixedDt);
+        if (beforeStep.respawnCount != m_test.State().respawnCount)
+            if (auto* camera = ActiveCamera()) cameraController.OnTankTeleported(beforeStep, m_test.State(), *camera);
         const Tank::Physics::TrackedVehicleTestState& state = m_test.State();
         if (state.rollingTraceSequence != m_loggedRollingTraceSequence)
         {
@@ -806,6 +845,15 @@ void TrackedVehicleMode::InitializeDestructibleTargets()
     m_test.AddDestructibleBox({4.0f, 1.5f, 16.0f}, {2.0f, 3.0f, 2.0f});
 }
 
+bool TrackedVehicleMode::InitializeManifestEnemies()
+{
+    if (!m_manifestMap) return true;
+    std::string error;
+    if (Tank::App::SpawnManifestEnemies(m_test, *m_manifestMap, m_enemyEditor, error)) return true;
+    m_mapLoadStatus = "Enemy placement failed: " + error;
+    return false;
+}
+
 void TrackedVehicleMode::Reset(
     RtPbrSurvey::SceneRenderer& renderer,
     Tank::App::CameraController& cameraController)
@@ -832,6 +880,7 @@ void TrackedVehicleMode::Reset(
             m_customMap ? m_customMap->spawn : Tank::Physics::MapSpawn {});
     }
     InitializeDestructibleTargets();
+    if (!InitializeManifestEnemies()) return;
     ApplyAssaultProjectileSettings();
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;

@@ -1659,6 +1659,15 @@ namespace Ui
 			ImGui::TextDisabled("P: pause/resume   F: advance one frame while paused");
 		}
 
+        if (state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::GameOver &&
+            ImGui::Button("Continue") && ctx.continueGame) ctx.continueGame();
+        if (state.respawnSecondsRemaining > 0) ImGui::Text("Respawn in %.1f s", state.respawnSecondsRemaining);
+        if (state.invulnerabilitySecondsRemaining > 0) ImGui::Text("Invulnerable %.1f s", state.invulnerabilitySecondsRemaining);
+        ImGui::Text("HP %.0f  Lives %d  Enemy rounds %zu", state.playerCombat.hitPoints,
+            state.playerCombat.lives, state.enemyProjectiles.size());
+        if (state.playerCombat.phase != Tank::Physics::PlayerCombatPhase::Alive)
+            ImGui::TextUnformatted(state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::Lost
+                ? "Lost" : "GameOver");
 		DrawStateSummary(ctx, state);
 
 		UpdateAndDrawRollingTravelTelemetry(ctx, state);
@@ -1871,7 +1880,8 @@ namespace Ui
 		        if (ctx.enemyEditor && ImGui::CollapsingHeader("Enemy Unit Editor"))
         {
             auto& editor = *ctx.enemyEditor;
-            static std::string jsonPath = (std::filesystem::path(TANK_SOURCE_CONFIG_DIR) / "enemy_types.json").string();
+            static std::string fallbackJsonPath = TANK_SOURCE_CONFIG_DIR "/enemy_types.json";
+            auto& jsonPath = ctx.enemyEditorJsonPath ? *ctx.enemyEditorJsonPath : fallbackJsonPath;
             static std::string jsonStatus;
             ImGui::InputText("Enemy types JSON path", &jsonPath);
             if (ImGui::Button("Save enemy types JSON"))
@@ -1910,7 +1920,7 @@ namespace Ui
                 }
             }
             if (!jsonStatus.empty()) ImGui::TextWrapped("%s", jsonStatus.c_str());
-            ImGui::TextWrapped("Load replaces the current catalog. Save edits before loading another file. Map placement is a later step.");
+            ImGui::TextWrapped("Load replaces the current catalog. Save edits before loading another file. Reset Tank applies edits to placed enemies.");
             if (ImGui::Button("Register attack type"))
             {
                 Tank::Physics::EnemyAttackType type;
@@ -1933,6 +1943,27 @@ namespace Ui
                     ImGui::DragFloat("e Fire interval (s)", &type.firingIntervalSeconds, 0.1f, 0.01f, 3600, "%.2f", ImGuiSliderFlags_AlwaysClamp);
                     ImGui::DragFloat("f Max turret yaw (deg/s)", &type.maximumYawSpeedDegreesPerSecond, 0.5f, 0.1f, 3600, "%.1f", ImGuiSliderFlags_AlwaysClamp);
                     ImGui::DragFloat("g Aim tolerance (+/- deg)", &type.firingToleranceDegrees, 0.1f, 0, 180, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+                    int projectileKind = static_cast<int>(type.projectileKind);
+                    if (ImGui::Combo("Projectile kind", &projectileKind, "Ordinary (interceptable)\0Special (unbreakable)\0"))
+                    {
+                        type.projectileKind = static_cast<Tank::Physics::EnemyProjectileKind>(projectileKind);
+                        if (type.projectileKind == Tank::Physics::EnemyProjectileKind::Ordinary)
+                            type.projectileShape = Tank::Physics::EnemyProjectileShape::Sphere;
+                    }
+                    if (type.projectileKind == Tank::Physics::EnemyProjectileKind::Special)
+                    {
+                        int shape = static_cast<int>(type.projectileShape);
+                        if (ImGui::Combo("Bullet shape", &shape, "Sphere\0Box\0"))
+                            type.projectileShape = static_cast<Tank::Physics::EnemyProjectileShape>(shape);
+                    }
+                    if (type.projectileShape == Tank::Physics::EnemyProjectileShape::Box)
+                    {
+                        float size[3] = {type.projectileBoxSizeMeters.x, type.projectileBoxSizeMeters.y, type.projectileBoxSizeMeters.z};
+                        if (ImGui::DragFloat3("Width / Height / Depth (m)", size, 0.05f, 0.1f, 20, "%.2f", ImGuiSliderFlags_AlwaysClamp))
+                            type.projectileBoxSizeMeters = {size[0], size[1], size[2]};
+                        ImGui::TextDisabled("Depth follows the firing direction. Changes apply with Reset Tank.");
+                    }
+                    else ImGui::DragFloat("Bullet radius (m)", &type.projectileRadiusMeters, 0.05f, 0.05f, 10, "%.2f", ImGuiSliderFlags_AlwaysClamp);
                     if (ImGui::Button("Restore default parameters"))
                     {
                         const auto savedName = type.name;

@@ -12,6 +12,7 @@ namespace Tank::Physics
         Enemy,
         Destructible,
         EnemyProjectile,
+        EnemySpecialProjectile,
     };
 
     struct CombatTarget

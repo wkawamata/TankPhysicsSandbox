@@ -5,6 +5,7 @@
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
+#include <third_party/ImGuizmo/ImGuizmo.h>
 #include "imgui_impl_dx12.h"
 
 #include <Camera/DebugCameraController.h>
@@ -508,6 +509,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.tankModelExportBinary =
         &m_trackedVehicleMode.TankModelExportBinary();
     m_trackedVehiclePanelCtx.enemyEditor = &m_trackedVehicleMode.EnemyEditor();
+    m_trackedVehiclePanelCtx.enemyEditorJsonPath = &m_trackedVehicleMode.EnemyEditorJsonPath();
     m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleMode.Settings();
     m_trackedVehiclePanelCtx.inputMappingSettings = &m_trackedVehicleMode.InputMappingSettings();
     m_trackedVehiclePanelCtx.inputMappingStatus =
@@ -528,6 +530,13 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.fireRecoil = [this]()
     {
         m_trackedVehicleMode.FireRecoil();
+    };
+    m_trackedVehiclePanelCtx.continueGame = [this]()
+    {
+        if (m_trackedVehicleMode.TestState().playerCombat.phase != Tank::Physics::PlayerCombatPhase::GameOver) return;
+        ClearVehicleInputState();
+        m_trackedVehicleMode.Reset(m_sceneRenderer, m_cameraController);
+        m_trackedVehicleMode.Test().RequireNeutralInput();
     };
     m_trackedVehiclePanelCtx.fireAssault = [this]()
     {
@@ -954,6 +963,11 @@ bool TankSandboxApp::EnsureDebugCameraForMouse()
     }
     if (m_appMode == AppMode::MapEditor)
     {
+        if (m_mapEditorMode.EnemyGizmoCapturesMouse())
+        {
+            m_debugCameraController.ResetInputState();
+            return false;
+        }
         return true;
     }
     if (m_cameraController.IsDebugSlot())
@@ -1835,10 +1849,20 @@ void TankSandboxApp::DrawToolUi()
         DrawTopMenuUi();
         break;
     case AppMode::MapEditor:
+    {
+        ImGuizmo::BeginFrame();
         m_mapEditorMode.SetAssetValidator([this](const std::filesystem::path& path,
             const Tank::Map::GltfRoles& roles, std::string& error)
             { return m_mapEditorScenePresenter.ValidateVisualAsset(path, roles, error); });
-        if (m_mapEditorMode.DrawUi(Win32Application::GetHwnd()))
+        const bool leaveMapEditor = m_mapEditorMode.DrawUi(Win32Application::GetHwnd());
+        if (!leaveMapEditor)
+        {
+            m_mapEditorMode.DrawEnemyGizmo(m_mapEditorScenePresenter.GetScene().camera,
+                m_windowInfo.aspectRatio);
+            if (m_mapEditorMode.EnemyGizmoCapturesMouse())
+                m_debugCameraController.ResetInputState();
+        }
+        if (leaveMapEditor)
         {
             m_mapEditorMode.ConsumeClosedMapFolder();
             ReloadCustomMaps();
@@ -1868,7 +1892,7 @@ void TankSandboxApp::DrawToolUi()
                 const Tank::Rendering::MapEditorPreviewSettings preview = {
                     m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds(),
                     m_mapEditorMode.ShowVisualMeshes(), m_mapEditorMode.ShowHitMeshes(),
-                    m_mapEditorMode.VisualMeshColor() };
+                    m_mapEditorMode.VisualMeshColor(), m_mapEditorMode.SelectedEnemyId() };
                 if (m_mapEditorScenePresenter.Rebuild(
                     map.Folder(), map.Document(), grid, preview, error))
                 {
@@ -1923,6 +1947,7 @@ void TankSandboxApp::DrawToolUi()
             }
         }
         break;
+    }
     case AppMode::PhysicsBoxDrop:
         m_boxDropMode.DrawUi(m_sceneRenderer, m_sceneRenderer.CpuFrameTimeMs());
         break;
@@ -2134,8 +2159,22 @@ bool TankSandboxApp::LoadAutoMap()
     {
         return true;
     }
-    Tank::Physics::MapDocument document;
     std::string error;
+    if (std::filesystem::is_directory(*m_autoMapPath) || m_autoMapPath->filename() == "Manifest.json")
+    {
+        const auto folder = std::filesystem::is_directory(*m_autoMapPath)
+            ? *m_autoMapPath : m_autoMapPath->parent_path();
+        Tank::Map::Manifest manifest;
+        if (!LoadManifestDocument(folder, manifest, error) ||
+            !m_trackedVehicleMode.SelectManifestMap(folder, manifest, error))
+        {
+            m_customMapStatus = "Map load failed: " + error;
+            return false;
+        }
+        m_customMapStatus = "Auto Manifest map: " + folder.filename().string();
+        return true;
+    }
+    Tank::Physics::MapDocument document;
     if (!LoadMapDocument(*m_autoMapPath, document, error))
     {
         m_customMapStatus = "Map load failed: " + error;

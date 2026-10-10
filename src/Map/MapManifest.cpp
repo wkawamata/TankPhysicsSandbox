@@ -127,6 +127,20 @@ namespace Tank::Map
                     [](float size) { return size > 0.0f; }), "AABB size must be positive");
                 loaded.clearAreas.push_back(std::move(area));
             }
+            if (const auto enemies = json.find("enemies"); enemies != json.end())
+            {
+                Require(enemies->is_array(), "enemies must be an array");
+                for (const auto& entry : *enemies)
+                {
+                    EnemyPlacement enemy;
+                    enemy.id = ReadId(entry, ids);
+                    enemy.unitType = entry.at("unitType").get<std::string>();
+                    Require(!enemy.unitType.empty(), "enemy unitType must be nonempty");
+                    enemy.position = ReadVector(entry.at("position"), "enemy position");
+                    enemy.rotationDegrees = ReadVector(entry.at("rotationDegrees"), "enemy rotationDegrees");
+                    loaded.enemies.push_back(std::move(enemy));
+                }
+            }
             manifest = std::move(loaded);
             error.clear();
             return true;
@@ -149,7 +163,8 @@ namespace Tank::Map
                     { "rotationDegrees", manifest.playerSpawn.rotationDegrees },
                     { "scale", manifest.playerSpawn.scale } } },
                 { "instances", Json::array() },
-                { "clearAreas", Json::array() }
+                { "clearAreas", Json::array() },
+                { "enemies", Json::array() }
             };
             for (const auto& instance : manifest.instances)
             {
@@ -164,6 +179,13 @@ namespace Tank::Map
                 json["clearAreas"].push_back({
                     { "id", area.id }, { "name", area.name },
                     { "center", area.center }, { "size", area.size } });
+            }
+            for (const auto& enemy : manifest.enemies)
+            {
+                json["enemies"].push_back({
+                    { "id", enemy.id }, { "unitType", enemy.unitType },
+                    { "position", enemy.position },
+                    { "rotationDegrees", enemy.rotationDegrees } });
             }
             auto serialized = json.dump(2);
             Manifest validated;

@@ -34,6 +34,7 @@ namespace Tank::Physics
         Vec3 AssaultForwardDirection() const;
         bool CastAssaultSegment(const Vec3& start, Vec3& end, std::uint32_t& hitBodyId,
             Vec3& surfaceNormal, bool& staticSurface) const;
+        bool IsTankBody(std::uint32_t bodyId) const;
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
         void PreStep();

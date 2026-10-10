@@ -3,6 +3,15 @@
 #include "Map/MapAssetCatalog.h"
 #include "Map/MapEditing.h"
 #include "Platform/Windows/MapFolderPicker.h"
+#include "Physics/EnemyEditorJson.h"
+#include "Rendering/EnemyPlacementGizmo.h"
+#include <Scene/CameraView.h>
+#include <Scene/CameraProjection.h>
+#include <imgui.h>
+#include <third_party/ImGuizmo/ImGuizmo.h>
+#include <fstream>
+#include <iterator>
+#include <stdexcept>
 #include <algorithm>
 #include <system_error>
 #include <imgui.h>
@@ -27,7 +36,9 @@ void MapEditorMode::RefreshAvailableMaps()
     for (const std::filesystem::directory_entry& entry :
          std::filesystem::directory_iterator(root, error))
     {
-        if (error || !entry.is_directory()) continue;
+        // A folder without a Manifest must not suppress later map folders.
+        error.clear();
+        if (!entry.is_directory(error) || error) continue;
         if (std::filesystem::is_regular_file(entry.path() / "Manifest.json", error))
             m_availableMaps.push_back(entry.path());
     }
@@ -49,6 +60,16 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     m_focusSelectedRequested = false;
     m_hiddenInstanceIds.clear();
     m_selectedClearAreaId.clear();
+    m_selectedEnemyId.clear();
+    auto catalogPath = m_map.Folder() / "enemy_types.json";
+    if (!std::filesystem::exists(catalogPath))
+        catalogPath = std::filesystem::path(TANK_SOURCE_CONFIG_DIR) / "enemy_types.json";
+    const auto catalogUtf8 = catalogPath.u8string();
+    m_enemyCatalogPath.assign(catalogUtf8.begin(), catalogUtf8.end());
+    m_enemyCatalogInitialized = true;
+    m_enemyTypes.clear();
+    m_selectedEnemyType.clear();
+    LoadEnemyCatalog();
     RefreshAssets();
     RefreshAvailableMaps();
     m_selectedAvailableMap = m_map.Folder();
@@ -300,6 +321,7 @@ bool MapEditorMode::UpdateSelectedClearArea(const Tank::Map::ClearArea& area)
     {
         m_status = "The selected clear area no longer exists.";
         m_selectedClearAreaId.clear();
+        m_selectedEnemyId.clear();
         return false;
     }
     *selected = area;
@@ -324,9 +346,184 @@ bool MapEditorMode::RemoveSelectedClearArea()
         return false;
     }
     m_selectedClearAreaId.clear();
+    m_selectedEnemyId.clear();
     m_sceneReloadRequested = true;
     m_status = "Removed clear area. Save to write Manifest.json.";
     return true;
+}
+
+bool MapEditorMode::LoadEnemyCatalog()
+{
+    try
+    {
+        const std::u8string utf8(m_enemyCatalogPath.begin(), m_enemyCatalogPath.end());
+        std::ifstream input(std::filesystem::path(utf8), std::ios::binary);
+        if (!input) throw std::runtime_error("Cannot open enemy catalog");
+        const std::string text(std::istreambuf_iterator<char>(input), {});
+        if (input.bad()) throw std::runtime_error("Cannot read enemy catalog");
+        Tank::Physics::EnemyEditorSettings loaded;
+        if (!Tank::Physics::DeserializeEnemyEditor(text, loaded, m_enemyCatalogError)) return false;
+        std::vector<std::string> names;
+        for (const auto& type : loaded.unitTypes) names.push_back(type.name);
+        m_enemyTypes = std::move(names);
+        if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), m_selectedEnemyType) == m_enemyTypes.end())
+            m_selectedEnemyType = m_enemyTypes.empty() ? "" : m_enemyTypes.front();
+        m_enemyCatalogError.clear();
+        return true;
+    }
+    catch (const std::exception& exception)
+    {
+        m_enemyCatalogError = exception.what();
+        return false;
+    }
+}
+
+bool MapEditorMode::AddSelectedEnemy()
+{
+    auto updated = m_map.Document();
+    const auto id = Tank::Map::AddEnemy(updated, m_selectedEnemyType);
+    if (id.empty()) return false;
+    std::string error;
+    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
+    m_selectedEnemyId = id;
+    m_selectedInstanceId.clear();
+    m_sceneReloadRequested = true;
+    m_focusSelectedRequested = true;
+    m_status = "Added enemy. Set position/rotation, then Save.";
+    return true;
+}
+
+bool MapEditorMode::UpdateSelectedEnemy(const Tank::Map::EnemyPlacement& enemy)
+{
+    auto updated = m_map.Document();
+    const auto selected = std::find_if(updated.enemies.begin(), updated.enemies.end(),
+        [this](const auto& value) { return value.id == m_selectedEnemyId; });
+    if (selected == updated.enemies.end()) return false;
+    *selected = enemy;
+    std::string error;
+    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
+    m_sceneReloadRequested = true;
+    return true;
+}
+
+bool MapEditorMode::RemoveSelectedEnemy()
+{
+    auto updated = m_map.Document();
+    if (!Tank::Map::RemoveEnemy(updated, m_selectedEnemyId)) return false;
+    std::string error;
+    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
+    m_selectedEnemyId.clear();
+    m_sceneReloadRequested = true;
+    m_focusSelectedRequested = false;
+    m_status = "Removed enemy. Save to write Manifest.json.";
+    return true;
+}
+
+bool MapEditorMode::EnemyGizmoCapturesMouse() const
+{
+    return m_enemyGizmoEnabled && !m_selectedEnemyId.empty() &&
+        (ImGuizmo::IsOver() || ImGuizmo::IsUsingAny());
+}
+
+void MapEditorMode::DrawEnemyGizmo(const Engine::CameraState& camera, float aspectRatio)
+{
+    if (!m_map.IsOpen() || !m_enemyGizmoEnabled || m_confirm || m_pending != Action::None)
+    {
+        ImGuizmo::Enable(false);
+        return;
+    }
+    const auto& enemies = m_map.Document().enemies;
+    const auto selected = std::find_if(enemies.begin(), enemies.end(),
+        [this](const auto& enemy) { return enemy.id == m_selectedEnemyId; });
+    if (selected == enemies.end()) { ImGuizmo::Enable(false); return; }
+    // Keep the viewport gizmo below editor panels and don't start a drag through them.
+    ImGuizmo::Enable(ImGuizmo::IsUsingAny() || !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow));
+    ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
+    const auto* viewport = ImGui::GetMainViewport();
+    ImGuizmo::SetRect(viewport->Pos.x, viewport->Pos.y, viewport->Size.x, viewport->Size.y);
+    ImGuizmo::SetOrthographic(camera.projection == Engine::CameraProjection::Orthographic);
+    DirectX::XMFLOAT4X4 view, projection;
+    DirectX::XMStoreFloat4x4(&view, Engine::CreateCameraViewMatrix(camera));
+    DirectX::XMStoreFloat4x4(&projection, Engine::CreateCameraProjectionMatrix(camera, aspectRatio));
+    auto matrix = Tank::Rendering::EnemyPlacementMatrix(*selected);
+    const auto operation = m_enemyGizmoRotate ? ImGuizmo::ROTATE : ImGuizmo::TRANSLATE;
+    const auto mode = m_enemyGizmoLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+    if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
+        UpdateSelectedEnemy(Tank::Rendering::EnemyPlacementFromGizmo(*selected, matrix, m_enemyGizmoRotate));
+}
+
+void MapEditorMode::DrawEnemies()
+{
+    if (!m_enemyCatalogInitialized)
+    {
+        m_enemyCatalogInitialized = true;
+        m_enemyCatalogPath = TANK_SOURCE_CONFIG_DIR "/enemy_types.json";
+        LoadEnemyCatalog();
+    }
+    ImGui::SeparatorText("Enemies");
+    ImGui::InputText("Enemy catalog JSON", &m_enemyCatalogPath);
+    if (ImGui::Button("Load Enemy Catalog")) LoadEnemyCatalog();
+    if (!m_enemyCatalogError.empty())
+        ImGui::TextWrapped("Catalog load failed (previous types retained): %s", m_enemyCatalogError.c_str());
+    auto typeCombo = [this](const char* label, std::string& name)
+    {
+        bool changed = false;
+        if (ImGui::BeginCombo(label, name.c_str()))
+        {
+            for (size_t i = 0; i < m_enemyTypes.size(); ++i)
+            {
+                ImGui::PushID(static_cast<int>(i));
+                // Render names literally, including ImGui label delimiters.
+                const auto pos = ImGui::GetCursorScreenPos();
+                if (ImGui::Selectable("##type", name == m_enemyTypes[i]))
+                { name = m_enemyTypes[i]; changed = true; }
+                ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_Text), m_enemyTypes[i].c_str());
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+        return changed;
+    };
+    typeCombo("Enemy type", m_selectedEnemyType);
+    ImGui::BeginDisabled(m_selectedEnemyType.empty());
+    if (ImGui::Button("Add Enemy")) AddSelectedEnemy();
+    ImGui::EndDisabled();
+    ImGui::TextWrapped("Red boxes and forward markers show placements. Dimensions are preview placeholders.");
+    const auto& enemies = m_map.Document().enemies;
+    if (ImGui::BeginListBox("##PlacedEnemies", ImVec2(-1, 80)))
+    {
+        for (size_t i = 0; i < enemies.size(); ++i)
+        {
+            ImGui::PushID(static_cast<int>(i));
+            const auto pos = ImGui::GetCursorScreenPos();
+            if (ImGui::Selectable("##enemy", enemies[i].id == m_selectedEnemyId))
+            {
+                m_selectedEnemyId = enemies[i].id;
+                m_selectedInstanceId.clear();
+                m_sceneReloadRequested = true;
+                m_focusSelectedRequested = true;
+            }
+            const std::string label = enemies[i].id + " (" + enemies[i].unitType + ")";
+            ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
+            ImGui::PopID();
+        }
+        ImGui::EndListBox();
+    }
+    const auto selected = std::find_if(enemies.begin(), enemies.end(),
+        [this](const auto& value) { return value.id == m_selectedEnemyId; });
+    if (selected != enemies.end())
+    {
+        auto enemy = *selected;
+        if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), enemy.unitType) == m_enemyTypes.end())
+            ImGui::TextWrapped("Type is missing from loaded catalog: %s", enemy.unitType.c_str());
+        bool changed = typeCombo("Placement type", enemy.unitType);
+        changed |= ImGui::DragFloat3("Position (m)##Enemy", enemy.position.data(), 0.05f);
+        changed |= ImGui::DragFloat3("Rotation (deg)##Enemy", enemy.rotationDegrees.data(), 1.0f);
+        if (changed) UpdateSelectedEnemy(enemy);
+        if (ImGui::Button("Focus Enemy")) { m_sceneReloadRequested = true; m_focusSelectedRequested = true; }
+        ImGui::SameLine();
+        if (ImGui::Button("Remove Enemy")) RemoveSelectedEnemy();
+    }
 }
 
 bool MapEditorMode::Save()
@@ -373,6 +570,8 @@ void MapEditorMode::DrawCheatSheet()
         ImGui::BulletText("Player Start: chassis-center position and rotation");
         ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
         ImGui::BulletText("Clear Areas: goal AABB center and size");
+        ImGui::BulletText("Enemies: select a placement, then drag the Move/Rotate gizmo");
+        ImGui::BulletText("Local: unit axes; unchecked: world axes");
         ImGui::BulletText("Save: write changes to Manifest.json");
 
         ImGui::SeparatorText("Preview Markers");
@@ -414,6 +613,7 @@ bool MapEditorMode::Execute(HWND__* owner)
         m_focusSelectedRequested = false;
         m_hiddenInstanceIds.clear();
         m_selectedClearAreaId.clear();
+        m_selectedEnemyId.clear();
         m_sceneReloadRequested = true;
         return true;
     }
@@ -458,6 +658,13 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
     ImGui::Checkbox("Show Cheat Sheet", &m_showCheatSheet);
+    ImGui::Checkbox("Enemy Gizmo", &m_enemyGizmoEnabled);
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Move", !m_enemyGizmoRotate)) m_enemyGizmoRotate = false;
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Rotate", m_enemyGizmoRotate)) m_enemyGizmoRotate = true;
+    ImGui::SameLine();
+    ImGui::Checkbox("Local", &m_enemyGizmoLocal);
     ImGui::Separator();
     ImGui::BeginChild("##MapEditorScrollArea", ImVec2(0.0f, 0.0f), false);
     ImGui::SeparatorText("Maps in Assets/Map");
@@ -597,6 +804,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     if (ImGui::Selectable(label.c_str(), instance.id == m_selectedInstanceId))
                     {
                         m_selectedInstanceId = instance.id;
+                        m_selectedEnemyId.clear();
                         m_sceneReloadRequested = true;
                         m_focusSelectedRequested = true;
                     }
@@ -631,6 +839,8 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     m_status = "Transform preview was not updated.";
             }
         }
+
+        DrawEnemies();
 
         ImGui::SeparatorText("Player Start");
         ImGui::TextWrapped("Position is the tank chassis center. Keep Y above the HitMesh.");

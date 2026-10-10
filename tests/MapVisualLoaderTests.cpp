@@ -2,6 +2,7 @@
 #include "Map/MapManifest.h"
 #include "Rendering/MapEditorScenePresenter.h"
 #include "Rendering/MapVisualLoader.h"
+#include "Rendering/EnemyPlacementGizmo.h"
 #include "Scene/SceneBuilder.h"
 
 #include <DirectXMath.h>
@@ -205,6 +206,54 @@ namespace
             hitWorld._33 == 1.0f && hitWorld._44 == 1.0f;
     }
 
+    bool TestEnemyGizmoTransforms()
+    {
+        using namespace Tank;
+        for (const auto angles : { std::array<float, 3>{ 20, 135, -35 },
+            std::array<float, 3>{ 90, 40, 30 }, std::array<float, 3>{ -90, 40, 30 },
+            std::array<float, 3>{ 120, -80, 60 }, std::array<float, 3>{ 0, 0, 0 } })
+        {
+            const Map::EnemyPlacement source = { "enemy-1", "Fixed turret", { 3, 2, -4 }, angles };
+            auto matrix = Rendering::EnemyPlacementMatrix(source);
+            const auto rotated = Rendering::EnemyPlacementFromGizmo(source, matrix, true);
+            const auto roundTrip = Rendering::EnemyPlacementMatrix(rotated);
+            const float* first = &matrix._11;
+            const float* second = &roundTrip._11;
+            for (size_t i = 0; i < 16; ++i)
+                if (std::abs(first[i] - second[i]) > 1.0e-4f) return false;
+            matrix._41 += 5;
+            const auto moved = Rendering::EnemyPlacementFromGizmo(source, matrix, false);
+            if (moved.position != std::array<float, 3>{ 8, 2, -4 } ||
+                moved.rotationDegrees != source.rotationDegrees ||
+                moved.id != source.id || moved.unitType != source.unitType) return false;
+        }
+        return true;
+    }
+
+    bool TestEnemyEditorMarkers()
+    {
+        Tank::Map::Manifest manifest;
+        manifest.enemies = { { "enemy-1", "Fixed turret", { 4, 2, 6 }, { 0, 90, 0 } } };
+        Tank::Rendering::MapEditorScenePresenter presenter;
+        Tank::Rendering::MapEditorPreviewSettings preview;
+        preview.selectedEnemyId = "enemy-1";
+        std::string error;
+        if (!presenter.Rebuild({}, manifest, { 1.0f, 1, 0.02f }, preview, error)) return false;
+        const auto& focus = presenter.SelectedFocusTarget();
+        const auto& scene = presenter.GetScene();
+        if (!focus || focus->center != manifest.enemies[0].position || scene.instances.size() != 12u)
+            return false;
+        // Grid has six parts, then body and two forward-marker parts.
+        const auto& body = scene.instances[6];
+        const auto& forward = scene.instances[7];
+        if (!NearlyEqual(body.world._14, 4) || !NearlyEqual(body.world._24, 2) ||
+            !NearlyEqual(body.world._34, 6) || !NearlyEqual(forward.world._14, 5) ||
+            !NearlyEqual(forward.world._34, 6)) return false;
+        manifest.enemies.clear();
+        if (!presenter.Rebuild({}, manifest, { 1.0f, 1, 0.02f }, preview, error)) return false;
+        return !presenter.SelectedFocusTarget() && presenter.GetScene().instances.size() == 9u;
+    }
+
     bool TestClearBeacons()
     {
         Engine::SceneBuilder builder;
@@ -235,7 +284,7 @@ int main()
 {
     if (!TestIndestructibleBoxTemplate() || !TestHitMeshOverlayGeometry() || !TestFailureDoesNotMutateScene() ||
         !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() ||
-        !TestHitOnlyVisualFallbackAndDisplaySwitches() || !TestClearBeacons())
+        !TestHitOnlyVisualFallbackAndDisplaySwitches() || !TestEnemyEditorMarkers() || !TestEnemyGizmoTransforms() || !TestClearBeacons())
     {
         std::cerr << "Map visual loader tests failed.\n";
         return 1;

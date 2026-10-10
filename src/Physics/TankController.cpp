@@ -636,6 +636,11 @@ namespace Tank::Physics
         return collided;
     }
 
+    bool TankController::IsTankBody(std::uint32_t bodyId) const
+    {
+        return m_impl && m_impl->hasBody && m_impl->bodyId.GetIndexAndSequenceNumber() == bodyId;
+    }
+
     bool TankController::ApplyConfiguredRecoil()
     {
         if (m_impl == nullptr ||

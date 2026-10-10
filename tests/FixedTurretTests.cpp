@@ -1,4 +1,5 @@
 #include "Physics/TrackedVehicleTest.h"
+#include "App/ManifestEnemySpawner.h"
 
 #include <cmath>
 #include <iostream>
@@ -69,6 +70,48 @@ int main()
     check(world.State().fixedTurrets.empty() && world.State().destructibleBoxes.empty(), "reset clears both target types");
     check(world.AddFixedTurret({0, 1.5f, 12}, {2, 3, 2}, 40) && world.State().fixedTurrets[0].target.id == 1,
         "new session restarts target IDs");
+    check(!world.AddFixedTurret({}, {1, 1, 1}, 60, {0, 0, 0, 0}), "reject invalid rotation");
+    const float half = std::sqrt(0.5f);
+    EnemyUnitType authoredType;
+    authoredType.name = "Custom turret";
+    authoredType.attackMounts.push_back({{1, 2, 3}, 0});
+    check(world.AddFixedTurret({8, 1, 8}, {1, 2, 3}, 60, {0, half, 0, half}, "enemy-2", authoredType), "rotated placement creation");
+    Advance(world, 60);
+    const auto& rotated = world.State().fixedTurrets.back();
+    check(rotated.rotation.y == half && rotated.position.x == 8 && rotated.target.hitPoints == 60,
+        "placement rotation and HP retained while stationary");
+    check(rotated.placementId == "enemy-2" && rotated.unitType.name == "Custom turret" &&
+        rotated.unitType.attackMounts.size() == 2, "authored identity and multiple mounts retained");
+    world.Initialize();
+    Advance(world, 180);
+    world.AddFixedTurret({2, 1.5f, 12}, {6, 3, 0.2f}, 60, {0, half, 0, half});
+    world.AddDestructibleBox({0, 1.5f, 18}, {2, 3, 2}, 40);
+    world.FireAssault();
+    Advance(world, 30);
+    check(world.State().fixedTurrets[0].target.hitPoints == 60 &&
+        world.State().destructibleBoxes[0].target.hitPoints == 20, "rotated collider leaves shot path clear");
+
+    Tank::Map::Manifest manifest;
+    manifest.enemies.push_back({"enemy-1", "Fixed turret", {0, 1.5f, 12}, {0, 90, 0}});
+    EnemyEditorSettings catalog;
+    catalog.unitTypes[0].attackMounts.push_back({{1, 0, 0}, 0});
+    std::string error;
+    world.Initialize();
+    auto invalidManifest = manifest;
+    invalidManifest.enemies.push_back({"enemy-2", "missing", {}, {}});
+    check(!Tank::App::SpawnManifestEnemies(world, invalidManifest, catalog, error) &&
+        world.State().fixedTurrets.empty(), "unknown type rejects all placements before spawning");
+    check(Tank::App::SpawnManifestEnemies(world, manifest, catalog, error), "spawn authored map");
+    check(world.State().fixedTurrets[0].placementId == "enemy-1" &&
+        world.State().fixedTurrets[0].unitType.attackMounts.size() == 2 &&
+        std::abs(world.State().fixedTurrets[0].rotation.y - half) < 0.00001f, "map resolves type, mounts and rotation");
+    Advance(world, 180);
+    for (int shot = 0; shot < 3; ++shot) { world.FireAssault(); Advance(world, 20); }
+    check(!world.State().fixedTurrets[0].target.active, "authored enemy is destructible");
+    world.Initialize();
+    check(Tank::App::SpawnManifestEnemies(world, manifest, catalog, error) &&
+        world.State().fixedTurrets[0].target.hitPoints == 60 && world.State().fixedTurrets[0].target.active,
+        "reset restores authored enemy HP and collider");
     // Destructor must release an active turret as well as destroyed ones.
     if (!passed) return 1;
     std::cout << "PASS FixedTurret\n";

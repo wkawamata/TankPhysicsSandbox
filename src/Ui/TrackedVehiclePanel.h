@@ -94,6 +94,7 @@ namespace Ui
         bool* tankModelExportBinary = nullptr;
 
         Tank::Physics::EnemyEditorSettings* enemyEditor = nullptr;
+        std::string* enemyEditorJsonPath = nullptr;
         Tank::Physics::TankSettings* tankSettings = nullptr;
         Tank::Input::TankInputMappingSettings* inputMappingSettings = nullptr;
         Tank::Input::InputDeviceProfile* inputDeviceProfile = nullptr;
@@ -107,6 +108,7 @@ namespace Ui
         std::function<void()> resetTrackedVehicle;
         std::function<void()> fireRecoil;
         std::function<void()> fireAssault;
+        std::function<void()> continueGame;
         std::function<void()> applyMaterials;
         std::function<void()> saveTankSettings;
         std::function<void()> saveRollingProfile;

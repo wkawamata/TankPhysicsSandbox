@@ -28,6 +28,7 @@ namespace Tank::Rendering
         bool showHitMeshes = false;
         std::array<float, 3> visualMeshColor = {
             80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
+        std::string selectedEnemyId;
     };
 
     struct MapEditorFocusTarget

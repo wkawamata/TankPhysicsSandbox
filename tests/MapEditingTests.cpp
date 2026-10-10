@@ -45,6 +45,22 @@ int main()
             "A new clear area should have editable defaults");
         Check(RemoveClearArea(manifest, areaId), "Existing clear area should be removable");
         Check(!RemoveClearArea(manifest, areaId), "Removed clear area should no longer exist");
+        manifest.enemies = {
+            { "instance-1", "Type 0", {}, {} },
+            { "clear-area-2", "Type 0", {}, {} }
+        };
+        Check(MakeUniqueInstanceId(manifest) == "instance-5",
+            "Model ID generation must skip enemy placement IDs");
+        Check(MakeUniqueClearAreaId(manifest) == "clear-area-3",
+            "Area ID generation must skip enemy placement IDs");
+        manifest.instances.push_back({ "enemy-1", "Models/A.gltf", {} });
+        manifest.clearAreas.push_back({ "enemy-2", "Reserved", {}, { 1, 1, 1 } });
+        const auto enemyId = AddEnemy(manifest, "Fixed turret");
+        Check(enemyId == "enemy-3" && manifest.enemies.back().unitType == "Fixed turret",
+            "Enemy addition skips all used IDs and preserves catalog name");
+        Check(AddEnemy(manifest, "").empty(), "Empty enemy type cannot be added");
+        Check(RemoveEnemy(manifest, enemyId) && !RemoveEnemy(manifest, enemyId),
+            "Enemy removal affects only the selected placement");
         std::cout << "Map editing tests passed\n";
         return 0;
     }

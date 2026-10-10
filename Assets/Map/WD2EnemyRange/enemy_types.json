@@ -1,0 +1,129 @@
+{
+  "attackTypes": [
+    {
+      "detectionRangeMeters": 50.0,
+      "firingIntervalSeconds": 3.0,
+      "firingRangeMeters": 25.0,
+      "firingToleranceDegrees": 3.0,
+      "maximumYawSpeedDegreesPerSecond": 5.0,
+      "name": "A-Ordinary",
+      "projectileBoxSizeMeters": [
+        1.5,
+        0.5,
+        2.0
+      ],
+      "projectileKind": "ordinary",
+      "projectileRadiusMeters": 0.25,
+      "projectileShape": "sphere",
+      "projectileSpeedMetersPerSecond": 1.0,
+      "reachMeters": 30.0
+    },
+    {
+      "detectionRangeMeters": 50.0,
+      "firingIntervalSeconds": 3.0,
+      "firingRangeMeters": 25.0,
+      "firingToleranceDegrees": 3.0,
+      "maximumYawSpeedDegreesPerSecond": 5.0,
+      "name": "B-SpecialSphere",
+      "projectileBoxSizeMeters": [
+        1.5,
+        0.5,
+        2.0
+      ],
+      "projectileKind": "special",
+      "projectileRadiusMeters": 0.5,
+      "projectileShape": "sphere",
+      "projectileSpeedMetersPerSecond": 1.0,
+      "reachMeters": 30.0
+    },
+    {
+      "detectionRangeMeters": 50.0,
+      "firingIntervalSeconds": 3.0,
+      "firingRangeMeters": 25.0,
+      "firingToleranceDegrees": 3.0,
+      "maximumYawSpeedDegreesPerSecond": 5.0,
+      "name": "C-SpecialBox",
+      "projectileBoxSizeMeters": [
+        1.5,
+        0.5,
+        2.0
+      ],
+      "projectileKind": "special",
+      "projectileRadiusMeters": 0.5,
+      "projectileShape": "box",
+      "projectileSpeedMetersPerSecond": 1.0,
+      "reachMeters": 30.0
+    }
+  ],
+  "unitTypes": [
+    {
+      "attackMounts": [
+        {
+          "attackType": "A-Ordinary",
+          "localPosition": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "name": "TurretA"
+    },
+    {
+      "attackMounts": [
+        {
+          "attackType": "B-SpecialSphere",
+          "localPosition": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "name": "TurretB"
+    },
+    {
+      "attackMounts": [
+        {
+          "attackType": "C-SpecialBox",
+          "localPosition": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "name": "TurretC"
+    },
+    {
+      "attackMounts": [
+        {
+          "attackType": "A-Ordinary",
+          "localPosition": [
+            -1.5,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "attackType": "B-SpecialSphere",
+          "localPosition": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "attackType": "C-SpecialBox",
+          "localPosition": [
+            1.5,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "name": "TurretMixed"
+    }
+  ],
+  "version": 1
+}
