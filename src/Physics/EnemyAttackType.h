@@ -7,6 +7,7 @@
 
 namespace Tank::Physics
 {
+    enum class EnemyDetectionMode { Optical, RangeOnly };
     enum class EnemyProjectileKind { Ordinary, Special };
     enum class EnemyProjectileShape { Sphere, Box };
 
@@ -14,6 +15,8 @@ namespace Tank::Physics
     {
         std::string name = "Type 0";
         float detectionRangeMeters = 50.0f;
+        EnemyDetectionMode detectionMode = EnemyDetectionMode::Optical;
+        float alertReleaseSeconds = 5.0f;
         float reachMeters = 30.0f;
         float firingRangeMeters = 25.0f;
         float projectileSpeedMetersPerSecond = 1.0f;
@@ -29,7 +32,9 @@ namespace Tank::Physics
     inline bool IsValidEnemyAttackType(const EnemyAttackType& type)
     {
         const auto validSize = [](float value) { return std::isfinite(value) && value >= 0.1f && value <= 20.0f; };
-        return (type.projectileShape == EnemyProjectileShape::Sphere || type.projectileShape == EnemyProjectileShape::Box) &&
+        return (type.detectionMode == EnemyDetectionMode::Optical || type.detectionMode == EnemyDetectionMode::RangeOnly) &&
+            std::isfinite(type.alertReleaseSeconds) && type.alertReleaseSeconds >= 0 && type.alertReleaseSeconds <= 3600 &&
+            (type.projectileShape == EnemyProjectileShape::Sphere || type.projectileShape == EnemyProjectileShape::Box) &&
             (type.projectileKind != EnemyProjectileKind::Ordinary || type.projectileShape == EnemyProjectileShape::Sphere) &&
             validSize(type.projectileBoxSizeMeters.x) && validSize(type.projectileBoxSizeMeters.y) && validSize(type.projectileBoxSizeMeters.z) &&
             (type.projectileKind == EnemyProjectileKind::Ordinary || type.projectileKind == EnemyProjectileKind::Special) &&

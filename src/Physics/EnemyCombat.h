@@ -16,6 +16,10 @@ namespace Tank::Physics
         bool withinReach = false;
         bool canFire = false;
         std::uint64_t shotsFired = 0;
+        float initialYawRadians = 0;
+        bool alert = false;
+        float alertSecondsRemaining = 0;
+        Vec3 lastKnownPosition;
     };
     struct EnemyMountState
     {
@@ -56,14 +60,28 @@ namespace Tank::Physics
         if (!std::isfinite(dt) || dt <= 0 || !IsValidEnemyAttackType(type)) return false;
         const float x = player.x - origin.x, z = player.z - origin.z;
         const float distance = std::hypot(x, z);
-        state.detected = active && visible && distance <= type.detectionRangeMeters;
+        state.detected = active && (visible || type.detectionMode == EnemyDetectionMode::RangeOnly) &&
+            distance <= type.detectionRangeMeters;
         state.withinReach = state.detected && distance <= type.reachMeters;
         state.canFire = false;
-        if (!state.detected) { state.secondsUntilNextShot = type.firingIntervalSeconds; return false; }
-        const float desired = std::atan2(x, z);
+        if (state.detected)
+        {
+            state.alert = true;
+            state.alertSecondsRemaining = type.alertReleaseSeconds;
+            state.lastKnownPosition = player;
+        }
+        else
+        {
+            state.alertSecondsRemaining = active ? std::max(0.0f, state.alertSecondsRemaining - dt) : 0;
+            state.alert = active && state.alert && state.alertSecondsRemaining > 0;
+            state.secondsUntilNextShot = type.firingIntervalSeconds;
+        }
+        const float desired = state.alert ? std::atan2(state.lastKnownPosition.x - origin.x,
+            state.lastKnownPosition.z - origin.z) : state.initialYawRadians;
         constexpr float radians = 3.14159265358979323846f / 180;
         const float maximum = type.maximumYawSpeedDegreesPerSecond * radians * dt;
         state.yawRadians = WrapEnemyAngle(state.yawRadians + std::clamp(WrapEnemyAngle(desired - state.yawRadians), -maximum, maximum));
+        if (!state.detected) return false;
         state.secondsUntilNextShot = std::max(0.0f, state.secondsUntilNextShot - dt);
         state.canFire = state.withinReach && distance <= type.firingRangeMeters &&
             std::abs(WrapEnemyAngle(desired - state.yawRadians)) <= type.firingToleranceDegrees * radians + 1.0e-6f;

@@ -40,6 +40,8 @@ namespace Tank::Physics
                     {"firingIntervalSeconds", type.firingIntervalSeconds},
                     {"maximumYawSpeedDegreesPerSecond", type.maximumYawSpeedDegreesPerSecond},
                     {"firingToleranceDegrees", type.firingToleranceDegrees},
+                    {"detectionMode", type.detectionMode == EnemyDetectionMode::Optical ? "optical" : "rangeOnly"},
+                    {"alertReleaseSeconds", type.alertReleaseSeconds},
                     {"projectileKind", type.projectileKind == EnemyProjectileKind::Special ? "special" : "ordinary"},
                     {"projectileRadiusMeters", type.projectileRadiusMeters},
                     {"projectileShape", type.projectileShape == EnemyProjectileShape::Box ? "box" : "sphere"},
@@ -87,6 +89,13 @@ namespace Tank::Physics
                 read("maximumYawSpeedDegreesPerSecond", type.maximumYawSpeedDegreesPerSecond);
                 read("firingToleranceDegrees", type.firingToleranceDegrees);
                 read("projectileRadiusMeters", type.projectileRadiusMeters);
+                read("alertReleaseSeconds", type.alertReleaseSeconds);
+                if (entry.contains("detectionMode"))
+                {
+                    const auto mode = entry.at("detectionMode").get<std::string>();
+                    if (mode == "rangeOnly") type.detectionMode = EnemyDetectionMode::RangeOnly;
+                    else if (mode != "optical") throw std::runtime_error("Unknown detection mode: " + mode);
+                }
                 if (entry.contains("projectileKind"))
                 {
                     const auto kind = entry.at("projectileKind").get<std::string>();

@@ -122,6 +122,37 @@ int main()
     Advance(world,31);
     check(firstId!=0 && world.State().enemyProjectiles.empty() && world.State().playerCombat.hitPoints==100,
         "reach expires airborne projectile before distant vertical target");
+    // Remember only observed positions; expire exactly at the configured boundary.
+    EnemyAttackType alertType;
+    alertType.maximumYawSpeedDegreesPerSecond = 30;
+    alertType.alertReleaseSeconds = 2;
+    EnemyAimState remembered;
+    remembered.initialYawRadians = -1;
+    UpdateEnemyAim(remembered, alertType, {}, {10,0,0}, 0.5f, true, true);
+    check(remembered.detected && remembered.alert && remembered.alertSecondsRemaining == 2, "acquisition starts alert");
+    const float observedYaw = remembered.yawRadians;
+    check(!UpdateEnemyAim(remembered, alertType, {}, {-10,0,0}, 0.5f, false, true) &&
+        remembered.alert && !remembered.detected && remembered.lastKnownPosition.x == 10 &&
+        remembered.yawRadians > observedYaw && !remembered.canFire, "lost target continues toward recorded position, no shooting");
+    UpdateEnemyAim(remembered, alertType, {}, {0,0,100}, 1, true, true);
+    check(remembered.alert && remembered.alertSecondsRemaining == 0.5f && remembered.lastKnownPosition.x == 10,
+        "outside range does not update recorded position");
+    const float beforeReturn = remembered.yawRadians;
+    UpdateEnemyAim(remembered, alertType, {}, {0,0,100}, 0.5f, true, true);
+    check(!remembered.alert && remembered.alertSecondsRemaining == 0 &&
+        remembered.yawRadians < beforeReturn && std::abs(remembered.yawRadians-beforeReturn) <= 0.262f,
+        "alert expires and returns toward initial direction at limited speed");
+    UpdateEnemyAim(remembered, alertType, {}, {0,0,10}, 0.1f, true, true);
+    check(remembered.alertSecondsRemaining == 2 && remembered.lastKnownPosition.z == 10, "reacquisition resets delay and position");
+    alertType.alertReleaseSeconds = 0;
+    UpdateEnemyAim(remembered, alertType, {}, {0,0,10}, 0.1f, true, true);
+    UpdateEnemyAim(remembered, alertType, {}, {}, 0.1f, false, true);
+    check(!remembered.alert, "zero delay immediately clears alert");
+    alertType.detectionMode = EnemyDetectionMode::RangeOnly;
+    UpdateEnemyAim(remembered, alertType, {}, {0,0,10}, 0.1f, false, true);
+    check(remembered.detected, "range-only ignores ray occlusion");
+    UpdateEnemyAim(remembered, alertType, {}, {0,0,51}, 0.1f, false, true);
+    check(!remembered.detected, "range-only still respects detection range");
     if(!passed)return 1;
     std::cout << "PASS EnemyCombat\n";
 }

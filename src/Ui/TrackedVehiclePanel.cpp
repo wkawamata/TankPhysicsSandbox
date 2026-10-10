@@ -1943,6 +1943,11 @@ namespace Ui
                     ImGui::DragFloat("e Fire interval (s)", &type.firingIntervalSeconds, 0.1f, 0.01f, 3600, "%.2f", ImGuiSliderFlags_AlwaysClamp);
                     ImGui::DragFloat("f Max turret yaw (deg/s)", &type.maximumYawSpeedDegreesPerSecond, 0.5f, 0.1f, 3600, "%.1f", ImGuiSliderFlags_AlwaysClamp);
                     ImGui::DragFloat("g Aim tolerance (+/- deg)", &type.firingToleranceDegrees, 0.1f, 0, 180, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+                    int detectionMode = static_cast<int>(type.detectionMode);
+                    if (ImGui::Combo("Detection mode", &detectionMode, "Optical (ray occlusion)\0Range only\0"))
+                        type.detectionMode = static_cast<Tank::Physics::EnemyDetectionMode>(detectionMode);
+                    ImGui::DragFloat("Alert release delay (s)", &type.alertReleaseSeconds, 0.1f, 0, 3600, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+                    ImGui::TextWrapped("Lost target: aim at last known position without firing. After delay: return to initial direction. Reset Tank applies changes.");
                     int projectileKind = static_cast<int>(type.projectileKind);
                     if (ImGui::Combo("Projectile kind", &projectileKind, "Ordinary (interceptable)\0Special (unbreakable)\0"))
                     {
