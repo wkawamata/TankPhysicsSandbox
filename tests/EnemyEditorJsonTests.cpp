@@ -7,6 +7,7 @@ int main()
     bool passed = true;
     auto check = [&](bool value, const char* message) { if (!value) { passed = false; std::cerr << message << '\n'; } };
     EnemyEditorSettings original;
+    original.simulation = {50, 70, 3, 0.75f, 4, 0.15f, 45};
     original.attackTypes[0].name = "A";
     original.attackTypes.push_back({});
     original.attackTypes[1].name = "B";
@@ -26,6 +27,9 @@ int main()
         loaded.attackTypes[1].projectileBoxSizeMeters.z == 3 && loaded.unitTypes[0].attackMounts.size() == 2 &&
         loaded.unitTypes[0].attackMounts[1].attackTypeIndex == 1 && loaded.unitTypes[0].attackMounts[1].localPosition.z == -3,
         "multiple templates and mounts survive round trip");
+    check(loaded.simulation.physicalEnterMeters == 50 && loaded.simulation.simpleReturnMeters == 70 &&
+        loaded.simulation.brakingDecelerationMetersPerSecondSquared == 3 && loaded.simulation.nodeArrivalMeters == 0.75f &&
+        loaded.simulation.observationRadiusMeters == 4 && loaded.simulation.supportHeightToleranceMeters == 0.15f && loaded.simulation.simpleTurnDegreesPerSecond == 45, "simulation distances round trip");
     original.attackTypes[1].detectionMode = EnemyDetectionMode::RangeOnly;
     original.attackTypes[1].alertReleaseSeconds = 12.5f;
     check(SerializeEnemyEditor(original, text, error) && DeserializeEnemyEditor(text, loaded, error) &&
@@ -41,7 +45,10 @@ int main()
         loaded.attackTypes[0].projectileRadiusMeters == 0.25f && loaded.attackTypes[0].projectileShape == EnemyProjectileShape::Sphere, "named references survive reordering; missing parameters use defaults");
     check(loaded.attackTypes[0].detectionMode == EnemyDetectionMode::Optical && loaded.attackTypes[0].alertReleaseSeconds == 5,
         "old catalogs default to optical and five second alert");
+    check(loaded.simulation.physicalEnterMeters == 30 && loaded.simulation.simpleReturnMeters == 40, "old catalogs use agreed simulation distances");
     for (const auto invalid : {"{}", "[]", "{", R"({"version":2,"attackTypes":[],"unitTypes":[]})",
+        R"({"version":1,"simulation":{"physicalEnterMeters":40,"simpleReturnMeters":30},"attackTypes":[{"name":"A"}],"unitTypes":[]})",
+        R"({"version":1,"simulation":{"physicalEnterMeters":30,"simpleReturnMeters":40,"nodeArrivalMeters":0},"attackTypes":[{"name":"A"}],"unitTypes":[]})",
         R"({"version":1,"attackTypes":[],"unitTypes":[]})",
         R"({"version":1,"attackTypes":[{"name":"A","projectileKind":"unknown"}],"unitTypes":[]})",
         R"({"version":1,"attackTypes":[{"name":"A","projectileShape":"cone"}],"unitTypes":[]})",

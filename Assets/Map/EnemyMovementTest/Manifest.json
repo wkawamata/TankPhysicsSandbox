@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "playerSpawn": {
+    "position": [
+      -20,
+      2,
+      -45
+    ],
+    "rotationDegrees": [
+      0,
+      0,
+      0
+    ]
+  },
+  "instances": [
+    {
+      "id": "course",
+      "asset": "Models/Course.gltf",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotationDegrees": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1
+    }
+  ],
+  "clearAreas": [],
+  "enemies": [
+    {
+      "id": "patrol",
+      "unitType": "Patrol tank",
+      "position": [
+        -20,
+        0.84,
+        0
+      ],
+      "rotationDegrees": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "pursuer",
+      "unitType": "Pursuit tank",
+      "position": [
+        0,
+        0.84,
+        0
+      ],
+      "rotationDegrees": [
+        0,
+        180,
+        0
+      ]
+    },
+    {
+      "id": "bridge",
+      "unitType": "Patrol tank",
+      "position": [
+        30,
+        1.84,
+        5
+      ],
+      "rotationDegrees": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "enemyGroups": [
+    {
+      "id": "patrol-group",
+      "members": [
+        {
+          "enemyId": "patrol",
+          "commandPriority": 0
+        }
+      ],
+      "patrol": {
+        "points": [
+          {
+            "position": [
+              -20,
+              0.84,
+              30
+            ],
+            "surfaceId": "ground"
+          },
+          {
+            "position": [
+              -20,
+              0.84,
+              0
+            ],
+            "surfaceId": "ground"
+          }
+        ],
+        "attackStopMeters": 10,
+        "resumeApproachMeters": 14,
+        "arrivalMeters": 1,
+        "searchWaitSeconds": 4
+      }
+    },
+    {
+      "id": "pursuer-group",
+      "members": [
+        {
+          "enemyId": "pursuer",
+          "commandPriority": 0
+        }
+      ],
+      "patrol": {
+        "points": [
+          {
+            "position": [
+              0,
+              0.84,
+              20
+            ],
+            "surfaceId": "ground"
+          },
+          {
+            "position": [
+              0,
+              0.84,
+              0
+            ],
+            "surfaceId": "ground"
+          }
+        ],
+        "attackStopMeters": 10,
+        "resumeApproachMeters": 14,
+        "arrivalMeters": 1,
+        "searchWaitSeconds": 4
+      }
+    },
+    {
+      "id": "bridge-group",
+      "members": [
+        {
+          "enemyId": "bridge",
+          "commandPriority": 0
+        }
+      ],
+      "patrol": {
+        "points": [
+          {
+            "position": [
+              30,
+              4.84,
+              35
+            ],
+            "surfaceId": "bridge"
+          },
+          {
+            "position": [
+              30,
+              0.84,
+              60
+            ],
+            "surfaceId": "ground"
+          },
+          {
+            "position": [
+              30,
+              1.8399999999999999,
+              5
+            ],
+            "surfaceId": "bridge"
+          }
+        ],
+        "attackStopMeters": 10,
+        "resumeApproachMeters": 14,
+        "arrivalMeters": 1,
+        "searchWaitSeconds": 4
+      }
+    }
+  ]
+}

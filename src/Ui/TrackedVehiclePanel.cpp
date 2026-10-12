@@ -1659,6 +1659,12 @@ namespace Ui
 			ImGui::TextDisabled("P: pause/resume   F: advance one frame while paused");
 		}
 
+        if (state.specialMove.state == Tank::Physics::SpecialMoveState::MortarStarting)
+            ImGui::TextColored(ImVec4(1, 0.75f, 0.2f, 1), "Movement held: preparing mortar. Release gesture to cancel.");
+        else if (state.specialMove.state == Tank::Physics::SpecialMoveState::MortarAiming)
+            ImGui::TextColored(ImVec4(1, 0.75f, 0.2f, 1), "Movement held: mortar stance. Release gesture to lower hull.");
+        else if (state.specialMove.state == Tank::Physics::SpecialMoveState::RollStarting)
+            ImGui::TextColored(ImVec4(1, 0.75f, 0.2f, 1), "Movement held: braking before roll.");
         if (state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::GameOver &&
             ImGui::Button("Continue") && ctx.continueGame) ctx.continueGame();
         if (state.respawnSecondsRemaining > 0) ImGui::Text("Respawn in %.1f s", state.respawnSecondsRemaining);
@@ -1880,6 +1886,47 @@ namespace Ui
 		        if (ctx.enemyEditor && ImGui::CollapsingHeader("Enemy Unit Editor"))
         {
             auto& editor = *ctx.enemyEditor;
+            ImGui::TextUnformatted("Enemy movement simulation (applies during play)");
+            ImGui::DragFloat("Enter tracked physics (m)", &editor.simulation.physicalEnterMeters,
+                1, 1, editor.simulation.simpleReturnMeters - 1, "%.0f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("Return to simple movement (m)", &editor.simulation.simpleReturnMeters,
+                1, editor.simulation.physicalEnterMeters + 1, 10000, "%.0f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("Enemy braking deceleration (m/s2)", &editor.simulation.brakingDecelerationMetersPerSecondSquared,
+                0.1f, 0.1f, 20, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("Enemy route node arrival (m)", &editor.simulation.nodeArrivalMeters,
+                0.05f, 0.1f, 2, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("Observed target node radius (m)", &editor.simulation.observationRadiusMeters,
+                0.1f, 0.1f, 100, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("Observed support height tolerance (m)", &editor.simulation.supportHeightToleranceMeters,
+                0.01f, 0.01f, 2, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+            ImGui::DragFloat("Simple pivot speed (deg/s)", &editor.simulation.simpleTurnDegreesPerSecond,
+                1, 1, 360, "%.0f", ImGuiSliderFlags_AlwaysClamp);
+            if (ImGui::TreeNode("Enemy movement status"))
+            {
+                if (ImGui::BeginTable("PlacedEnemyMovement", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Enemy"); ImGui::TableSetupColumn("Mode");
+                    ImGui::TableSetupColumn("Distance (m)"); ImGui::TableSetupColumn("HP"); ImGui::TableHeadersRow();
+                    for (const auto& enemy : state.fixedTurrets)
+                    {
+                        ImGui::TableNextRow(); ImGui::TableNextColumn(); ImGui::TextUnformatted(enemy.placementId.c_str());
+                        ImGui::TableNextColumn(); ImGui::TextUnformatted(!enemy.target.active ? "Destroyed" :
+                            (enemy.physicalMoving ? "Tracked physics" : (enemy.simpleMoving ? "Simple" : "Fixed")));
+                        ImGui::TableNextColumn(); ImGui::Text("%.1f", Tank::Physics::NavigationDistance(enemy.position, state.bodyPosition));
+                        ImGui::TableNextColumn(); ImGui::Text("%.0f", enemy.target.hitPoints);
+                    }
+                    ImGui::EndTable();
+                }
+                constexpr const char* actions[] = {"Hold", "Patrol", "Approach", "Attack stop", "Search", "Search wait"};
+                for (const auto& group : state.enemyGroups)
+                {
+                    ImGui::Text("%s: %s  Target surface: %s", group.id.c_str(),
+                        group.behavior ? actions[static_cast<size_t>(group.behavior->action)] : "None",
+                        group.behavior ? group.behavior->targetSurfaceId.c_str() : "");
+                    if (group.navigation && !group.navigation->error.empty()) ImGui::TextWrapped("Route: %s", group.navigation->error.c_str());
+                }
+                ImGui::TreePop();
+            }
             static std::string fallbackJsonPath = TANK_SOURCE_CONFIG_DIR "/enemy_types.json";
             auto& jsonPath = ctx.enemyEditorJsonPath ? *ctx.enemyEditorJsonPath : fallbackJsonPath;
             static std::string jsonStatus;
@@ -1920,7 +1967,7 @@ namespace Ui
                 }
             }
             if (!jsonStatus.empty()) ImGui::TextWrapped("%s", jsonStatus.c_str());
-            ImGui::TextWrapped("Load replaces the current catalog. Save edits before loading another file. Reset Tank applies edits to placed enemies.");
+            ImGui::TextWrapped("Load replaces the current catalog. Save edits before loading another file. Movement distances apply during play; Reset Tank applies attack/template edits.");
             if (ImGui::Button("Register attack type"))
             {
                 Tank::Physics::EnemyAttackType type;

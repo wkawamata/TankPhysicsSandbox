@@ -9,6 +9,7 @@ namespace Tank::Physics
     {
         void Validate(const EnemyEditorSettings& settings)
         {
+            if (!IsValidEnemySimulationSettings(settings.simulation)) throw std::runtime_error("Invalid enemy simulation distances");
             if (settings.attackTypes.empty()) throw std::runtime_error("At least one attack type is required");
             std::set<std::string> names;
             for (const auto& type : settings.attackTypes)
@@ -33,6 +34,13 @@ namespace Tank::Physics
         {
             Validate(settings);
             nlohmann::json root = {{"version", 1}, {"attackTypes", nlohmann::json::array()}, {"unitTypes", nlohmann::json::array()}};
+            root["simulation"] = {{"physicalEnterMeters", settings.simulation.physicalEnterMeters},
+                {"simpleReturnMeters", settings.simulation.simpleReturnMeters},
+                {"brakingDecelerationMetersPerSecondSquared", settings.simulation.brakingDecelerationMetersPerSecondSquared},
+                {"nodeArrivalMeters", settings.simulation.nodeArrivalMeters},
+                {"observationRadiusMeters", settings.simulation.observationRadiusMeters},
+                {"supportHeightToleranceMeters", settings.simulation.supportHeightToleranceMeters},
+                {"simpleTurnDegreesPerSecond", settings.simulation.simpleTurnDegreesPerSecond}};
             for (const auto& type : settings.attackTypes)
                 root["attackTypes"].push_back({{"name", type.name}, {"detectionRangeMeters", type.detectionRangeMeters},
                     {"reachMeters", type.reachMeters}, {"firingRangeMeters", type.firingRangeMeters},
@@ -69,6 +77,16 @@ namespace Tank::Physics
             if (!root.at("version").is_number_integer() || root.at("version") != 1) throw std::runtime_error("Unsupported version");
             if (!root.at("attackTypes").is_array() || !root.at("unitTypes").is_array()) throw std::runtime_error("Expected type arrays");
             EnemyEditorSettings candidate;
+            if (root.contains("simulation"))
+            {
+                candidate.simulation.physicalEnterMeters = root.at("simulation").at("physicalEnterMeters").get<float>();
+                candidate.simulation.simpleReturnMeters = root.at("simulation").at("simpleReturnMeters").get<float>();
+                candidate.simulation.brakingDecelerationMetersPerSecondSquared = root.at("simulation").value("brakingDecelerationMetersPerSecondSquared", 2.0f);
+                candidate.simulation.nodeArrivalMeters = root.at("simulation").value("nodeArrivalMeters", 0.5f);
+                candidate.simulation.observationRadiusMeters = root.at("simulation").value("observationRadiusMeters", 6.0f);
+                candidate.simulation.supportHeightToleranceMeters = root.at("simulation").value("supportHeightToleranceMeters", 0.2f);
+            }
+            if (root.contains("simulation")) candidate.simulation.simpleTurnDegreesPerSecond = root.at("simulation").value("simpleTurnDegreesPerSecond", 60.0f);
             candidate.attackTypes.clear();
             candidate.unitTypes.clear();
             for (const auto& entry : root.at("attackTypes"))

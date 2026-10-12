@@ -641,6 +641,22 @@ namespace Tank::Physics
         return m_impl && m_impl->hasBody && m_impl->bodyId.GetIndexAndSequenceNumber() == bodyId;
     }
 
+    std::uint32_t TankController::BodyId() const
+    {
+        return m_impl && m_impl->hasBody ? m_impl->bodyId.GetIndexAndSequenceNumber() : JPH::BodyID::cInvalidBodyID;
+    }
+
+    void TankController::RestoreMotion(const TransformState& body, const Vec3& velocity)
+    {
+        if (!m_impl || !m_impl->hasBody) return;
+        auto& bodies = m_impl->world.GetBodyInterface();
+        bodies.SetPositionAndRotation(m_impl->bodyId, JPH::RVec3(body.position.x, body.position.y, body.position.z),
+            JPH::Quat(body.rotation.x, body.rotation.y, body.rotation.z, body.rotation.w), JPH::EActivation::Activate);
+        bodies.SetLinearVelocity(m_impl->bodyId, JPH::Vec3(velocity.x, velocity.y, velocity.z));
+        m_state.body = body;
+        m_state.linearVelocity = velocity;
+    }
+
     bool TankController::ApplyConfiguredRecoil()
     {
         if (m_impl == nullptr ||
@@ -694,6 +710,16 @@ namespace Tank::Physics
         JPH::BodyInterface& bodyInterface = m_impl->world.GetBodyInterface();
         bodyInterface.ActivateBody(m_impl->bodyId);
 
+        // Releasing a not-yet-ready mortar gesture cancels its movement reservation.
+        // Otherwise a zero aim angle can never reach canFire, leaving emergency braking latched.
+        if (m_state.specialMove.state == SpecialMoveState::MortarStarting && !IsMortarHeld(m_input))
+        {
+            m_state.specialMove = m_specialMoveStateMachine.Update(SpecialMoveEvent::MortarCancelled, true);
+            m_mortarBrakingPending = false;
+            m_mortarAimController.Reset();
+            m_state.mortarAim = m_mortarAimController.Snapshot();
+            m_specialMoveInputProcessor.Reset();
+        }
         const JPH::Quat bodyRotation = bodyInterface.GetRotation(m_impl->bodyId);
         const float rollSpeed = m_settings.rollSpeedMultiplier;
         const auto& tuning = m_settings.rollSpeedTuning;

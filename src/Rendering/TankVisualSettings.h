@@ -21,7 +21,7 @@ namespace Tank::Rendering
     struct TankVisualSettings
     {
         float gltfModelScale = 1.0f;
-        bool showDummyBody = true;
+        bool showDummyBody = false;
         bool showDummyWheels = true;
         bool showDummyTrackShoes = true;
         BodyMaterialSettings hullUpper = {

@@ -14,6 +14,16 @@ namespace Tank::Physics
             return m_snapshot;
         }
 
+        if (event == SpecialMoveEvent::MortarCancelled)
+        {
+            if (m_snapshot.state == SpecialMoveState::MortarStarting)
+            {
+                m_snapshot.state = SpecialMoveState::Idle;
+                ++m_snapshot.transitionCount;
+            }
+            else Reject(SpecialMoveRejectReason::InvalidInput);
+            return m_snapshot;
+        }
         if (event == SpecialMoveEvent::MoveBlocked)
         {
             if (IsActive())

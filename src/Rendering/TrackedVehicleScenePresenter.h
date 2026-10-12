@@ -87,6 +87,16 @@ public:
     const TrackedVehicleModel& Model() const;
 
 private:
+    struct EnemyModelPart { size_t source; size_t instance; };
+    struct EnemyModel
+    {
+        size_t enemyIndex;
+        std::vector<EnemyModelPart> parts;
+        std::array<size_t, Tank::Physics::kTankWheelCount> wheels = {};
+        std::array<std::array<size_t, TrackedVehicleModel::kTrackShoeCountPerTrack>, Tank::Physics::kTankTrackCount> shoes = {};
+        std::array<float, Tank::Physics::kTankTrackCount> trackDistances = {};
+    };
+    std::vector<EnemyModel> m_enemyModels;
     Engine::SceneBuilder m_sceneBuilder;
     PhysicsDebugOverlay m_physicsDebugOverlay{m_sceneBuilder};
     TrackedVehicleModel m_model;

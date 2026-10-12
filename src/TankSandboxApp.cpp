@@ -378,9 +378,9 @@ void TankSandboxApp::OnInit()
     lighting.iblIntensity = 1.0f;
     m_sceneRenderer.SetLightingParams(lighting);
 
-    // Temporarily disable shadows while the host debug UI and shadow artifacts are investigated.
+    // Enable shadows by default; benchmark flags can override this setting.
     auto shadowSettings = m_sceneRenderer.GetShadowSettings();
-    shadowSettings.enabled = false;
+    shadowSettings.enabled = true;
     shadowSettings.normalBias = 0.05f;
     m_sceneRenderer.SetShadowSettings(shadowSettings);
 

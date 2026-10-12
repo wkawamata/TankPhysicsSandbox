@@ -1,5 +1,6 @@
 #include "App/TrackedVehicleMode.h"
 #include "App/ManifestEnemySpawner.h"
+#include "App/EnemyNavigationLoader.h"
 #include "Diagnostics/Log.h"
 #include "Input/TankInputMappingJson.h"
 #include "Input/InputDeviceProfilesJson.h"
@@ -109,6 +110,7 @@ void TrackedVehicleMode::SelectMap(Tank::Physics::MapId mapId)
 {
     m_customMap.reset();
     m_manifestMap.reset();
+    m_enemyNavigationSetup.reset();
     m_manifestHitMeshes.clear();
     m_manifestMissingVisuals = false;
     m_mapHitMeshOverlayInstance.reset();
@@ -133,6 +135,7 @@ void TrackedVehicleMode::SelectCustomMap(
 {
     m_customMap = document;
     m_manifestMap.reset();
+    m_enemyNavigationSetup.reset();
     m_manifestHitMeshes.clear();
     m_manifestMissingVisuals = false;
     m_mapHitMeshOverlayInstance.reset();
@@ -208,6 +211,8 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
                 return false;
             }
     }
+    std::optional<Tank::Physics::EnemyNavigationSetup> navigation;
+    if (!Tank::App::LoadEnemyNavigationSetup(folder, manifest, navigation, error)) return false;
     if (!manifest.enemies.empty())
     {
         m_enemyEditor = std::move(catalog);
@@ -216,6 +221,7 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     }
     m_customMap.reset();
     m_manifestMap = manifest;
+    m_enemyNavigationSetup = std::move(navigation);
     m_manifestMapFolder = folder;
     m_manifestHitMeshes = std::move(meshes);
     m_manifestMissingVisuals = missingVisuals;
@@ -349,10 +355,11 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
         return false;
     }
     m_presenter.AppendDestructibleBoxes(m_test.State());
+    // Reserve shells before impact marks consume the renderer's remaining instance budget.
+    // Reserve the supported maximum so live projectile-count edits cannot exceed that budget.
+    m_presenter.EnsureMortarCapacity(64, 8);
     ApplyAssaultProjectileSettings();
     m_presenter.EnsureImpactMarkCapacity(m_test.State().assaultImpactMarks.Capacity());
-    m_presenter.EnsureMortarCapacity(
-        static_cast<size_t>((std::max)(0, m_settings.mortarMaximumProjectileCount)), 8);
     m_appliedSettings = m_settings;
     m_appliedEnvironmentSettings = m_environmentSettings;
     m_paused = false;
@@ -392,7 +399,7 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
 {
     const Tank::Physics::TrackedVehicleTestState& state = m_test.State();
     const bool impactMarkPoolChanged = m_presenter.EnsureImpactMarkCapacity(state.assaultImpactMarks.Capacity());
-    m_presenter.EnsureMortarCapacity(
+    const bool mortarPoolChanged = m_presenter.EnsureMortarCapacity(
         static_cast<size_t>((std::max)(0, m_test.Settings().mortarMaximumProjectileCount)), 8);
     if (state.assaultWeapon.roundsFired != m_lastAssaultRoundsFired)
     {
@@ -494,7 +501,7 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
         m_showGltfBody,
         m_showGltfCannon,
         m_showGltfSide);
-    if (impactMarkPoolChanged)
+    if (impactMarkPoolChanged || mortarPoolChanged)
     {
         renderer.ReloadSceneResources(m_presenter.GetScene());
         renderer.SetDisplayInstanceCount(static_cast<int>(m_presenter.GetScene().instances.size()));
@@ -768,6 +775,7 @@ void TrackedVehicleMode::Step(
     {
         const auto physicsStart = std::chrono::steady_clock::now();
         const auto beforeStep = m_test.State();
+        m_test.SetEnemySimulationSettings(m_enemyEditor.simulation);
         m_test.Step(kPhysicsFixedDt);
         if (beforeStep.respawnCount != m_test.State().respawnCount)
             if (auto* camera = ActiveCamera()) cameraController.OnTankTeleported(beforeStep, m_test.State(), *camera);
@@ -849,7 +857,10 @@ bool TrackedVehicleMode::InitializeManifestEnemies()
 {
     if (!m_manifestMap) return true;
     std::string error;
-    if (Tank::App::SpawnManifestEnemies(m_test, *m_manifestMap, m_enemyEditor, error)) return true;
+    if (Tank::App::SpawnManifestEnemies(m_test, *m_manifestMap, m_enemyEditor, error))
+    {
+        if (!m_enemyNavigationSetup || m_test.ConfigureEnemyMovement(*m_enemyNavigationSetup, error)) return true;
+    }
     m_mapLoadStatus = "Enemy placement failed: " + error;
     return false;
 }
