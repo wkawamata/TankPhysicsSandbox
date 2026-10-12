@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string>
+#include <optional>
 #include <vector>
 
 namespace Tank::Map
@@ -31,6 +32,37 @@ namespace Tank::Map
         std::array<float, 3> rotationDegrees = { 0.0f, 0.0f, 0.0f };
     };
 
+    struct EnemyGroupMember
+    {
+        std::string enemyId;
+        // Lower numbers have higher command priority; unique within the group.
+        int commandPriority = 0;
+    };
+
+    struct EnemyPatrolPoint
+    {
+        std::array<float, 3> position = {};
+        std::string surfaceId;
+    };
+
+    struct EnemyPatrolSettings
+    {
+        std::vector<EnemyPatrolPoint> points;
+        float attackStopMeters = 0;
+        float resumeApproachMeters = 0;
+        float arrivalMeters = 0;
+        float searchWaitSeconds = 0;
+    };
+
+    bool IsValidEnemyPatrolSettings(const EnemyPatrolSettings& settings);
+
+    struct EnemyGroup
+    {
+        std::string id;
+        std::vector<EnemyGroupMember> members;
+        std::optional<EnemyPatrolSettings> patrol;
+    };
+
     struct ClearArea
     {
         std::string id;
@@ -46,6 +78,7 @@ namespace Tank::Map
         std::vector<Instance> instances;
         std::vector<ClearArea> clearAreas;
         std::vector<EnemyPlacement> enemies;
+        std::vector<EnemyGroup> enemyGroups;
     };
 
     // Failed operations leave the output unchanged and provide an error.

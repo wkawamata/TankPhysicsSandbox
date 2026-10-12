@@ -133,6 +133,12 @@ add_library(TankPhysicsCore STATIC
     src/Physics/TankTypes.h
     src/Physics/TestObstacleLayout.cpp
     src/Physics/TestObstacleLayout.h
+    src/Physics/EnemyNavigationSetup.cpp
+    src/Physics/EnemyNavigationSetup.h
+    src/Physics/NavigationGrid.cpp
+    src/Physics/NavigationGrid.h
+    src/Physics/SimpleNavigationMovement.cpp
+    src/Physics/SimpleNavigationMovement.h
     src/Physics/TrackedVehicleTest.cpp
     src/Physics/TrackedVehicleTest.h
 )
@@ -1212,6 +1218,13 @@ if(BUILD_TESTING)
     add_executable(AssaultWeaponTests tests/AssaultWeaponTests.cpp)
     add_executable(AssaultDestructibleTests tests/AssaultDestructibleTests.cpp)
     add_executable(AssaultProjectileTests tests/AssaultProjectileTests.cpp)
+    add_executable(EnemyTankVisualTests
+        tests/EnemyTankVisualTests.cpp
+        src/Rendering/TrackedVehicleScenePresenter.cpp
+        src/Rendering/PhysicsDebugOverlay.cpp)
+    target_include_directories(EnemyTankVisualTests PRIVATE src)
+    target_link_libraries(EnemyTankVisualTests PRIVATE TankPhysicsCore RtPbrSurvey::SceneRenderer)
+    add_test(NAME TankRendering.EnemyTankVisual COMMAND EnemyTankVisualTests)
     add_executable(ImpactMarkTests tests/ImpactMarkTests.cpp)
     target_link_libraries(ImpactMarkTests PRIVATE TankPhysicsCore RtPbrSurvey::SceneRenderer)
     if(MSVC)
@@ -1338,7 +1351,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-    foreach(combat_test IN ITEMS CombatSettings PlayerCombatState FixedTurret EnemyAttackType EnemyEditorJson EnemyCombat MortarEnemy EnemySpecialProjectile EnemyMapIntegration)
+    foreach(combat_test IN ITEMS EnemyMovementMap NavigationGrid EnemyGroupCommand EnemyGroupBehavior EnemyGroupIntegration CombatSettings PlayerCombatState FixedTurret EnemyAttackType EnemyEditorJson EnemyCombat MortarEnemy EnemySpecialProjectile EnemyMapIntegration)
         add_executable(${combat_test}Tests tests/${combat_test}Tests.cpp)
         target_link_libraries(${combat_test}Tests PRIVATE TankPhysicsCore)
         if(MSVC)
@@ -1346,4 +1359,5 @@ if(BUILD_TESTING)
         endif()
         add_test(NAME TankPhysics.${combat_test} COMMAND ${combat_test}Tests)
     endforeach()
+    target_link_libraries(NavigationGridTests PRIVATE nlohmann_json::nlohmann_json)
 endif()

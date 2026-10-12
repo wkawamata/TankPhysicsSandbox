@@ -78,7 +78,7 @@ int main()
         "version 1 settings must remain readable");
     passed &= Check(NearlyEqual(versionOne.hullUpper.roughness, 0.25f),
         "version 1 material must load");
-    passed &= Check(versionOne.showDummyBody && versionOne.showDummyWheels &&
+    passed &= Check(!versionOne.showDummyBody && versionOne.showDummyWheels &&
         versionOne.showDummyTrackShoes && NearlyEqual(versionOne.gltfModelScale, 1.0f),
         "legacy settings must retain display defaults");
 

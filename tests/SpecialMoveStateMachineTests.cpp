@@ -83,6 +83,15 @@ int main()
         machine.Snapshot().requestedRollSign == 0.0f,
         "reset must restore initial state");
 
+    SpecialMoveStateMachine cancelled;
+    cancelled.Update(SpecialMoveEvent::MortarRequested, true);
+    passed &= Check(cancelled.Update(SpecialMoveEvent::MortarCancelled, true).state == SpecialMoveState::Idle,
+        "unfinished mortar can cancel directly to idle");
+    passed &= Check(cancelled.Update(SpecialMoveEvent::MortarCancelled, true).lastRejectReason == SpecialMoveRejectReason::InvalidInput,
+        "cancellation cannot mutate idle or other special actions");
+    cancelled.Update(SpecialMoveEvent::RollLeftRequested, true);
+    passed &= Check(cancelled.Update(SpecialMoveEvent::MortarCancelled, true).state == SpecialMoveState::RollStarting,
+        "mortar cancellation cannot cancel rolling");
     if (!passed)
     {
         return 1;

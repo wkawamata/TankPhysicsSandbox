@@ -180,6 +180,7 @@ private:
     std::optional<Tank::Physics::MapDocument> m_customMap;
     std::optional<Tank::Map::Manifest> m_manifestMap;
     std::filesystem::path m_manifestMapFolder;
+    std::optional<Tank::Physics::EnemyNavigationSetup> m_enemyNavigationSetup;
     std::vector<Tank::Map::HitTriangleMesh> m_manifestHitMeshes;
     std::optional<size_t> m_mapHitMeshOverlayInstance;
     std::vector<size_t> m_mapVisualInstances;

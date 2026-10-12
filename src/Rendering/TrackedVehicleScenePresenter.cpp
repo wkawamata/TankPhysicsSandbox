@@ -323,8 +323,9 @@ namespace
         return path;
     }
 
+    template<typename WheelSnapshot>
     std::vector<TrackPathPoint> BuildTrackPathFromWheels(
-        const Tank::Physics::TrackedVehicleTestState& state,
+        const WheelSnapshot& state,
         const Tank::Physics::TankSettings& settings,
         int trackIndex,
         DirectX::FXMMATRIX inverseBodyTransform)
@@ -453,6 +454,7 @@ void TrackedVehicleScenePresenter::BuildScene(
     m_model = {};
     m_destructibleBoxInstances.clear();
     m_fixedTurretInstances.clear();
+    m_enemyModels.clear();
     m_fixedTurretDirectionInstances.clear();
     m_enemyProjectileInstances.clear();
     m_enemyBoxProjectileInstances.clear();
@@ -759,8 +761,9 @@ void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
 {
     const auto enemyMaterial = m_sceneBuilder.AddSolidColorMaterial(220, 45, 35, 255);
     const auto enemyCube = m_sceneBuilder.AddCube(1.0f);
-    for (const auto& enemy : state.fixedTurrets)
+    for (size_t enemyIndex = 0; enemyIndex < state.fixedTurrets.size(); ++enemyIndex)
     {
+        const auto& enemy = state.fixedTurrets[enemyIndex];
         m_fixedTurretInstances.push_back(m_sceneBuilder.GetScene().instances.size());
         m_sceneBuilder.AddInstance(enemyCube, XMMatrixIdentity(), enemyMaterial);
         std::vector<size_t> directions;
@@ -770,6 +773,30 @@ void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
             m_sceneBuilder.AddInstance(enemyCube, XMMatrixIdentity(), enemyMaterial);
         }
         m_fixedTurretDirectionInstances.push_back(std::move(directions));
+        if (enemy.simpleMoving)
+        {
+            EnemyModel model{enemyIndex, {}};
+            const auto clone = [&](size_t source)
+            {
+                // Copy before adding an instance: AddInstance can invalidate vector references.
+                const auto original = m_sceneBuilder.GetScene().instances[source];
+                const auto instance = m_sceneBuilder.GetScene().instances.size();
+                m_sceneBuilder.AddInstance(original.meshId, XMMatrixScaling(0, 0, 0), original.materialId);
+                model.parts.push_back({source, instance});
+                return instance;
+            };
+            for (const auto source : {m_model.hullUpper, m_model.hullLower,
+                m_model.upperStructureUpper, m_model.upperStructureLower,
+                m_model.lowerStructureUpper, m_model.lowerStructureLower, m_model.forwardMarker}) clone(source);
+            if (m_model.hasGltfBody) clone(m_model.gltfBody);
+            if (m_model.hasGltfCannon) clone(m_model.gltfCannon);
+            if (m_model.hasGltfSide) clone(m_model.gltfSide);
+            for (size_t i = 0; i < m_model.wheels.size(); ++i) model.wheels[i] = clone(m_model.wheels[i]);
+            for (size_t t = 0; t < m_model.trackShoes.size(); ++t)
+                for (size_t i = 0; i < m_model.trackShoes[t].size(); ++i)
+                    model.shoes[t][i] = clone(m_model.trackShoes[t][i]);
+            m_enemyModels.push_back(std::move(model));
+        }
     }
     if (!state.fixedTurrets.empty())
     {
@@ -887,10 +914,10 @@ void TrackedVehicleScenePresenter::UpdateScene(
                 transform = XMMatrixTranslation(0, 0, 0.6f) * XMMatrixRotationY(mount.aim.yawRadians) *
                     XMMatrixTranslation(mount.worldPosition.x, mount.worldPosition.y, mount.worldPosition.z);
             }
-            SetInstanceWorld(scene.instances[m_fixedTurretDirectionInstances[i][j]], enemy.target.active
+            SetInstanceWorld(scene.instances[m_fixedTurretDirectionInstances[i][j]], enemy.target.active && !enemy.simpleMoving
                 ? XMMatrixScaling(0.15f, 0.15f, 0.8f) * transform : XMMatrixScaling(0, 0, 0));
         }
-        SetInstanceWorld(scene.instances[m_fixedTurretInstances[i]], enemy.target.active
+        SetInstanceWorld(scene.instances[m_fixedTurretInstances[i]], enemy.target.active && !enemy.simpleMoving
             ? XMMatrixScaling(enemy.size.x, enemy.size.y, enemy.size.z) *
                 XMMatrixRotationQuaternion(XMVectorSet(q.x, q.y, q.z, q.w)) *
                 XMMatrixTranslation(enemy.position.x, enemy.position.y, enemy.position.z)
@@ -1125,6 +1152,106 @@ void TrackedVehicleScenePresenter::UpdateScene(
         }
     }
 
+    for (auto& model : m_enemyModels)
+    {
+        if (model.enemyIndex >= state.fixedTurrets.size()) continue;
+        const auto& enemy = state.fixedTurrets[model.enemyIndex];
+        const auto& q = enemy.rotation;
+        const auto transform = XMMatrixRotationQuaternion(XMVectorSet(q.x, q.y, q.z, q.w)) *
+            XMMatrixTranslation(enemy.position.x, enemy.position.y, enemy.position.z);
+        for (const auto& part : model.parts)
+        {
+            const auto& original = scene.instances[part.source];
+            auto& instance = scene.instances[part.instance];
+            instance.materialId = original.materialId;
+            SetInstanceWorld(instance, enemy.target.active
+                ? XMMatrixTranspose(XMLoadFloat4x4(&original.world)) * inverseBodyTransform * transform
+                : XMMatrixScaling(0, 0, 0));
+        }
+        // Wheels and shoes override the shared hull pose using this enemy's snapshot.
+        const auto inverseEnemy = XMMatrixInverse(nullptr, transform);
+        const auto enemyForward = XMVector3Rotate(XMVectorSet(0, 0, 1, 0), XMVectorSet(q.x, q.y, q.z, q.w));
+        const auto velocity = enemy.navigationVelocity;
+        const float simpleSpeed = XMVectorGetX(XMVector3Dot(enemyForward, XMVectorSet(velocity.x, velocity.y, velocity.z, 0)));
+        Tank::Physics::EnemyRunningGearState restGear;
+        if (!enemy.runningGear)
+        {
+            const int perSurface = std::clamp(tankSettings.roadWheelCount, 1, Tank::Physics::kTankMaxRoadWheelCount)+2;
+            restGear.wheelCount = perSurface*Tank::Physics::kTankSurfacesPerTrack*Tank::Physics::kTankTrackCount;
+            for (int i = 0; i < restGear.wheelCount; ++i)
+            {
+                auto& wheel = restGear.wheels[i];
+                wheel.trackIndex = i/(perSurface*Tank::Physics::kTankSurfacesPerTrack);
+                wheel.wheelIndex = i%(perSurface*Tank::Physics::kTankSurfacesPerTrack);
+                const int index = i%perSurface;
+                const bool upper = (i/perSurface)%2 == 1;
+                const bool end = index == 0 || index == perSurface-1;
+                const float radius = end ? tankSettings.endWheelRadiusM : tankSettings.roadWheelRadiusM;
+                float z = chassisLength*0.5f-static_cast<float>(index)*chassisLength/(perSurface-1);
+                if (end) z = (index == 0 ? 1 : -1)*(chassisLength*0.5f+tankSettings.endWheelOffsetM);
+                else if (tankSettings.roadWheelCount == 2) z = (index == 1 ? 1 : -1)*tankSettings.twoRoadWheelOffsetM;
+                else if (tankSettings.roadWheelCount == 3) z = index == 1 ? tankSettings.threeRoadWheelOffsetM : (index == 2 ? 0 : -tankSettings.threeRoadWheelOffsetM);
+                const int suspensionPosition = index == 0 ? 0 :
+                    (index == perSurface-1 ? Tank::Physics::kTankSuspensionPositionsPerSurface-1 : index);
+                const int slot = Tank::Physics::TankSuspensionSlotIndex(wheel.trackIndex, upper ? 1 : 0, suspensionPosition);
+                const float suspension = 0.3f*tankSettings.rideHeightScale + 0.5f*tankSettings.suspensionStrokeMeters[slot];
+                const float originY = end ? tankSettings.endWheelVerticalOffsetM : -radius+tankSettings.roadWheelVerticalOffsetM;
+                const float y = (upper ? -1 : 1)*(originY-suspension);
+                XMFLOAT3 position;
+                XMStoreFloat3(&position, XMVector3TransformCoord(XMVectorSet(
+                    (wheel.trackIndex == 0 ? 1 : -1)*(halfTrackSpacing+tankSettings.wheelHorizontalOffsetM), y, z, 1), transform));
+                wheel.transform.position = {position.x, position.y, position.z};
+                const auto spin = XMMatrixRotationY(model.trackDistances[wheel.trackIndex]/radius)*XMMatrixRotationZ(XM_PIDIV2)*
+                    XMMatrixRotationQuaternion(XMVectorSet(q.x, q.y, q.z, q.w));
+                XMFLOAT4 restRotation;
+                XMStoreFloat4(&restRotation, XMQuaternionRotationMatrix(spin));
+                wheel.transform.rotation = {restRotation.x, restRotation.y, restRotation.z, restRotation.w};
+            }
+        }
+        const auto& gear = enemy.runningGear ? *enemy.runningGear : restGear;
+        for (size_t t = 0; t < model.shoes.size(); ++t)
+        {
+            auto path = BuildTrackPathFromWheels(gear, tankSettings, static_cast<int>(t), inverseEnemy);
+            if (path.size() < 2) path = BuildTrackPath(chassisLength, trackRadius);
+            const float perimeter = path.back().distanceFromStart;
+            const float speed = enemy.runningGear
+                ? enemy.runningGear->trackAngularVelocityRadians[t] * tankSettings.endWheelRadiusM :
+                    simpleSpeed + (t == 0 ? -1 : 1)*enemy.navigationYawRadiansPerSecond*halfTrackSpacing;
+            if (enemy.target.active) model.trackDistances[t] = std::fmod(model.trackDistances[t] - speed*trackDeltaTime, perimeter);
+            const float length = 0.82f*perimeter/TrackedVehicleModel::kTrackShoeCountPerTrack;
+            for (size_t i = 0; i < model.shoes[t].size(); ++i)
+            {
+                const auto pose = CalculateTrackShoePose(path,
+                    (static_cast<float>(i)+0.5f)*perimeter/TrackedVehicleModel::kTrackShoeCountPerTrack + model.trackDistances[t]);
+                SetInstanceWorld(scene.instances[model.shoes[t][i]], enemy.target.active && showTrackShoes
+                    ? MakeTrackShoeLocalTransform(t == 0 ? halfTrackSpacing : -halfTrackSpacing,
+                        pose, tankSettings.trackWidthM+0.08f, 0.08f, length) * transform
+                    : XMMatrixScaling(0, 0, 0));
+            }
+        }
+        const int perSurface = std::clamp(tankSettings.roadWheelCount, 1, Tank::Physics::kTankMaxRoadWheelCount)+2;
+        const int wheelCount = gear.wheelCount;
+        for (size_t i = 0; i < model.wheels.size(); ++i)
+        {
+            auto& instance = scene.instances[model.wheels[i]];
+            if (!enemy.target.active || !showDummyWheels || static_cast<int>(i) >= wheelCount)
+            { SetInstanceWorld(instance, XMMatrixScaling(0, 0, 0)); continue; }
+            const int index = gear.wheels[i].wheelIndex % perSurface;
+            const bool end = index == 0 || index == perSurface-1;
+            const float radius = end ? tankSettings.endWheelRadiusM : tankSettings.roadWheelRadiusM;
+            XMMATRIX wheelPose;
+            bool contact = false;
+            {
+                const auto& wheel = gear.wheels[i];
+                const auto& r = wheel.transform.rotation;
+                const auto p = wheel.transform.position;
+                wheelPose = XMMatrixRotationQuaternion(XMVectorSet(r.x, r.y, r.z, r.w)) * XMMatrixTranslation(p.x, p.y, p.z);
+                contact = wheel.hasContact;
+            }
+            SetInstanceWorld(instance, XMMatrixScaling(radius, tankSettings.trackWidthM, radius)*wheelPose);
+            instance.materialId = visualSettings.colorWheelsByContact && contact ? m_model.contactedWheelMaterial : m_model.wheelMaterial;
+        }
+    }
     m_physicsDebugOverlay.UpdateScene(
         state, tankSettings, showTrackProxies, physicsDebugOverlay);
 }
@@ -1190,6 +1317,7 @@ void TrackedVehicleScenePresenter::Clear()
     m_sceneBuilder.Clear();
     m_destructibleBoxInstances.clear();
     m_fixedTurretInstances.clear();
+    m_enemyModels.clear();
     m_fixedTurretDirectionInstances.clear();
     m_enemyProjectileInstances.clear();
     m_enemyBoxProjectileInstances.clear();

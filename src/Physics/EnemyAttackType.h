@@ -1,4 +1,5 @@
 #pragma once
+#include "EnemySimulationSettings.h"
 
 #include "PhysicsTypes.h"
 #include <cmath>
@@ -65,6 +66,7 @@ namespace Tank::Physics
 
     struct EnemyEditorSettings
     {
+        EnemySimulationSettings simulation;
         std::vector<EnemyAttackType> attackTypes = {EnemyAttackType{}};
         std::vector<EnemyUnitType> unitTypes = {EnemyUnitType{}};
     };

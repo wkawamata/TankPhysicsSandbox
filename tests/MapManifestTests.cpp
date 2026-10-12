@@ -38,6 +38,9 @@ int main()
             { "enemy-001", "Type 0", { 12.0f, 1.0f, -25.0f }, { 0.0f, 135.0f, 0.0f } },
             { "enemy-002", "Type 0", { -12.0f, 1.0f, 25.0f }, {} }
         };
+        source.enemyGroups = { { "patrol-001", { { "enemy-001", 20 }, { "enemy-002", 10 } } } };
+        source.enemyGroups[0].patrol = EnemyPatrolSettings{
+            {{{10, 0, 0}, "ground"}, {{20, 5, 0}, "bridge"}}, 5, 7, 1, 3};
         std::string error;
         std::string text;
         Check(SerializeManifest(source, text, error), "Serialize populated map");
@@ -54,6 +57,9 @@ int main()
             loaded.enemies[0].position == source.enemies[0].position &&
             loaded.enemies[0].rotationDegrees == source.enemies[0].rotationDegrees,
             "Enemy placement fields survive round trip");
+        Check(loaded.enemyGroups.size() == 1 && loaded.enemyGroups[0].members.size() == 2 &&
+            loaded.enemyGroups[0].members[1].commandPriority == 10,
+            "Group membership and priorities survive round trip");
         const Json valid = Json::parse(text);
         auto Reject = [&](const std::string& invalid)
         {
@@ -61,6 +67,81 @@ int main()
             std::string after;
             Check(SerializeManifest(loaded, after, error) && after == text, "Failure preserves the entire previous map");
         };
+        Check(loaded.enemyGroups[0].patrol && loaded.enemyGroups[0].patrol->points[1].surfaceId == "bridge" &&
+            loaded.enemyGroups[0].patrol->searchWaitSeconds == 3, "Patrol settings survive round trip");
+        for (const Json settings : {Json(nullptr), Json::array(), Json(3)})
+        {
+            auto bad = valid;
+            bad["enemyGroups"][0]["patrol"] = settings;
+            Reject(bad.dump());
+        }
+        for (const char* field : {"attackStopMeters", "resumeApproachMeters", "arrivalMeters", "searchWaitSeconds", "points"})
+        {
+            auto bad = valid;
+            bad["enemyGroups"][0]["patrol"].erase(field);
+            Reject(bad.dump());
+        }
+        for (const Json value : {Json(-1), Json("5"), Json(1e100)})
+        {
+            auto bad = valid;
+            bad["enemyGroups"][0]["patrol"]["attackStopMeters"] = value;
+            Reject(bad.dump());
+        }
+        auto invalidPatrol = valid;
+        invalidPatrol["enemyGroups"][0]["patrol"]["resumeApproachMeters"] = 5;
+        Reject(invalidPatrol.dump());
+        invalidPatrol = valid;
+        invalidPatrol["enemyGroups"][0]["patrol"]["points"] = Json::array();
+        Reject(invalidPatrol.dump());
+        invalidPatrol = valid;
+        invalidPatrol["enemyGroups"][0]["patrol"]["points"][0]["surfaceId"] = "";
+        Reject(invalidPatrol.dump());
+        auto groupWithoutPatrol = valid;
+        groupWithoutPatrol["enemyGroups"][0].erase("patrol");
+        Manifest oldGroup;
+        Check(DeserializeManifest(groupWithoutPatrol.dump(), oldGroup, error) && !oldGroup.enemyGroups[0].patrol,
+            "Existing group stays without behavior unless explicitly configured");
+        for (const Json groups : { Json(nullptr), Json::object(), Json(3) })
+        {
+            auto bad = valid;
+            bad["enemyGroups"] = groups;
+            Reject(bad.dump());
+        }
+        for (const char* id : { "", "enemy-001", "building-001" })
+        {
+            auto bad = valid;
+            bad["enemyGroups"][0]["id"] = id;
+            Reject(bad.dump());
+        }
+        for (const char* id : { "missing", "building-001", "enemy-001" })
+        {
+            auto bad = valid;
+            bad["enemyGroups"][0]["members"][1]["enemyId"] = id;
+            Reject(bad.dump());
+        }
+        for (const Json priority : { Json(-1), Json(20), Json(1.5), Json("1"), Json(2147483648ULL) })
+        {
+            auto bad = valid;
+            bad["enemyGroups"][0]["members"][1]["commandPriority"] = priority;
+            Reject(bad.dump());
+        }
+        auto emptyGroup = valid;
+        emptyGroup["enemyGroups"][0]["members"] = Json::array();
+        Reject(emptyGroup.dump());
+        auto repeatedGroup = valid;
+        repeatedGroup["enemyGroups"].push_back(valid["enemyGroups"][0]);
+        repeatedGroup["enemyGroups"][1]["id"] = "other-group";
+        Reject(repeatedGroup.dump());
+        auto legacyGroups = valid;
+        legacyGroups.erase("enemyGroups");
+        Manifest ungrouped;
+        Check(DeserializeManifest(legacyGroups.dump(), ungrouped, error) && ungrouped.enemyGroups.empty() &&
+            ungrouped.enemies.size() == 2, "Legacy enemies remain ungrouped");
+        auto invalidGroup = source;
+        invalidGroup.enemyGroups[0].members[0].enemyId = "missing";
+        std::string unchangedGroup = "previous";
+        Check(!SerializeManifest(invalidGroup, unchangedGroup, error) && unchangedGroup == "previous",
+            "Invalid group serialization preserves output");
         for (const Json enemies : { Json(nullptr), Json::object(), Json(3) })
         {
             auto bad = valid;
@@ -153,6 +234,7 @@ int main()
         }
         auto withoutEnemies = valid;
         withoutEnemies.erase("enemies");
+        withoutEnemies.erase("enemyGroups");
         Check(DeserializeManifest(withoutEnemies.dump(), loaded, error) && loaded.enemies.empty(),
             "Legacy manifest clears previous enemies");
         auto invalidEnemy = source;

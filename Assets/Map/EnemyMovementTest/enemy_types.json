@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "simulation": {
+    "physicalEnterMeters": 30,
+    "simpleReturnMeters": 40,
+    "brakingDecelerationMetersPerSecondSquared": 2,
+    "nodeArrivalMeters": 0.5,
+    "observationRadiusMeters": 6,
+    "supportHeightToleranceMeters": 0.2
+  },
+  "attackTypes": [
+    {
+      "name": "Quiet patrol",
+      "detectionRangeMeters": 1,
+      "reachMeters": 1,
+      "firingRangeMeters": 0.5,
+      "firingIntervalSeconds": 60
+    },
+    {
+      "name": "Pursuit gun",
+      "detectionRangeMeters": 35,
+      "reachMeters": 16,
+      "firingRangeMeters": 12,
+      "projectileSpeedMetersPerSecond": 20,
+      "firingIntervalSeconds": 5,
+      "maximumYawSpeedDegreesPerSecond": 90
+    }
+  ],
+  "unitTypes": [
+    {
+      "name": "Patrol tank",
+      "attackMounts": [
+        {
+          "attackType": "Quiet patrol",
+          "localPosition": [
+            0,
+            0.85,
+            1.8
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Pursuit tank",
+      "attackMounts": [
+        {
+          "attackType": "Pursuit gun",
+          "localPosition": [
+            0,
+            0.85,
+            1.8
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -10,6 +10,11 @@
 #include "EnemyAttackType.h"
 #include "EnemyCombat.h"
 #include "PlayerCombatState.h"
+#include "EnemyGroupCommand.h"
+#include "EnemyGroupBehavior.h"
+#include "EnemyNavigationPlanner.h"
+#include "EnemyNavigationSetup.h"
+#include "Map/MapManifest.h"
 
 #include <array>
 #include <memory>
@@ -43,6 +48,12 @@ namespace Tank::Physics
         float durationSeconds = 0.0f;
     };
 
+    struct EnemyRunningGearState
+    {
+        std::array<TrackedWheelState, kTankWheelCount> wheels = {};
+        int wheelCount = 0;
+        std::array<float, kTankTrackCount> trackAngularVelocityRadians = {};
+    };
     // Box collision proxy for the first stationary enemy. HP is explicit tuning.
     struct FixedTurretState
     {
@@ -53,6 +64,26 @@ namespace Tank::Physics
         std::string placementId;
         EnemyUnitType unitType;
         std::vector<EnemyMountState> mounts;
+        bool simpleMoving = false;
+        bool physicalMoving = false;
+        Vec3 navigationVelocity = {};
+        float navigationYawRadiansPerSecond = 0;
+        std::optional<EnemyRunningGearState> runningGear;
+    };
+
+    struct EnemyGroupState
+    {
+        std::string id;
+        std::vector<EnemyCommandMember> members;
+        std::string leaderId;
+        bool detected = false;
+        bool hasLastKnownPosition = false;
+        Vec3 lastKnownPosition = {};
+        std::optional<NavigationObservation> lastNavigationObservation;
+        // Independent of the player controller clock, which resets on respawn.
+        double lastObservedSeconds = -1;
+        std::optional<EnemyGroupBehaviorSnapshot> behavior;
+        std::optional<EnemyNavigationPlan> navigation;
     };
 
     struct TrackedVehicleTestState
@@ -103,6 +134,7 @@ namespace Tank::Physics
         std::uint64_t mortarHitTargetId = 0;
         std::vector<DestructibleBoxState> destructibleBoxes;
         std::vector<FixedTurretState> fixedTurrets;
+        std::vector<EnemyGroupState> enemyGroups;
         std::vector<EnemyProjectileState> enemyProjectiles;
         PlayerCombatSnapshot playerCombat;
         float respawnSecondsRemaining = 0;
@@ -145,6 +177,11 @@ namespace Tank::Physics
         bool AddFixedTurret(const Vec3& position, const Vec3& size, float hitPoints, const Quat& rotation = {},
             const std::string& placementId = {}, const EnemyUnitType& unitType = {});
         void RequireNeutralInput();
+        bool SetEnemySimulationSettings(const EnemySimulationSettings& settings);
+        bool ConfigureEnemyMovement(const EnemyNavigationSetup& setup, std::string& error);
+        bool ConfigureGroupNavigation(const std::string& groupId, const NavigationGrid& grid,
+            std::span<const NavigationMobility> movingMembers, double snapDistance, const std::string& anchorSurface);
+        bool ConfigureEnemyGroups(const std::vector<Map::EnemyGroup>& groups);
         bool ConfigureEnemyAttacks(const std::vector<EnemyAttackType>& types);
         bool ApplyConfiguredRecoil();
         bool ApplyRecoilImpulse(float impulseNewtonSeconds);
@@ -157,6 +194,8 @@ namespace Tank::Physics
     private:
         void SpawnAssaultRound();
         void AdvanceAssaultProjectiles(float deltaTimeSeconds);
+        void UpdateEnemyGroups(float dt = 0);
+        void AdvanceEnemyNavigation(float dt);
         void UpdateEnemyAttacks(float deltaTimeSeconds);
         void AdvanceEnemyProjectiles(float deltaTimeSeconds);
         void ApplyAssaultImpact(std::uint32_t hitBodyId, float damage);

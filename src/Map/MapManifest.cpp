@@ -94,6 +94,20 @@ namespace Tank::Map
         }
     }
 
+    bool IsValidEnemyPatrolSettings(const EnemyPatrolSettings& settings)
+    {
+        return !settings.points.empty() &&
+            std::isfinite(settings.attackStopMeters) && settings.attackStopMeters > 0 &&
+            std::isfinite(settings.resumeApproachMeters) && settings.resumeApproachMeters > settings.attackStopMeters &&
+            std::isfinite(settings.arrivalMeters) && settings.arrivalMeters > 0 &&
+            std::isfinite(settings.searchWaitSeconds) && settings.searchWaitSeconds >= 0 &&
+            std::all_of(settings.points.begin(), settings.points.end(), [](const auto& point)
+            {
+                return !point.surfaceId.empty() && std::all_of(point.position.begin(), point.position.end(),
+                    [](float value) { return std::isfinite(value); });
+            });
+    }
+
     bool DeserializeManifest(const std::string& jsonText, Manifest& manifest, std::string& error)
     {
         try
@@ -141,6 +155,64 @@ namespace Tank::Map
                     loaded.enemies.push_back(std::move(enemy));
                 }
             }
+            if (const auto groups = json.find("enemyGroups"); groups != json.end())
+            {
+                Require(groups->is_array(), "enemyGroups must be an array");
+                std::set<std::string> groupedEnemies;
+                for (const auto& entry : *groups)
+                {
+                    EnemyGroup group;
+                    group.id = ReadId(entry, ids);
+                    const auto& members = entry.at("members");
+                    Require(members.is_array() && !members.empty(), "Group members must be a nonempty array");
+                    std::set<int> priorities;
+                    for (const auto& member : members)
+                    {
+                        EnemyGroupMember value;
+                        value.enemyId = member.at("enemyId").get<std::string>();
+                        Require(std::any_of(loaded.enemies.begin(), loaded.enemies.end(),
+                            [&](const auto& enemy) { return enemy.id == value.enemyId; }),
+                            "Group member must reference an enemy placement");
+                        Require(groupedEnemies.insert(value.enemyId).second,
+                            "Enemy must belong to at most one group");
+                        const auto& priority = member.at("commandPriority");
+                        Require(priority.is_number_integer(), "commandPriority must be an integer");
+                        const double number = priority.get<double>();
+                        Require(number >= 0 && number <= (std::numeric_limits<int>::max)(),
+                            "commandPriority must be a nonnegative int");
+                        value.commandPriority = priority.get<int>();
+                        Require(priorities.insert(value.commandPriority).second,
+                            "Command priorities must be unique within the group");
+                        group.members.push_back(std::move(value));
+                    }
+                    if (const auto patrol = entry.find("patrol"); patrol != entry.end())
+                    {
+                        Require(patrol->is_object(), "patrol must be an object");
+                        EnemyPatrolSettings settings;
+                        const auto number = [&](const char* name)
+                        {
+                            const auto& value = patrol->at(name);
+                            Require(value.is_number(), std::string(name) + " must be a number");
+                            const double result = value.get<double>();
+                            Require(std::isfinite(result) && std::abs(result) <= (std::numeric_limits<float>::max)(),
+                                std::string(name) + " must be a finite float");
+                            return static_cast<float>(result);
+                        };
+                        settings.attackStopMeters = number("attackStopMeters");
+                        settings.resumeApproachMeters = number("resumeApproachMeters");
+                        settings.arrivalMeters = number("arrivalMeters");
+                        settings.searchWaitSeconds = number("searchWaitSeconds");
+                        const auto& points = patrol->at("points");
+                        Require(points.is_array(), "patrol points must be an array");
+                        for (const auto& point : points)
+                            settings.points.push_back({ReadVector(point.at("position"), "patrol position"),
+                                point.at("surfaceId").get<std::string>()});
+                        Require(IsValidEnemyPatrolSettings(settings), "Invalid patrol settings");
+                        group.patrol = std::move(settings);
+                    }
+                    loaded.enemyGroups.push_back(std::move(group));
+                }
+            }
             manifest = std::move(loaded);
             error.clear();
             return true;
@@ -186,6 +258,31 @@ namespace Tank::Map
                     { "id", enemy.id }, { "unitType", enemy.unitType },
                     { "position", enemy.position },
                     { "rotationDegrees", enemy.rotationDegrees } });
+            }
+            if (!manifest.enemyGroups.empty())
+            {
+                json["enemyGroups"] = Json::array();
+                for (const auto& group : manifest.enemyGroups)
+                {
+                    Json members = Json::array();
+                    for (const auto& member : group.members)
+                        members.push_back({ { "enemyId", member.enemyId },
+                            { "commandPriority", member.commandPriority } });
+                    Json entry = { { "id", group.id }, { "members", members } };
+                    if (group.patrol)
+                    {
+                        const auto& settings = *group.patrol;
+                        Json points = Json::array();
+                        for (const auto& point : settings.points)
+                            points.push_back({ { "position", point.position }, { "surfaceId", point.surfaceId } });
+                        entry["patrol"] = { { "points", points },
+                            { "attackStopMeters", settings.attackStopMeters },
+                            { "resumeApproachMeters", settings.resumeApproachMeters },
+                            { "arrivalMeters", settings.arrivalMeters },
+                            { "searchWaitSeconds", settings.searchWaitSeconds } };
+                    }
+                    json["enemyGroups"].push_back(std::move(entry));
+                }
             }
             auto serialized = json.dump(2);
             Manifest validated;

@@ -284,6 +284,22 @@ int main()
     passed &= Check(stanceForwardY > 0.15f,
         "wheelie raises the front end in world terms while flipped");
 
+    // A brief horizontal lever gesture must not latch a movement lock after release.
+    world.Initialize(TankSettings{});
+    Advance(world, 120);
+    TankInput shortGesture;
+    shortGesture.leftLeverX = -1;
+    shortGesture.rightLeverX = 1;
+    world.SetInput(shortGesture);
+    world.Step(dt);
+    passed &= Check(world.State().specialMove.state == SpecialMoveState::MortarStarting,
+        "brief gesture begins below the minimum fire angle");
+    TankInput resumeDrive;
+    resumeDrive.throttle = 0.5f;
+    world.SetInput(resumeDrive);
+    Advance(world, 360);
+    passed &= Check(world.State().specialMove.state == SpecialMoveState::Idle && world.DriverInput().forward > 0,
+        "releasing unfinished mortar gesture restores movement without waiting or a second gesture");
     if (!passed) return 1;
     std::cout << "PASS MortarProjectile\n";
     return 0;

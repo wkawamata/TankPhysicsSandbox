@@ -53,7 +53,8 @@ namespace Tank::Physics
         MoveBlocked,
         MoveCompleted,
         RecoveryStarted,
-        RecoveryCompleted
+        RecoveryCompleted,
+        MortarCancelled
     };
 
     enum class SpecialMoveRejectReason

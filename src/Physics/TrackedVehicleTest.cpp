@@ -2,6 +2,8 @@
 #include "PhysicsWorld.h"
 #include "TankController.h"
 #include "StaticMeshShape.h"
+#include "SimpleNavigationMovement.h"
+#include "EnemyTrackedSteering.h"
 
 #include <Jolt/Jolt.h>
 
@@ -21,6 +23,7 @@
 #include <cmath>
 #include <vector>
 #include <optional>
+#include <set>
 
 JPH_SUPPRESS_WARNINGS
 
@@ -45,13 +48,55 @@ namespace Tank::Physics
         std::uint64_t resolvedMortarShots = 0;
         AssaultProjectileSettings projectileSettings = {};
         std::vector<EnemyAttackType> enemyAttackTypes;
+        std::vector<EnemyGroupCommand> groupCommands;
+        std::vector<std::optional<EnemyGroupBehavior>> groupBehaviors;
+        std::vector<std::optional<EnemyNavigationPlanner>> groupNavigation;
+        std::vector<std::string> groupAnchorSurfaces;
+        std::vector<std::vector<size_t>> groupTurretIndices;
+        struct NavigationDriver
+        {
+            EnemyNavigationDriver config;
+            size_t enemyIndex = 0, groupIndex = 0;
+            std::optional<SimpleNavigationMovement> movement;
+            Vec3 target;
+            std::string targetSurface;
+            Vec3 routeStart;
+            Vec3 navigationAnchor;
+            std::unique_ptr<TankController> physical;
+            size_t physicalNode = 0;
+            float turnSign = 1;
+        };
+        std::vector<NavigationDriver> navigationDrivers;
+        std::optional<EnemySimulationSettings> simulationSettings;
+        double enemyObservationTimeSeconds = 0;
         PlayerCombatState playerCombat;
         float lostYaw = 0;
         bool requireNeutralInput = false;
         bool hasFloorBody = false;
 
+        void DestroyCombatBody(JPH::BodyID& id)
+        {
+            for (auto& driver : navigationDrivers)
+                if (driver.physical && driver.physical->IsTankBody(id.GetIndexAndSequenceNumber()))
+                {
+                    driver.physical.reset();
+                    id = JPH::BodyID();
+                    return;
+                }
+            auto& bodies = world.GetBodyInterface();
+            bodies.RemoveBody(id);
+            bodies.DestroyBody(id);
+            id = JPH::BodyID();
+        }
+
         ~Impl()
         {
+            for (auto& driver : navigationDrivers)
+                if (driver.physical)
+                {
+                    turretBodyIds[driver.enemyIndex] = JPH::BodyID();
+                    driver.physical.reset();
+                }
             JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
             for (const JPH::BodyID id : destructibleBodyIds)
             {
@@ -386,6 +431,7 @@ namespace Tank::Physics
             JPH::RVec3(position.x, position.y, position.z), JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w),
             JPH::EMotionType::Static, Layers::NonMoving);
         auto& bodies = m_impl->world.GetBodyInterface();
+        settings.mAllowDynamicOrKinematic = true;
         JPH::Body* body = bodies.CreateBody(settings);
         if (!body) return false;
         const auto id = body->GetID();
@@ -421,6 +467,364 @@ namespace Tank::Physics
             std::any_of(types.begin(), types.end(), [](const auto& type) { return !IsValidEnemyAttackType(type); })) return false;
         m_impl->enemyAttackTypes = types;
         return true;
+    }
+
+    bool TrackedVehicleTest::ConfigureEnemyGroups(const std::vector<Map::EnemyGroup>& groups)
+    {
+        if (!m_impl || !m_impl->navigationDrivers.empty()) return false;
+        std::vector<EnemyGroupState> states;
+        std::vector<std::optional<EnemyGroupBehavior>> behaviors;
+        std::vector<std::vector<size_t>> indices;
+        std::set<std::string> groupIds, assignedEnemies;
+        for (const auto& group : groups)
+        {
+            if (group.id.empty() || !groupIds.insert(group.id).second || group.members.empty()) return false;
+            std::optional<EnemyGroupBehavior> behavior;
+            if (group.patrol)
+            {
+                behavior.emplace();
+                if (!behavior->Initialize(*group.patrol)) return false;
+            }
+            EnemyGroupState state;
+            state.id = group.id;
+            if (behavior) state.behavior = behavior->State();
+            behaviors.push_back(std::move(behavior));
+            std::vector<size_t> groupIndices;
+            std::set<int> priorities;
+            for (const auto& member : group.members)
+            {
+                if (member.enemyId.empty() || member.commandPriority < 0 ||
+                    !priorities.insert(member.commandPriority).second ||
+                    !assignedEnemies.insert(member.enemyId).second) return false;
+                const auto& turrets = m_state.fixedTurrets;
+                const auto matches = [&](const auto& turret) { return turret.placementId == member.enemyId; };
+                if (std::count_if(turrets.begin(), turrets.end(), matches) != 1) return false;
+                const auto turret = std::find_if(turrets.begin(), turrets.end(), matches);
+                groupIndices.push_back(static_cast<size_t>(turret - turrets.begin()));
+                state.members.push_back({member.enemyId, member.commandPriority, turret->target.active});
+            }
+            states.push_back(std::move(state));
+            indices.push_back(std::move(groupIndices));
+        }
+        m_impl->groupNavigation = std::vector<std::optional<EnemyNavigationPlanner>>(groups.size());
+        m_impl->groupAnchorSurfaces = std::vector<std::string>(groups.size());
+        m_impl->groupBehaviors = std::move(behaviors);
+        m_state.enemyGroups = std::move(states);
+        m_impl->groupTurretIndices = std::move(indices);
+        m_impl->groupCommands = std::vector<EnemyGroupCommand>(groups.size());
+        UpdateEnemyGroups();
+        return true;
+    }
+
+    bool TrackedVehicleTest::ConfigureEnemyMovement(const EnemyNavigationSetup& setup, std::string& error)
+    {
+        if (!m_impl || !m_impl->navigationDrivers.empty()) { error = "Enemy movement already configured or uninitialized"; return false; }
+        if (!ValidateNavigationGrid(setup.grid, error)) return false;
+        std::vector<Impl::NavigationDriver> drivers;
+        std::set<size_t> groups, enemies;
+        for (const auto& config : setup.drivers)
+        {
+            const auto group = std::find_if(m_state.enemyGroups.begin(), m_state.enemyGroups.end(),
+                [&](const auto& value) { return value.id == config.groupId; });
+            const auto enemy = std::find_if(m_state.fixedTurrets.begin(), m_state.fixedTurrets.end(),
+                [&](const auto& value) { return value.placementId == config.enemyId; });
+            if (group == m_state.enemyGroups.end() || enemy == m_state.fixedTurrets.end() || !group->behavior ||
+                !enemy->target.active || std::none_of(group->members.begin(), group->members.end(),
+                    [&](const auto& member) { return member.enemyId == config.enemyId; }))
+            { error = "Moving enemy must belong to an active patrol group"; return false; }
+            const size_t groupIndex = static_cast<size_t>(group - m_state.enemyGroups.begin());
+            const size_t enemyIndex = static_cast<size_t>(enemy - m_state.fixedTurrets.begin());
+            EnemyNavigationPlanner planner;
+            if (!groups.insert(groupIndex).second || !enemies.insert(enemyIndex).second ||
+                !planner.Configure(setup.grid, std::span(&config.mobility, 1), config.snapDistanceMeters))
+            { error = "Invalid movement settings or multiple moving enemies per group"; return false; }
+            EnemyGroupBehaviorSnapshot request;
+            request.hasMoveTarget = true; request.moveTarget = enemy->position; request.targetSurfaceId = config.surfaceId;
+            planner.Update(request, enemy->position, config.surfaceId);
+            if (planner.State().stopped) { error = planner.State().error; return false; }
+            drivers.push_back({config, enemyIndex, groupIndex, {}, {}, {}});
+            drivers.back().navigationAnchor = planner.State().path->cells.front().position;
+        }
+        for (const auto& driver : drivers)
+        {
+            ConfigureGroupNavigation(driver.config.groupId, setup.grid, std::span(&driver.config.mobility, 1),
+                driver.config.snapDistanceMeters, driver.config.surfaceId);
+            auto& enemy = m_state.fixedTurrets[driver.enemyIndex];
+            enemy.simpleMoving = true;
+            auto& bodies = m_impl->world.GetBodyInterface();
+            bodies.SetMotionType(m_impl->turretBodyIds[driver.enemyIndex], JPH::EMotionType::Kinematic, JPH::EActivation::Activate);
+            bodies.SetObjectLayer(m_impl->turretBodyIds[driver.enemyIndex], Layers::Moving);
+        }
+        m_impl->navigationDrivers = std::move(drivers);
+        error.clear();
+        return true;
+    }
+
+    bool TrackedVehicleTest::SetEnemySimulationSettings(const EnemySimulationSettings& settings)
+    {
+        if (!m_impl || !IsValidEnemySimulationSettings(settings)) return false;
+        m_impl->simulationSettings = settings;
+        return true;
+    }
+
+    void TrackedVehicleTest::AdvanceEnemyNavigation(float dt)
+    {
+        for (auto& driver : m_impl->navigationDrivers)
+        {
+            auto& enemy = m_state.fixedTurrets[driver.enemyIndex];
+            if (!enemy.target.active) { enemy.physicalMoving = false; enemy.runningGear.reset(); continue; }
+            const auto player = m_impl->controller.State().body.position;
+            const auto distance = NavigationDistance(player, enemy.position);
+            auto& bodyId = m_impl->turretBodyIds[driver.enemyIndex];
+            auto& bodies = m_impl->world.GetBodyInterface();
+            const auto& group = m_state.enemyGroups[driver.groupIndex];
+            if (m_impl->simulationSettings && !driver.physical &&
+                distance <= m_impl->simulationSettings->physicalEnterMeters)
+            {
+                bodies.RemoveBody(bodyId);
+                bodies.DestroyBody(bodyId);
+                bodyId = JPH::BodyID();
+                driver.physical = std::make_unique<TankController>();
+                auto settings = m_impl->controller.Settings();
+                settings.startUpsideDown = false;
+                settings.rollingInputEnabled = false;
+                enemy.size = {settings.chassisWidthM, 1, settings.chassisLengthM};
+                driver.physical->Initialize(m_impl->world, settings, {enemy.position, 0});
+                driver.physical->RestoreMotion({enemy.position, enemy.rotation}, enemy.navigationVelocity);
+                bodyId = JPH::BodyID(driver.physical->BodyId());
+                driver.physicalNode = driver.movement ? driver.movement->State().segmentIndex + 1 : 0;
+                enemy.physicalMoving = true;
+            }
+            if (driver.physical)
+            {
+                // Return only when a known surface node is reached upright; otherwise retain physics.
+                if (m_impl->simulationSettings && distance >= m_impl->simulationSettings->simpleReturnMeters &&
+                    std::abs(enemy.navigationVelocity.y) < 0.1f &&
+                    std::any_of(driver.physical->State().wheels.begin(), driver.physical->State().wheels.end(),
+                        [](const auto& wheel) { return wheel.hasContact; }) &&
+                    std::abs(enemy.rotation.x) < 0.1f && std::abs(enemy.rotation.z) < 0.1f &&
+                    group.navigation && group.navigation->path)
+                {
+                    const auto& cells = group.navigation->path->cells;
+                    auto cell = std::find_if(cells.begin(), cells.end(), [&](const auto& value)
+                        { return NavigationDistance(value.position, enemy.position) <= driver.config.snapDistanceMeters; });
+                    if (cell != cells.end())
+                    {
+                        m_impl->groupAnchorSurfaces[driver.groupIndex] = cell->surfaceId;
+                        driver.navigationAnchor = cell->position;
+                        driver.physical.reset();
+                        JPH::BodyCreationSettings proxy(new JPH::BoxShape(JPH::Vec3(enemy.size.x/2, enemy.size.y/2, enemy.size.z/2)),
+                            JPH::RVec3(enemy.position.x, enemy.position.y, enemy.position.z),
+                            JPH::Quat(enemy.rotation.x, enemy.rotation.y, enemy.rotation.z, enemy.rotation.w),
+                            JPH::EMotionType::Kinematic, Layers::Moving);
+                        auto* body = bodies.CreateBody(proxy);
+                        bodyId = body->GetID();
+                        bodies.AddBody(bodyId, JPH::EActivation::Activate);
+                        enemy.physicalMoving = false;
+                        enemy.runningGear.reset();
+                        driver.movement.reset(); // Replan from actual physical position after this step.
+                    }
+                }
+                if (driver.physical)
+                {
+                    const auto& tuning = *m_impl->simulationSettings;
+                    const float speed = std::hypot(enemy.navigationVelocity.x, enemy.navigationVelocity.z);
+                    TankInput input;
+                    input.brake = true;
+                    if (group.navigation && !group.navigation->stopped && group.navigation->path &&
+                        group.behavior && group.behavior->hasMoveTarget)
+                    {
+                        const auto& cells = group.navigation->path->cells;
+                        while (speed < 0.25f && driver.physicalNode < cells.size() &&
+                            std::hypot(cells[driver.physicalNode].position.x-enemy.position.x,
+                                cells[driver.physicalNode].position.z-enemy.position.z) <= tuning.nodeArrivalMeters)
+                        {
+                            m_impl->groupAnchorSurfaces[driver.groupIndex] = cells[driver.physicalNode].surfaceId;
+                            driver.navigationAnchor = driver.physicalNode == 0 ? driver.routeStart : cells[driver.physicalNode].position;
+                            ++driver.physicalNode;
+                        }
+                        if (driver.physicalNode < cells.size())
+                        {
+                            const auto target = cells[driver.physicalNode].position;
+                            input = EnemyTrackedSteering(driver.physical->State(), target,
+                                driver.config.mobility.speedMetersPerSecond, tuning.brakingDecelerationMetersPerSecondSquared,
+                                tuning.nodeArrivalMeters, driver.turnSign);
+                            if (input.leftTrack * input.rightTrack < 0) driver.turnSign = -input.leftTrack;
+                        }
+                    }
+                    driver.physical->SetInput(input);
+                    driver.physical->PreStep();
+                    continue;
+                }
+            }
+            const auto previous = enemy.position;
+            enemy.navigationYawRadiansPerSecond = 0;
+            if (driver.movement && group.navigation && !group.navigation->stopped)
+            {
+                const auto& current = driver.movement->State();
+                bool aligned = true;
+                if (!current.arrived)
+                {
+                    const auto next = group.navigation->path->cells[current.segmentIndex+1].position;
+                    const float dx = next.x-enemy.position.x, dz = next.z-enemy.position.z;
+                    if (std::hypot(dx, dz) > 0.00001f)
+                    {
+                        const auto& q = enemy.rotation;
+                        const float yaw = std::atan2(2*(q.w*q.y+q.x*q.z), 1-2*(q.y*q.y+q.z*q.z));
+                        float error = std::remainder(std::atan2(dx, dz)-yaw, 6.283185307f);
+                        if (std::abs(error) > 3.14f) error = std::copysign(std::abs(error), driver.turnSign);
+                        const float rate = m_impl->simulationSettings.value_or(EnemySimulationSettings{}).simpleTurnDegreesPerSecond *
+                            3.141592653589793f/180;
+                        const float turn = std::clamp(error, -rate*dt, rate*dt);
+                        enemy.navigationYawRadiansPerSecond = turn/dt;
+                        if (std::abs(turn) > 0.00001f) driver.turnSign = std::copysign(1.0f, turn);
+                        enemy.rotation = {0, std::sin((yaw+turn)*0.5f), 0, std::cos((yaw+turn)*0.5f)};
+                        aligned = std::abs(error) < 0.0001f;
+                    }
+                }
+                if (aligned) driver.movement->Advance(dt, true);
+                const auto& movement = driver.movement->State();
+                enemy.position = movement.position;
+                m_impl->groupAnchorSurfaces[driver.groupIndex] = movement.surfaceId;
+                driver.navigationAnchor = movement.segmentIndex == 0 ? driver.routeStart :
+                    group.navigation->path->cells[movement.segmentIndex].position;
+
+            }
+            enemy.navigationVelocity = {(enemy.position.x-previous.x)/dt, (enemy.position.y-previous.y)/dt,
+                (enemy.position.z-previous.z)/dt};
+            const auto& p = enemy.position; const auto& q = enemy.rotation;
+            m_impl->world.GetBodyInterface().MoveKinematic(m_impl->turretBodyIds[driver.enemyIndex],
+                JPH::RVec3(p.x,p.y,p.z), JPH::Quat(q.x,q.y,q.z,q.w), dt);
+        }
+    }
+
+    bool TrackedVehicleTest::ConfigureGroupNavigation(const std::string& groupId, const NavigationGrid& grid,
+        std::span<const NavigationMobility> movingMembers, double snapDistance, const std::string& anchorSurface)
+    {
+        if (!m_impl || anchorSurface.empty() || std::none_of(grid.cells.begin(), grid.cells.end(),
+            [&](const auto& cell) { return cell.surfaceId == anchorSurface; })) return false;
+        const auto found = std::find_if(m_state.enemyGroups.begin(), m_state.enemyGroups.end(),
+            [&](const auto& group) { return group.id == groupId; });
+        if (found == m_state.enemyGroups.end() || !found->behavior) return false;
+        EnemyNavigationPlanner planner;
+        if (!planner.Configure(grid, movingMembers, snapDistance)) return false;
+        const size_t index = static_cast<size_t>(found - m_state.enemyGroups.begin());
+        if (std::any_of(m_impl->navigationDrivers.begin(), m_impl->navigationDrivers.end(),
+            [&](const auto& driver) { return driver.groupIndex == index; })) return false;
+        m_impl->groupNavigation[index] = std::move(planner);
+        m_impl->groupAnchorSurfaces[index] = anchorSurface;
+        found->navigation = m_impl->groupNavigation[index]->State();
+        return true;
+    }
+
+    void TrackedVehicleTest::UpdateEnemyGroups(float dt)
+    {
+        const bool playerAlive = m_impl->playerCombat.Snapshot().phase == PlayerCombatPhase::Alive;
+        for (size_t i = 0; i < m_state.enemyGroups.size(); ++i)
+        {
+            auto& group = m_state.enemyGroups[i];
+            group.detected = false;
+            for (size_t j = 0; j < group.members.size(); ++j)
+            {
+                const auto& turret = m_state.fixedTurrets[m_impl->groupTurretIndices[i][j]];
+                group.members[j].canCommand = turret.target.active;
+                if (playerAlive && turret.target.active && std::any_of(turret.mounts.begin(), turret.mounts.end(),
+                    [](const auto& mount) { return mount.aim.detected; }))
+                    group.detected = true;
+            }
+            m_impl->groupCommands[i].Update(group.members);
+            group.leaderId = m_impl->groupCommands[i].LeaderId();
+            if (group.detected)
+            {
+                // All detections in this step observe the same player, so no observer arbitration is needed.
+                group.hasLastKnownPosition = true;
+                group.lastKnownPosition = m_impl->controller.State().body.position;
+                group.lastObservedSeconds = m_impl->enemyObservationTimeSeconds;
+                group.lastNavigationObservation.reset();
+                if (m_impl->groupNavigation[i])
+                {
+                    const auto& state = m_impl->controller.State();
+                    const TrackedWheelState* support = nullptr;
+                    for (int w = 0; w < state.wheelCount; ++w)
+                    {
+                        const auto& wheel = state.wheels[w];
+                        if (wheel.hasContact && wheel.contactNormal.y > 0.5f &&
+                            (!support || wheel.suspensionImpulseNewtonSeconds > support->suspensionImpulseNewtonSeconds)) support = &wheel;
+                    }
+                    if (support)
+                    {
+                        const auto tuning = m_impl->simulationSettings.value_or(EnemySimulationSettings{});
+                        group.lastNavigationObservation = m_impl->groupNavigation[i]->ResolveObservation(
+                            group.lastKnownPosition, support->contactPosition,
+                            tuning.observationRadiusMeters, tuning.supportHeightToleranceMeters);
+                    }
+                }
+            }
+            if (dt > 0 && m_impl->groupBehaviors[i])
+            {
+                Vec3 anchor;
+                for (size_t j = 0; j < group.members.size(); ++j)
+                    if (group.members[j].enemyId == group.leaderId)
+                        anchor = m_state.fixedTurrets[m_impl->groupTurretIndices[i][j]].position;
+                auto driver = std::find_if(m_impl->navigationDrivers.begin(), m_impl->navigationDrivers.end(),
+                    [&](const auto& value) { return value.groupIndex == i; });
+                if (driver != m_impl->navigationDrivers.end())
+                {
+                    anchor = m_state.fixedTurrets[driver->enemyIndex].position;
+                    if (driver->physical && !group.detected && group.navigation && group.navigation->path &&
+                        !group.navigation->path->cells.empty())
+                    {
+                        const auto node = std::min(driver->physicalNode > 0 ? driver->physicalNode-1 : 0,
+                            group.navigation->path->cells.size()-1);
+                        anchor = node == 0 ? driver->routeStart : group.navigation->path->cells[node].position;
+                    }
+                    // Patrol arrival is evaluated at reached nodes, not mid-link, to avoid truncating a route.
+                    if (!driver->physical && driver->movement && !driver->movement->State().arrived && !group.detected && group.navigation && group.navigation->path)
+                        anchor = driver->movement->State().segmentIndex == 0 ? driver->routeStart :
+                            group.navigation->path->cells[driver->movement->State().segmentIndex].position;
+                }
+                m_impl->groupBehaviors[i]->Update(dt, playerAlive && !group.leaderId.empty() &&
+                    (driver == m_impl->navigationDrivers.end() || m_state.fixedTurrets[driver->enemyIndex].target.active),
+                    anchor, group.detected, group.lastKnownPosition,
+                    group.lastNavigationObservation ? group.lastNavigationObservation->surfaceId : std::string{},
+                    group.lastNavigationObservation ? &group.lastNavigationObservation->position : nullptr);
+                group.behavior = m_impl->groupBehaviors[i]->State();
+                if (m_impl->groupNavigation[i])
+                {
+                    const auto& request = *group.behavior;
+                    const bool sameTarget = driver != m_impl->navigationDrivers.end() && driver->movement &&
+                        driver->target.x == request.moveTarget.x && driver->target.y == request.moveTarget.y &&
+                        driver->target.z == request.moveTarget.z && driver->targetSurface == request.targetSurfaceId;
+                    if (!sameTarget || !request.hasMoveTarget)
+                    {
+                        if (driver != m_impl->navigationDrivers.end()) anchor = driver->navigationAnchor;
+                        m_impl->groupNavigation[i]->Update(request, anchor, m_impl->groupAnchorSurfaces[i]);
+                        group.navigation = m_impl->groupNavigation[i]->State();
+                        if (driver != m_impl->navigationDrivers.end())
+                        {
+                            driver->movement.reset();
+                            if (group.navigation->path && !group.navigation->stopped)
+                            {
+                                auto path = *group.navigation->path;
+                                driver->routeStart = path.cells.front().position;
+                                path.cells.front().position = m_state.fixedTurrets[driver->enemyIndex].position;
+                                SimpleNavigationMovement movement;
+                                if (movement.Initialize(path, driver->config.mobility))
+                                {
+                                    driver->movement = std::move(movement);
+                                    driver->physicalNode = path.cells.size() > 1 ? 1 : 0;
+                                    driver->target = request.moveTarget;
+                                    driver->targetSurface = request.targetSurfaceId;
+                                    group.navigation->path = std::move(path);
+                                }
+                                else
+                                { group.navigation->stopped = true; group.navigation->path.reset(); group.navigation->error = "Cannot initialize movement from current position"; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     void TrackedVehicleTest::SpawnAssaultRound()
@@ -604,10 +1008,7 @@ namespace Tank::Physics
             if (result.hit) m_state.assaultHitTargetId = target.id;
             if (result.destroyed)
             {
-                auto& bodies = m_impl->world.GetBodyInterface();
-                bodies.RemoveBody(id);
-                bodies.DestroyBody(id);
-                id = JPH::BodyID();
+                m_impl->DestroyCombatBody(id);
             }
             break;
         }
@@ -620,10 +1021,7 @@ namespace Tank::Physics
             if (result.hit) m_state.assaultHitTargetId = target.id;
             if (result.destroyed)
             {
-                auto& bodies = m_impl->world.GetBodyInterface();
-                bodies.RemoveBody(id);
-                bodies.DestroyBody(id);
-                id = JPH::BodyID();
+                m_impl->DestroyCombatBody(id);
             }
             break;
         }
@@ -714,10 +1112,7 @@ namespace Tank::Physics
             if (result.hit) m_state.mortarHitTargetId = target.id;
             if (result.destroyed)
             {
-                auto& bodies = m_impl->world.GetBodyInterface();
-                bodies.RemoveBody(id);
-                bodies.DestroyBody(id);
-                id = JPH::BodyID();
+                m_impl->DestroyCombatBody(id);
             }
         }
         for (size_t i = 0; i < m_impl->turretBodyIds.size(); ++i)
@@ -739,10 +1134,7 @@ namespace Tank::Physics
             if (result.hit) m_state.mortarHitTargetId = turret.target.id;
             if (result.destroyed)
             {
-                auto& bodies = m_impl->world.GetBodyInterface();
-                bodies.RemoveBody(id);
-                bodies.DestroyBody(id);
-                id = JPH::BodyID();
+                m_impl->DestroyCombatBody(id);
             }
         }
         for (auto& bullet : m_state.enemyProjectiles)
@@ -780,6 +1172,7 @@ namespace Tank::Physics
 
         const auto phase = m_impl->playerCombat.Snapshot().phase;
         if (phase == PlayerCombatPhase::GameOver) return m_state;
+        m_impl->enemyObservationTimeSeconds += deltaTimeSeconds;
         if (phase == PlayerCombatPhase::Lost)
         {
             m_state.respawnSecondsRemaining = std::max(0.0f, m_state.respawnSecondsRemaining - deltaTimeSeconds);
@@ -810,6 +1203,7 @@ namespace Tank::Physics
         if (m_impl->playerCombat.Snapshot().phase != PlayerCombatPhase::Alive)
         {
             m_state.playerCombat = m_impl->playerCombat.Snapshot();
+            UpdateEnemyGroups(deltaTimeSeconds);
             m_state.respawnSecondsRemaining = m_state.playerCombat.phase == PlayerCombatPhase::Lost ? 1.0f : 0;
             const auto q = m_impl->controller.State().body.rotation;
             m_impl->lostYaw = std::atan2(2*(q.x*q.z+q.y*q.w), 1-2*(q.x*q.x+q.y*q.y));
@@ -822,9 +1216,23 @@ namespace Tank::Physics
         }
         m_impl->controller.SetAssaultCapacityAvailable(
             m_state.assaultProjectiles.size() < static_cast<size_t>(m_impl->projectileSettings.maximumCount));
+        AdvanceEnemyNavigation(deltaTimeSeconds);
         m_impl->controller.PreStep();
         m_impl->world.Step(deltaTimeSeconds);
         m_impl->controller.PostStep(deltaTimeSeconds);
+        for (auto& driver : m_impl->navigationDrivers)
+            if (driver.physical)
+            {
+                driver.physical->PostStep(deltaTimeSeconds);
+                auto& enemy = m_state.fixedTurrets[driver.enemyIndex];
+                const auto& state = driver.physical->State();
+                enemy.position = state.body.position;
+                enemy.rotation = state.body.rotation;
+                enemy.navigationVelocity = state.linearVelocity;
+                enemy.navigationYawRadiansPerSecond = state.angularVelocity.y;
+                enemy.runningGear = EnemyRunningGearState{state.wheels, state.wheelCount,
+                    {state.leftTrackAngularVelocityRadians, state.rightTrackAngularVelocityRadians}};
+            }
 
         m_state.stepIndex = m_impl->controller.State().stepIndex;
         m_state.timeSeconds = m_impl->controller.State().timeSeconds;
@@ -898,6 +1306,7 @@ namespace Tank::Physics
             m_impl->controller.State().rollChainAvailable;
 
         UpdateEnemyAttacks(deltaTimeSeconds);
+        UpdateEnemyGroups(deltaTimeSeconds);
         m_state.playerCombat = m_impl->playerCombat.Snapshot();
         return m_state;
     }

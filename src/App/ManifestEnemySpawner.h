@@ -15,6 +15,8 @@ namespace Tank::App
         error.clear();
         if (!world.State().fixedTurrets.empty())
         { error = "Enemy world must be empty before placement"; return false; }
+        std::string validatedJson;
+        if (!Map::SerializeManifest(manifest, validatedJson, error)) return false;
         std::vector<const Physics::EnemyUnitType*> types;
         for (const auto& enemy : manifest.enemies)
         {
@@ -42,6 +44,8 @@ namespace Tank::App
             if (!world.AddFixedTurret({p[0], p[1], p[2]}, {1, 1, 1}, 60, q, enemy.id, *types[i]))
             { error = "Cannot spawn enemy " + enemy.id; return false; }
         }
+        if (!world.ConfigureEnemyGroups(manifest.enemyGroups))
+        { error = "Cannot configure enemy groups"; return false; }
         return true;
     }
 }
