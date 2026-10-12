@@ -3,7 +3,7 @@
         {
             "brakeButton": 3,
             "controlType": "typeA",
-            "deadzone": 0.029999999329447746,
+            "deadzone": 0.05000000074505806,
             "fireButton": 13,
             "id": "elecom-056e-200a",
             "invertLeftRoll": false,
