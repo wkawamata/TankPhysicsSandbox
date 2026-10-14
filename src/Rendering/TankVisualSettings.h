@@ -21,6 +21,8 @@ namespace Tank::Rendering
     struct TankVisualSettings
     {
         float gltfModelScale = 1.0f;
+        // The glTF tank body is shown by default, so hide the overlapping dummy
+        // body unless the user explicitly enables it.
         bool showDummyBody = false;
         bool showDummyWheels = true;
         bool showDummyTrackShoes = true;
