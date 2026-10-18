@@ -26,7 +26,8 @@ int main()
         Manifest source;
         source.playerSpawn = { { 3.0f, 2.5f, -4.0f }, { 10.0f, 90.0f, -15.0f } };
         source.instances = {
-            { "building-001", "Models/Building.glb", { { 10.0f, 0.0f, 20.0f }, { 5.0f, 90.0f, -20.0f }, 1.75f } },
+            { "building-001", "Models/Building.glb", { { 10.0f, 0.0f, 20.0f },
+                { 5.0f, 90.0f, -20.0f }, { 1.75f, 0.8f, 2.3f } } },
             { "building-002", "Models/Building.glb", { { -10.0f, 0.0f, 20.0f }, {} } },
             { "ramp-001", "Ramp.gltf", {} }
         };
@@ -50,8 +51,8 @@ int main()
         Check(SerializeManifest(loaded, roundTrip, error) && roundTrip == text, "All fields survive round trip");
         Check(loaded.instances.size() == 3 && loaded.clearAreas.size() == 2,
             "Repeated assets and multiple areas are retained");
-        Check(loaded.instances[0].transform.scale == 1.75f,
-            "Instance scale survives round trip");
+        Check(loaded.instances[0].transform.scale == source.instances[0].transform.scale,
+            "Per-axis instance scale survives round trip");
 
         Check(loaded.enemies.size() == 2 && loaded.enemies[0].unitType == "Type 0" &&
             loaded.enemies[0].position == source.enemies[0].position &&
@@ -232,6 +233,13 @@ int main()
             bad["instances"][0]["scale"] = scale;
             Reject(bad.dump());
         }
+        for (const Json scale : { Json::array({1.0, 0.0, 1.0}), Json::array({1.0, -1.0, 1.0}),
+                 Json::array({1.0, "1", 1.0}), Json::array({1.0, 1e100, 1.0}) })
+        {
+            auto bad = valid;
+            bad["instances"][0]["scale"] = scale;
+            Reject(bad.dump());
+        }
         auto withoutEnemies = valid;
         withoutEnemies.erase("enemies");
         withoutEnemies.erase("enemyGroups");
@@ -244,8 +252,14 @@ int main()
             "Nonfinite enemy rotation preserves saved output");
         auto legacy = valid;
         legacy["instances"][0].erase("scale");
-        Check(DeserializeManifest(legacy.dump(), loaded, error) && loaded.instances[0].transform.scale == 1.0f,
+        Check(DeserializeManifest(legacy.dump(), loaded, error) &&
+            loaded.instances[0].transform.scale == std::array<float, 3>{1.0f, 1.0f, 1.0f},
             "Manifest without scale keeps the unit-scale default");
+        legacy = valid;
+        legacy["instances"][0]["scale"] = 1.75;
+        Check(DeserializeManifest(legacy.dump(), loaded, error) &&
+            loaded.instances[0].transform.scale == std::array<float, 3>{1.75f, 1.75f, 1.75f},
+            "Legacy scalar scale is expanded uniformly to XYZ");
         auto invalid = source;
         invalid.playerSpawn.position[0] = std::numeric_limits<float>::infinity();
         std::string unchanged = "previous output";

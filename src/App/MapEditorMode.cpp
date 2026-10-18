@@ -466,7 +466,7 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
     const auto mode = m_gizmoLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
     const bool scaleOperation = m_gizmoOperation == GizmoOperation::Scale;
     const auto operation = m_gizmoOperation == GizmoOperation::Rotate ? ImGuizmo::ROTATE :
-        (scaleOperation ? ImGuizmo::SCALEU : ImGuizmo::TRANSLATE);
+        (scaleOperation ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE);
 
     if (!m_selectedInstanceId.empty())
     {
@@ -479,7 +479,7 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
         auto matrix = Tank::Rendering::EnemyPlacementMatrix(pose);
         if (scaleOperation)
             DirectX::XMStoreFloat4x4(&matrix, DirectX::XMMatrixScaling(
-                selected->transform.scale, selected->transform.scale, selected->transform.scale) *
+                selected->transform.scale[0], selected->transform.scale[1], selected->transform.scale[2]) *
                 DirectX::XMLoadFloat4x4(&matrix));
         if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
         {
@@ -493,7 +493,12 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
                 DirectX::XMVECTOR scale, rotation, translation;
                 if (DirectX::XMMatrixDecompose(&scale, &rotation, &translation,
                     DirectX::XMLoadFloat4x4(&matrix)))
-                    transform.scale = std::clamp(DirectX::XMVectorGetX(scale), 0.1f, 20.0f);
+                {
+                    transform.scale = {
+                        std::clamp(DirectX::XMVectorGetX(scale), 0.1f, 20.0f),
+                        std::clamp(DirectX::XMVectorGetY(scale), 0.1f, 20.0f),
+                        std::clamp(DirectX::XMVectorGetZ(scale), 0.1f, 20.0f) };
+                }
             }
             UpdateSelectedInstance(transform);
         }
@@ -976,8 +981,9 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 const bool rotationChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
                     "Rotation (deg)", transform.rotationDegrees.data(), -360.0f, 360.0f, 1.0f,
                     defaultRotation, "%.1f");
-                const bool scaleChanged = ImGuiWidgets::SliderFloatWithControls(
-                    "Scale", &transform.scale, 0.1f, 20.0f, 0.01f, 1.0f, "%.2f x");
+                static constexpr float defaultScale[3] = { 1.0f, 1.0f, 1.0f };
+                const bool scaleChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
+                    "Scale", transform.scale.data(), 0.1f, 20.0f, 0.01f, defaultScale, "%.2f x");
                 if ((positionChanged || rotationChanged || scaleChanged) && !UpdateSelectedInstance(transform))
                     m_status = "Transform preview was not updated.";
             }

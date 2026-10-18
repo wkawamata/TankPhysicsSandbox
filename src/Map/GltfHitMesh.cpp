@@ -422,9 +422,10 @@ namespace Tank::Map
                 return false;
             }
         }
-        if (!std::isfinite(transform.scale) || transform.scale <= 0.0f)
+        if (!std::all_of(transform.scale.begin(), transform.scale.end(),
+            [](float value) { return std::isfinite(value) && value > 0.0f; }))
         {
-            error = "HitMesh placement scale must be positive and finite.";
+            error = "HitMesh placement scale XYZ must be positive and finite.";
             return false;
         }
 
@@ -438,12 +439,15 @@ namespace Tank::Map
                 error = "HitMesh vertex must be finite before placement.";
                 return false;
             }
-            const float x = transform.scale * (vertex[0] * matrix[0][0] + vertex[1] * matrix[1][0] +
-                vertex[2] * matrix[2][0]) + transform.position[0];
-            const float y = transform.scale * (vertex[0] * matrix[0][1] + vertex[1] * matrix[1][1] +
-                vertex[2] * matrix[2][1]) + transform.position[1];
-            const float z = transform.scale * (vertex[0] * matrix[0][2] + vertex[1] * matrix[1][2] +
-                vertex[2] * matrix[2][2]) + transform.position[2];
+            const float x = transform.scale[0] * vertex[0] * matrix[0][0] +
+                transform.scale[1] * vertex[1] * matrix[1][0] +
+                transform.scale[2] * vertex[2] * matrix[2][0] + transform.position[0];
+            const float y = transform.scale[0] * vertex[0] * matrix[0][1] +
+                transform.scale[1] * vertex[1] * matrix[1][1] +
+                transform.scale[2] * vertex[2] * matrix[2][1] + transform.position[1];
+            const float z = transform.scale[0] * vertex[0] * matrix[0][2] +
+                transform.scale[1] * vertex[1] * matrix[1][2] +
+                transform.scale[2] * vertex[2] * matrix[2][2] + transform.position[2];
             if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z))
             {
                 error = "HitMesh placement produced a non-finite vertex.";

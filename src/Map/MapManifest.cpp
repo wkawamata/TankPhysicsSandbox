@@ -39,20 +39,32 @@ namespace Tank::Map
             return result;
         }
 
+        std::array<float, 3> ReadScale(const Json& value)
+        {
+            std::array<float, 3> result{};
+            if (value.is_number())
+            {
+                const double uniformScale = value.get<double>();
+                Require(std::isfinite(uniformScale) && uniformScale > 0.0 &&
+                    uniformScale <= static_cast<double>((std::numeric_limits<float>::max)()),
+                    "scale must be a positive finite float or XYZ array");
+                result.fill(static_cast<float>(uniformScale));
+                return result;
+            }
+
+            result = ReadVector(value, "scale");
+            Require(std::all_of(result.begin(), result.end(), [](float component) { return component > 0.0f; }),
+                "scale XYZ components must be positive");
+            return result;
+        }
+
         Transform ReadTransform(const Json& value)
         {
             Transform transform = {
                 ReadVector(value.at("position"), "position"),
                 ReadVector(value.at("rotationDegrees"), "rotationDegrees") };
             if (const auto scale = value.find("scale"); scale != value.end())
-            {
-                Require(scale->is_number(), "scale must be a number");
-                const double scaleValue = scale->get<double>();
-                Require(std::isfinite(scaleValue) && scaleValue > 0.0 &&
-                    scaleValue <= static_cast<double>((std::numeric_limits<float>::max)()),
-                    "scale must be a positive finite float");
-                transform.scale = static_cast<float>(scaleValue);
-            }
+                transform.scale = ReadScale(*scale);
             return transform;
         }
 

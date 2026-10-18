@@ -21,7 +21,7 @@ namespace
     DirectX::XMMATRIX ToWorld(const Tank::Map::Transform& transform)
     {
         constexpr float degreesToRadians = DirectX::XM_PI / 180.0f;
-        return DirectX::XMMatrixScaling(transform.scale, transform.scale, transform.scale) *
+        return DirectX::XMMatrixScaling(transform.scale[0], transform.scale[1], transform.scale[2]) *
             DirectX::XMMatrixRotationRollPitchYaw(
                    transform.rotationDegrees[0] * degreesToRadians,
                    transform.rotationDegrees[1] * degreesToRadians,

@@ -109,12 +109,19 @@ int main()
             Near(placed.vertices[0][2], 29.0f),
             "Manifest yaw and translation match the renderer roll-pitch-yaw matrix");
 
-        transform.scale = 2.0f;
+        transform.scale = { 2.0f, 2.0f, 2.0f };
         Check(Tank::Map::TransformHitMesh(mesh, transform, placed, error),
-            "Apply uniform Manifest scale to HitMesh");
+            "Apply uniform XYZ Manifest scale to HitMesh");
         Check(Near(placed.vertices[0][0], 4.0f) && Near(placed.vertices[0][1], 24.0f) &&
             Near(placed.vertices[0][2], 28.0f),
             "HitMesh scale is applied before yaw and translation");
+
+        transform.scale = { 2.0f, 3.0f, 4.0f };
+        Check(Tank::Map::TransformHitMesh(mesh, transform, placed, error),
+            "Apply nonuniform XYZ Manifest scale to HitMesh");
+        Check(Near(placed.vertices[0][0], -2.0f) && Near(placed.vertices[0][1], 26.0f) &&
+            Near(placed.vertices[0][2], 28.0f),
+            "Nonuniform HitMesh scale is applied per local axis before rotation and translation");
 
         const std::vector<uint8_t> binary = ReadBytes(fixture.parent_path() / "triangle-visual-hit.bin");
         const std::vector<uint8_t> jsonBytes = ReadBytes(fixture);
