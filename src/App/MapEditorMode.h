@@ -18,8 +18,8 @@ class MapEditorMode
 public:
     // Returns true when the user has completed a request to return to the menu.
     bool DrawUi(HWND__* owner);
-    void DrawEnemyGizmo(const Engine::CameraState& camera, float aspectRatio);
-    bool EnemyGizmoCapturesMouse() const;
+    void DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio);
+    bool PlacementGizmoCapturesMouse() const;
     void RequestExit();
     void RequestApplicationExit();
     using AssetValidator = std::function<bool(const std::filesystem::path&, const Tank::Map::GltfRoles&, std::string&)>;
@@ -93,9 +93,11 @@ private:
     std::vector<std::string> m_enemyTypes;
     std::string m_selectedEnemyType;
     bool m_enemyCatalogInitialized = false;
-    bool m_enemyGizmoEnabled = true;
-    bool m_enemyGizmoRotate = false;
-    bool m_enemyGizmoLocal = false;
+    bool m_gizmoEnabled = true;
+    enum class GizmoOperation { Translate, Rotate, Scale };
+    GizmoOperation m_gizmoOperation = GizmoOperation::Translate;
+    bool m_gizmoLocal = false;
+    bool m_playerStartGizmoSelected = false;
     bool m_sceneReloadRequested = false;
     bool m_focusSelectedRequested = false;
     bool m_applicationExitApproved = false;

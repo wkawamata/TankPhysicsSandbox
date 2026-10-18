@@ -963,7 +963,7 @@ bool TankSandboxApp::EnsureDebugCameraForMouse()
     }
     if (m_appMode == AppMode::MapEditor)
     {
-        if (m_mapEditorMode.EnemyGizmoCapturesMouse())
+        if (m_mapEditorMode.PlacementGizmoCapturesMouse())
         {
             m_debugCameraController.ResetInputState();
             return false;
@@ -1857,9 +1857,9 @@ void TankSandboxApp::DrawToolUi()
         const bool leaveMapEditor = m_mapEditorMode.DrawUi(Win32Application::GetHwnd());
         if (!leaveMapEditor)
         {
-            m_mapEditorMode.DrawEnemyGizmo(m_mapEditorScenePresenter.GetScene().camera,
+            m_mapEditorMode.DrawPlacementGizmo(m_mapEditorScenePresenter.GetScene().camera,
                 m_windowInfo.aspectRatio);
-            if (m_mapEditorMode.EnemyGizmoCapturesMouse())
+            if (m_mapEditorMode.PlacementGizmoCapturesMouse())
                 m_debugCameraController.ResetInputState();
         }
         if (leaveMapEditor)

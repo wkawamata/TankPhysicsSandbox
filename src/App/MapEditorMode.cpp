@@ -8,6 +8,7 @@
 #include <Scene/CameraView.h>
 #include <Scene/CameraProjection.h>
 #include <imgui.h>
+#include <ImGuiWidgets.h>
 #include <third_party/ImGuizmo/ImGuizmo.h>
 #include <fstream>
 #include <iterator>
@@ -61,6 +62,7 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     m_hiddenInstanceIds.clear();
     m_selectedClearAreaId.clear();
     m_selectedEnemyId.clear();
+    m_playerStartGizmoSelected = false;
     auto catalogPath = m_map.Folder() / "enemy_types.json";
     if (!std::filesystem::exists(catalogPath))
         catalogPath = std::filesystem::path(TANK_SOURCE_CONFIG_DIR) / "enemy_types.json";
@@ -200,6 +202,9 @@ bool MapEditorMode::AddSelectedModel()
     }
     m_sceneReloadRequested = true;
     m_selectedInstanceId = updated.instances.back().id;
+    m_selectedEnemyId.clear();
+    m_selectedClearAreaId.clear();
+    m_playerStartGizmoSelected = false;
     m_focusSelectedRequested = true;
     m_status = "Added " + m_selectedAsset + ". Save to write Manifest.json.";
     return true;
@@ -257,6 +262,7 @@ bool MapEditorMode::RemoveSelectedInstance()
     }
     m_hiddenInstanceIds.erase(m_selectedInstanceId);
     m_selectedInstanceId.clear();
+    m_playerStartGizmoSelected = false;
     m_focusSelectedRequested = false;
     m_sceneReloadRequested = true;
     m_status = "Removed " + removedAsset + ". Save to write Manifest.json.";
@@ -307,6 +313,9 @@ bool MapEditorMode::AddClearArea()
         return false;
     }
     m_selectedClearAreaId = id;
+    m_selectedInstanceId.clear();
+    m_selectedEnemyId.clear();
+    m_playerStartGizmoSelected = false;
     m_sceneReloadRequested = true;
     m_status = "Added clear area. Save to write Manifest.json.";
     return true;
@@ -387,6 +396,8 @@ bool MapEditorMode::AddSelectedEnemy()
     if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
     m_selectedEnemyId = id;
     m_selectedInstanceId.clear();
+    m_selectedClearAreaId.clear();
+    m_playerStartGizmoSelected = false;
     m_sceneReloadRequested = true;
     m_focusSelectedRequested = true;
     m_status = "Added enemy. Set position/rotation, then Save.";
@@ -413,29 +424,36 @@ bool MapEditorMode::RemoveSelectedEnemy()
     std::string error;
     if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
     m_selectedEnemyId.clear();
+    m_playerStartGizmoSelected = false;
     m_sceneReloadRequested = true;
     m_focusSelectedRequested = false;
     m_status = "Removed enemy. Save to write Manifest.json.";
     return true;
 }
 
-bool MapEditorMode::EnemyGizmoCapturesMouse() const
+bool MapEditorMode::PlacementGizmoCapturesMouse() const
 {
-    return m_enemyGizmoEnabled && !m_selectedEnemyId.empty() &&
+    const bool hasSelection = !m_selectedEnemyId.empty() || !m_selectedInstanceId.empty() ||
+        !m_selectedClearAreaId.empty() || m_playerStartGizmoSelected;
+    return m_gizmoEnabled && hasSelection &&
         (ImGuizmo::IsOver() || ImGuizmo::IsUsingAny());
 }
 
-void MapEditorMode::DrawEnemyGizmo(const Engine::CameraState& camera, float aspectRatio)
+void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio)
 {
-    if (!m_map.IsOpen() || !m_enemyGizmoEnabled || m_confirm || m_pending != Action::None)
+    if (!m_map.IsOpen() || !m_gizmoEnabled || m_confirm || m_pending != Action::None)
     {
         ImGuizmo::Enable(false);
         return;
     }
-    const auto& enemies = m_map.Document().enemies;
-    const auto selected = std::find_if(enemies.begin(), enemies.end(),
-        [this](const auto& enemy) { return enemy.id == m_selectedEnemyId; });
-    if (selected == enemies.end()) { ImGuizmo::Enable(false); return; }
+    auto& document = m_map.Document();
+    const bool hasSelection = !m_selectedEnemyId.empty() || !m_selectedInstanceId.empty() ||
+        !m_selectedClearAreaId.empty() || m_playerStartGizmoSelected;
+    if (!hasSelection) { ImGuizmo::Enable(false); return; }
+    if ((!m_selectedClearAreaId.empty() && m_gizmoOperation == GizmoOperation::Rotate) ||
+        ((!m_selectedEnemyId.empty() || m_playerStartGizmoSelected) &&
+            m_gizmoOperation == GizmoOperation::Scale))
+        m_gizmoOperation = GizmoOperation::Translate;
     // Keep the viewport gizmo below editor panels and don't start a drag through them.
     ImGuizmo::Enable(ImGuizmo::IsUsingAny() || !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow));
     ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
@@ -445,11 +463,101 @@ void MapEditorMode::DrawEnemyGizmo(const Engine::CameraState& camera, float aspe
     DirectX::XMFLOAT4X4 view, projection;
     DirectX::XMStoreFloat4x4(&view, Engine::CreateCameraViewMatrix(camera));
     DirectX::XMStoreFloat4x4(&projection, Engine::CreateCameraProjectionMatrix(camera, aspectRatio));
-    auto matrix = Tank::Rendering::EnemyPlacementMatrix(*selected);
-    const auto operation = m_enemyGizmoRotate ? ImGuizmo::ROTATE : ImGuizmo::TRANSLATE;
-    const auto mode = m_enemyGizmoLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
-    if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
-        UpdateSelectedEnemy(Tank::Rendering::EnemyPlacementFromGizmo(*selected, matrix, m_enemyGizmoRotate));
+    const auto mode = m_gizmoLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+    const bool scaleOperation = m_gizmoOperation == GizmoOperation::Scale;
+    const auto operation = m_gizmoOperation == GizmoOperation::Rotate ? ImGuizmo::ROTATE :
+        (scaleOperation ? ImGuizmo::SCALEU : ImGuizmo::TRANSLATE);
+
+    if (!m_selectedInstanceId.empty())
+    {
+        const auto selected = std::find_if(document.instances.begin(), document.instances.end(),
+            [this](const auto& item) { return item.id == m_selectedInstanceId; });
+        if (selected == document.instances.end()) { ImGuizmo::Enable(false); return; }
+        Tank::Map::EnemyPlacement pose;
+        pose.position = selected->transform.position;
+        pose.rotationDegrees = selected->transform.rotationDegrees;
+        auto matrix = Tank::Rendering::EnemyPlacementMatrix(pose);
+        if (scaleOperation)
+            DirectX::XMStoreFloat4x4(&matrix, DirectX::XMMatrixScaling(
+                selected->transform.scale, selected->transform.scale, selected->transform.scale) *
+                DirectX::XMLoadFloat4x4(&matrix));
+        if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
+        {
+            const bool rotationChanged = m_gizmoOperation == GizmoOperation::Rotate;
+            pose = Tank::Rendering::EnemyPlacementFromGizmo(pose, matrix, rotationChanged);
+            auto transform = selected->transform;
+            transform.position = pose.position;
+            transform.rotationDegrees = pose.rotationDegrees;
+            if (scaleOperation)
+            {
+                DirectX::XMVECTOR scale, rotation, translation;
+                if (DirectX::XMMatrixDecompose(&scale, &rotation, &translation,
+                    DirectX::XMLoadFloat4x4(&matrix)))
+                    transform.scale = std::clamp(DirectX::XMVectorGetX(scale), 0.1f, 20.0f);
+            }
+            UpdateSelectedInstance(transform);
+        }
+        return;
+    }
+
+    if (!m_selectedEnemyId.empty())
+    {
+        const auto selected = std::find_if(document.enemies.begin(), document.enemies.end(),
+            [this](const auto& item) { return item.id == m_selectedEnemyId; });
+        if (selected == document.enemies.end()) { ImGuizmo::Enable(false); return; }
+        if (scaleOperation) return;
+        auto matrix = Tank::Rendering::EnemyPlacementMatrix(*selected);
+        if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
+            UpdateSelectedEnemy(Tank::Rendering::EnemyPlacementFromGizmo(
+                *selected, matrix, m_gizmoOperation == GizmoOperation::Rotate));
+        return;
+    }
+
+    if (m_playerStartGizmoSelected)
+    {
+        if (scaleOperation) return;
+        Tank::Map::EnemyPlacement pose;
+        pose.position = document.playerSpawn.position;
+        pose.rotationDegrees = document.playerSpawn.rotationDegrees;
+        auto matrix = Tank::Rendering::EnemyPlacementMatrix(pose);
+        if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
+        {
+            pose = Tank::Rendering::EnemyPlacementFromGizmo(
+                pose, matrix, m_gizmoOperation == GizmoOperation::Rotate);
+            auto transform = document.playerSpawn;
+            transform.position = pose.position;
+            transform.rotationDegrees = pose.rotationDegrees;
+            UpdatePlayerSpawn(transform);
+        }
+        return;
+    }
+
+    const auto selected = std::find_if(document.clearAreas.begin(), document.clearAreas.end(),
+        [this](const auto& item) { return item.id == m_selectedClearAreaId; });
+    if (selected == document.clearAreas.end()) { ImGuizmo::Enable(false); return; }
+    if (m_gizmoOperation == GizmoOperation::Rotate) return;
+    DirectX::XMFLOAT4X4 matrix;
+    DirectX::XMStoreFloat4x4(&matrix,
+        DirectX::XMMatrixScaling(selected->size[0], selected->size[1], selected->size[2]) *
+        DirectX::XMMatrixTranslation(selected->center[0], selected->center[1], selected->center[2]));
+    const auto areaOperation = scaleOperation ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
+    if (ImGuizmo::Manipulate(&view._11, &projection._11, areaOperation, ImGuizmo::WORLD, &matrix._11))
+    {
+        Tank::Map::ClearArea area = *selected;
+        area.center = { matrix._41, matrix._42, matrix._43 };
+        if (scaleOperation)
+        {
+            DirectX::XMVECTOR scale, rotation, translation;
+            if (DirectX::XMMatrixDecompose(&scale, &rotation, &translation,
+                DirectX::XMLoadFloat4x4(&matrix)))
+            {
+                area.size = { (std::max)(0.01f, DirectX::XMVectorGetX(scale)),
+                    (std::max)(0.01f, DirectX::XMVectorGetY(scale)),
+                    (std::max)(0.01f, DirectX::XMVectorGetZ(scale)) };
+            }
+        }
+        UpdateSelectedClearArea(area);
+    }
 }
 
 void MapEditorMode::DrawEnemies()
@@ -500,6 +608,9 @@ void MapEditorMode::DrawEnemies()
             {
                 m_selectedEnemyId = enemies[i].id;
                 m_selectedInstanceId.clear();
+                m_selectedClearAreaId.clear();
+                m_playerStartGizmoSelected = false;
+                if (m_gizmoOperation == GizmoOperation::Scale) m_gizmoOperation = GizmoOperation::Translate;
                 m_sceneReloadRequested = true;
                 m_focusSelectedRequested = true;
             }
@@ -517,8 +628,12 @@ void MapEditorMode::DrawEnemies()
         if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), enemy.unitType) == m_enemyTypes.end())
             ImGui::TextWrapped("Type is missing from loaded catalog: %s", enemy.unitType.c_str());
         bool changed = typeCombo("Placement type", enemy.unitType);
-        changed |= ImGui::DragFloat3("Position (m)##Enemy", enemy.position.data(), 0.05f);
-        changed |= ImGui::DragFloat3("Rotation (deg)##Enemy", enemy.rotationDegrees.data(), 1.0f);
+        static constexpr float defaultPosition[3] = { 0.0f, 0.0f, 0.0f };
+        static constexpr float defaultRotation[3] = { 0.0f, 0.0f, 0.0f };
+        changed |= ImGuiWidgets::SliderFloat3WithControls(
+            "Position (m)##Enemy", enemy.position.data(), -10000.0f, 10000.0f, 0.05f, defaultPosition, "%.2f");
+        changed |= ImGuiWidgets::SliderFloat3WithControls(
+            "Rotation (deg)##Enemy", enemy.rotationDegrees.data(), -360.0f, 360.0f, 1.0f, defaultRotation, "%.1f");
         if (changed) UpdateSelectedEnemy(enemy);
         if (ImGui::Button("Focus Enemy")) { m_sceneReloadRequested = true; m_focusSelectedRequested = true; }
         ImGui::SameLine();
@@ -570,7 +685,7 @@ void MapEditorMode::DrawCheatSheet()
         ImGui::BulletText("Player Start: chassis-center position and rotation");
         ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
         ImGui::BulletText("Clear Areas: goal AABB center and size");
-        ImGui::BulletText("Enemies: select a placement, then drag the Move/Rotate gizmo");
+        ImGui::BulletText("Select a model, enemy, clear area, or player start; drag the Move/Rotate/Scale gizmo");
         ImGui::BulletText("Local: unit axes; unchecked: world axes");
         ImGui::BulletText("Save: write changes to Manifest.json");
 
@@ -658,13 +773,23 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
     ImGui::Checkbox("Show Cheat Sheet", &m_showCheatSheet);
-    ImGui::Checkbox("Enemy Gizmo", &m_enemyGizmoEnabled);
+    ImGui::Checkbox("Placement Gizmo", &m_gizmoEnabled);
     ImGui::SameLine();
-    if (ImGui::RadioButton("Move", !m_enemyGizmoRotate)) m_enemyGizmoRotate = false;
+    if (ImGui::RadioButton("Move", m_gizmoOperation == GizmoOperation::Translate))
+        m_gizmoOperation = GizmoOperation::Translate;
     ImGui::SameLine();
-    if (ImGui::RadioButton("Rotate", m_enemyGizmoRotate)) m_enemyGizmoRotate = true;
+    ImGui::BeginDisabled(!m_selectedClearAreaId.empty());
+    if (ImGui::RadioButton("Rotate", m_gizmoOperation == GizmoOperation::Rotate))
+        m_gizmoOperation = GizmoOperation::Rotate;
+    ImGui::EndDisabled();
     ImGui::SameLine();
-    ImGui::Checkbox("Local", &m_enemyGizmoLocal);
+    const bool canScaleSelection = !m_selectedInstanceId.empty() || !m_selectedClearAreaId.empty();
+    ImGui::BeginDisabled(!canScaleSelection);
+    if (ImGui::RadioButton("Scale", m_gizmoOperation == GizmoOperation::Scale))
+        m_gizmoOperation = GizmoOperation::Scale;
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::Checkbox("Local", &m_gizmoLocal);
     ImGui::Separator();
     ImGui::BeginChild("##MapEditorScrollArea", ImVec2(0.0f, 0.0f), false);
     ImGui::SeparatorText("Maps in Assets/Map");
@@ -706,15 +831,22 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         ImGui::Text("Player start: %.2f, %.2f, %.2f m", document.playerSpawn.position[0],
             document.playerSpawn.position[1], document.playerSpawn.position[2]);
         ImGui::SeparatorText("Grid");
-        bool gridChanged = ImGui::DragFloat("Spacing (m)", &m_gridSpacingMeters, 0.05f, 0.1f, 100.0f, "%.2f");
-        gridChanged |= ImGui::SliderInt("Half cells", &m_gridHalfCellCount, 1, 100);
-        gridChanged |= ImGui::DragFloat("Line width (m)", &m_gridLineWidthMeters, 0.005f, 0.005f, 0.2f, "%.3f");
+        bool gridChanged = ImGuiWidgets::SliderFloatWithControls(
+            "Spacing (m)", &m_gridSpacingMeters, 0.1f, 100.0f, 0.05f, 1.0f, "%.2f");
+        gridChanged |= ImGuiWidgets::SliderIntWithControls(
+            "Half cells", &m_gridHalfCellCount, 1, 100, 1, 10);
+        gridChanged |= ImGuiWidgets::SliderFloatWithControls(
+            "Line width (m)", &m_gridLineWidthMeters, 0.005f, 0.2f, 0.005f, 0.02f, "%.3f");
         if (gridChanged) m_sceneReloadRequested = true;
         ImGui::SeparatorText("Mesh Display");
         bool meshDisplayChanged = ImGui::Checkbox("Show Visual Meshes", &m_showVisualMeshes);
         ImGui::SameLine();
         meshDisplayChanged |= ImGui::Checkbox("Show Hit Meshes", &m_showHitMeshes);
-        meshDisplayChanged |= ImGui::ColorEdit3("Visual Mesh Color", m_visualMeshColor.data());
+        static constexpr float defaultVisualMeshColor[3] = {
+            80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
+        meshDisplayChanged |= ImGuiWidgets::SliderFloat3WithControls(
+            "Visual Mesh Color", m_visualMeshColor.data(), 0.0f, 1.0f, 0.01f,
+            defaultVisualMeshColor, "%.2f");
         if (meshDisplayChanged) m_sceneReloadRequested = true;
         ImGui::TextDisabled("Display only. Hit collision remains active during play.");
         if (!m_previewWarning.empty())
@@ -805,6 +937,9 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     {
                         m_selectedInstanceId = instance.id;
                         m_selectedEnemyId.clear();
+                        m_selectedClearAreaId.clear();
+                        m_playerStartGizmoSelected = false;
+                        if (m_gizmoOperation == GizmoOperation::Rotate) m_gizmoOperation = GizmoOperation::Translate;
                         m_sceneReloadRequested = true;
                         m_focusSelectedRequested = true;
                     }
@@ -832,9 +967,16 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 {
                     DuplicateSelectedInstance();
                 }
-                const bool positionChanged = ImGui::DragFloat3("Position (m)", transform.position.data(), 0.05f);
-                const bool rotationChanged = ImGui::DragFloat3("Rotation (deg)", transform.rotationDegrees.data(), 1.0f);
-                const bool scaleChanged = ImGui::DragFloat("Scale", &transform.scale, 0.01f, 0.1f, 20.0f, "%.2f x");
+                static constexpr float defaultPosition[3] = { 0.0f, 0.0f, 0.0f };
+                static constexpr float defaultRotation[3] = { 0.0f, 0.0f, 0.0f };
+                const bool positionChanged = ImGuiWidgets::SliderFloat3WithControls(
+                    "Position (m)", transform.position.data(), -10000.0f, 10000.0f, 0.05f,
+                    defaultPosition, "%.2f");
+                const bool rotationChanged = ImGuiWidgets::SliderFloat3WithControls(
+                    "Rotation (deg)", transform.rotationDegrees.data(), -360.0f, 360.0f, 1.0f,
+                    defaultRotation, "%.1f");
+                const bool scaleChanged = ImGuiWidgets::SliderFloatWithControls(
+                    "Scale", &transform.scale, 0.1f, 20.0f, 0.01f, 1.0f, "%.2f x");
                 if ((positionChanged || rotationChanged || scaleChanged) && !UpdateSelectedInstance(transform))
                     m_status = "Transform preview was not updated.";
             }
@@ -844,11 +986,23 @@ bool MapEditorMode::DrawUi(HWND__* owner)
 
         ImGui::SeparatorText("Player Start");
         ImGui::TextWrapped("Position is the tank chassis center. Keep Y above the HitMesh.");
+        if (ImGui::Selectable("Select Player Start for Gizmo", m_playerStartGizmoSelected))
+        {
+            m_playerStartGizmoSelected = !m_playerStartGizmoSelected;
+            m_selectedInstanceId.clear();
+            m_selectedEnemyId.clear();
+            m_selectedClearAreaId.clear();
+            m_gizmoOperation = GizmoOperation::Translate;
+        }
         Tank::Map::Transform playerSpawn = document.playerSpawn;
-        const bool spawnPositionChanged =
-            ImGui::DragFloat3("Position (m)##PlayerStart", playerSpawn.position.data(), 0.05f);
-        const bool spawnRotationChanged =
-            ImGui::DragFloat3("Rotation (deg)##PlayerStart", playerSpawn.rotationDegrees.data(), 1.0f);
+        static constexpr float defaultSpawnPosition[3] = { 0.0f, 2.0f, 0.0f };
+        static constexpr float defaultSpawnRotation[3] = { 0.0f, 0.0f, 0.0f };
+        const bool spawnPositionChanged = ImGuiWidgets::SliderFloat3WithControls(
+            "Position (m)##PlayerStart", playerSpawn.position.data(), -10000.0f, 10000.0f, 0.05f,
+            defaultSpawnPosition, "%.2f");
+        const bool spawnRotationChanged = ImGuiWidgets::SliderFloat3WithControls(
+            "Rotation (deg)##PlayerStart", playerSpawn.rotationDegrees.data(), -360.0f, 360.0f, 1.0f,
+            defaultSpawnRotation, "%.1f");
         if ((spawnPositionChanged || spawnRotationChanged) && !UpdatePlayerSpawn(playerSpawn))
             m_status = "Player start preview was not updated.";
 
@@ -868,7 +1022,13 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     ImGui::PushID(static_cast<int>(index));
                     const std::string label = area.id + "  (" + area.name + ")";
                     if (ImGui::Selectable(label.c_str(), area.id == m_selectedClearAreaId))
+                    {
                         m_selectedClearAreaId = area.id;
+                        m_selectedInstanceId.clear();
+                        m_selectedEnemyId.clear();
+                        m_playerStartGizmoSelected = false;
+                        if (m_gizmoOperation == GizmoOperation::Rotate) m_gizmoOperation = GizmoOperation::Translate;
+                    }
                     ImGui::PopID();
                 }
                 ImGui::EndListBox();
@@ -879,10 +1039,14 @@ bool MapEditorMode::DrawUi(HWND__* owner)
             {
                 Tank::Map::ClearArea area = *selected;
                 bool areaChanged = ImGui::InputText("Name##ClearArea", &area.name);
-                areaChanged |= ImGui::DragFloat3(
-                    "Center (m)##ClearArea", area.center.data(), 0.05f);
-                areaChanged |= ImGui::DragFloat3(
-                    "Size (m)##ClearArea", area.size.data(), 0.05f, 0.01f, 10000.0f);
+                static constexpr float defaultCenter[3] = { 0.0f, 0.0f, 0.0f };
+                static constexpr float defaultSize[3] = { 1.0f, 1.0f, 1.0f };
+                areaChanged |= ImGuiWidgets::SliderFloat3WithControls(
+                    "Center (m)##ClearArea", area.center.data(), -10000.0f, 10000.0f, 0.05f,
+                    defaultCenter, "%.2f");
+                areaChanged |= ImGuiWidgets::SliderFloat3WithControls(
+                    "Size (m)##ClearArea", area.size.data(), 0.01f, 10000.0f, 0.05f,
+                    defaultSize, "%.2f");
                 if (areaChanged && !UpdateSelectedClearArea(area))
                     m_status = "Clear area preview was not updated.";
                 if (ImGui::Button("Remove Clear Area")) RemoveSelectedClearArea();
