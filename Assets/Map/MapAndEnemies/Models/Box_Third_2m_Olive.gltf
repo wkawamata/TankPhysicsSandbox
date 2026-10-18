@@ -1,0 +1,106 @@
+{
+  "asset": {
+    "version": "2.0"
+  },
+  "buffers": [
+    {
+      "byteLength": 168,
+      "uri": "data:application/octet-stream;base64,VVVVwAAAAABVVVXAVVVVQAAAAABVVVXAVVVVQAAAYEBVVVXAVVVVwAAAYEBVVVXAVVVVwAAAAABVVVVAVVVVQAAAAABVVVVAVVVVQAAAYEBVVVVAVVVVwAAAYEBVVVVAAAACAAEAAAADAAIABAAFAAYABAAGAAcAAAAEAAcAAAAHAAMAAQACAAYAAQAGAAUAAAABAAUAAAAFAAQAAwAHAAYAAwAGAAIA"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 96
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 96,
+      "byteLength": 72
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 8,
+      "type": "VEC3",
+      "min": [
+        -3.3333332538604736,
+        0,
+        -3.3333332538604736
+      ],
+      "max": [
+        3.3333332538604736,
+        3.5,
+        3.3333332538604736
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 36,
+      "type": "SCALAR"
+    }
+  ],
+  "materials": [
+    {
+      "name": "BoxOliveGreen",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.18,
+          0.22,
+          0.06,
+          1.0
+        ],
+        "metallicFactor": 0,
+        "roughnessFactor": 1.0
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "Visual",
+      "children": [
+        1
+      ]
+    },
+    {
+      "name": "BoxVisual",
+      "mesh": 0
+    },
+    {
+      "name": "Hit",
+      "children": [
+        3
+      ]
+    },
+    {
+      "name": "BoxCollision",
+      "mesh": 0
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": [
+        0,
+        2
+      ]
+    }
+  ],
+  "scene": 0
+}
