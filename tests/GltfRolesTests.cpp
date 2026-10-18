@@ -31,6 +31,18 @@ namespace
         file << text;
         if (badTail) file.put('x');
     }
+    void GlbWithBin(const std::filesystem::path& path, std::string text, std::string binary)
+    {
+        while (text.size() % 4) text += ' ';
+        while (binary.size() % 4) binary.push_back('\0');
+        std::ofstream file(path, std::ios::binary);
+        Word(file, 0x46546c67); Word(file, 2);
+        Word(file, static_cast<uint32_t>(text.size() + binary.size() + 28));
+        Word(file, static_cast<uint32_t>(text.size())); Word(file, 0x4e4f534a);
+        file << text;
+        Word(file, static_cast<uint32_t>(binary.size())); Word(file, 0x004e4942);
+        file.write(binary.data(), static_cast<std::streamsize>(binary.size()));
+    }
     struct Temporary
     {
         std::filesystem::path path = std::filesystem::temp_directory_path() /
@@ -95,6 +107,31 @@ int main()
         const auto gltf = temporary.path / "test.gltf";
         { std::ofstream file(gltf); file << valid; }
         Check(InspectGltfRoles(gltf, roles, error), "glTF JSON file");
+
+        const Json materialFixture = {
+            {"asset", {{"version", "2.0"}}},
+            {"materials", {{{"name", "Ground"}, {"pbrMetallicRoughness", {{"baseColorFactor", {0.18, 0.18, 0.18, 1.0}}}}}}}
+        };
+        { std::ofstream file(gltf); file << materialFixture.dump(); }
+        std::vector<GltfMaterialColor> materials;
+        Check(InspectGltfMaterialColors(gltf, materials, error) && materials.size() == 1 &&
+            materials[0].name == "Ground" && std::abs(materials[0].baseColorFactor[0] - 0.18f) < 0.001f,
+            "Read glTF material base color");
+        const std::array<float, 4> editedColor{ 0.1f, 0.3f, 0.7f, 1.0f };
+        Check(SaveGltfMaterialColor(gltf, 0, editedColor, error) &&
+            InspectGltfMaterialColors(gltf, materials, error) &&
+            std::abs(materials[0].baseColorFactor[2] - 0.7f) < 0.001f,
+            "Save and reload glTF material base color");
+        const auto coloredGlb = temporary.path / L"colored.GLB";
+        GlbWithBin(coloredGlb, materialFixture.dump(), "BIN!");
+        Check(SaveGltfMaterialColor(coloredGlb, 0, editedColor, error) &&
+            InspectGltfMaterialColors(coloredGlb, materials, error) &&
+            std::abs(materials[0].baseColorFactor[1] - 0.3f) < 0.001f,
+            "Save material color in GLB while retaining a valid container");
+        std::ifstream coloredGlbFile(coloredGlb, std::ios::binary);
+        const std::string coloredGlbBytes((std::istreambuf_iterator<char>(coloredGlbFile)), {});
+        Check(coloredGlbBytes.find("BIN!") != std::string::npos,
+            "Preserve embedded GLB binary data while editing material color");
 
         const std::filesystem::path meshFixture =
             std::filesystem::path(__FILE__).parent_path() / "Fixtures" / "MapEditor" / "triangle-visual-hit.gltf";

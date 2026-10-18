@@ -1,14 +1,13 @@
 #pragma once
 
 #include "Map/MapFolder.h"
-#include "Map/GltfRoles.h"
-
 #include <array>
 #include <functional>
 #include <optional>
 #include <string>
 #include <unordered_set>
 #include <utility>
+#include "Map/GltfRoles.h"
 
 struct HWND__;
 namespace Engine { struct CameraState; }
@@ -53,6 +52,7 @@ private:
     bool OpenMapFolder(const std::filesystem::path& folder, std::string& error);
     std::filesystem::path MapAssetsRoot() const;
     bool AddSelectedModel();
+    bool SaveSelectedMaterialColor();
     bool AddIndestructibleBox();
     bool UpdateSelectedInstance(const Tank::Map::Transform& transform);
     void SetSelectedInstanceVisible(bool visible);
@@ -84,6 +84,12 @@ private:
     Tank::Map::GltfRoles m_roles;
     std::string m_inspectedAsset;
     std::string m_roleError;
+    std::vector<Tank::Map::GltfMaterialColor> m_materialColors;
+    int m_selectedMaterialIndex = 0;
+    std::array<float, 4> m_materialColorEdit{ 1.0f, 1.0f, 1.0f, 1.0f };
+    bool m_materialColorLoaded = false;
+    bool m_materialOverrideFile = false;
+    std::string m_materialCopyName;
     std::string m_selectedInstanceId;
     std::unordered_set<std::string> m_hiddenInstanceIds;
     std::string m_selectedClearAreaId;

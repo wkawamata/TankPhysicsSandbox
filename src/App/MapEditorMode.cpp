@@ -210,6 +210,81 @@ bool MapEditorMode::AddSelectedModel()
     return true;
 }
 
+bool MapEditorMode::SaveSelectedMaterialColor()
+{
+    if (m_selectedAsset.empty() || !m_materialColorLoaded || m_selectedMaterialIndex < 0 ||
+        static_cast<size_t>(m_selectedMaterialIndex) >= m_materialColors.size())
+    {
+        m_status = "Select a material before saving its color.";
+        return false;
+    }
+    const std::u8string relativeUtf8(m_selectedAsset.begin(), m_selectedAsset.end());
+    const std::filesystem::path source = m_map.Folder() / std::filesystem::path(relativeUtf8);
+    std::filesystem::path destination = source;
+    if (!m_materialOverrideFile)
+    {
+        std::filesystem::path copyName(m_materialCopyName);
+        if (copyName.empty() || copyName.filename() != copyName || copyName == "." || copyName == "..")
+        {
+            m_status = "Enter a file name for the renamed copy.";
+            return false;
+        }
+        if (!copyName.has_extension()) copyName += source.extension();
+        if (copyName.extension() != source.extension())
+        {
+            m_status = "The copy must keep the source file extension.";
+            return false;
+        }
+        destination = source.parent_path() / copyName;
+        std::error_code error;
+        if (std::filesystem::exists(destination, error) || error)
+        {
+            m_status = error ? "Could not check copy destination: " + error.message() :
+                "A file with that name already exists.";
+            return false;
+        }
+        std::filesystem::copy_file(source, destination, std::filesystem::copy_options::none, error);
+        if (error)
+        {
+            m_status = "Could not copy model: " + error.message();
+            return false;
+        }
+    }
+
+    std::string error;
+    if (!Tank::Map::SaveGltfMaterialColor(destination,
+        static_cast<size_t>(m_selectedMaterialIndex), m_materialColorEdit, error))
+    {
+        if (!m_materialOverrideFile)
+        {
+            std::error_code ignored;
+            std::filesystem::remove(destination, ignored);
+        }
+        m_status = "Could not save material color: " + error;
+        return false;
+    }
+
+    const auto relative = std::filesystem::relative(destination, m_map.Folder());
+    const auto relativeUtf8Result = relative.u8string();
+    const std::string updatedAsset(relativeUtf8Result.begin(), relativeUtf8Result.end());
+    if (!m_materialOverrideFile)
+    {
+        m_selectedAsset = updatedAsset;
+        m_materialCopyName = destination.stem().string() + "_Color";
+    }
+    RefreshAssets();
+    m_selectedAsset = updatedAsset;
+    m_materialColors.clear();
+    m_materialColorLoaded = Tank::Map::InspectGltfMaterialColors(destination, m_materialColors, error) &&
+        static_cast<size_t>(m_selectedMaterialIndex) < m_materialColors.size();
+    if (m_materialColorLoaded)
+        m_materialColorEdit = m_materialColors[static_cast<size_t>(m_selectedMaterialIndex)].baseColorFactor;
+    if (m_inspectedAsset == updatedAsset) m_inspectedAsset.clear();
+    m_sceneReloadRequested = true;
+    m_status = std::string(m_materialOverrideFile ? "Updated " : "Saved renamed copy ") + updatedAsset;
+    return true;
+}
+
 bool MapEditorMode::UpdateSelectedInstance(const Tank::Map::Transform& transform)
 {
     Tank::Map::Manifest updated = m_map.Document();
@@ -883,6 +958,10 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     m_roles = {};
                     m_inspectedAsset.clear();
                     m_roleError.clear();
+                    m_materialColors.clear();
+                    m_materialColorLoaded = false;
+                    m_selectedMaterialIndex = 0;
+                    m_materialCopyName = std::filesystem::path(asset).stem().string() + "_Color";
                 }
                 ImGui::GetWindowDrawList()->AddText(labelPosition, ImGui::GetColorU32(ImGuiCol_Text), asset.c_str());
                 ImGui::PopID();
@@ -922,6 +1001,55 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     node.nodeIndex, node.meshIndex, node.name.empty() ? "(unnamed)" : node.name.c_str());
         }
         ImGui::TextWrapped("Visual and Hit display can be toggled above. Hit meshes become indestructible static colliders during play.");
+
+        ImGui::SeparatorText("Material Color");
+        ImGui::BeginDisabled(m_selectedAsset.empty());
+        if (ImGui::Button("Load Materials"))
+        {
+            const std::u8string pathUtf8(m_selectedAsset.begin(), m_selectedAsset.end());
+            m_materialColors.clear();
+            m_materialColorLoaded = Tank::Map::InspectGltfMaterialColors(
+                m_map.Folder() / std::filesystem::path(pathUtf8), m_materialColors, m_roleError);
+            m_selectedMaterialIndex = 0;
+            if (m_materialColorLoaded && !m_materialColors.empty())
+                m_materialColorEdit = m_materialColors.front().baseColorFactor;
+            if (m_materialColorLoaded && m_materialColors.empty())
+                m_roleError = "This model has no materials.";
+        }
+        ImGui::EndDisabled();
+        if (m_materialColorLoaded && !m_materialColors.empty())
+        {
+            std::string materialLabel = m_materialColors[static_cast<size_t>(m_selectedMaterialIndex)].name;
+            if (materialLabel.empty()) materialLabel = "Material " + std::to_string(m_selectedMaterialIndex);
+            if (ImGui::BeginCombo("Material", materialLabel.c_str()))
+            {
+                for (size_t index = 0; index < m_materialColors.size(); ++index)
+                {
+                    const std::string label = m_materialColors[index].name.empty()
+                        ? "Material " + std::to_string(index) : m_materialColors[index].name;
+                    const bool selected = static_cast<size_t>(m_selectedMaterialIndex) == index;
+                    ImGui::PushID(static_cast<int>(index));
+                    if (ImGui::Selectable(label.c_str(), selected))
+                    {
+                        m_selectedMaterialIndex = static_cast<int>(index);
+                        m_materialColorEdit = m_materialColors[index].baseColorFactor;
+                    }
+                    if (selected) ImGui::SetItemDefaultFocus();
+                    ImGui::PopID();
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::ColorEdit4("Base Color", m_materialColorEdit.data());
+            if (ImGui::RadioButton("Override source file", m_materialOverrideFile))
+                m_materialOverrideFile = true;
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Rename copy", !m_materialOverrideFile))
+                m_materialOverrideFile = false;
+            if (!m_materialOverrideFile)
+                ImGui::InputText("Copy file name", &m_materialCopyName);
+            if (ImGui::Button("Save Material Color")) SaveSelectedMaterialColor();
+        }
+        if (!m_roleError.empty()) ImGui::TextWrapped("Material: %s", m_roleError.c_str());
 
         ImGui::SeparatorText("Placed Models");
         if (document.instances.empty())
