@@ -6,9 +6,10 @@ Develop convincing tank physics before gameplay, with portability to Godot and a
 
 - Use Jolt Physics, C++20, CMake, Visual Studio 2022, and Windows.
 - Strictly use CRLF line endings for project text and source files.
-- Make small incremental changes, explain why, add tests, and keep the project buildable.
+- Make small incremental changes, keep the project buildable, and briefly explain significant decisions.
+- Add or update tests for behavior changes; scale verification to the change.
 - Keep refactoring separate from functional changes.
-- Ask questions instead of guessing when something is unclear.
+- Investigate first; ask only when unresolved ambiguity affects requirements or scope.
 
 ## Architecture
 
@@ -19,5 +20,5 @@ Develop convincing tank physics before gameplay, with portability to Godot and a
 
 - Codex must not edit or delete `Docs/opencode/`; write Codex-authored documents elsewhere.
 - For RtPbrSurvey integration, renderer troubleshooting, GUI verification, or CMake runtime/deployment changes, read `Docs/renderer-development.md`.
-- For goal or roadmap planning, read `Docs/project-roadmap.md` and relevant human-written documents under `Docs/roadmap/`.
+- For planning, consult relevant human-written documents under `Docs/roadmap/` and `Docs/project-roadmap.md`; the latter records initial goals, not current progress.
 - Read `OPENCODE_RULES.md` only when the user explicitly instructs you to use OpenCode.

@@ -1231,6 +1231,34 @@ namespace Ui
 			}
 			else
 			{
+            const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
+            int wheelContactCount = 0;
+            for (int i = 0; i < state.wheelCount; ++i)
+            {
+                wheelContactCount += state.wheels[static_cast<size_t>(i)].hasContact ? 1 : 0;
+            }
+			if (ImGui::CollapsingHeader("Speed", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+            ImGui::Text("Step: %d  Time: %.2f s", state.stepIndex, state.timeSeconds);
+            ImGui::Text("Position: %.2f, %.2f, %.2f",
+                state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
+
+			ImGui::Text("Speed: %.2f m/s  (%.1f km/h)",
+				state.speedMetersPerSecond,
+				state.speedMetersPerSecond * 3.6f);
+            ImGui::Text("Maximum: %.2f m/s  (%.1f km/h)",
+                state.maximumSpeedMetersPerSecond,
+                state.maximumSpeedMetersPerSecond * 3.6f);
+            if (state.zeroToTenTimeSeconds >= 0.0f)
+            {
+                ImGui::Text("0-10 m/s: %.2f s", state.zeroToTenTimeSeconds);
+            }
+            else
+            {
+                ImGui::TextUnformatted("0-10 m/s: measuring");
+            }
+				DrawDriveSpeedGraph();
+			}
             if (ImGui::CollapsingHeader("Rolling"))
             {
                 const auto& roll = state.rollingTelemetry;
@@ -1333,34 +1361,6 @@ namespace Ui
                     ImGui::EndTabBar();
                 }
             }
-            const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
-            int wheelContactCount = 0;
-            for (int i = 0; i < state.wheelCount; ++i)
-            {
-                wheelContactCount += state.wheels[static_cast<size_t>(i)].hasContact ? 1 : 0;
-            }
-			if (ImGui::CollapsingHeader("Speed", ImGuiTreeNodeFlags_DefaultOpen))
-			{
-            ImGui::Text("Step: %d  Time: %.2f s", state.stepIndex, state.timeSeconds);
-            ImGui::Text("Position: %.2f, %.2f, %.2f",
-                state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
-            
-			ImGui::Text("Speed: %.2f m/s  (%.1f km/h)",
-				state.speedMetersPerSecond,
-				state.speedMetersPerSecond * 3.6f);
-            ImGui::Text("Maximum: %.2f m/s  (%.1f km/h)",
-                state.maximumSpeedMetersPerSecond,
-                state.maximumSpeedMetersPerSecond * 3.6f);
-            if (state.zeroToTenTimeSeconds >= 0.0f)
-            {
-                ImGui::Text("0-10 m/s: %.2f s", state.zeroToTenTimeSeconds);
-            }
-            else
-            {
-                ImGui::TextUnformatted("0-10 m/s: measuring");
-            }
-				DrawDriveSpeedGraph();
-			}
 			if (ImGui::CollapsingHeader("Powertrain", ImGuiTreeNodeFlags_DefaultOpen))
 			{
             ImGui::Text("Engine: %.0f rpm", state.engineRpm); ImGui::SameLine();
