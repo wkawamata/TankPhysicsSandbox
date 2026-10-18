@@ -630,9 +630,9 @@ void MapEditorMode::DrawEnemies()
         bool changed = typeCombo("Placement type", enemy.unitType);
         static constexpr float defaultPosition[3] = { 0.0f, 0.0f, 0.0f };
         static constexpr float defaultRotation[3] = { 0.0f, 0.0f, 0.0f };
-        changed |= ImGuiWidgets::SliderFloat3WithControls(
+        changed |= ImGuiWidgets::SliderFloat3AxisWithControls(
             "Position (m)##Enemy", enemy.position.data(), -10000.0f, 10000.0f, 0.05f, defaultPosition, "%.2f");
-        changed |= ImGuiWidgets::SliderFloat3WithControls(
+        changed |= ImGuiWidgets::SliderFloat3AxisWithControls(
             "Rotation (deg)##Enemy", enemy.rotationDegrees.data(), -360.0f, 360.0f, 1.0f, defaultRotation, "%.1f");
         if (changed) UpdateSelectedEnemy(enemy);
         if (ImGui::Button("Focus Enemy")) { m_sceneReloadRequested = true; m_focusSelectedRequested = true; }
@@ -844,9 +844,10 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         meshDisplayChanged |= ImGui::Checkbox("Show Hit Meshes", &m_showHitMeshes);
         static constexpr float defaultVisualMeshColor[3] = {
             80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
-        meshDisplayChanged |= ImGuiWidgets::SliderFloat3WithControls(
+        static constexpr const char* colorChannels[3] = { "R", "G", "B" };
+        meshDisplayChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
             "Visual Mesh Color", m_visualMeshColor.data(), 0.0f, 1.0f, 0.01f,
-            defaultVisualMeshColor, "%.2f");
+            defaultVisualMeshColor, "%.2f", 0, colorChannels);
         if (meshDisplayChanged) m_sceneReloadRequested = true;
         ImGui::TextDisabled("Display only. Hit collision remains active during play.");
         if (!m_previewWarning.empty())
@@ -969,10 +970,10 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 }
                 static constexpr float defaultPosition[3] = { 0.0f, 0.0f, 0.0f };
                 static constexpr float defaultRotation[3] = { 0.0f, 0.0f, 0.0f };
-                const bool positionChanged = ImGuiWidgets::SliderFloat3WithControls(
+                const bool positionChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
                     "Position (m)", transform.position.data(), -10000.0f, 10000.0f, 0.05f,
                     defaultPosition, "%.2f");
-                const bool rotationChanged = ImGuiWidgets::SliderFloat3WithControls(
+                const bool rotationChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
                     "Rotation (deg)", transform.rotationDegrees.data(), -360.0f, 360.0f, 1.0f,
                     defaultRotation, "%.1f");
                 const bool scaleChanged = ImGuiWidgets::SliderFloatWithControls(
@@ -997,10 +998,10 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         Tank::Map::Transform playerSpawn = document.playerSpawn;
         static constexpr float defaultSpawnPosition[3] = { 0.0f, 2.0f, 0.0f };
         static constexpr float defaultSpawnRotation[3] = { 0.0f, 0.0f, 0.0f };
-        const bool spawnPositionChanged = ImGuiWidgets::SliderFloat3WithControls(
+        const bool spawnPositionChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
             "Position (m)##PlayerStart", playerSpawn.position.data(), -10000.0f, 10000.0f, 0.05f,
             defaultSpawnPosition, "%.2f");
-        const bool spawnRotationChanged = ImGuiWidgets::SliderFloat3WithControls(
+        const bool spawnRotationChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
             "Rotation (deg)##PlayerStart", playerSpawn.rotationDegrees.data(), -360.0f, 360.0f, 1.0f,
             defaultSpawnRotation, "%.1f");
         if ((spawnPositionChanged || spawnRotationChanged) && !UpdatePlayerSpawn(playerSpawn))
@@ -1041,10 +1042,10 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 bool areaChanged = ImGui::InputText("Name##ClearArea", &area.name);
                 static constexpr float defaultCenter[3] = { 0.0f, 0.0f, 0.0f };
                 static constexpr float defaultSize[3] = { 1.0f, 1.0f, 1.0f };
-                areaChanged |= ImGuiWidgets::SliderFloat3WithControls(
+                areaChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
                     "Center (m)##ClearArea", area.center.data(), -10000.0f, 10000.0f, 0.05f,
                     defaultCenter, "%.2f");
-                areaChanged |= ImGuiWidgets::SliderFloat3WithControls(
+                areaChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
                     "Size (m)##ClearArea", area.size.data(), 0.01f, 10000.0f, 0.05f,
                     defaultSize, "%.2f");
                 if (areaChanged && !UpdateSelectedClearArea(area))
