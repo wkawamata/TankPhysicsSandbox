@@ -14,6 +14,7 @@
         179.5999298095703,
         0.0
       ],
+      "supportedByParent": false,
       "unitType": "Fixed turret"
     },
     {
@@ -29,6 +30,7 @@
         -93.1286392211914,
         0.0
       ],
+      "supportedByParent": true,
       "unitType": "Fixed turret"
     },
     {
@@ -44,10 +46,59 @@
         -98.08348083496094,
         0.0
       ],
+      "supportedByParent": true,
       "unitType": "Fixed turret"
     },
     {
       "id": "copy-9",
+      "parentId": "mesh/instance-10",
+      "position": [
+        0.0,
+        3.555384874343872,
+        0.0
+      ],
+      "rotationDegrees": [
+        -0.0,
+        -98.08348083496094,
+        0.0
+      ],
+      "supportedByParent": true,
+      "unitType": "Fixed turret"
+    },
+    {
+      "id": "copy-14",
+      "parentId": "mesh/copy-13",
+      "position": [
+        0.0,
+        3.555384874343872,
+        0.0
+      ],
+      "rotationDegrees": [
+        -0.0,
+        -98.08348083496094,
+        0.0
+      ],
+      "supportedByParent": true,
+      "unitType": "Fixed turret"
+    },
+    {
+      "id": "copy-16",
+      "parentId": "mesh/copy-15",
+      "position": [
+        0.0,
+        3.555384874343872,
+        0.0
+      ],
+      "rotationDegrees": [
+        -0.0,
+        -98.08348083496094,
+        0.0
+      ],
+      "supportedByParent": true,
+      "unitType": "Fixed turret"
+    },
+    {
+      "id": "copy-17",
       "parentId": "mesh/copy-5",
       "position": [
         0.0,
@@ -59,18 +110,53 @@
         -98.08348083496094,
         0.0
       ],
+      "supportedByParent": true,
+      "unitType": "Fixed turret"
+    },
+    {
+      "id": "copy-19",
+      "parentId": "mesh/copy-18",
+      "position": [
+        0.0,
+        3.555384874343872,
+        0.0
+      ],
+      "rotationDegrees": [
+        -0.0,
+        -98.08348083496094,
+        0.0
+      ],
+      "supportedByParent": true,
+      "unitType": "Fixed turret"
+    },
+    {
+      "id": "copy-21",
+      "parentId": "mesh/copy-20",
+      "position": [
+        0.0,
+        3.555384874343872,
+        0.0
+      ],
+      "rotationDegrees": [
+        -0.0,
+        -98.08348083496094,
+        0.0
+      ],
+      "supportedByParent": true,
       "unitType": "Fixed turret"
     }
   ],
   "instances": [
     {
       "asset": "Models/Ground.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "instance-1",
       "parentId": "root",
       "position": [
+        4.0,
         0.0,
-        0.0,
-        0.279604434967041
+        -1.0
       ],
       "rotationDegrees": [
         -0.0,
@@ -85,6 +171,8 @@
     },
     {
       "asset": "Models/GroundTile_5m.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "instance-2",
       "parentId": "root",
       "position": [
@@ -105,6 +193,8 @@
     },
     {
       "asset": "Models/GroundTile_5m.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "instance-3",
       "parentId": "root",
       "position": [
@@ -125,12 +215,14 @@
     },
     {
       "asset": "Models/Ground.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "instance-4",
       "parentId": "root",
       "position": [
-        20.0,
+        34.0,
         0.0,
-        0.279604434967041
+        -0.720395565032959
       ],
       "rotationDegrees": [
         -0.0,
@@ -145,12 +237,14 @@
     },
     {
       "asset": "Models/Ground.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "instance-5",
       "parentId": "root",
       "position": [
-        -20.0,
+        -26.0,
         0.0,
-        0.279604434967041
+        -0.720395565032959
       ],
       "rotationDegrees": [
         -0.0,
@@ -165,12 +259,14 @@
     },
     {
       "asset": "Models/Ground.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "copy-1",
       "parentId": "root",
       "position": [
-        -20.0,
+        -26.0,
         0.0,
-        20.279603958129883
+        29.279603958129883
       ],
       "rotationDegrees": [
         -0.0,
@@ -185,12 +281,14 @@
     },
     {
       "asset": "Models/Ground.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "copy-2",
       "parentId": "root",
       "position": [
-        -19.740718841552734,
+        -26.0,
         0.0,
-        39.15473937988281
+        59.279605865478516
       ],
       "rotationDegrees": [
         -0.0,
@@ -205,6 +303,8 @@
     },
     {
       "asset": "Models/Ground_Third_Dark.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "instance-6",
       "parentId": "root",
       "position": [
@@ -225,6 +325,8 @@
     },
     {
       "asset": "Models/Ground_Third_Dark.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "copy-3",
       "parentId": "root",
       "position": [
@@ -245,6 +347,8 @@
     },
     {
       "asset": "Models/Ground_Third_Dark.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "copy-4",
       "parentId": "root",
       "position": [
@@ -265,6 +369,8 @@
     },
     {
       "asset": "Models/GroundTile_5m.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "instance-7",
       "parentId": "mesh/instance-6",
       "position": [
@@ -285,12 +391,14 @@
     },
     {
       "asset": "Models/IndestructibleBox.gltf",
+      "breakable": true,
+      "hitPoints": 100.0,
       "id": "instance-8",
       "parentId": "root",
       "position": [
-        23.337059020996094,
-        0.16837286949157715,
-        -7.0
+        23.0,
+        0.0,
+        -10.69920539855957
       ],
       "rotationDegrees": [
         -0.0,
@@ -305,12 +413,14 @@
     },
     {
       "asset": "Models/Box_Third_2m_Olive.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
       "id": "instance-9",
       "parentId": "root",
       "position": [
-        -3.75,
+        -4.0,
         0.0,
-        -13.720396041870117
+        -19.0
       ],
       "rotationDegrees": [
         -0.0,
@@ -318,19 +428,87 @@
         -0.0
       ],
       "scale": [
-        1.0,
+        6.563327312469482,
         1.0,
         1.0
       ]
     },
     {
       "asset": "Models/IndestructibleBox.gltf",
+      "breakable": true,
+      "hitPoints": 100.0,
       "id": "copy-7",
       "parentId": "root",
       "position": [
-        23.30135154724121,
-        0.16837286949157715,
-        -3.44687557220459
+        23.0,
+        0.0,
+        -7.444062232971191
+      ],
+      "rotationDegrees": [
+        -0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "asset": "Models/Box_Third_2m_Olive.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
+      "id": "copy-10",
+      "parentId": "root",
+      "position": [
+        22.179899215698242,
+        0.0,
+        17.499479293823242
+      ],
+      "rotationDegrees": [
+        -0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "asset": "Models/Box_Third_2m_Olive.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
+      "id": "copy-11",
+      "parentId": "root",
+      "position": [
+        -7.0,
+        0.038326144218444824,
+        17.279603958129883
+      ],
+      "rotationDegrees": [
+        -0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "asset": "Models/Box_Third_2m_Olive.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
+      "id": "copy-12",
+      "parentId": "root",
+      "position": [
+        22.0,
+        0.0,
+        -16.0
       ],
       "rotationDegrees": [
         -0.0,
@@ -345,12 +523,80 @@
     },
     {
       "asset": "Models/IndestructibleBox.gltf",
+      "breakable": true,
+      "hitPoints": 100.0,
+      "id": "copy-13",
+      "parentId": "root",
+      "position": [
+        23.0,
+        0.0,
+        12.89944839477539
+      ],
+      "rotationDegrees": [
+        -0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "asset": "Models/IndestructibleBox.gltf",
+      "breakable": true,
+      "hitPoints": 100.0,
+      "id": "copy-15",
+      "parentId": "root",
+      "position": [
+        23.0,
+        0.0,
+        9.569815635681152
+      ],
+      "rotationDegrees": [
+        -0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "asset": "Models/BreakableBox.gltf",
+      "breakable": true,
+      "hitPoints": 60.0,
+      "id": "instance-10",
+      "parentId": "root",
+      "position": [
+        22.84007453918457,
+        0.0,
+        6.073453903198242
+      ],
+      "rotationDegrees": [
+        -0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "asset": "Models/BreakableBox.gltf",
+      "breakable": true,
+      "hitPoints": 60.0,
       "id": "copy-5",
       "parentId": "root",
       "position": [
-        23.30135154724121,
-        0.16837286949157715,
-        0.1989905834197998
+        22.84007453918457,
+        0.0,
+        3.045870542526245
       ],
       "rotationDegrees": [
         -0.0,
@@ -364,13 +610,15 @@
       ]
     },
     {
-      "asset": "Models/Box_Third_2m_Olive.gltf",
-      "id": "copy-10",
+      "asset": "Models/BreakableBox.gltf",
+      "breakable": true,
+      "hitPoints": 60.0,
+      "id": "copy-18",
       "parentId": "root",
       "position": [
-        -12.5,
+        22.84007453918457,
         0.0,
-        -13.720396041870117
+        -0.49440085887908936
       ],
       "rotationDegrees": [
         -0.0,
@@ -384,13 +632,15 @@
       ]
     },
     {
-      "asset": "Models/Box_Third_2m_Olive.gltf",
-      "id": "copy-11",
+      "asset": "Models/BreakableBox.gltf",
+      "breakable": true,
+      "hitPoints": 60.0,
+      "id": "copy-20",
       "parentId": "root",
       "position": [
-        -6.664483070373535,
-        0.10961389541625977,
-        13.279603958129883
+        23.0,
+        0.0,
+        -4.0
       ],
       "rotationDegrees": [
         -0.0,
@@ -405,6 +655,31 @@
     }
   ],
   "nodeInfo": {
+    "enemy/copy-14": {
+      "active": true,
+      "name": "Fixed Tarlet - 2 Copy Copy",
+      "visible": true
+    },
+    "enemy/copy-16": {
+      "active": true,
+      "name": "Fixed Tarlet - 2 Copy Copy Copy",
+      "visible": true
+    },
+    "enemy/copy-17": {
+      "active": true,
+      "name": "Fixed Tarlet - 2 Copy Copy Copy",
+      "visible": true
+    },
+    "enemy/copy-19": {
+      "active": true,
+      "name": "Fixed Tarlet - 2 Copy Copy Copy Copy",
+      "visible": true
+    },
+    "enemy/copy-21": {
+      "active": true,
+      "name": "Fixed Tarlet - 2 Copy Copy Copy Copy Copy",
+      "visible": true
+    },
     "enemy/copy-6": {
       "active": true,
       "name": "Fixed Tarlet - 2",
@@ -436,7 +711,27 @@
       "active": true,
       "visible": true
     },
+    "mesh/copy-12": {
+      "active": true,
+      "visible": true
+    },
+    "mesh/copy-13": {
+      "active": true,
+      "visible": true
+    },
+    "mesh/copy-15": {
+      "active": true,
+      "visible": true
+    },
+    "mesh/copy-18": {
+      "active": true,
+      "visible": true
+    },
     "mesh/copy-2": {
+      "active": true,
+      "visible": true
+    },
+    "mesh/copy-20": {
       "active": true,
       "visible": true
     },
@@ -457,6 +752,10 @@
       "visible": true
     },
     "mesh/instance-1": {
+      "active": true,
+      "visible": true
+    },
+    "mesh/instance-10": {
       "active": true,
       "visible": true
     },
@@ -509,7 +808,7 @@
       "position": [
         0.0,
         0.0,
-        -1.279604434967041
+        0.0
       ],
       "rotationDegrees": [
         -0.0,
@@ -527,9 +826,9 @@
   "playerSpawn": {
     "parentId": "root",
     "position": [
-      -20.017780303955078,
+      -23.34703254699707,
       0.06763768196105957,
-      42.138267517089844
+      64.03485870361328
     ],
     "rotationDegrees": [
       -0.0,
@@ -555,18 +854,29 @@
     "enemy/enemy-1",
     "player-start",
     "mesh/instance-9",
+    "mesh/copy-12",
     "mesh/copy-11",
     "mesh/copy-10",
     "mesh/instance-8",
     "mesh/copy-7",
-    "mesh/copy-5",
+    "mesh/copy-13",
+    "mesh/copy-15",
     "enemy/copy-6",
     "mesh/instance-6",
     "mesh/copy-3",
     "mesh/copy-4",
+    "mesh/instance-10",
+    "mesh/copy-5",
+    "mesh/copy-18",
+    "mesh/copy-20",
     "mesh/instance-7",
     "enemy/copy-8",
-    "enemy/copy-9"
+    "enemy/copy-14",
+    "enemy/copy-16",
+    "enemy/copy-9",
+    "enemy/copy-17",
+    "enemy/copy-19",
+    "enemy/copy-21"
   ],
   "version": 2
 }
