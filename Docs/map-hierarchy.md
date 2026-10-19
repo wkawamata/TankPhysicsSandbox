@@ -20,8 +20,8 @@ removed. Move children elsewhere before deleting their parent.
 Viewport gizmos operate in world space and convert the result back into local
 coordinates. A manipulation that would require local shear is rejected. Mesh
 rendering and collision retain exact composed affine matrices, including shear
-from rotated children of nonuniformly scaled parents. Clear areas keep world-axis
-AABB behavior and use the bounds of their transformed local boxes.
+from rotated children of nonuniformly scaled parents. Clear areas preserve the
+same affine transform for their unit-box boundary and point containment test.
 
 Manifest version 2 stores Empty nodes in `nodes` and parent references in
 `parentId` on placed elements and `playerSpawn`. Internal tree IDs are `root`,
@@ -116,3 +116,26 @@ it after release; HP, identity and attacks are retained. Ordinary turret proxies
 can sleep after settling. Reset reloads the original pose and support relationship.
 This initial feature applies to Enemy elements; arbitrary Mesh children are not
 converted into falling rigid bodies.
+
+Use Focus to selected object [F] in Map Editor Camera, or press F in Map Editor,
+to center and frame the selected item. The viewing direction and projection are
+preserved, including exact XZ/XY/YZ views. Text input, active controls, popups and
+Gizmo drags suppress the shortcut. StartPoint and ClearArea markers are supported;
+Empty nodes focus their world origin.
+
+Focus framing uses the enclosing sphere at 50% of the limiting viewport dimension
+(width or height), providing more surrounding context in both projection modes.
+
+The Map Editor Sub Window collapsing header groups Enemy Unit Editor, Camera
+Window, Cheat Sheet and Output toggles. Output shares its state with F9 and the
+Output window close button.
+
+## Clear Area transforms
+
+Clear Area is a centered 1 x 1 x 1 meter unit box. Create it with Add Clear Area
+in the Map Tree, then use the shared Position/Rotation/Scale inspector or Gizmo.
+There is no separate Clear Area transform panel. XYZ Scale corresponds to the
+local XYZ dimensions; parent rotation and scale are preserved in both the visible
+boundary and the clear condition. Tests transform the player point into the same
+unit box, including nonuniform parent transforms. New saves use position,
+rotationDegrees and scale; legacy center/size entries remain readable.

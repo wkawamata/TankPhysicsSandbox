@@ -48,9 +48,8 @@ namespace
         uint32_t material, const Tank::Map::ClearArea& area,
         std::vector<size_t>& instanceIndices)
     {
-        const float x = area.size[0];
-        const float y = area.size[1];
-        const float z = area.size[2];
+        const float x = 1, y = 1, z = 1;
+        const auto world = ToWorld(Tank::Map::ClearAreaTransform(area));
         const float halfX = x * 0.5f;
         const float halfY = y * 0.5f;
         const float halfZ = z * 0.5f;
@@ -58,8 +57,7 @@ namespace
         const auto addEdge = [&](float sx, float sy, float sz, float px, float py, float pz)
         {
             AddMarkerInstance(builder, cubeMesh,
-                DirectX::XMMatrixScaling(sx, sy, sz) * DirectX::XMMatrixTranslation(
-                    area.center[0] + px, area.center[1] + py, area.center[2] + pz),
+                DirectX::XMMatrixScaling(sx, sy, sz) * DirectX::XMMatrixTranslation(px, py, pz) * world,
                 material, instanceIndices);
         };
         for (const float oy : { -halfY, halfY })

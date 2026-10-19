@@ -78,10 +78,15 @@ namespace Tank::Map
         std::string id;
         std::string name;
         std::array<float, 3> center = { 0.0f, 0.0f, 0.0f };
-        // Full extents in meters, along world axes.
+        // Scale of a centered 1 x 1 x 1 meter box (legacy member name retained).
         std::array<float, 3> size = { 1.0f, 1.0f, 1.0f };
         std::string parentId = "root";
+        std::array<float, 3> rotationDegrees = {0, 0, 0};
+        std::optional<std::array<float, 16>> worldMatrix;
     };
+
+    inline Transform ClearAreaTransform(const ClearArea& area)
+    { return {area.center, area.rotationDegrees, area.size, area.worldMatrix}; }
 
     struct EmptyNode
     {

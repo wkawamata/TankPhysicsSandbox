@@ -543,8 +543,6 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
     if (selected == tree.end()) { ImGuizmo::Enable(false); return; }
     const bool rigid = selected->kind == Tank::Map::NodeKind::Enemy || selected->kind == Tank::Map::NodeKind::PlayerStartPoint;
     if (rigid && m_gizmoOperation == GizmoOperation::Scale) m_gizmoOperation = GizmoOperation::Translate;
-    if (selected->kind == Tank::Map::NodeKind::ClearArea && m_gizmoOperation == GizmoOperation::Rotate)
-        m_gizmoOperation = GizmoOperation::Translate;
     ImGuizmo::Enable(ImGuizmo::IsUsingAny() || !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow));
     ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
     const auto* viewport = ImGui::GetMainViewport();
@@ -687,6 +685,8 @@ void MapEditorMode::DrawMapTree()
         select({id, "Empty", validSelection ? selectedId : "root", NodeKind::Empty, id});
         changed = true;
     }
+    ImGui::SameLine();
+    if (ImGui::Button("Add Clear Area")) AddClearArea();
     const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == selectedId;});
     if (selected != tree.end())
     {
@@ -768,7 +768,6 @@ void MapEditorMode::DrawMapTree()
                     m_status = "Could not snap position: " + error;
             }
         }
-        if (selected->kind != NodeKind::ClearArea)
         {
             ImGui::TextUnformatted("Rotation (deg) - Local");
             poseChanged |= ImGuiWidgets::SliderFloat3AxisWithControls("Rotation", transform.rotationDegrees.data(),
@@ -776,7 +775,7 @@ void MapEditorMode::DrawMapTree()
         }
         if (selected->kind != NodeKind::Enemy && selected->kind != NodeKind::PlayerStartPoint)
         {
-            ImGui::TextUnformatted(selected->kind == NodeKind::ClearArea ? "Size (m) - Local" : "Scale - Local");
+            ImGui::TextUnformatted("Scale - Local");
             poseChanged |= ImGuiWidgets::SliderFloat3AxisWithControls("Scale", transform.scale.data(),
                 0.01f, 100, 0.01f, one, "%.2f");
         }
@@ -914,7 +913,7 @@ void MapEditorMode::DrawCheatSheet()
         ImGui::BulletText("Missing Visual Mesh: warning and Hit fallback");
         ImGui::BulletText("Map Tree: select PlayerStartPoint or Enemy to edit position/rotation");
         ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
-        ImGui::BulletText("Clear Areas: goal AABB center and size");
+        ImGui::BulletText("Clear Areas: 1 m unit box, edited through Tree transforms");
         ImGui::BulletText("Select a model, enemy, clear area, or player start; drag the Move/Rotate/Scale gizmo");
         ImGui::BulletText("Local: unit axes; unchecked: world axes");
         ImGui::BulletText("Save: write changes to Manifest.json");
@@ -986,7 +985,7 @@ bool MapEditorMode::Execute(HWND__* owner)
     return false;
 }
 
-bool MapEditorMode::DrawUi(HWND__* owner)
+bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
 {
     const auto* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 10, viewport->WorkPos.y + 10), ImGuiCond_FirstUseEver);
@@ -1002,26 +1001,31 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
-    ImGui::BeginDisabled(!m_map.IsOpen());
-    if (ImGui::Checkbox("Enemy Unit Editor", &m_enemyUnitEditor.open) && m_enemyUnitEditor.open)
+    if (ImGui::CollapsingHeader("Sub Window", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::SetWindowCollapsed("Enemy Unit Editor", false);
-        ImGui::SetWindowFocus("Enemy Unit Editor");
+        ImGui::BeginDisabled(!m_map.IsOpen());
+        if (ImGui::Checkbox("Enemy Unit Editor", &m_enemyUnitEditor.open) && m_enemyUnitEditor.open)
+        {
+            ImGui::SetWindowCollapsed("Enemy Unit Editor", false);
+            ImGui::SetWindowFocus("Enemy Unit Editor");
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::Checkbox("Camera Window", &m_showCameraWindow);
+        ImGui::Checkbox("Show Cheat Sheet", &m_showCheatSheet);
+        if (outputWindowVisible)
+        {
+            ImGui::SameLine();
+            ImGui::Checkbox("Output (F9)", outputWindowVisible);
+        }
     }
-    ImGui::EndDisabled();
-    ImGui::SameLine();
-    ImGui::Checkbox("Camera Window", &m_showCameraWindow);
-    ImGui::SameLine();
-    ImGui::Checkbox("Show Cheat Sheet", &m_showCheatSheet);
     ImGui::Checkbox("Placement Gizmo", &m_gizmoEnabled);
     ImGui::SameLine();
     if (ImGui::RadioButton("Move", m_gizmoOperation == GizmoOperation::Translate))
         m_gizmoOperation = GizmoOperation::Translate;
     ImGui::SameLine();
-    ImGui::BeginDisabled(!m_selectedClearAreaId.empty());
     if (ImGui::RadioButton("Rotate", m_gizmoOperation == GizmoOperation::Rotate))
         m_gizmoOperation = GizmoOperation::Rotate;
-    ImGui::EndDisabled();
     ImGui::SameLine();
     const bool canScaleSelection = !m_selectedInstanceId.empty() || !m_selectedClearAreaId.empty() ||
         (m_selectedEnemyId.empty() && !m_playerStartGizmoSelected);
@@ -1217,54 +1221,6 @@ bool MapEditorMode::DrawUi(HWND__* owner)
 
         DrawEnemies();
 
-        ImGui::SeparatorText("Clear Areas");
-        if (ImGui::Button("Add Clear Area")) AddClearArea();
-        if (document.clearAreas.empty())
-        {
-            ImGui::TextUnformatted("No clear areas have been added to this map.");
-        }
-        else
-        {
-            if (ImGui::BeginListBox("##ClearAreas", ImVec2(-1, 80)))
-            {
-                for (size_t index = 0; index < document.clearAreas.size(); ++index)
-                {
-                    const Tank::Map::ClearArea& area = document.clearAreas[index];
-                    ImGui::PushID(static_cast<int>(index));
-                    const std::string label = area.id + "  (" + area.name + ")";
-                    if (ImGui::Selectable(label.c_str(), area.id == m_selectedClearAreaId))
-                    {
-                        m_selectedClearAreaId = area.id;
-                        m_selectedInstanceId.clear();
-                        m_selectedEnemyId.clear();
-                        m_playerStartGizmoSelected = false;
-                        if (m_gizmoOperation == GizmoOperation::Rotate) m_gizmoOperation = GizmoOperation::Translate;
-                    }
-                    ImGui::PopID();
-                }
-                ImGui::EndListBox();
-            }
-            const auto selected = std::find_if(document.clearAreas.begin(), document.clearAreas.end(),
-                [this](const Tank::Map::ClearArea& area) { return area.id == m_selectedClearAreaId; });
-            if (selected != document.clearAreas.end())
-            {
-                Tank::Map::ClearArea area = *selected;
-                bool areaChanged = ImGui::InputText("Name##ClearArea", &area.name);
-                static constexpr float defaultCenter[3] = { 0.0f, 0.0f, 0.0f };
-                static constexpr float defaultSize[3] = { 1.0f, 1.0f, 1.0f };
-                ImGui::TextUnformatted("Center (m)");
-                areaChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
-                    "Center (m)##ClearArea", area.center.data(), -10000.0f, 10000.0f, 0.05f,
-                    defaultCenter, "%.2f");
-                ImGui::TextUnformatted("Size (m)");
-                areaChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
-                    "Size (m)##ClearArea", area.size.data(), 0.01f, 10000.0f, 0.05f,
-                    defaultSize, "%.2f");
-                if (areaChanged && !UpdateSelectedClearArea(area))
-                    m_status = "Clear area preview was not updated.";
-
-            }
-        }
     }
     if (!m_status.empty()) ImGui::TextWrapped("%s", m_status.c_str());
     ImGui::TextUnformatted("Camera: left drag orbit, middle drag pan, wheel zoom");

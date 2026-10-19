@@ -254,7 +254,7 @@ namespace Tank::Map
         if (id == "player-start") return m.playerSpawn;
         for (const auto& n : m.startPoints) if ("start/" + n.id == id) return n.transform;
         for (const auto& n : m.enemies) if ("enemy/" + n.id == id) return {n.position, n.rotationDegrees};
-        for (const auto& n : m.clearAreas) if ("area/" + n.id == id) return {n.center, {}, n.size};
+        for (const auto& n : m.clearAreas) if ("area/" + n.id == id) return ClearAreaTransform(n);
         throw std::runtime_error("Unknown map node: " + id);
     }
 
@@ -269,7 +269,7 @@ namespace Tank::Map
         for (auto& n : m.enemies) if ("enemy/" + n.id == id)
         {n.position = t.position; n.rotationDegrees = t.rotationDegrees; return true;}
         for (auto& n : m.clearAreas) if ("area/" + n.id == id)
-        {n.center = t.position; n.size = t.scale; return true;}
+        {n.center = t.position; n.size = t.scale; n.rotationDegrees = t.rotationDegrees; n.worldMatrix.reset(); return true;}
         return false;
     }
 
@@ -420,11 +420,8 @@ namespace Tank::Map
             for (auto& n : result.clearAreas)
             {
                 const auto t = NodeWorldTransform(local, "area/" + n.id);
-                const auto matrix = Matrix(t);
-                XMFLOAT3 size;
-                // Clear areas retain their world-axis AABB semantics after parenting.
-                XMStoreFloat3(&size, XMVectorAbs(matrix.r[0]) + XMVectorAbs(matrix.r[1]) + XMVectorAbs(matrix.r[2]));
-                n.center = t.position; n.size = {size.x, size.y, size.z}; n.parentId = "root";
+                n.center = t.position; n.size = t.scale; n.rotationDegrees = t.rotationDegrees;
+                n.worldMatrix = t.worldMatrix; n.parentId = "root";
             }
             std::erase_if(result.instances, [&](const auto& n) {return !NodeIsEnabled(local, "mesh/" + n.id, editor);});
             std::erase_if(result.enemies, [&](const auto& n) {return !NodeIsEnabled(local, "enemy/" + n.id, editor);});

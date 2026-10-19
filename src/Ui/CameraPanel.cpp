@@ -436,7 +436,7 @@ namespace Ui
 namespace Ui
 {
     bool DrawMapEditorCameraWindow(Engine::CameraState& camera,
-        RtPbrSurvey::DebugCameraController& controller, bool& open)
+        RtPbrSurvey::DebugCameraController& controller, bool& open, const std::function<void()>& focusSelected)
     {
         if (!open) return false;
         const auto* viewport = ImGui::GetMainViewport();
@@ -445,6 +445,7 @@ namespace Ui
         ImGui::SetNextWindowSize(ImVec2(420, 510), ImGuiCond_FirstUseEver);
         if (!ImGui::Begin("Map Editor Camera", &open)) { ImGui::End(); return false; }
         ImGui::TextUnformatted("Camera: Debug (Orbit)");
+        if (ImGui::Button("Focus to selected object [F]") && focusSelected) focusSelected();
         ImGui::TextDisabled("Left drag: Orbit / Middle drag: Pan / Wheel: Zoom");
         const auto previous = camera;
         static constexpr float defaultPosition[3] = {8, 6, -8};

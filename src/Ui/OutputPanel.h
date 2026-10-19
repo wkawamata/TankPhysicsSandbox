@@ -8,7 +8,7 @@ namespace Ui
     {
     public:
         bool open = true;
-        void Draw();
+        void Draw(bool stageCleared = false);
 
     private:
         struct Row

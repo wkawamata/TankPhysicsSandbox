@@ -154,10 +154,18 @@ namespace Tank::Map
                 area.id = ReadId(entry, ids);
                 area.name = entry.at("name").get<std::string>();
                 area.parentId = entry.value("parentId", std::string("root"));
-                area.center = ReadVector(entry.at("center"), "center");
-                area.size = ReadVector(entry.at("size"), "size");
+                if (entry.contains("position") || entry.contains("scale") || entry.contains("rotationDegrees"))
+                {
+                    const auto transform = ReadTransform(entry);
+                    area.center = transform.position; area.size = transform.scale; area.rotationDegrees = transform.rotationDegrees;
+                }
+                else
+                {
+                    area.center = ReadVector(entry.at("center"), "center");
+                    area.size = ReadVector(entry.at("size"), "size");
+                }
                 Require(std::all_of(area.size.begin(), area.size.end(),
-                    [](float size) { return size > 0.0f; }), "AABB size must be positive");
+                    [](float size) { return size > 0.0f; }), "Clear Area scale must be positive");
                 loaded.clearAreas.push_back(std::move(area));
             }
             if (const auto enemies = json.find("enemies"); enemies != json.end())
@@ -330,7 +338,7 @@ namespace Tank::Map
             {
                 json["clearAreas"].push_back({
                     { "id", area.id }, { "name", area.name }, { "parentId", area.parentId },
-                    { "center", area.center }, { "size", area.size } });
+                    { "position", area.center }, { "rotationDegrees", area.rotationDegrees }, { "scale", area.size } });
             }
             for (const auto& enemy : manifest.enemies)
             {

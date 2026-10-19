@@ -30,6 +30,7 @@ namespace Tank::Rendering
         std::array<float, 3> visualMeshColor = {
             80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
         std::string selectedEnemyId;
+        std::string selectedNodeId;
     };
 
     struct MapEditorFocusTarget

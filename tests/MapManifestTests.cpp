@@ -219,7 +219,7 @@ int main()
         for (const float size : { 0.0f, -1.0f })
         {
             auto bad = valid;
-            bad["clearAreas"][1]["size"][2] = size;
+            bad["clearAreas"][1]["scale"][2] = size;
             Reject(bad.dump());
         }
         for (const char* id : { "", "building-001" })
@@ -478,6 +478,20 @@ int main()
         loaded.enemies[0].supportedByParent = false;
         Check(ResolveHierarchy(loaded, supportWorld, error) && supportWorld.enemies[0].supportPlacementId.empty(),
             "Opt out of parent support");
+        Manifest areas;
+        areas.clearAreas.push_back({"box", "Box", {3,4,5}, {2,3,4}, "root", {10,20,30}});
+        Check(SerializeManifest(areas, renamedJson, error) && DeserializeManifest(renamedJson, loaded, error) &&
+            loaded.clearAreas[0].rotationDegrees == std::array<float,3>{10,20,30} &&
+            loaded.clearAreas[0].size == std::array<float,3>{2,3,4}, "Clear Area saves common position/rotation/scale");
+        const auto areaTransform = NodeLocalTransform(loaded, "area/box");
+        Check(areaTransform.rotationDegrees[1] == 20 && areaTransform.scale[2] == 4, "Tree transform retains Clear Area rotation and scale");
+        auto legacyArea = nlohmann::json::parse(renamedJson);
+        auto& entry = legacyArea["clearAreas"][0];
+        entry["center"] = entry["position"]; entry["size"] = entry["scale"];
+        entry.erase("position"); entry.erase("rotationDegrees"); entry.erase("scale");
+        Check(DeserializeManifest(legacyArea.dump(), loaded, error) && loaded.clearAreas[0].center[0] == 3 &&
+            loaded.clearAreas[0].size[2] == 4 && loaded.clearAreas[0].rotationDegrees[1] == 0,
+            "Legacy Center/Size regions preserve dimensions with zero rotation");
         std::cout << "PASS MapManifest\n";
         return 0;
     }

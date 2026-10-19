@@ -272,6 +272,38 @@ namespace
         return !presenter.SelectedFocusTarget() && presenter.GetScene().instances.size() == 9u;
     }
 
+    bool TestTreeFocusTargets()
+    {
+        Tank::Rendering::MapEditorScenePresenter presenter;
+        Tank::Map::Manifest manifest;
+        manifest.playerSpawn.position = {5, 2, 3};
+        manifest.clearAreas.push_back({"area", "Area", {12,1,2}, {10,2,4}});
+        Tank::Rendering::MapEditorPreviewSettings preview;
+        preview.selectedNodeId = "player-start";
+        std::string error;
+        if (!presenter.Rebuild({}, manifest, {1,1,0.02f}, preview, error) ||
+            !presenter.SelectedFocusTarget() || presenter.SelectedFocusTarget()->center != std::array<float,3>{5,2,3}) return false;
+        preview.selectedNodeId = "area/area";
+        if (!presenter.Rebuild({}, manifest, {1,1,0.02f}, preview, error)) return false;
+        return presenter.SelectedFocusTarget() && presenter.SelectedFocusTarget()->center == std::array<float,3>{12,1,2} &&
+            presenter.SelectedFocusTarget()->radius > 5;
+    }
+
+    bool TestRotatedClearAreaBoundary()
+    {
+        Tank::Map::Manifest manifest;
+        manifest.nodeInfo["player-start"] = {true, false};
+        manifest.clearAreas.push_back({"box", "Box", {10,2,0}, {4,2,1}, "root", {0,90,0}});
+        Tank::Rendering::MapEditorScenePresenter presenter;
+        std::string error;
+        if (!presenter.Rebuild({}, manifest, {1,1,0.02f,false}, error)) return false;
+        const auto& instances = presenter.GetScene().instances;
+        if (instances.size() != 12) return false;
+        const auto& edge = instances[0].world;
+        return NearlyEqual(edge._14, 9.5f) && NearlyEqual(edge._24, 1) && NearlyEqual(edge._34, 0) &&
+            NearlyEqual(std::abs(edge._31), 4) && NearlyEqual(edge._11, 0);
+    }
+
     bool TestGridVisibility()
     {
         Tank::Rendering::MapEditorScenePresenter presenter;
@@ -374,7 +406,7 @@ namespace
 int main()
 {
     if (!TestIndestructibleBoxTemplate() || !TestHitMeshOverlayGeometry() || !TestFailureDoesNotMutateScene() ||
-        !TestGridVisibility() || !TestViewportPicking() || !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() ||
+        !TestRotatedClearAreaBoundary() || !TestTreeFocusTargets() || !TestGridVisibility() || !TestViewportPicking() || !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() ||
         !TestHitOnlyVisualFallbackAndDisplaySwitches() || !TestEnemyEditorMarkers() || !TestEnemyGizmoTransforms() || !TestClearBeacons())
     {
         std::cerr << "Map visual loader tests failed.\n";

@@ -34,5 +34,6 @@ namespace Ui
 
     void DrawCameraPanel(CameraPanelContext& ctx);
     bool DrawMapEditorCameraWindow(Engine::CameraState& camera,
-        RtPbrSurvey::DebugCameraController& controller, bool& open);
+        RtPbrSurvey::DebugCameraController& controller, bool& open,
+        const std::function<void()>& focusSelected = {});
 }

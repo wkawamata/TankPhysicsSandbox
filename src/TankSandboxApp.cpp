@@ -1,4 +1,5 @@
 #include "TankSandboxApp.h"
+#include "App/EditorCameraViews.h"
 #include "Platform/Windows/DebugLogSink.h"
 #include "Input/TankInputMapper.h"
 #include "Map/MapManifest.h"
@@ -1501,7 +1502,8 @@ void TankSandboxApp::UpdateUiFrame()
     if (m_toolUiVisible)
     {
         DrawToolUi();
-        m_outputPanel.Draw();
+        m_outputPanel.Draw(m_appMode == AppMode::PhysicsTrackedVehicle &&
+            m_trackedVehicleMode.MapCleared());
     }
 
     if (m_appMode == AppMode::MapEditor)
@@ -1856,16 +1858,20 @@ void TankSandboxApp::DrawToolUi()
         m_mapEditorMode.SetAssetValidator([this](const std::filesystem::path& path,
             const Tank::Map::GltfRoles& roles, std::string& error)
             { return m_mapEditorScenePresenter.ValidateVisualAsset(path, roles, error); });
-        const bool leaveMapEditor = m_mapEditorMode.DrawUi(Win32Application::GetHwnd());
+        const bool leaveMapEditor = m_mapEditorMode.DrawUi(Win32Application::GetHwnd(), &m_outputPanel.open);
         if (!leaveMapEditor)
         {
             if (m_mapEditorMode.IsMapOpen())
             {
                 bool cameraOpen = m_mapEditorMode.CameraWindowVisible();
                 if (Ui::DrawMapEditorCameraWindow(m_mapEditorScenePresenter.GetScene().camera,
-                        m_debugCameraController, cameraOpen))
+                        m_debugCameraController, cameraOpen, [this]() {m_mapEditorMode.RequestFocusSelected();}))
                     ApplyActiveCameraScene();
                 m_mapEditorMode.SetCameraWindowVisible(cameraOpen);
+                const auto& io = ImGui::GetIO();
+                if (!io.WantTextInput && !ImGui::IsAnyItemActive() && !io.KeyCtrl && !io.KeyAlt && !io.KeySuper &&
+                    !ImGuizmo::IsUsingAny() && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
+                    ImGui::IsKeyPressed(ImGuiKey_F, false)) m_mapEditorMode.RequestFocusSelected();
             }
             m_mapEditorMode.DrawPlacementGizmo(m_mapEditorScenePresenter.GetScene().camera,
                 m_windowInfo.aspectRatio);
@@ -1908,7 +1914,8 @@ void TankSandboxApp::DrawToolUi()
                 const Tank::Rendering::MapEditorPreviewSettings preview = {
                     m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds(),
                     m_mapEditorMode.ShowVisualMeshes(), m_mapEditorMode.ShowHitMeshes(),
-                    m_mapEditorMode.VisualMeshColor(), m_mapEditorMode.SelectedEnemyId() };
+                    m_mapEditorMode.VisualMeshColor(), m_mapEditorMode.SelectedEnemyId(),
+                    m_mapEditorMode.SelectedTreeNodeId() };
                 if (m_mapEditorScenePresenter.Rebuild(
                     map.Folder(), map.Document(), grid, preview, error))
                 {
@@ -1920,26 +1927,8 @@ void TankSandboxApp::DrawToolUi()
                     {
                         if (const auto& target = m_mapEditorScenePresenter.SelectedFocusTarget())
                         {
-                            float offsetX = scene.camera.pos.x - scene.camera.gazePoint.x;
-                            float offsetY = scene.camera.pos.y - scene.camera.gazePoint.y;
-                            float offsetZ = scene.camera.pos.z - scene.camera.gazePoint.z;
-                            float distance = std::sqrt(
-                                offsetX * offsetX + offsetY * offsetY + offsetZ * offsetZ);
-                            if (distance < 0.1f)
-                            {
-                                offsetX = 1.0f;
-                                offsetY = 0.75f;
-                                offsetZ = -1.0f;
-                                distance = std::sqrt(offsetX * offsetX +
-                                    offsetY * offsetY + offsetZ * offsetZ);
-                            }
-                            const float targetDistance = (std::max)(2.0f, target->radius * 2.5f);
-                            const float scale = targetDistance / distance;
-                            cameraPivot = { target->center[0], target->center[1], target->center[2] };
-                            scene.camera.pos = { cameraPivot.x + offsetX * scale,
-                                cameraPivot.y + offsetY * scale,
-                                cameraPivot.z + offsetZ * scale };
-                            scene.camera.gazePoint = cameraPivot;
+                            Tank::App::FocusEditorCamera(scene.camera, target->center, target->radius, m_windowInfo.aspectRatio);
+                            cameraPivot = scene.camera.gazePoint;
                         }
                     }
                     m_sceneRenderer.SetScene(scene);

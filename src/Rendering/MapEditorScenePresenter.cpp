@@ -291,6 +291,20 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
     next->GetScene().camera.gazePoint = { 0.0f, 0.0f, 0.0f };
     m_builder = std::move(next);
     m_pickRanges = std::move(pickRanges);
+    if (!selectedFocusTarget && !preview.selectedNodeId.empty())
+    {
+        const auto tree = Map::MapTree(localManifest);
+        const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == preview.selectedNodeId;});
+        if (selected != tree.end())
+        {
+            const auto transform = Map::NodeWorldTransform(localManifest, selected->id);
+            float radius = 1.5f;
+            for (const auto& area : manifest.clearAreas)
+                if ("area/" + area.id == selected->id)
+                    radius = (std::max)(radius, 0.5f * std::sqrt(area.size[0]*area.size[0] + area.size[1]*area.size[1] + area.size[2]*area.size[2]));
+            selectedFocusTarget = MapEditorFocusTarget{transform.position, radius};
+        }
+    }
     m_selectedFocusTarget = selectedFocusTarget;
     if (missingVisualAssets.empty())
         m_warning.clear();

@@ -18,7 +18,7 @@ class MapEditorMode
 {
 public:
     // Returns true when the user has completed a request to return to the menu.
-    bool DrawUi(HWND__* owner);
+    bool DrawUi(HWND__* owner, bool* outputWindowVisible = nullptr);
     void DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio);
     bool PlacementGizmoCapturesMouse() const;
     void UpdateViewportPicking(const std::function<std::optional<std::string>(float, float)>& pick);
@@ -28,6 +28,8 @@ public:
     void SetAssetValidator(AssetValidator validator) { m_assetValidator = std::move(validator); }
     bool ConsumeSceneReloadRequest();
     bool ConsumeFocusSelectedRequest();
+    void RequestFocusSelected() { m_sceneReloadRequested = true; m_focusSelectedRequested = true; }
+    std::string SelectedTreeNodeId() const { return SelectedNodeId(); }
     bool ConsumeApplicationExitApproval();
     std::optional<std::filesystem::path> ConsumeClosedMapFolder();
     bool HasUnsavedChanges() const { return m_map.IsDirty(); }

@@ -1,5 +1,26 @@
 {
-  "clearAreas": [],
+  "clearAreas": [
+    {
+      "id": "clear-area-1",
+      "name": "Clear Area",
+      "parentId": "root",
+      "position": [
+        29.74099349975586,
+        2.5775561332702637,
+        -0.7356563806533813
+      ],
+      "rotationDegrees": [
+        -0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": [
+        10.0,
+        5.0,
+        25.0
+      ]
+    }
+  ],
   "enemies": [
     {
       "id": "enemy-1",
@@ -418,7 +439,7 @@
       "id": "instance-9",
       "parentId": "root",
       "position": [
-        -4.0,
+        -3.0,
         0.0,
         -19.0
       ],
@@ -462,9 +483,9 @@
       "id": "copy-10",
       "parentId": "root",
       "position": [
-        22.179899215698242,
+        35.0,
         0.0,
-        17.499479293823242
+        17.0
       ],
       "rotationDegrees": [
         -0.0,
@@ -472,7 +493,7 @@
         -0.0
       ],
       "scale": [
-        1.0,
+        6.0,
         1.0,
         1.0
       ]
@@ -506,9 +527,9 @@
       "id": "copy-12",
       "parentId": "root",
       "position": [
-        22.0,
+        27.0,
         0.0,
-        -16.0
+        -18.0
       ],
       "rotationDegrees": [
         -0.0,
@@ -516,7 +537,7 @@
         -0.0
       ],
       "scale": [
-        1.0,
+        2.482832908630371,
         1.0,
         1.0
       ]
@@ -652,9 +673,35 @@
         1.0,
         1.0
       ]
+    },
+    {
+      "asset": "Models/Box_Third_2m_Olive.gltf",
+      "breakable": false,
+      "hitPoints": 60.0,
+      "id": "copy-22",
+      "parentId": "root",
+      "position": [
+        52.0,
+        0.0,
+        -3.0
+      ],
+      "rotationDegrees": [
+        -0.0,
+        0.0,
+        -0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        5.0
+      ]
     }
   ],
   "nodeInfo": {
+    "area/clear-area-1": {
+      "active": true,
+      "visible": true
+    },
     "enemy/copy-14": {
       "active": true,
       "name": "Fixed Tarlet - 2 Copy Copy",
@@ -732,6 +779,10 @@
       "visible": true
     },
     "mesh/copy-20": {
+      "active": true,
+      "visible": true
+    },
+    "mesh/copy-22": {
       "active": true,
       "visible": true
     },
@@ -855,8 +906,10 @@
     "player-start",
     "mesh/instance-9",
     "mesh/copy-12",
+    "mesh/copy-22",
     "mesh/copy-11",
     "mesh/copy-10",
+    "area/clear-area-1",
     "mesh/instance-8",
     "mesh/copy-7",
     "mesh/copy-13",
