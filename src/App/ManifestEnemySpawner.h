@@ -24,6 +24,8 @@ namespace Tank::App
                 [&](const auto& value) { return value.name == enemy.unitType; });
             if (type == catalog.unitTypes.end())
             { error = "Unknown enemy type '" + enemy.unitType + "' for " + enemy.id; return false; }
+            if (!std::isfinite(type->hitPoints) || type->hitPoints <= 0)
+            { error = "Invalid HP for enemy type '" + enemy.unitType + "'"; return false; }
             types.push_back(&*type);
         }
         if (!world.ConfigureEnemyAttacks(catalog.attackTypes))
@@ -40,9 +42,12 @@ namespace Tank::App
             // Yaw * pitch * roll, matching the map's DirectX placement convention.
             const Physics::Quat q = {cr * sp * cy + sr * cp * sy, cr * cp * sy - sr * sp * cy,
                 sr * cp * cy - cr * sp * sy, cr * cp * cy + sr * sp * sy};
-            // Same 1 m proxy as editor preview; existing destructible default HP.
-            if (!world.AddFixedTurret({p[0], p[1], p[2]}, {1, 1, 1}, 60, q, enemy.id, *types[i]))
+            // Same 1 m proxy as editor preview; durability comes from the unit catalog.
+            if (!world.AddFixedTurret({p[0], p[1], p[2]}, {1, 1, 1}, types[i]->hitPoints, q, enemy.id, *types[i]))
             { error = "Cannot spawn enemy " + enemy.id; return false; }
+            if (enemy.supportedByParent && !enemy.supportPlacementId.empty() &&
+                !world.SetEnemySupport(enemy.id, enemy.supportPlacementId))
+            { error = "Cannot bind support for enemy " + enemy.id; return false; }
         }
         if (!world.ConfigureEnemyGroups(manifest.enemyGroups))
         { error = "Cannot configure enemy groups"; return false; }

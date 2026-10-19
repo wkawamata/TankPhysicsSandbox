@@ -16,6 +16,7 @@ int main()
     original.attackTypes[1].projectileRadiusMeters = 0.5f;
     original.attackTypes[1].projectileShape = EnemyProjectileShape::Box;
     original.attackTypes[1].projectileBoxSizeMeters = {2, 0.5f, 3};
+    original.unitTypes[0].hitPoints = 250;
     original.unitTypes[0].attackMounts.push_back({{2, 1, -3}, 1});
     std::string text, error;
     check(SerializeEnemyEditor(original, text, error), "serialize");
@@ -27,6 +28,7 @@ int main()
         loaded.attackTypes[1].projectileBoxSizeMeters.z == 3 && loaded.unitTypes[0].attackMounts.size() == 2 &&
         loaded.unitTypes[0].attackMounts[1].attackTypeIndex == 1 && loaded.unitTypes[0].attackMounts[1].localPosition.z == -3,
         "multiple templates and mounts survive round trip");
+    check(loaded.unitTypes[0].hitPoints == 250, "unit HP survives round trip");
     check(loaded.simulation.physicalEnterMeters == 50 && loaded.simulation.simpleReturnMeters == 70 &&
         loaded.simulation.brakingDecelerationMetersPerSecondSquared == 3 && loaded.simulation.nodeArrivalMeters == 0.75f &&
         loaded.simulation.observationRadiusMeters == 4 && loaded.simulation.supportHeightToleranceMeters == 0.15f && loaded.simulation.simpleTurnDegreesPerSecond == 45, "simulation distances round trip");
@@ -45,6 +47,7 @@ int main()
         loaded.attackTypes[0].projectileRadiusMeters == 0.25f && loaded.attackTypes[0].projectileShape == EnemyProjectileShape::Sphere, "named references survive reordering; missing parameters use defaults");
     check(loaded.attackTypes[0].detectionMode == EnemyDetectionMode::Optical && loaded.attackTypes[0].alertReleaseSeconds == 5,
         "old catalogs default to optical and five second alert");
+    check(loaded.unitTypes[0].hitPoints == 60, "old catalogs use default unit HP");
     check(loaded.simulation.physicalEnterMeters == 30 && loaded.simulation.simpleReturnMeters == 40, "old catalogs use agreed simulation distances");
     for (const auto invalid : {"{}", "[]", "{", R"({"version":2,"attackTypes":[],"unitTypes":[]})",
         R"({"version":1,"simulation":{"physicalEnterMeters":40,"simpleReturnMeters":30},"attackTypes":[{"name":"A"}],"unitTypes":[]})",
@@ -71,6 +74,14 @@ int main()
     original.unitTypes[0].attackMounts[0].attackTypeIndex = -1;
     text = "unchanged";
     check(!SerializeEnemyEditor(original, text, error) && text == "unchanged", "bad reference rejects save");
+    EnemyEditorSettings legacy;
+    check(DeserializeEnemyEditor(R"({"version":1,"attackTypes":[{"name":"A"}],"unitTypes":[{"name":"Tank","attackMounts":[]}]})", legacy, error) &&
+        legacy.unitTypes[0].hitPoints == 60, "legacy unit HP defaults to 60");
+    for (float hp : {0.0f, -1.0f})
+    {
+        legacy.unitTypes[0].hitPoints = hp;
+        check(!SerializeEnemyEditor(legacy, text, error), "reject nonpositive HP");
+    }
     if (!passed) return 1;
     std::cout << "PASS EnemyEditorJson\n";
 }

@@ -1,4 +1,5 @@
 #include "MapManifest.h"
+#include "MapHierarchy.h"
 
 #include <nlohmann/json.hpp>
 
@@ -126,12 +127,13 @@ namespace Tank::Map
         {
             const Json json = Json::parse(jsonText);
             Require(json.is_object(), "Manifest must be an object");
-            Require(json.at("version").is_number_integer() && json.at("version") == 1,
+            Require(json.at("version").is_number_integer() && (json.at("version") == 1 || json.at("version") == 2),
                 "Unsupported manifest version");
             Require(json.at("instances").is_array(), "instances must be an array");
             Require(json.at("clearAreas").is_array(), "clearAreas must be an array");
             Manifest loaded;
             loaded.playerSpawn = ReadTransform(json.at("playerSpawn"));
+            loaded.playerSpawnParentId = json.at("playerSpawn").value("parentId", std::string("root"));
             std::set<std::string> ids;
             for (const auto& entry : json.at("instances"))
             {
@@ -140,6 +142,10 @@ namespace Tank::Map
                 instance.asset = entry.at("asset").get<std::string>();
                 Require(ValidAssetPath(instance.asset), "asset must be a relative glTF path inside the map folder");
                 instance.transform = ReadTransform(entry);
+                instance.parentId = entry.value("parentId", std::string("root"));
+                instance.breakable = entry.value("breakable", false);
+                instance.hitPoints = entry.value("hitPoints", 60.0f);
+                Require(std::isfinite(instance.hitPoints) && instance.hitPoints > 0, "Mesh hitPoints must be positive and finite");
                 loaded.instances.push_back(std::move(instance));
             }
             for (const auto& entry : json.at("clearAreas"))
@@ -147,6 +153,7 @@ namespace Tank::Map
                 ClearArea area;
                 area.id = ReadId(entry, ids);
                 area.name = entry.at("name").get<std::string>();
+                area.parentId = entry.value("parentId", std::string("root"));
                 area.center = ReadVector(entry.at("center"), "center");
                 area.size = ReadVector(entry.at("size"), "size");
                 Require(std::all_of(area.size.begin(), area.size.end(),
@@ -161,6 +168,8 @@ namespace Tank::Map
                     EnemyPlacement enemy;
                     enemy.id = ReadId(entry, ids);
                     enemy.unitType = entry.at("unitType").get<std::string>();
+                    enemy.parentId = entry.value("parentId", std::string("root"));
+                    enemy.supportedByParent = entry.value("supportedByParent", false);
                     Require(!enemy.unitType.empty(), "enemy unitType must be nonempty");
                     enemy.position = ReadVector(entry.at("position"), "enemy position");
                     enemy.rotationDegrees = ReadVector(entry.at("rotationDegrees"), "enemy rotationDegrees");
@@ -225,6 +234,43 @@ namespace Tank::Map
                     loaded.enemyGroups.push_back(std::move(group));
                 }
             }
+            if (const auto nodes = json.find("nodes"); nodes != json.end())
+            {
+                Require(nodes->is_array(), "nodes must be an array");
+                loaded.nodes.clear();
+                for (const auto& entry : *nodes)
+                {
+                    Require(entry.value("type", std::string()) == "Empty", "Expected an Empty node");
+                    loaded.nodes.push_back({entry.at("id").get<std::string>(), entry.at("name").get<std::string>(),
+                        entry.at("parentId").get<std::string>(), ReadTransform(entry)});
+                }
+            }
+            if (const auto starts = json.find("startPoints"); starts != json.end())
+            {
+                Require(starts->is_array(), "startPoints must be an array");
+                for (const auto& entry : *starts)
+                    loaded.startPoints.push_back({ReadId(entry, ids), ReadTransform(entry),
+                        entry.value("parentId", std::string("root"))});
+            }
+            if (const auto info = json.find("nodeInfo"); info != json.end())
+            {
+                Require(info->is_object(), "nodeInfo must be an object");
+                for (const auto& [id, value] : info->items())
+                    loaded.nodeInfo[id] = {value.at("active").get<bool>(), value.at("visible").get<bool>(),
+                        value.value("name", std::string{})};
+            }
+            if (const auto order = json.find("treeOrder"); order != json.end())
+            {
+                Require(order->is_array(), "treeOrder must be an array");
+                std::set<std::string> orderedIds;
+                for (const auto& id : *order)
+                {
+                    const auto value = id.get<std::string>();
+                    Require(orderedIds.insert(value).second, "treeOrder IDs must be unique");
+                    loaded.treeOrder.push_back(value);
+                }
+            }
+            Require(ValidateHierarchy(loaded, error), error);
             manifest = std::move(loaded);
             error.clear();
             return true;
@@ -241,35 +287,57 @@ namespace Tank::Map
         try
         {
             Json json = {
-                { "version", 1 },
+                { "version", 2 },
                 { "playerSpawn", {
+                    { "parentId", manifest.playerSpawnParentId },
                     { "position", manifest.playerSpawn.position },
                     { "rotationDegrees", manifest.playerSpawn.rotationDegrees },
                     { "scale", manifest.playerSpawn.scale } } },
                 { "instances", Json::array() },
                 { "clearAreas", Json::array() },
-                { "enemies", Json::array() }
+                { "enemies", Json::array() },
+                { "nodes", Json::array() },
+                { "treeOrder", Json::array() },
+                { "startPoints", Json::array() },
+                { "nodeInfo", Json::object() }
             };
+            for (const auto& node : MapTree(manifest))
+            {
+                json["treeOrder"].push_back(node.id);
+                const auto info = GetNodeInfo(manifest, node.id);
+                json["nodeInfo"][node.id] = {{"active", info.active}, {"visible", info.visible}};
+                if (!info.name.empty()) json["nodeInfo"][node.id]["name"] = info.name;
+            }
+            for (const auto& start : manifest.startPoints)
+                json["startPoints"].push_back({{"id", start.id}, {"parentId", start.parentId},
+                    {"position", start.transform.position}, {"rotationDegrees", start.transform.rotationDegrees},
+                    {"scale", start.transform.scale}});
+            for (const auto& node : manifest.nodes)
+                json["nodes"].push_back({{"id", node.id}, {"name", node.name}, {"type", "Empty"},
+                    {"parentId", node.parentId}, {"position", node.transform.position},
+                    {"rotationDegrees", node.transform.rotationDegrees}, {"scale", node.transform.scale}});
             for (const auto& instance : manifest.instances)
             {
+                Require(std::isfinite(instance.hitPoints) && instance.hitPoints > 0, "Mesh hitPoints must be positive and finite");
                 json["instances"].push_back({
-                    { "id", instance.id }, { "asset", instance.asset },
+                    { "id", instance.id }, { "asset", instance.asset }, { "parentId", instance.parentId },
                     { "position", instance.transform.position },
                     { "rotationDegrees", instance.transform.rotationDegrees },
-                    { "scale", instance.transform.scale } });
+                    { "scale", instance.transform.scale },
+                    { "breakable", instance.breakable }, { "hitPoints", instance.hitPoints } });
             }
             for (const auto& area : manifest.clearAreas)
             {
                 json["clearAreas"].push_back({
-                    { "id", area.id }, { "name", area.name },
+                    { "id", area.id }, { "name", area.name }, { "parentId", area.parentId },
                     { "center", area.center }, { "size", area.size } });
             }
             for (const auto& enemy : manifest.enemies)
             {
                 json["enemies"].push_back({
-                    { "id", enemy.id }, { "unitType", enemy.unitType },
+                    { "id", enemy.id }, { "unitType", enemy.unitType }, { "parentId", enemy.parentId },
                     { "position", enemy.position },
-                    { "rotationDegrees", enemy.rotationDegrees } });
+                    { "rotationDegrees", enemy.rotationDegrees }, { "supportedByParent", enemy.supportedByParent } });
             }
             if (!manifest.enemyGroups.empty())
             {

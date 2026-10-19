@@ -1051,11 +1051,13 @@ void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 {
+    // Always end a camera gesture, including releases over ImGui windows.
     if (EnsureDebugCameraForMouse())
     {
         m_debugCameraController.OnMouseUp(button, x, y);
         ApplyActiveCameraScene();
     }
+    else m_debugCameraController.ResetInputState();
 }
 
 void TankSandboxApp::OnMouseMove(int x, int y)
@@ -1857,10 +1859,23 @@ void TankSandboxApp::DrawToolUi()
         const bool leaveMapEditor = m_mapEditorMode.DrawUi(Win32Application::GetHwnd());
         if (!leaveMapEditor)
         {
+            if (m_mapEditorMode.IsMapOpen())
+            {
+                bool cameraOpen = m_mapEditorMode.CameraWindowVisible();
+                if (Ui::DrawMapEditorCameraWindow(m_mapEditorScenePresenter.GetScene().camera,
+                        m_debugCameraController, cameraOpen))
+                    ApplyActiveCameraScene();
+                m_mapEditorMode.SetCameraWindowVisible(cameraOpen);
+            }
             m_mapEditorMode.DrawPlacementGizmo(m_mapEditorScenePresenter.GetScene().camera,
                 m_windowInfo.aspectRatio);
             if (m_mapEditorMode.PlacementGizmoCapturesMouse())
                 m_debugCameraController.ResetInputState();
+            m_mapEditorMode.UpdateViewportPicking([this](float x, float y)
+            {
+                const auto* viewport = ImGui::GetMainViewport();
+                return m_mapEditorScenePresenter.PickScreen(x, y, viewport->Size.x, viewport->Size.y);
+            });
         }
         if (leaveMapEditor)
         {
@@ -1888,7 +1903,8 @@ void TankSandboxApp::DrawToolUi()
                 const Tank::Rendering::MapEditorGridSettings grid = {
                     m_mapEditorMode.GridSpacingMeters(),
                     m_mapEditorMode.GridHalfCellCount(),
-                    m_mapEditorMode.GridLineWidthMeters() };
+                    m_mapEditorMode.GridLineWidthMeters(),
+                    m_mapEditorMode.GridVisible() };
                 const Tank::Rendering::MapEditorPreviewSettings preview = {
                     m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds(),
                     m_mapEditorMode.ShowVisualMeshes(), m_mapEditorMode.ShowHitMeshes(),
@@ -1930,7 +1946,9 @@ void TankSandboxApp::DrawToolUi()
                     m_sceneRenderer.ReloadSceneResources(scene);
                     m_sceneRenderer.SetDisplayInstanceCount(
                         static_cast<int>(scene.instances.size()));
+                    const auto editorCamera = scene.camera;
                     ActivateOrbitCamera(scene, cameraPivot);
+                    scene.camera = editorCamera;
                     ApplyActiveCameraScene();
                     m_mapEditorMode.SetPreviewWarning(m_mapEditorScenePresenter.Warning());
                 }
@@ -2248,7 +2266,7 @@ void TankSandboxApp::ApplyActiveCameraScene()
 {
     if (Engine::CameraState* camera = ActiveCamera())
     {
-        if (m_cameraController.IsDebugSlot())
+        if (m_appMode != AppMode::MapEditor && m_cameraController.IsDebugSlot())
         {
             Tank::App::CameraController::StabilizeWorldUp(*camera);
         }

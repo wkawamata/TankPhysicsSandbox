@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace Engine { class SceneBuilder; using SceneMeshId = uint32_t; }
 
@@ -29,7 +30,8 @@ namespace Tank::Rendering
         const std::filesystem::path& mapFolder, const Map::Manifest& manifest,
         uint32_t materialId, std::string& error,
         std::vector<MapVisualBounds>* instanceBounds = nullptr,
-        std::vector<size_t>* instanceIndices = nullptr);
+        std::vector<size_t>* instanceIndices = nullptr,
+        std::vector<std::pair<size_t, std::string>>* pickInstances = nullptr);
 
     bool AppendMapHitMeshOverlay(Engine::SceneBuilder& builder,
         const std::vector<Map::HitTriangleMesh>& hitMeshes, uint32_t materialId,

@@ -2,6 +2,8 @@
 #include "Ui/CameraPanel.h"
 
 #include "App/CameraController.h"
+#include "App/EditorCameraViews.h"
+#include <Camera/DebugCameraController.h>
 #include "App/CameraSettingsStore.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "imgui.h"
@@ -428,5 +430,97 @@ namespace Ui
         }
         ImGui::End();
         DrawMortarCameraCheatWindow(ctx);
+    }
+}
+
+namespace Ui
+{
+    bool DrawMapEditorCameraWindow(Engine::CameraState& camera,
+        RtPbrSurvey::DebugCameraController& controller, bool& open)
+    {
+        if (!open) return false;
+        const auto* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x + (std::min)(630.0f, (std::max)(10.0f, viewport->Size.x - 440)),
+            viewport->Pos.y + 40), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(420, 510), ImGuiCond_FirstUseEver);
+        if (!ImGui::Begin("Map Editor Camera", &open)) { ImGui::End(); return false; }
+        ImGui::TextUnformatted("Camera: Debug (Orbit)");
+        ImGui::TextDisabled("Left drag: Orbit / Middle drag: Pan / Wheel: Zoom");
+        const auto previous = camera;
+        static constexpr float defaultPosition[3] = {8, 6, -8};
+        static constexpr float defaultGaze[3] = {0, 0, 0};
+        float position[3] = {camera.pos.x, camera.pos.y, camera.pos.z};
+        float gaze[3] = {camera.gazePoint.x, camera.gazePoint.y, camera.gazePoint.z};
+        ImGui::TextUnformatted("Position (m)");
+        bool poseChanged = ImGuiWidgets::SliderFloat3AxisWithControls("Position", position,
+            -10000, 10000, 0.5f, defaultPosition, "%.2f");
+        ImGui::TextUnformatted("Look At (m)");
+        poseChanged |= ImGuiWidgets::SliderFloat3AxisWithControls("LookAt", gaze,
+            -10000, 10000, 0.5f, defaultGaze, "%.2f");
+        camera.pos = {position[0], position[1], position[2]};
+        camera.gazePoint = {gaze[0], gaze[1], gaze[2]};
+        bool changed = poseChanged;
+        ImGui::SeparatorText("Projection");
+        int projection = static_cast<int>(camera.projection);
+        changed |= ImGui::RadioButton("Perspective", &projection, static_cast<int>(Engine::CameraProjection::Perspective));
+        ImGui::SameLine();
+        changed |= ImGui::RadioButton("Orthographic", &projection, static_cast<int>(Engine::CameraProjection::Orthographic));
+        camera.projection = static_cast<Engine::CameraProjection>(projection);
+        if (camera.projection == Engine::CameraProjection::Perspective)
+        {
+            changed |= ImGuiWidgets::SliderFloatWithControls("FOV Y", &camera.fov, 1, 120, 1, 60, "%.1f deg");
+            changed |= ImGuiWidgets::SliderFloatWithControls("Lens Shift X", &camera.lensShiftX, -1, 1, 0.01f, 0, "%.2f");
+            changed |= ImGuiWidgets::SliderFloatWithControls("Lens Shift Y", &camera.lensShiftY, -1, 1, 0.01f, 0, "%.2f");
+        }
+        else
+            changed |= ImGuiWidgets::SliderFloatWithControls("Ortho Height (m)", &camera.orthographicHeight,
+                1, 1000, 1, 10, "%.1f");
+        bool planeSelected = false;
+        const char* planeLabels[] = {"XZ", "XY", "YZ"};
+        for (int i = 0; i < 3; ++i)
+        {
+            if (i) ImGui::SameLine();
+            if (ImGui::Button(planeLabels[i]))
+            {
+                Tank::App::ApplyEditorOrthoPlane(camera, static_cast<Tank::App::EditorOrthoPlane>(i));
+                planeSelected = poseChanged = changed = true;
+            }
+        }
+        ImGui::SeparatorText("Clipping (m)");
+        const float nearMaximum = (std::min)(1000.0f, camera.farZ - 0.01f);
+        if (ImGuiWidgets::SliderFloatWithControls("Near Z", &camera.nearZ,
+                0.01f, nearMaximum, 0.01f, 0.1f, "%.3f"))
+        {
+            camera.nearZ = std::clamp(camera.nearZ, 0.01f, nearMaximum);
+            changed = true;
+        }
+        if (ImGuiWidgets::SliderFloatWithControls("Far Z", &camera.farZ,
+                camera.nearZ + 0.01f, 100000.0f, 10.0f, 10000.0f, "%.1f"))
+        {
+            camera.farZ = std::clamp(camera.farZ, camera.nearZ + 0.01f, 100000.0f);
+            changed = true;
+        }
+        float speed = controller.SpeedMultiplier();
+        if (ImGuiWidgets::SliderFloatWithControls("Mouse Speed", &speed, 0.1f, 10, 0.1f, 1, "%.1f"))
+            controller.SetSpeedMultiplier(speed);
+        if (ImGui::Button("Reset View"))
+        {
+            camera = Engine::CameraState{};
+            camera.pos = {8, 6, -8}; camera.gazePoint = {0, 0, 0};
+            poseChanged = changed = true;
+        }
+        if (poseChanged)
+        {
+            const auto offset = DirectX::XMVectorSubtract(DirectX::XMLoadFloat3(&camera.pos), DirectX::XMLoadFloat3(&camera.gazePoint));
+            if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(offset)) < 0.0001f)
+            {
+                camera.pos = previous.pos; camera.gazePoint = previous.gazePoint;
+            }
+            controller.ResetInputState();
+            controller.InitObjectViewerFromCamera();
+            if (!planeSelected) controller.UpdateObjectViewerCamera();
+        }
+        ImGui::End();
+        return changed;
     }
 }

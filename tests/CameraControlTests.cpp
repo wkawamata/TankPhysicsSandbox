@@ -1,3 +1,4 @@
+#include "App/EditorCameraViews.h"
 #include <Windows.h>
 
 #include "App/CameraController.h"
@@ -539,6 +540,34 @@ int main()
         return 1;
     }
 
+    for (int i = 0; i < 3; ++i)
+    {
+        Engine::CameraState view;
+        view.pos = {3, 14, 5}; view.gazePoint = {3, 4, 5};
+        Tank::App::ApplyEditorOrthoPlane(view, static_cast<Tank::App::EditorOrthoPlane>(i));
+        const bool aligned = i == 0 ? view.pos.x == 3 && view.pos.y == 14 && view.pos.z == 5 && view.up.z == 1 :
+            i == 1 ? view.pos.x == 3 && view.pos.y == 4 && view.pos.z == -5 :
+            view.pos.x == 13 && view.pos.y == 4 && view.pos.z == 5;
+        if (!aligned || view.projection != Engine::CameraProjection::Orthographic || view.gazePoint.y != 4)
+        { std::cerr << "FAIL editor orthographic plane\n"; return 1; }
+    }
+    for (float pole : {-1.0f, 1.0f})
+    {
+        Engine::CameraState view;
+        view.pos = {0, pole * 10, 0}; view.gazePoint = {0, 0, 0}; view.up = {0, 0, 1};
+        RtPbrSurvey::DebugCameraController orbit;
+        orbit.SetCameraState(&view); orbit.SetWindowSize(1280, 720);
+        orbit.InitObjectViewerFromCamera();
+        orbit.OnMouseDown(VK_LBUTTON, 640, 360);
+        orbit.OnMouseMove(640, 380);
+        orbit.OnMouseUp(VK_LBUTTON, 640, 380);
+        if (!std::isfinite(view.pos.x) || !std::isfinite(view.pos.y) || !std::isfinite(view.pos.z))
+        { std::cerr << "FAIL orbit from exact pole\n"; return 1; }
+        const auto released = view.pos;
+        orbit.OnMouseMove(700, 420);
+        if (view.pos.x != released.x || view.pos.y != released.y || view.pos.z != released.z)
+        { std::cerr << "FAIL mouse release must end orbit\n"; return 1; }
+    }
     std::cout << "PASS camera-control-contract\n";
     return 0;
 }

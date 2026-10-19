@@ -18,6 +18,7 @@ namespace Tank::Rendering
         float spacingMeters = 1.0f;
         int halfCellCount = 10;
         float lineWidthMeters = 0.02f;
+        bool visible = true;
     };
 
     struct MapEditorPreviewSettings
@@ -54,11 +55,23 @@ namespace Tank::Rendering
             return m_selectedFocusTarget;
         }
         const std::string& Warning() const { return m_warning; }
+        // CPU triangle picking against visible authored geometry; grid and selection decorations are excluded.
+        std::optional<std::string> PickRay(const std::array<float, 3>& origin,
+            const std::array<float, 3>& direction) const;
+        std::optional<std::string> PickScreen(float x, float y, float width, float height) const;
         void Clear();
 
     private:
         std::unique_ptr<Engine::SceneBuilder> m_builder = std::make_unique<Engine::SceneBuilder>();
         std::optional<MapEditorFocusTarget> m_selectedFocusTarget;
+        struct PickRange
+        {
+            std::string nodeId;
+            size_t instanceIndex;
+            uint32_t firstIndex;
+            uint32_t indexCount;
+        };
+        std::vector<PickRange> m_pickRanges;
         std::string m_warning;
     };
 }

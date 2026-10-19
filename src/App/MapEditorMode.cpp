@@ -2,6 +2,8 @@
 
 #include "Map/MapAssetCatalog.h"
 #include "Map/MapEditing.h"
+#include "Map/MapHierarchy.h"
+#include "Ui/SceneTreeUI.h"
 #include "Platform/Windows/MapFolderPicker.h"
 #include "Physics/EnemyEditorJson.h"
 #include "Rendering/EnemyPlacementGizmo.h"
@@ -57,6 +59,7 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     m_status = "Opened Manifest.json";
     m_previewWarning.clear();
     m_selectedAsset.clear();
+    m_selectedNodeId = "root";
     m_selectedInstanceId.clear();
     m_focusSelectedRequested = false;
     m_hiddenInstanceIds.clear();
@@ -193,6 +196,7 @@ bool MapEditorMode::AddSelectedModel()
     Tank::Map::Instance instance;
     instance.id = Tank::Map::MakeUniqueInstanceId(updated);
     instance.asset = m_selectedAsset;
+    instance.parentId = SelectedNodeId();
     updated.instances.push_back(std::move(instance));
     std::string error;
     if (!m_map.SetManifest(updated, error))
@@ -381,6 +385,7 @@ bool MapEditorMode::AddClearArea()
 {
     Tank::Map::Manifest updated = m_map.Document();
     const std::string id = Tank::Map::AddClearArea(updated);
+    updated.clearAreas.back().parentId = SelectedNodeId();
     std::string error;
     if (!m_map.SetManifest(updated, error))
     {
@@ -450,6 +455,7 @@ bool MapEditorMode::LoadEnemyCatalog()
         std::vector<std::string> names;
         for (const auto& type : loaded.unitTypes) names.push_back(type.name);
         m_enemyTypes = std::move(names);
+        m_enemyCatalog = std::move(loaded);
         if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), m_selectedEnemyType) == m_enemyTypes.end())
             m_selectedEnemyType = m_enemyTypes.empty() ? "" : m_enemyTypes.front();
         m_enemyCatalogError.clear();
@@ -467,6 +473,7 @@ bool MapEditorMode::AddSelectedEnemy()
     auto updated = m_map.Document();
     const auto id = Tank::Map::AddEnemy(updated, m_selectedEnemyType);
     if (id.empty()) return false;
+    updated.enemies.back().parentId = SelectedNodeId();
     std::string error;
     if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
     m_selectedEnemyId = id;
@@ -475,7 +482,7 @@ bool MapEditorMode::AddSelectedEnemy()
     m_playerStartGizmoSelected = false;
     m_sceneReloadRequested = true;
     m_focusSelectedRequested = true;
-    m_status = "Added enemy. Set position/rotation, then Save.";
+    m_status = "Added enemy. Edit position/rotation in Map Tree, then Save.";
     return true;
 }
 
@@ -514,22 +521,30 @@ bool MapEditorMode::PlacementGizmoCapturesMouse() const
         (ImGuizmo::IsOver() || ImGuizmo::IsUsingAny());
 }
 
+std::string MapEditorMode::SelectedNodeId() const
+{
+    std::string id = m_selectedNodeId;
+    if (!m_selectedInstanceId.empty()) id = "mesh/" + m_selectedInstanceId;
+    else if (!m_selectedEnemyId.empty()) id = "enemy/" + m_selectedEnemyId;
+    else if (!m_selectedClearAreaId.empty()) id = "area/" + m_selectedClearAreaId;
+    else if (m_playerStartGizmoSelected)
+        id = m_selectedNodeId.starts_with("start/") ? m_selectedNodeId : "player-start";
+    const auto tree = Tank::Map::MapTree(m_map.Document());
+    return std::any_of(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;}) ? id : "root";
+}
 void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio)
 {
     if (!m_map.IsOpen() || !m_gizmoEnabled || m_confirm || m_pending != Action::None)
-    {
-        ImGuizmo::Enable(false);
-        return;
-    }
-    auto& document = m_map.Document();
-    const bool hasSelection = !m_selectedEnemyId.empty() || !m_selectedInstanceId.empty() ||
-        !m_selectedClearAreaId.empty() || m_playerStartGizmoSelected;
-    if (!hasSelection) { ImGuizmo::Enable(false); return; }
-    if ((!m_selectedClearAreaId.empty() && m_gizmoOperation == GizmoOperation::Rotate) ||
-        ((!m_selectedEnemyId.empty() || m_playerStartGizmoSelected) &&
-            m_gizmoOperation == GizmoOperation::Scale))
+    { ImGuizmo::Enable(false); return; }
+    const auto& document = m_map.Document();
+    const auto id = SelectedNodeId();
+    const auto tree = Tank::Map::MapTree(document);
+    const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;});
+    if (selected == tree.end()) { ImGuizmo::Enable(false); return; }
+    const bool rigid = selected->kind == Tank::Map::NodeKind::Enemy || selected->kind == Tank::Map::NodeKind::PlayerStartPoint;
+    if (rigid && m_gizmoOperation == GizmoOperation::Scale) m_gizmoOperation = GizmoOperation::Translate;
+    if (selected->kind == Tank::Map::NodeKind::ClearArea && m_gizmoOperation == GizmoOperation::Rotate)
         m_gizmoOperation = GizmoOperation::Translate;
-    // Keep the viewport gizmo below editor panels and don't start a drag through them.
     ImGuizmo::Enable(ImGuizmo::IsUsingAny() || !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow));
     ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
     const auto* viewport = ImGui::GetMainViewport();
@@ -538,105 +553,268 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
     DirectX::XMFLOAT4X4 view, projection;
     DirectX::XMStoreFloat4x4(&view, Engine::CreateCameraViewMatrix(camera));
     DirectX::XMStoreFloat4x4(&projection, Engine::CreateCameraProjectionMatrix(camera, aspectRatio));
-    const auto mode = m_gizmoLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
-    const bool scaleOperation = m_gizmoOperation == GizmoOperation::Scale;
+    auto world = Tank::Map::NodeWorldTransform(document, id);
     const auto operation = m_gizmoOperation == GizmoOperation::Rotate ? ImGuizmo::ROTATE :
-        (scaleOperation ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE);
-
-    if (!m_selectedInstanceId.empty())
+        m_gizmoOperation == GizmoOperation::Scale ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
+    if (ImGuizmo::Manipulate(&view._11, &projection._11, operation,
+        m_gizmoLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD, world.worldMatrix->data()))
     {
-        const auto selected = std::find_if(document.instances.begin(), document.instances.end(),
-            [this](const auto& item) { return item.id == m_selectedInstanceId; });
-        if (selected == document.instances.end()) { ImGuizmo::Enable(false); return; }
-        Tank::Map::EnemyPlacement pose;
-        pose.position = selected->transform.position;
-        pose.rotationDegrees = selected->transform.rotationDegrees;
-        auto matrix = Tank::Rendering::EnemyPlacementMatrix(pose);
-        if (scaleOperation)
-            DirectX::XMStoreFloat4x4(&matrix, DirectX::XMMatrixScaling(
-                selected->transform.scale[0], selected->transform.scale[1], selected->transform.scale[2]) *
-                DirectX::XMLoadFloat4x4(&matrix));
-        if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
+        if ((m_gridSnapEnabled || ImGui::GetIO().KeyShift) && m_gizmoOperation == GizmoOperation::Translate)
         {
-            const bool rotationChanged = m_gizmoOperation == GizmoOperation::Rotate;
-            pose = Tank::Rendering::EnemyPlacementFromGizmo(pose, matrix, rotationChanged);
-            auto transform = selected->transform;
-            transform.position = pose.position;
-            transform.rotationDegrees = pose.rotationDegrees;
-            if (scaleOperation)
+            auto& matrix = *world.worldMatrix;
+            const auto snapped = Tank::Map::SnapPositionToGrid({matrix[12], matrix[13], matrix[14]}, m_gridSpacingMeters);
+            std::copy(snapped.begin(), snapped.end(), matrix.begin() + 12);
+        }
+        Tank::Map::Transform local;
+        std::string error;
+        auto updated = document;
+        if (Tank::Map::NodeTransformFromWorld(document, id, *world.worldMatrix, local, error) &&
+            Tank::Map::SetNodeLocalTransform(updated, id, local) && m_map.SetManifest(updated, error))
+            m_sceneReloadRequested = true;
+        else m_status = "Could not transform node: " + error;
+    }
+}
+void MapEditorMode::UpdateViewportPicking(
+    const std::function<std::optional<std::string>(float, float)>& pick)
+{
+    const auto& io = ImGui::GetIO();
+    const bool blocked = !m_map.IsOpen() || m_confirm || m_pending != Action::None ||
+        io.WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) ||
+        ImGuizmo::IsOver() || ImGuizmo::IsUsingAny();
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) m_viewportPickPending = !blocked;
+    if (blocked) m_viewportPickPending = false;
+    if (!ImGui::IsMouseReleased(ImGuiMouseButton_Left)) return;
+    const bool click = std::exchange(m_viewportPickPending, false) &&
+        io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left] <= io.MouseDragThreshold * io.MouseDragThreshold;
+    if (!click) return;
+    const auto* viewport = ImGui::GetMainViewport();
+    const auto picked = pick(io.MousePos.x - viewport->Pos.x, io.MousePos.y - viewport->Pos.y);
+    if (!picked) return;
+    const auto tree = Tank::Map::MapTree(m_map.Document());
+    const auto node = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == *picked;});
+    if (node == tree.end()) return;
+    m_selectedNodeId = node->id;
+    m_selectedInstanceId = node->kind == Tank::Map::NodeKind::Mesh ? node->objectId : "";
+    m_selectedEnemyId = node->kind == Tank::Map::NodeKind::Enemy ? node->objectId : "";
+    m_selectedClearAreaId = node->kind == Tank::Map::NodeKind::ClearArea ? node->objectId : "";
+    m_playerStartGizmoSelected = node->kind == Tank::Map::NodeKind::PlayerStartPoint;
+    m_revealTreeSelection = true;
+    m_sceneReloadRequested = true;
+}
+
+void MapEditorMode::DrawMapTree()
+{
+    using namespace Tank::Map;
+    ImGui::SeparatorText("Map Tree");
+    auto updated = m_map.Document();
+    const auto tree = MapTree(updated);
+    bool changed = false;
+    std::string selectedId = SelectedNodeId();
+    const auto select = [&](const TreeNode& node)
+    {
+        m_selectedNodeId = node.id;
+        selectedId = node.id;
+        m_selectedInstanceId = node.kind == NodeKind::Mesh ? node.objectId : "";
+        m_selectedEnemyId = node.kind == NodeKind::Enemy ? node.objectId : "";
+        m_selectedClearAreaId = node.kind == NodeKind::ClearArea ? node.objectId : "";
+        m_playerStartGizmoSelected = node.kind == NodeKind::PlayerStartPoint;
+        m_sceneReloadRequested = true;
+    };
+    std::vector<Tank::Ui::SceneTreeItem> items;
+    static constexpr const char* kinds[] = {"Empty", "glTF", "PlayerStartPoint", "Enemy", "ClearArea"};
+    for (const auto& node : tree)
+        items.push_back({node.id, node.parentId, node.name + " [" + kinds[static_cast<int>(node.kind)] + "]" +
+            (NodeIsEnabled(updated, node.id) ? "" : " [Inactive]") +
+            (NodeIsEnabled(updated, node.id, true) ? "" : " [Hidden]")});
+    const auto placement = [](Tank::Ui::SceneTreeDropPosition position)
+    {
+        switch (position)
+        {
+        case Tank::Ui::SceneTreeDropPosition::Before: return NodePlacement::Before;
+        case Tank::Ui::SceneTreeDropPosition::After: return NodePlacement::After;
+        default: return NodePlacement::Child;
+        }
+    };
+    const auto result = Tank::Ui::SceneTreeUI("MapSceneTree", items, "root", selectedId,
+        [&](const Tank::Ui::SceneTreeDrop& drop)
+        {
+            auto probe = updated;
+            std::string error;
+            return MoveNode(probe, drop.sourceId, drop.targetId, placement(drop.position), error);
+        }, std::exchange(m_revealTreeSelection, false));
+    if (result.selectedId)
+        for (const auto& node : tree) if (node.id == *result.selectedId) select(node);
+    const bool contextDuplicate = result.command && result.command->action == Tank::Ui::SceneTreeAction::Duplicate;
+    const bool contextDelete = result.command && result.command->action == Tank::Ui::SceneTreeAction::Delete;
+    if (result.command && result.command->action == Tank::Ui::SceneTreeAction::Rename)
+    {
+        m_renameNodeId = result.command->nodeId;
+        for (const auto& node : tree) if (node.id == m_renameNodeId) m_renameNodeName = node.name;
+        m_renameNodeError.clear();
+        ImGui::OpenPopup("Rename Tree Element");
+    }
+    if (ImGui::BeginPopupModal("Rename Tree Element", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+        const bool enter = ImGui::InputText("Name", &m_renameNodeName, ImGuiInputTextFlags_EnterReturnsTrue);
+        if (!m_renameNodeError.empty()) ImGui::TextWrapped("%s", m_renameNodeError.c_str());
+        if (ImGui::Button("Rename") || enter)
+        {
+            if (RenameNode(updated, m_renameNodeId, m_renameNodeName, m_renameNodeError))
+            { changed = true; ImGui::CloseCurrentPopup(); }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    if (result.drop)
+    {
+        std::string error;
+        if (MoveNode(updated, result.drop->sourceId, result.drop->targetId, placement(result.drop->position), error))
+            changed = true;
+        else m_status = error;
+    }
+    if (ImGui::Button("Add Empty Node"))
+    {
+        std::string id;
+        for (int i = 1;; ++i)
+        {
+            id = "node-" + std::to_string(i);
+            if (std::none_of(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;})) break;
+        }
+        const bool validSelection = std::any_of(tree.begin(), tree.end(), [&](const auto& n) {return n.id == selectedId;});
+        updated.nodes.push_back({id, "Empty", validSelection ? selectedId : "root", {}});
+        select({id, "Empty", validSelection ? selectedId : "root", NodeKind::Empty, id});
+        changed = true;
+    }
+    const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == selectedId;});
+    if (selected != tree.end())
+    {
+        ImGui::Text("Selected: %s", selected->name.c_str());
+        auto info = GetNodeInfo(updated, selectedId);
+        ImGui::BeginDisabled(selectedId == "root");
+        if (ImGui::Checkbox("Active", &info.active))
+        {
+            std::string error;
+            if (SetNodeActive(updated, selectedId, info.active, error)) changed = true;
+            else m_status = error;
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Checkbox("Visible in editor", &info.visible))
+        {
+            auto current = GetNodeInfo(updated, selectedId);
+            current.visible = info.visible;
+            updated.nodeInfo[selectedId] = current;
+            changed = true;
+        }
+        if (selected->kind == NodeKind::Enemy)
+        {
+            auto enemy = std::find_if(updated.enemies.begin(), updated.enemies.end(),
+                [&](const auto& n) {return n.id == selected->objectId;});
+            if (enemy != updated.enemies.end())
+                changed |= ImGui::Checkbox("Supported by parent", &enemy->supportedByParent);
+            ImGui::TextDisabled("Falls when its nearest Breakable ancestor is destroyed.");
+        }
+        if (selected->kind == NodeKind::Mesh)
+        {
+            auto model = std::find_if(updated.instances.begin(), updated.instances.end(),
+                [&](const auto& n) {return n.id == selected->objectId;});
+            if (model != updated.instances.end())
             {
-                DirectX::XMVECTOR scale, rotation, translation;
-                if (DirectX::XMMatrixDecompose(&scale, &rotation, &translation,
-                    DirectX::XMLoadFloat4x4(&matrix)))
-                {
-                    transform.scale = {
-                        std::clamp(DirectX::XMVectorGetX(scale), 0.1f, 20.0f),
-                        std::clamp(DirectX::XMVectorGetY(scale), 0.1f, 20.0f),
-                        std::clamp(DirectX::XMVectorGetZ(scale), 0.1f, 20.0f) };
-                }
+                changed |= ImGui::Checkbox("Breakable", &model->breakable);
+                ImGui::BeginDisabled(!model->breakable);
+                changed |= ImGuiWidgets::SliderFloatWithControls("HP", &model->hitPoints,
+                    1, 100000, 10, 60, "%.0f");
+                model->hitPoints = std::clamp(model->hitPoints, 1.0f, 100000.0f);
+                ImGui::EndDisabled();
             }
-            UpdateSelectedInstance(transform);
         }
-        return;
-    }
-
-    if (!m_selectedEnemyId.empty())
-    {
-        const auto selected = std::find_if(document.enemies.begin(), document.enemies.end(),
-            [this](const auto& item) { return item.id == m_selectedEnemyId; });
-        if (selected == document.enemies.end()) { ImGuizmo::Enable(false); return; }
-        if (scaleOperation) return;
-        auto matrix = Tank::Rendering::EnemyPlacementMatrix(*selected);
-        if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
-            UpdateSelectedEnemy(Tank::Rendering::EnemyPlacementFromGizmo(
-                *selected, matrix, m_gizmoOperation == GizmoOperation::Rotate));
-        return;
-    }
-
-    if (m_playerStartGizmoSelected)
-    {
-        if (scaleOperation) return;
-        Tank::Map::EnemyPlacement pose;
-        pose.position = document.playerSpawn.position;
-        pose.rotationDegrees = document.playerSpawn.rotationDegrees;
-        auto matrix = Tank::Rendering::EnemyPlacementMatrix(pose);
-        if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
+        if (selected->kind == NodeKind::PlayerStartPoint)
+            ImGui::TextWrapped("Position is the tank chassis center. Keep Y above the HitMesh.");
+        if (selectedId != "root" && ImGui::BeginCombo("Parent", selected->parentId.c_str()))
         {
-            pose = Tank::Rendering::EnemyPlacementFromGizmo(
-                pose, matrix, m_gizmoOperation == GizmoOperation::Rotate);
-            auto transform = document.playerSpawn;
-            transform.position = pose.position;
-            transform.rotationDegrees = pose.rotationDegrees;
-            UpdatePlayerSpawn(transform);
-        }
-        return;
-    }
-
-    const auto selected = std::find_if(document.clearAreas.begin(), document.clearAreas.end(),
-        [this](const auto& item) { return item.id == m_selectedClearAreaId; });
-    if (selected == document.clearAreas.end()) { ImGuizmo::Enable(false); return; }
-    if (m_gizmoOperation == GizmoOperation::Rotate) return;
-    DirectX::XMFLOAT4X4 matrix;
-    DirectX::XMStoreFloat4x4(&matrix,
-        DirectX::XMMatrixScaling(selected->size[0], selected->size[1], selected->size[2]) *
-        DirectX::XMMatrixTranslation(selected->center[0], selected->center[1], selected->center[2]));
-    const auto areaOperation = scaleOperation ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
-    if (ImGuizmo::Manipulate(&view._11, &projection._11, areaOperation, ImGuizmo::WORLD, &matrix._11))
-    {
-        Tank::Map::ClearArea area = *selected;
-        area.center = { matrix._41, matrix._42, matrix._43 };
-        if (scaleOperation)
-        {
-            DirectX::XMVECTOR scale, rotation, translation;
-            if (DirectX::XMMatrixDecompose(&scale, &rotation, &translation,
-                DirectX::XMLoadFloat4x4(&matrix)))
+            for (const auto& candidate : tree)
             {
-                area.size = { (std::max)(0.01f, DirectX::XMVectorGetX(scale)),
-                    (std::max)(0.01f, DirectX::XMVectorGetY(scale)),
-                    (std::max)(0.01f, DirectX::XMVectorGetZ(scale)) };
+                auto probe = updated;
+                std::string error;
+                if (!MoveNode(probe, selectedId, candidate.id, NodePlacement::Child, error)) continue;
+                ImGui::PushID(candidate.id.c_str());
+                if (ImGui::Selectable(candidate.name.c_str(), candidate.id == selected->parentId))
+                { updated = std::move(probe); changed = true; }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::TextDisabled("Transforms are relative to the parent. Reparenting keeps local values.");
+        auto transform = NodeLocalTransform(updated, selectedId);
+        static constexpr float zero[3] = {0, 0, 0};
+        static constexpr float one[3] = {1, 1, 1};
+        ImGui::PushID("TreeInspector");
+        ImGui::TextUnformatted("Position (m) - Local");
+        bool poseChanged = ImGuiWidgets::SliderFloat3AxisWithControls("Position", transform.position.data(),
+            -10000, 10000, m_gridSnapEnabled ? m_gridSpacingMeters : 0.05f, zero, "%.2f");
+        if (poseChanged && m_gridSnapEnabled)
+        {
+            auto probe = updated;
+            if (SetNodeLocalTransform(probe, selectedId, transform))
+            {
+                auto world = NodeWorldTransform(probe, selectedId);
+                auto& matrix = *world.worldMatrix;
+                const auto snapped = SnapPositionToGrid({matrix[12], matrix[13], matrix[14]}, m_gridSpacingMeters);
+                std::copy(snapped.begin(), snapped.end(), matrix.begin() + 12);
+                std::string error;
+                if (!NodeTransformFromWorld(probe, selectedId, matrix, transform, error))
+                    m_status = "Could not snap position: " + error;
             }
         }
-        UpdateSelectedClearArea(area);
+        if (selected->kind != NodeKind::ClearArea)
+        {
+            ImGui::TextUnformatted("Rotation (deg) - Local");
+            poseChanged |= ImGuiWidgets::SliderFloat3AxisWithControls("Rotation", transform.rotationDegrees.data(),
+                -360, 360, 1, zero, "%.1f");
+        }
+        if (selected->kind != NodeKind::Enemy && selected->kind != NodeKind::PlayerStartPoint)
+        {
+            ImGui::TextUnformatted(selected->kind == NodeKind::ClearArea ? "Size (m) - Local" : "Scale - Local");
+            poseChanged |= ImGuiWidgets::SliderFloat3AxisWithControls("Scale", transform.scale.data(),
+                0.01f, 100, 0.01f, one, "%.2f");
+        }
+        ImGui::PopID();
+        if (poseChanged) changed |= SetNodeLocalTransform(updated, selectedId, transform);
+        auto nodeName = selected->name;
+        if (ImGui::InputText("Node Name", &nodeName))
+        {
+            std::string error;
+            if (RenameNode(updated, selectedId, nodeName, error)) changed = true;
+            else m_status = error;
+        }
+        ImGui::BeginDisabled(selectedId == "root");
+        if (ImGui::Button("Duplicate") || contextDuplicate)
+        {
+            std::string error;
+            if (const auto duplicate = DuplicateNode(updated, selectedId, error))
+            {
+                for (const auto& n : MapTree(updated)) if (n.id == *duplicate) select(n);
+                changed = true;
+            }
+            else m_status = error;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Remove Selected") || contextDelete)
+        {
+            std::string error;
+            if (RemoveNode(updated, selectedId, error))
+            { select({"root", "Root", "", NodeKind::Empty, "root"}); changed = true; }
+            else m_status = error;
+        }
+        ImGui::EndDisabled();
+    }
+    if (changed)
+    {
+        std::string error;
+        if (m_map.SetManifest(updated, error)) m_sceneReloadRequested = true;
+        else m_status = "Could not update map tree: " + error;
     }
 }
 
@@ -649,8 +827,7 @@ void MapEditorMode::DrawEnemies()
         LoadEnemyCatalog();
     }
     ImGui::SeparatorText("Enemies");
-    ImGui::InputText("Enemy catalog JSON", &m_enemyCatalogPath);
-    if (ImGui::Button("Load Enemy Catalog")) LoadEnemyCatalog();
+    ImGui::TextWrapped("Enemy catalog: %s", m_enemyCatalogPath.c_str());
     if (!m_enemyCatalogError.empty())
         ImGui::TextWrapped("Catalog load failed (previous types retained): %s", m_enemyCatalogError.c_str());
     auto typeCombo = [this](const char* label, std::string& name)
@@ -678,28 +855,6 @@ void MapEditorMode::DrawEnemies()
     ImGui::EndDisabled();
     ImGui::TextWrapped("Red boxes and forward markers show placements. Dimensions are preview placeholders.");
     const auto& enemies = m_map.Document().enemies;
-    if (ImGui::BeginListBox("##PlacedEnemies", ImVec2(-1, 80)))
-    {
-        for (size_t i = 0; i < enemies.size(); ++i)
-        {
-            ImGui::PushID(static_cast<int>(i));
-            const auto pos = ImGui::GetCursorScreenPos();
-            if (ImGui::Selectable("##enemy", enemies[i].id == m_selectedEnemyId))
-            {
-                m_selectedEnemyId = enemies[i].id;
-                m_selectedInstanceId.clear();
-                m_selectedClearAreaId.clear();
-                m_playerStartGizmoSelected = false;
-                if (m_gizmoOperation == GizmoOperation::Scale) m_gizmoOperation = GizmoOperation::Translate;
-                m_sceneReloadRequested = true;
-                m_focusSelectedRequested = true;
-            }
-            const std::string label = enemies[i].id + " (" + enemies[i].unitType + ")";
-            ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
-            ImGui::PopID();
-        }
-        ImGui::EndListBox();
-    }
     const auto selected = std::find_if(enemies.begin(), enemies.end(),
         [this](const auto& value) { return value.id == m_selectedEnemyId; });
     if (selected != enemies.end())
@@ -707,17 +862,10 @@ void MapEditorMode::DrawEnemies()
         auto enemy = *selected;
         if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), enemy.unitType) == m_enemyTypes.end())
             ImGui::TextWrapped("Type is missing from loaded catalog: %s", enemy.unitType.c_str());
-        bool changed = typeCombo("Placement type", enemy.unitType);
-        static constexpr float defaultPosition[3] = { 0.0f, 0.0f, 0.0f };
-        static constexpr float defaultRotation[3] = { 0.0f, 0.0f, 0.0f };
-        changed |= ImGuiWidgets::SliderFloat3AxisWithControls(
-            "Position (m)##Enemy", enemy.position.data(), -10000.0f, 10000.0f, 0.05f, defaultPosition, "%.2f");
-        changed |= ImGuiWidgets::SliderFloat3AxisWithControls(
-            "Rotation (deg)##Enemy", enemy.rotationDegrees.data(), -360.0f, 360.0f, 1.0f, defaultRotation, "%.1f");
+        const bool changed = typeCombo("Placement type", enemy.unitType);
         if (changed) UpdateSelectedEnemy(enemy);
         if (ImGui::Button("Focus Enemy")) { m_sceneReloadRequested = true; m_focusSelectedRequested = true; }
-        ImGui::SameLine();
-        if (ImGui::Button("Remove Enemy")) RemoveSelectedEnemy();
+
     }
 }
 
@@ -745,7 +893,9 @@ void MapEditorMode::DrawCheatSheet()
     if (ImGui::Begin("Map Editor Cheat Sheet", &m_showCheatSheet, ImGuiWindowFlags_NoCollapse))
     {
         ImGui::SeparatorText("Camera");
+        ImGui::BulletText("Left click: Select visible object");
         ImGui::BulletText("Left drag: Orbit");
+        ImGui::BulletText("Shift + Move gizmo: Grid snap");
         ImGui::BulletText("Middle drag: Pan");
         ImGui::BulletText("Mouse wheel: Zoom");
         ImGui::TextWrapped("Move the pointer outside GUI windows before operating the camera.");
@@ -757,12 +907,12 @@ void MapEditorMode::DrawCheatSheet()
         ImGui::BulletText("Add to Map");
 
         ImGui::SeparatorText("Edit the Map");
-        ImGui::BulletText("Placed Models: position and rotation");
+        ImGui::BulletText("Map Tree: model position, rotation and scale");
         ImGui::BulletText("Selected model: yellow highlight box");
-        ImGui::BulletText("Visible in editor: preview-only visibility");
-        ImGui::BulletText("Show Visual / Hit Meshes and Visual Mesh Color: preview display settings");
+        ImGui::BulletText("Map Tree: Active, Visible in editor, Duplicate and Remove Selected");
+        ImGui::BulletText("Show Visual / Hit Meshes and Hit Fallback Color: preview display settings");
         ImGui::BulletText("Missing Visual Mesh: warning and Hit fallback");
-        ImGui::BulletText("Player Start: chassis-center position and rotation");
+        ImGui::BulletText("Map Tree: select PlayerStartPoint or Enemy to edit position/rotation");
         ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
         ImGui::BulletText("Clear Areas: goal AABB center and size");
         ImGui::BulletText("Select a model, enemy, clear area, or player start; drag the Move/Rotate/Scale gizmo");
@@ -852,6 +1002,16 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
+    ImGui::BeginDisabled(!m_map.IsOpen());
+    if (ImGui::Checkbox("Enemy Unit Editor", &m_enemyUnitEditor.open) && m_enemyUnitEditor.open)
+    {
+        ImGui::SetWindowCollapsed("Enemy Unit Editor", false);
+        ImGui::SetWindowFocus("Enemy Unit Editor");
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::Checkbox("Camera Window", &m_showCameraWindow);
+    ImGui::SameLine();
     ImGui::Checkbox("Show Cheat Sheet", &m_showCheatSheet);
     ImGui::Checkbox("Placement Gizmo", &m_gizmoEnabled);
     ImGui::SameLine();
@@ -863,7 +1023,8 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         m_gizmoOperation = GizmoOperation::Rotate;
     ImGui::EndDisabled();
     ImGui::SameLine();
-    const bool canScaleSelection = !m_selectedInstanceId.empty() || !m_selectedClearAreaId.empty();
+    const bool canScaleSelection = !m_selectedInstanceId.empty() || !m_selectedClearAreaId.empty() ||
+        (m_selectedEnemyId.empty() && !m_playerStartGizmoSelected);
     ImGui::BeginDisabled(!canScaleSelection);
     if (ImGui::RadioButton("Scale", m_gizmoOperation == GizmoOperation::Scale))
         m_gizmoOperation = GizmoOperation::Scale;
@@ -905,12 +1066,14 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         const std::string folder(utf8.begin(), utf8.end());
         ImGui::TextWrapped("Folder: %s", folder.c_str());
         ImGui::TextUnformatted(m_map.IsDirty() ? "Unsaved changes" : "Saved");
+        DrawMapTree();
         const auto& document = m_map.Document();
         ImGui::Text("Models: %zu", document.instances.size());
         ImGui::Text("Clear areas: %zu", document.clearAreas.size());
-        ImGui::Text("Player start: %.2f, %.2f, %.2f m", document.playerSpawn.position[0],
-            document.playerSpawn.position[1], document.playerSpawn.position[2]);
         ImGui::SeparatorText("Grid");
+        if (ImGui::Checkbox("Show Grid", &m_showGrid)) m_sceneReloadRequested = true;
+        ImGui::Checkbox("Grid Snap", &m_gridSnapEnabled);
+        ImGui::TextDisabled("Snap movement in world XYZ using Spacing (m).");
         bool gridChanged = ImGuiWidgets::SliderFloatWithControls(
             "Spacing (m)", &m_gridSpacingMeters, 0.1f, 100.0f, 0.05f, 1.0f, "%.2f");
         gridChanged |= ImGuiWidgets::SliderIntWithControls(
@@ -925,8 +1088,9 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         static constexpr float defaultVisualMeshColor[3] = {
             80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
         static constexpr const char* colorChannels[3] = { "R", "G", "B" };
+        ImGui::TextUnformatted("Hit Fallback Color");
         meshDisplayChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
-            "Visual Mesh Color", m_visualMeshColor.data(), 0.0f, 1.0f, 0.01f,
+            "Hit Fallback Color", m_visualMeshColor.data(), 0.0f, 1.0f, 0.01f,
             defaultVisualMeshColor, "%.2f", 0, colorChannels);
         if (meshDisplayChanged) m_sceneReloadRequested = true;
         ImGui::TextDisabled("Display only. Hit collision remains active during play.");
@@ -938,7 +1102,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         }
         ImGui::Separator();
         if (ImGui::Button("Add Indestructible Box")) AddIndestructibleBox();
-        ImGui::TextWrapped("Static box: 2 x 3 x 2 m, origin at its base. Shots cannot destroy it. Edit position/rotation below, then Save.");
+        ImGui::TextWrapped("Static box: 2 x 3 x 2 m, origin at its base. Shots cannot destroy it. Edit position/rotation in Map Tree, then Save.");
         if (ImGui::Button("Refresh Models")) RefreshAssets();
         ImGui::SameLine();
         ImGui::Text("glTF / GLB: %zu", m_assets.size());
@@ -1000,7 +1164,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 ImGui::Text("%s - node %zu, mesh %zu: %s", node.role == Tank::Map::MeshRole::Visual ? "Visual" : "Hit",
                     node.nodeIndex, node.meshIndex, node.name.empty() ? "(unnamed)" : node.name.c_str());
         }
-        ImGui::TextWrapped("Visual and Hit display can be toggled above. Hit meshes become indestructible static colliders during play.");
+        ImGui::TextWrapped("Visual and Hit display can be toggled above. Hit meshes provide collision during play. Select a Mesh in the Tree to set Breakable and HP.");
 
         ImGui::SeparatorText("Material Color");
         ImGui::BeginDisabled(m_selectedAsset.empty());
@@ -1051,95 +1215,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         }
         if (!m_roleError.empty()) ImGui::TextWrapped("Material: %s", m_roleError.c_str());
 
-        ImGui::SeparatorText("Placed Models");
-        if (document.instances.empty())
-        {
-            ImGui::TextUnformatted("No models have been added to this map.");
-        }
-        else
-        {
-            if (ImGui::BeginListBox("##PlacedModels", ImVec2(-1, 92)))
-            {
-                for (size_t index = 0; index < document.instances.size(); ++index)
-                {
-                    const Tank::Map::Instance& instance = document.instances[index];
-                    ImGui::PushID(static_cast<int>(index));
-                    const bool visible = !m_hiddenInstanceIds.contains(instance.id);
-                    const std::string label = instance.id + (visible ? "  " : "  [Hidden]  ") +
-                        "(" + instance.asset + ")";
-                    if (ImGui::Selectable(label.c_str(), instance.id == m_selectedInstanceId))
-                    {
-                        m_selectedInstanceId = instance.id;
-                        m_selectedEnemyId.clear();
-                        m_selectedClearAreaId.clear();
-                        m_playerStartGizmoSelected = false;
-                        if (m_gizmoOperation == GizmoOperation::Rotate) m_gizmoOperation = GizmoOperation::Translate;
-                        m_sceneReloadRequested = true;
-                        m_focusSelectedRequested = true;
-                    }
-                    ImGui::PopID();
-                }
-                ImGui::EndListBox();
-            }
-            const auto selected = std::find_if(document.instances.begin(), document.instances.end(),
-                [this](const Tank::Map::Instance& instance) { return instance.id == m_selectedInstanceId; });
-            if (selected != document.instances.end())
-            {
-                Tank::Map::Transform transform = selected->transform;
-                ImGui::TextWrapped("Selected: %s", selected->asset.c_str());
-                bool visible = !m_hiddenInstanceIds.contains(selected->id);
-                if (ImGui::Checkbox("Visible in editor", &visible))
-                    SetSelectedInstanceVisible(visible);
-                ImGui::SameLine();
-                ImGui::TextDisabled("(preview only)");
-                if (ImGui::Button("Remove Selected"))
-                {
-                    RemoveSelectedInstance();
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Duplicate"))
-                {
-                    DuplicateSelectedInstance();
-                }
-                static constexpr float defaultPosition[3] = { 0.0f, 0.0f, 0.0f };
-                static constexpr float defaultRotation[3] = { 0.0f, 0.0f, 0.0f };
-                const bool positionChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
-                    "Position (m)", transform.position.data(), -10000.0f, 10000.0f, 0.05f,
-                    defaultPosition, "%.2f");
-                const bool rotationChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
-                    "Rotation (deg)", transform.rotationDegrees.data(), -360.0f, 360.0f, 1.0f,
-                    defaultRotation, "%.1f");
-                static constexpr float defaultScale[3] = { 1.0f, 1.0f, 1.0f };
-                const bool scaleChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
-                    "Scale", transform.scale.data(), 0.1f, 20.0f, 0.01f, defaultScale, "%.2f x");
-                if ((positionChanged || rotationChanged || scaleChanged) && !UpdateSelectedInstance(transform))
-                    m_status = "Transform preview was not updated.";
-            }
-        }
-
         DrawEnemies();
-
-        ImGui::SeparatorText("Player Start");
-        ImGui::TextWrapped("Position is the tank chassis center. Keep Y above the HitMesh.");
-        if (ImGui::Selectable("Select Player Start for Gizmo", m_playerStartGizmoSelected))
-        {
-            m_playerStartGizmoSelected = !m_playerStartGizmoSelected;
-            m_selectedInstanceId.clear();
-            m_selectedEnemyId.clear();
-            m_selectedClearAreaId.clear();
-            m_gizmoOperation = GizmoOperation::Translate;
-        }
-        Tank::Map::Transform playerSpawn = document.playerSpawn;
-        static constexpr float defaultSpawnPosition[3] = { 0.0f, 2.0f, 0.0f };
-        static constexpr float defaultSpawnRotation[3] = { 0.0f, 0.0f, 0.0f };
-        const bool spawnPositionChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
-            "Position (m)##PlayerStart", playerSpawn.position.data(), -10000.0f, 10000.0f, 0.05f,
-            defaultSpawnPosition, "%.2f");
-        const bool spawnRotationChanged = ImGuiWidgets::SliderFloat3AxisWithControls(
-            "Rotation (deg)##PlayerStart", playerSpawn.rotationDegrees.data(), -360.0f, 360.0f, 1.0f,
-            defaultSpawnRotation, "%.1f");
-        if ((spawnPositionChanged || spawnRotationChanged) && !UpdatePlayerSpawn(playerSpawn))
-            m_status = "Player start preview was not updated.";
 
         ImGui::SeparatorText("Clear Areas");
         if (ImGui::Button("Add Clear Area")) AddClearArea();
@@ -1176,15 +1252,17 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 bool areaChanged = ImGui::InputText("Name##ClearArea", &area.name);
                 static constexpr float defaultCenter[3] = { 0.0f, 0.0f, 0.0f };
                 static constexpr float defaultSize[3] = { 1.0f, 1.0f, 1.0f };
+                ImGui::TextUnformatted("Center (m)");
                 areaChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
                     "Center (m)##ClearArea", area.center.data(), -10000.0f, 10000.0f, 0.05f,
                     defaultCenter, "%.2f");
+                ImGui::TextUnformatted("Size (m)");
                 areaChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
                     "Size (m)##ClearArea", area.size.data(), 0.01f, 10000.0f, 0.05f,
                     defaultSize, "%.2f");
                 if (areaChanged && !UpdateSelectedClearArea(area))
                     m_status = "Clear area preview was not updated.";
-                if (ImGui::Button("Remove Clear Area")) RemoveSelectedClearArea();
+
             }
         }
     }
@@ -1222,5 +1300,13 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     }
     ImGui::End();
     DrawCheatSheet();
+    if (m_map.IsOpen() && m_enemyUnitEditor.open)
+    {
+        m_enemyUnitEditor.Draw(m_enemyCatalog, m_enemyCatalogPath);
+        m_enemyTypes.clear();
+        for (const auto& type : m_enemyCatalog.unitTypes) m_enemyTypes.push_back(type.name);
+        if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), m_selectedEnemyType) == m_enemyTypes.end())
+            m_selectedEnemyType = m_enemyTypes.empty() ? "" : m_enemyTypes.front();
+    }
     return !m_confirm && m_pending != Action::None ? Execute(owner) : false;
 }

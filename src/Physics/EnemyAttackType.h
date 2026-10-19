@@ -62,6 +62,7 @@ namespace Tank::Physics
         std::string name = "Fixed turret";
         // Movement data is independent of attack definitions.
         std::vector<EnemyAttackMount> attackMounts = {EnemyAttackMount{}};
+        float hitPoints = 60.0f;
     };
 
     struct EnemyEditorSettings

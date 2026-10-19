@@ -5,6 +5,7 @@
 namespace DirectX { struct XMFLOAT3; }
 namespace Engine { struct CameraState; class Scene; }
 namespace Tank::App { class CameraController; }
+namespace RtPbrSurvey { class DebugCameraController; }
 namespace Tank::Physics { struct TrackedVehicleTestState; }
 
 namespace Ui
@@ -32,4 +33,6 @@ namespace Ui
     };
 
     void DrawCameraPanel(CameraPanelContext& ctx);
+    bool DrawMapEditorCameraWindow(Engine::CameraState& camera,
+        RtPbrSurvey::DebugCameraController& controller, bool& open);
 }

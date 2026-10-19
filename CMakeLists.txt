@@ -59,6 +59,8 @@ add_library(TankMapCore STATIC
     src/Map/MapAssetCatalog.h
     src/Map/MapFolder.cpp
     src/Map/MapFolder.h
+    src/Map/MapHierarchy.cpp
+    src/Map/MapHierarchy.h
     src/Map/MapManifest.cpp
     src/Map/MapManifest.h
 )
@@ -267,12 +269,16 @@ add_executable(TankSandbox
     src/Diagnostics/Log.h
     src/Platform/Windows/DebugLogSink.cpp
     src/Platform/Windows/DebugLogSink.h
+    src/Ui/SceneTreeUI.cpp
+    src/Ui/SceneTreeUI.h
     src/Ui/OutputPanel.cpp
     src/Ui/OutputPanel.h
     src/Ui/CameraPanel.cpp
     src/Ui/CameraPanel.h
     src/Ui/RendererSettingsPanel.cpp
     src/Ui/RendererSettingsPanel.h
+    src/Ui/EnemyUnitEditorWindow.cpp
+    src/Ui/EnemyUnitEditorWindow.h
     src/Ui/TrackedVehiclePanel.cpp
     src/Ui/TrackedVehiclePanel.h
     src/TankSandboxApp.cpp

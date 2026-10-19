@@ -182,7 +182,8 @@ private:
     std::filesystem::path m_manifestMapFolder;
     std::optional<Tank::Physics::EnemyNavigationSetup> m_enemyNavigationSetup;
     std::vector<Tank::Map::HitTriangleMesh> m_manifestHitMeshes;
-    std::optional<size_t> m_mapHitMeshOverlayInstance;
+    std::vector<size_t> m_mapHitMeshOverlayInstances;
+    std::vector<std::pair<size_t, std::string>> m_mapVisualNodes;
     std::vector<size_t> m_mapVisualInstances;
     std::vector<DirectX::XMFLOAT4X4> m_mapVisualWorlds;
     std::vector<size_t> m_mapMarkerInstances;

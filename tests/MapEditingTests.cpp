@@ -16,6 +16,12 @@ int main()
     using namespace Tank::Map;
     try
     {
+        Check(SnapPositionToGrid({1.2f, -1.7f, 0.2f}, 1.0f) == std::array<float, 3>{1, -2, 0},
+            "Grid snapping uses nearest world grid point including negative coordinates");
+        Check(SnapPositionToGrid({0.3f, -0.3f, 2.1f}, 0.5f) == std::array<float, 3>{0.5f, -0.5f, 2},
+            "Grid snapping respects fractional spacing");
+        Check(SnapPositionToGrid({1, 2, 3}, 0) == std::array<float, 3>{1, 2, 3},
+            "Invalid grid spacing leaves position unchanged");
         Manifest manifest;
         manifest.instances = {
             { "instance-1", "Models/A.gltf", { { 3.0f, 4.0f, 5.0f }, { 10.0f, 20.0f, 30.0f } } },

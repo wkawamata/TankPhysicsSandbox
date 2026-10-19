@@ -14,6 +14,10 @@ namespace Tank::Map
     {
         std::vector<std::array<float, 3>> vertices;
         std::vector<std::array<uint32_t, 3>> triangles;
+        // Optional authored combat target; empty/non-breakable meshes remain static scenery.
+        std::string placementId;
+        bool breakable = false;
+        float hitPoints = 60.0f;
     };
 
     // Loads Hit-role triangle primitives and bakes their glTF hierarchy transforms.

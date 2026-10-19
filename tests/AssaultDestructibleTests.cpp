@@ -1,3 +1,7 @@
+#include "App/ManifestEnemySpawner.h"
+#include "Map/MapHierarchy.h"
+#include "Map/GltfHitMesh.h"
+#include <filesystem>
 #include "Physics/TrackedVehicleTest.h"
 
 #include <cmath>
@@ -93,6 +97,69 @@ int main()
     Advance(world, 50);
     passed &= Check(world.State().destructibleBoxes[0].target.hitPoints == 40.0f &&
         world.State().destructibleBoxes[1].target.hitPoints == 60.0f, "infinite round reaches beyond 40m; off-axis box is missed");
+    Tank::Map::HitTriangleMesh localMesh, authoredMesh, floor;
+    std::string error;
+    const auto templatePath = std::filesystem::path(__FILE__).parent_path().parent_path() /
+        "Assets/Map/Templates/IndestructibleBox.gltf";
+    passed &= Check(Tank::Map::LoadGltfHitMesh(templatePath, localMesh, error), "load authored box mesh");
+    Tank::Map::Transform pose; pose.position = {0, 0, 12};
+    passed &= Check(Tank::Map::TransformHitMesh(localMesh, pose, authoredMesh, error), "place authored collider");
+    authoredMesh.placementId = "breakable-box"; authoredMesh.breakable = true; authoredMesh.hitPoints = 40;
+    floor.vertices = {{-100,0,-100}, {100,0,-100}, {100,0,100}, {-100,0,100}};
+    floor.triangles = {{0,3,2}, {0,2,1}};
+    passed &= Check(world.InitializeWithStaticMeshes({}, {}, {floor, authoredMesh}, {}, error),
+        "initialize breakable mesh without duplicate static collider");
+    passed &= Check(world.State().destructibleBoxes.size() == 1 && world.State().fixedTurrets.empty() &&
+        world.State().destructibleBoxes[0].placementId == "breakable-box", "mesh is a destructible target, not an enemy");
+    Advance(world, 180);
+    world.FireAssault(); Advance(world, 20);
+    passed &= Check(world.State().destructibleBoxes[0].target.hitPoints == 20, "ordinary round damages authored Hit mesh");
+    world.FireAssault(); Advance(world, 20);
+    passed &= Check(!world.State().destructibleBoxes[0].target.active, "authored mesh is destroyed at zero HP");
+    world.FireAssault(); Advance(world, 25);
+    passed &= Check(!world.State().assaultProjectiles.empty() && world.State().assaultProjectiles.back().position.z > 12,
+        "destroyed authored collider is removed from physics");
+    passed &= Check(world.InitializeWithStaticMeshes({}, {}, {floor, authoredMesh}, {}, error) &&
+        world.State().destructibleBoxes[0].target.active && world.State().destructibleBoxes[0].target.hitPoints == 40,
+        "reset restores authored collider and HP");
+    TankSettings mortarSettings;
+    mortarSettings.mortarMinimumFireAngleDegrees = 0;
+    mortarSettings.mortarMinimumRangeMeters = mortarSettings.mortarMaximumRangeMeters = 12;
+    mortarSettings.mortarMinimumAttackRadiusMeters = mortarSettings.mortarMaximumAttackRadiusMeters = 4;
+    mortarSettings.mortarExplosionDamage = 200;
+    passed &= Check(world.InitializeWithStaticMeshes(mortarSettings, {}, {floor, authoredMesh}, {}, error),
+        "initialize authored mortar target");
+    Advance(world, 60);
+    TankInput mortarInput; mortarInput.leftLeverX = -1; mortarInput.rightLeverX = 1;
+    world.SetInput(mortarInput); Advance(world, 10);
+    mortarInput.fireAssault = true; world.SetInput(mortarInput); world.Step(dt); world.SetInput({});
+    passed &= Check(world.State().mortarProjectiles.size() == 1, "launch mortar at authored mesh");
+    for (int step = 0; step < 600 && !world.State().mortarProjectiles.empty(); ++step) world.Step(dt);
+    passed &= Check(!world.State().destructibleBoxes[0].target.active, "mortar blast destroys authored mesh");
+    authoredMesh.hitPoints = 20;
+    passed &= Check(world.InitializeWithStaticMeshes({}, {}, {floor, authoredMesh}, {}, error), "initialize support test");
+    Tank::Map::Manifest supportMap, supportWorld;
+    supportMap.instances.push_back({"breakable-box", "Models/box.gltf", {{0,0,12}, {}}, "root", true, 20});
+    supportMap.enemies.push_back({"supported", "Fixed turret", {0,3.5f,0}, {}, "mesh/breakable-box", true});
+    supportMap.enemies.push_back({"independent", "Fixed turret", {3,3.5f,12}, {}});
+    EnemyEditorSettings supportCatalog;
+    supportCatalog.unitTypes[0].hitPoints = 90;
+    supportCatalog.unitTypes[0].attackMounts.clear();
+    passed &= Check(Tank::Map::ResolveHierarchy(supportMap, supportWorld, error) &&
+        Tank::App::SpawnManifestEnemies(world, supportWorld, supportCatalog, error), "spawn authored parent-supported enemy");
+    Advance(world, 180);
+    passed &= Check(world.State().fixedTurrets[0].position.y == 3.5f && !world.State().fixedTurrets[0].supportReleased,
+        "intact support keeps enemy in authored pose");
+    world.FireAssault(); Advance(world, 25);
+    passed &= Check(!world.State().destructibleBoxes[0].target.active && world.State().fixedTurrets[0].supportReleased,
+        "destroyed support releases enemy into dynamic physics");
+    Advance(world, 240);
+    passed &= Check(world.State().fixedTurrets[0].position.y < 1 && world.State().fixedTurrets[0].position.y > 0.3f &&
+        world.State().fixedTurrets[0].target.active && world.State().fixedTurrets[0].target.hitPoints == 90 &&
+        world.State().fixedTurrets[1].position.y == 3.5f && !world.State().fixedTurrets[1].supportReleased,
+        "supported enemy lands on ground with HP retained; opt-out enemy stays fixed");
+    authoredMesh.hitPoints = 0;
+    passed &= Check(!world.InitializeWithStaticMeshes({}, {}, {floor, authoredMesh}, {}, error), "reject invalid authored HP");
     if (!passed) return 1;
     std::cout << "PASS AssaultDestructible\n";
     return 0;

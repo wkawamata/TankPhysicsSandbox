@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Map/MapFolder.h"
+#include "Physics/EnemyAttackType.h"
+#include "Ui/EnemyUnitEditorWindow.h"
 #include <array>
 #include <functional>
 #include <optional>
@@ -19,6 +21,7 @@ public:
     bool DrawUi(HWND__* owner);
     void DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio);
     bool PlacementGizmoCapturesMouse() const;
+    void UpdateViewportPicking(const std::function<std::optional<std::string>(float, float)>& pick);
     void RequestExit();
     void RequestApplicationExit();
     using AssetValidator = std::function<bool(const std::filesystem::path&, const Tank::Map::GltfRoles&, std::string&)>;
@@ -32,7 +35,10 @@ public:
     const Tank::Map::MapFolder& Map() const { return m_map; }
     float GridSpacingMeters() const { return m_gridSpacingMeters; }
     int GridHalfCellCount() const { return m_gridHalfCellCount; }
+    bool GridVisible() const { return m_showGrid; }
     float GridLineWidthMeters() const { return m_gridLineWidthMeters; }
+    bool CameraWindowVisible() const { return m_showCameraWindow; }
+    void SetCameraWindowVisible(bool visible) { m_showCameraWindow = visible; }
     bool ShowVisualMeshes() const { return m_showVisualMeshes; }
     bool ShowHitMeshes() const { return m_showHitMeshes; }
     const std::array<float, 3>& VisualMeshColor() const { return m_visualMeshColor; }
@@ -68,6 +74,8 @@ private:
     bool UpdateSelectedEnemy(const Tank::Map::EnemyPlacement& enemy);
     bool RemoveSelectedEnemy();
     void DrawCheatSheet();
+    void DrawMapTree();
+    std::string SelectedNodeId() const;
 
     Tank::Map::MapFolder m_map;
     Action m_pending = Action::None;
@@ -94,12 +102,20 @@ private:
     std::unordered_set<std::string> m_hiddenInstanceIds;
     std::string m_selectedClearAreaId;
     std::string m_selectedEnemyId;
+    std::string m_selectedNodeId = "root";
     std::string m_enemyCatalogPath;
+    Tank::Physics::EnemyEditorSettings m_enemyCatalog;
+    Ui::EnemyUnitEditorWindow m_enemyUnitEditor;
     std::string m_enemyCatalogError;
     std::vector<std::string> m_enemyTypes;
     std::string m_selectedEnemyType;
     bool m_enemyCatalogInitialized = false;
     bool m_gizmoEnabled = true;
+    bool m_viewportPickPending = false;
+    bool m_revealTreeSelection = false;
+    std::string m_renameNodeId;
+    std::string m_renameNodeName;
+    std::string m_renameNodeError;
     enum class GizmoOperation { Translate, Rotate, Scale };
     GizmoOperation m_gizmoOperation = GizmoOperation::Translate;
     bool m_gizmoLocal = false;
@@ -109,6 +125,8 @@ private:
     bool m_applicationExitApproved = false;
     std::optional<std::filesystem::path> m_closedMapFolder;
     AssetValidator m_assetValidator;
+    bool m_showGrid = true;
+    bool m_gridSnapEnabled = false;
     float m_gridSpacingMeters = 1.0f;
     int m_gridHalfCellCount = 10;
     float m_gridLineWidthMeters = 0.02f;
@@ -116,4 +134,5 @@ private:
     bool m_showHitMeshes = false;
     std::array<float, 3> m_visualMeshColor = { 80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
     bool m_showCheatSheet = true;
+    bool m_showCameraWindow = true;
 };
