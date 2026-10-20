@@ -222,6 +222,8 @@ target_link_libraries(TankWindowsInput
 add_executable(TankSandbox
     src/App/MapEditorMode.cpp
     src/App/MapEditorMode.h
+    src/App/ExternalUndoEdit.h
+    src/App/CameraEditState.h
     src/App/UndoHistory.h
     src/App/SnapshotUndoEdit.h
     src/App/ManifestUndoEdit.h

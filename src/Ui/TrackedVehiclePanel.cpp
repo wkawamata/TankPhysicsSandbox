@@ -1597,6 +1597,18 @@ namespace Ui
             io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
             ctx.settingsUndo->Undo();
         if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
+        const std::array<bool*, 13> previewFields = {ctx.physicsDebugOverlay, ctx.mapHitMeshOverlay,
+            ctx.mapVisualMeshes, ctx.mapMarkersVisible, ctx.cameraWindowVisible, ctx.telemetryWindowVisible,
+            ctx.rollingParametersWindowVisible, ctx.mortarParametersWindowVisible, ctx.gamepadInputWindowVisible,
+            ctx.renderSettingsWindowVisible, ctx.outputWindowVisible, ctx.rollingCheatWindowVisible,
+            ctx.rollingCheatWindowJapanese};
+        const auto previewState = [previewFields]()
+        {
+            std::array<bool, 13> result{};
+            for (size_t i = 0; i < result.size(); ++i) result[i] = previewFields[i] && *previewFields[i];
+            return result;
+        };
+        auto beforePreview = previewState();
         auto beforeMapping = ctx.inputMappingSettings ? *ctx.inputMappingSettings : Tank::Input::TankInputMappingSettings{};
         auto beforeProfiles = ctx.inputDeviceProfiles ? *ctx.inputDeviceProfiles : Tank::Input::InputDeviceProfiles{};
         auto beforeSettings = ctx.tankSettings ? *ctx.tankSettings : Tank::Physics::TankSettings{};
@@ -1879,6 +1891,7 @@ namespace Ui
                 beforeSettings = *ctx.tankSettings;
                 if (ctx.visualSettings) beforeVisual = *ctx.visualSettings;
                 beforeDisplay = displayState();
+                beforePreview = previewState();
                 if (ctx.inputMappingSettings) beforeMapping = *ctx.inputMappingSettings;
                 if (ctx.inputDeviceProfiles) beforeProfiles = *ctx.inputDeviceProfiles;
                 if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
@@ -3117,6 +3130,13 @@ namespace Ui
         if (hasSettingsUndo)
         {
             const auto interaction = ImGui::GetActiveID();
+            ctx.settingsUndo->ObserveExternal(beforePreview, previewState(), interaction,
+                [previewFields, scene = ctx.updateScene](const auto& value)
+                {
+                    for (size_t i = 0; i < value.size(); ++i)
+                        if (previewFields[i]) *previewFields[i] = value[i];
+                    if (scene) scene();
+                }, "Preview display settings");
             if (ctx.inputMappingSettings)
                 ctx.settingsUndo->ObserveExternal(beforeMapping, *ctx.inputMappingSettings, interaction,
                     [settings = ctx.inputMappingSettings](const auto& value) { *settings = value; }, "Input mapping edit");

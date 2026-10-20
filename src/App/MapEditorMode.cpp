@@ -115,6 +115,7 @@ void MapEditorMode::RecordManifestEdit(const Tank::Map::Manifest& before,
     const Tank::Map::Manifest& after, const char* name)
 {
     if (m_replayingUndo) return;
+    m_viewEdit.Flush();
     std::string beforeJson;
     std::string afterJson;
     std::string error;
@@ -172,6 +173,7 @@ void MapEditorMode::FlushPendingGizmoEdit()
 
 void MapEditorMode::ClearUndoHistory()
 {
+    m_viewEdit.Clear();
     m_manifestEdit.Clear();
     m_gizmoEdit.Clear();
     m_enemyCatalogEdit.Clear();
@@ -184,6 +186,7 @@ bool MapEditorMode::Undo()
     FlushPendingEnemyCatalogEdit();
     FlushPendingGizmoEdit();
     FlushPendingManifestEdit();
+    m_viewEdit.Flush();
     if (!m_undoHistory.CanUndo()) return false;
     const std::string name = m_undoHistory.Undo();
     m_status = "Undo: " + name;
@@ -196,6 +199,7 @@ bool MapEditorMode::Redo()
     FlushPendingEnemyCatalogEdit();
     FlushPendingGizmoEdit();
     FlushPendingManifestEdit();
+    m_viewEdit.Flush();
     if (!m_undoHistory.CanRedo()) return false;
     const std::string name = m_undoHistory.Redo();
     m_status = "Redo: " + name;
@@ -673,6 +677,7 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
             FlushPendingManifestEdit();
             if (m_map.SetManifest(updated, error))
             {
+                m_viewEdit.Flush();
                 m_gizmoEdit.Update(before, updated, ImGuizmo::IsUsingAny() ? 1 : 0,
                     m_undoHistory, [this](const auto& manifest) { ApplyManifestSnapshot(manifest); },
                     "Transform selection");
@@ -933,12 +938,14 @@ void MapEditorMode::DrawMapTree()
         std::string error;
         if (m_map.SetManifest(updated, error))
         {
+            m_viewEdit.Flush();
             m_manifestEdit.Update(before, updated, ImGui::GetActiveID(), m_undoHistory,
                 [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
             m_sceneReloadRequested = true;
         }
         else m_status = "Could not update map tree: " + error;
     }
+    m_viewEdit.FinishInteraction(ImGui::GetActiveID());
     m_manifestEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
         [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
 }
@@ -1121,6 +1128,7 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 10, viewport->WorkPos.y + 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(520, 700), ImGuiCond_FirstUseEver);
     ImGui::Begin("Map Editor", nullptr, ImGuiWindowFlags_NoCollapse);
+    m_viewEdit.FinishInteraction(ImGui::GetActiveID());
     m_manifestEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
         [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
     m_enemyCatalogEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
@@ -1144,6 +1152,13 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
+    auto viewFields = [this]()
+    {
+        return std::tie(m_showGrid, m_gridSnapEnabled, m_gridSpacingMeters, m_gridHalfCellCount,
+            m_gridLineWidthMeters, m_showVisualMeshes, m_showHitMeshes, m_visualMeshColor,
+            m_gizmoEnabled, m_gizmoLocal, m_gizmoOperation, m_showCameraWindow, m_showCheatSheet);
+    };
+    const auto beforeView = std::apply([](const auto&... value) { return std::make_tuple(value...); }, viewFields());
     if (ImGui::CollapsingHeader("Sub Window", ImGuiTreeNodeFlags_DefaultOpen))
     {
         ImGui::BeginDisabled(!m_map.IsOpen());
@@ -1398,6 +1413,15 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
         if (!m_status.empty()) ImGui::TextWrapped("%s", m_status.c_str());
         ImGui::EndPopup();
     }
+    const auto afterView = std::apply([](const auto&... value) { return std::make_tuple(value...); }, viewFields());
+    ObserveViewEdit(beforeView, afterView, ImGui::GetActiveID(),
+        [this](const auto& value)
+        {
+            std::tie(m_showGrid, m_gridSnapEnabled, m_gridSpacingMeters, m_gridHalfCellCount,
+                m_gridLineWidthMeters, m_showVisualMeshes, m_showHitMeshes, m_visualMeshColor,
+                m_gizmoEnabled, m_gizmoLocal, m_gizmoOperation, m_showCameraWindow, m_showCheatSheet) = value;
+            m_sceneReloadRequested = true;
+        }, "Map preview settings");
     ImGui::End();
     DrawCheatSheet();
     if (m_map.IsOpen() && m_enemyUnitEditor.open)
@@ -1406,6 +1430,7 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
         m_enemyUnitEditor.Draw(m_enemyCatalog, m_enemyCatalogPath);
         if (!(before == m_enemyCatalog))
         {
+            m_viewEdit.Flush();
             FlushPendingGizmoEdit();
             FlushPendingManifestEdit();
         }

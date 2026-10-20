@@ -6,6 +6,7 @@
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include <third_party/ImGuizmo/ImGuizmo.h>
 #include "imgui_impl_dx12.h"
 
@@ -426,6 +427,11 @@ void TankSandboxApp::OnInit()
     m_lastSavedUiLayoutSettings = CaptureUiLayoutSettings();
 
     m_cameraPanelCtx.cameraController = &m_cameraController;
+    m_cameraPanelCtx.cameraRestored = [this]()
+    {
+        m_debugCameraController.ResetInputState();
+        m_debugCameraController.InitObjectViewerFromCamera();
+    };
     m_cameraPanelCtx.setCamera = [this](const Engine::CameraState& c) { m_sceneRenderer.SetCamera(c); };
     m_cameraPanelCtx.activateOrbitCamera = [this](Engine::Scene& scene, const DirectX::XMFLOAT3& pivot)
         { ActivateOrbitCamera(scene, pivot); };
@@ -1526,6 +1532,7 @@ void TankSandboxApp::UpdateUiFrame()
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
+    m_cameraPanelCtx.settingsUndo = m_appMode == AppMode::PhysicsTrackedVehicle ? &m_trackedVehicleMode.SettingsUndo() : nullptr;
     m_cameraPanelCtx.camera = ActiveCamera();
     m_cameraPanelCtx.trackedVehicleActive = (m_appMode == AppMode::PhysicsTrackedVehicle);
     m_cameraPanelCtx.vehicleState = &m_trackedVehicleMode.TestState();
@@ -1875,7 +1882,16 @@ void TankSandboxApp::DrawToolUi()
             {
                 bool cameraOpen = m_mapEditorMode.CameraWindowVisible();
                 if (Ui::DrawMapEditorCameraWindow(m_mapEditorScenePresenter.GetScene().camera,
-                        m_debugCameraController, cameraOpen, [this]() {m_mapEditorMode.RequestFocusSelected();}))
+                        m_debugCameraController, cameraOpen, [this]() {m_mapEditorMode.RequestFocusSelected();},
+                        [this](const auto& before, const auto& after)
+                        {
+                            m_mapEditorMode.ObserveViewEdit(before, after, ImGui::GetActiveID(),
+                                [this](const auto& value)
+                                {
+                                    Ui::RestoreEditorCamera(value, m_mapEditorScenePresenter.GetScene().camera, m_debugCameraController);
+                                    ApplyActiveCameraScene();
+                                }, "Editor camera settings");
+                        }))
                     ApplyActiveCameraScene();
                 m_mapEditorMode.SetCameraWindowVisible(cameraOpen);
                 const auto& io = ImGui::GetIO();

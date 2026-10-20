@@ -2,6 +2,8 @@
 
 #include "Map/MapFolder.h"
 #include "App/UndoHistory.h"
+#include "App/ExternalUndoEdit.h"
+#include <tuple>
 #include "App/SnapshotUndoEdit.h"
 #include "App/ManifestUndoEdit.h"
 #include "Physics/EnemyAttackType.h"
@@ -22,10 +24,23 @@ class MapEditorMode
 public:
     // Returns true when the user has completed a request to return to the menu.
     bool DrawUi(HWND__* owner, bool* outputWindowVisible = nullptr);
+    template<class State, class Apply>
+    void ObserveViewEdit(const State& before, const State& after, std::uint64_t interaction,
+        Apply apply, const char* name)
+    {
+        if (!m_map.IsOpen()) return;
+        if (!(before == after))
+        {
+            FlushPendingEnemyCatalogEdit();
+            FlushPendingManifestEdit();
+            FlushPendingGizmoEdit();
+        }
+        m_viewEdit.Update(before, after, interaction, m_undoHistory, apply, name);
+    }
     bool Undo();
     bool Redo();
     bool CanUndo() const { return m_map.IsOpen() && (m_undoHistory.CanUndo() ||
-        m_enemyCatalogEdit.HasPending() || m_manifestEdit.HasPending() || m_gizmoEdit.HasPending()); }
+        m_viewEdit.HasPending() || m_enemyCatalogEdit.HasPending() || m_manifestEdit.HasPending() || m_gizmoEdit.HasPending()); }
     bool CanRedo() const { return m_map.IsOpen() && m_undoHistory.CanRedo(); }
     void DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio);
     bool PlacementGizmoCapturesMouse() const;
@@ -48,7 +63,12 @@ public:
     bool GridVisible() const { return m_showGrid; }
     float GridLineWidthMeters() const { return m_gridLineWidthMeters; }
     bool CameraWindowVisible() const { return m_showCameraWindow; }
-    void SetCameraWindowVisible(bool visible) { m_showCameraWindow = visible; }
+    void SetCameraWindowVisible(bool visible)
+    {
+        const bool before = m_showCameraWindow;
+        m_showCameraWindow = visible;
+        ObserveViewEdit(before, visible, 0, [this](bool value) { m_showCameraWindow = value; }, "Camera window visibility");
+    }
     bool ShowVisualMeshes() const { return m_showVisualMeshes; }
     bool ShowHitMeshes() const { return m_showHitMeshes; }
     const std::array<float, 3>& VisualMeshColor() const { return m_visualMeshColor; }
@@ -159,5 +179,6 @@ private:
     Tank::App::SnapshotUndoEdit<Tank::Physics::EnemyEditorSettings> m_enemyCatalogEdit;
     Tank::App::ManifestUndoEdit m_manifestEdit;
     Tank::App::ManifestUndoEdit m_gizmoEdit;
+    Tank::App::ExternalUndoEdit m_viewEdit;
     bool m_replayingUndo = false;
 };

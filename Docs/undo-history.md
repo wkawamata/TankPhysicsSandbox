@@ -16,6 +16,14 @@ shortcut. Text inputs retain their normal text-editing shortcut while active.
 - Enemy Unit Editor in Tracked Vehicle: movement, attacks, unit types and mounts.
 - Tank appearance: materials, colors, model scale and dummy visibility; restored
   appearance refreshes materials and the scene.
+- Map preview: grid visibility/spacing/extent/line width, grid snap, visual/hit mesh
+  visibility and fallback color, gizmo mode/local space and camera/cheat windows.
+- Map camera panel: pose, projection, lens shifts, clipping, orthographic plane,
+  Reset View and mouse speed. Restoring also resynchronizes the orbit controller.
+- Play camera panel: follow/mortar tuning, projection, presets, slots, loaded
+  settings, mouse-control mode and auto-load preferences. Automatic follow and
+  transition frames and ordinary viewport navigation do not create commands.
+- Play preview: physics debug, map mesh/marker visibility and auxiliary windows.
 - Input Mapping: device axis/button assignments, inversion, neutral/tolerance and
   deadzone settings, plus complete profile replacement via Load Mapping. The
   profile collection is restored safely across device switches and reloads.
@@ -37,7 +45,7 @@ its required snapshots. Memory usage therefore grows with the number and size
 of edits until the session is cleared or the process exits.
 
 A successful map open, Discard, or Back to Menu clears the map editing history.
-Leaving Tracked Vehicle clears its separate MyTank history. Camera and other preview preferences are outside the current Undo scope.
+Leaving Tracked Vehicle clears its separate MyTank history. Camera and preview settings share the current mode history.
 
 Save does not clear history. Undo after saving changes the in-memory document
 and updates its dirty state; it does not overwrite the saved file. Material

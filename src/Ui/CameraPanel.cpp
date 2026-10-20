@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Ui/CameraPanel.h"
+#include "App/TankSettingsUndo.h"
 
 #include "App/CameraController.h"
 #include "App/EditorCameraViews.h"
@@ -7,6 +8,7 @@
 #include "App/CameraSettingsStore.h"
 #include "Physics/TrackedVehicleTest.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include <ImGuiWidgets.h>
 #include <Scene/Scene.h>
 
@@ -69,6 +71,19 @@ namespace Ui
             return;
         }
 
+        const auto captureEdit = [&]()
+        {
+            Tank::App::CameraEditState result;
+            result.settings = ctx.cameraController->CaptureSettings(*ctx.camera, ctx.cameraController->FollowEnabled());
+            result.rotation = {ctx.camera->rot.x, ctx.camera->rot.y, ctx.camera->rot.z};
+            result.nearZ = ctx.camera->nearZ; result.farZ = ctx.camera->farZ;
+            result.slot = ctx.cameraController->SelectedSlot();
+            result.autoLoad = ctx.cameraController->AutoLoad();
+            result.mouseMode = static_cast<int>(ctx.cameraController->GetMouseControlMode());
+            result.yawChase = ctx.cameraController->TankYawChaseEnabled();
+            return result;
+        };
+        const auto beforeEdit = captureEdit();
         ImGui::SetNextWindowSizeConstraints(ImVec2(260.0f, 190.0f), ImVec2(1000.0f, 1000.0f));
         ImGui::Begin("Camera");
         int mouseMode = static_cast<int>(ctx.cameraController->GetMouseControlMode());
@@ -430,13 +445,34 @@ namespace Ui
         }
         ImGui::End();
         DrawMortarCameraCheatWindow(ctx);
+        if (ctx.settingsUndo)
+        {
+            auto afterEdit = captureEdit();
+            if (!(beforeEdit == afterEdit) && ctx.cameraController->IsTransitioning() && ctx.cameraController->GetCachedSettings())
+                afterEdit.settings = *ctx.cameraController->GetCachedSettings();
+            ctx.settingsUndo->ObserveExternal(beforeEdit, afterEdit, ImGui::GetActiveID(),
+                [controller = ctx.cameraController, camera = ctx.camera, setCamera = ctx.setCamera, restored = ctx.cameraRestored](const auto& value)
+                {
+                    controller->SelectSlot(value.slot, false);
+                    controller->SetAutoLoad(value.autoLoad);
+                    controller->SetMouseControlMode(static_cast<Tank::App::CameraController::MouseControlMode>(value.mouseMode));
+                    controller->SetTankYawChaseEnabled(value.yawChase);
+                    controller->ApplySettings(value.settings, false, *camera);
+                    camera->nearZ = value.nearZ; camera->farZ = value.farZ;
+                    camera->rot = {value.rotation[0], value.rotation[1], value.rotation[2]};
+                    controller->UpdateSlotCache(*camera);
+                    if (restored) restored();
+                    if (setCamera) setCamera(*camera);
+                }, "Camera settings");
+        }
     }
 }
 
 namespace Ui
 {
     bool DrawMapEditorCameraWindow(Engine::CameraState& camera,
-        RtPbrSurvey::DebugCameraController& controller, bool& open, const std::function<void()>& focusSelected)
+        RtPbrSurvey::DebugCameraController& controller, bool& open, const std::function<void()>& focusSelected,
+        const std::function<void(const Tank::App::CameraEditState&, const Tank::App::CameraEditState&)>& recordEdit)
     {
         if (!open) return false;
         const auto* viewport = ImGui::GetMainViewport();
@@ -447,6 +483,7 @@ namespace Ui
         ImGui::TextUnformatted("Camera: Debug (Orbit)");
         if (ImGui::Button("Focus to selected object [F]") && focusSelected) focusSelected();
         ImGui::TextDisabled("Left drag: Orbit / Middle drag: Pan / Wheel: Zoom");
+        const auto beforeEdit = CaptureEditorCamera(camera, controller);
         const auto previous = camera;
         static constexpr float defaultPosition[3] = {8, 6, -8};
         static constexpr float defaultGaze[3] = {0, 0, 0};
@@ -522,6 +559,40 @@ namespace Ui
             if (!planeSelected) controller.UpdateObjectViewerCamera();
         }
         ImGui::End();
+        if (recordEdit) recordEdit(beforeEdit, CaptureEditorCamera(camera, controller));
         return changed;
+    }
+
+    Tank::App::CameraEditState CaptureEditorCamera(const Engine::CameraState& camera,
+        const RtPbrSurvey::DebugCameraController& controller)
+    {
+        Tank::App::CameraEditState result;
+        result.settings.position[0] = camera.pos.x; result.settings.position[1] = camera.pos.y; result.settings.position[2] = camera.pos.z;
+        result.settings.gazePoint[0] = camera.gazePoint.x; result.settings.gazePoint[1] = camera.gazePoint.y; result.settings.gazePoint[2] = camera.gazePoint.z;
+        result.settings.up[0] = camera.up.x; result.settings.up[1] = camera.up.y; result.settings.up[2] = camera.up.z;
+        result.settings.projection = static_cast<int>(camera.projection);
+        result.settings.fovDegrees = camera.fov;
+        result.settings.perspectiveLensShiftX = camera.lensShiftX; result.settings.perspectiveLensShiftY = camera.lensShiftY;
+        result.settings.orthographicHeight = camera.orthographicHeight;
+        result.rotation = {camera.rot.x, camera.rot.y, camera.rot.z};
+        result.nearZ = camera.nearZ; result.farZ = camera.farZ;
+        result.mouseSpeed = controller.SpeedMultiplier();
+        return result;
+    }
+
+    void RestoreEditorCamera(const Tank::App::CameraEditState& value,
+        Engine::CameraState& camera, RtPbrSurvey::DebugCameraController& controller)
+    {
+        const auto& s = value.settings;
+        camera.pos = {s.position[0], s.position[1], s.position[2]};
+        camera.gazePoint = {s.gazePoint[0], s.gazePoint[1], s.gazePoint[2]};
+        camera.up = {s.up[0], s.up[1], s.up[2]};
+        camera.rot = {value.rotation[0], value.rotation[1], value.rotation[2]};
+        camera.projection = static_cast<Engine::CameraProjection>(s.projection);
+        camera.fov = s.fovDegrees; camera.lensShiftX = s.perspectiveLensShiftX; camera.lensShiftY = s.perspectiveLensShiftY;
+        camera.orthographicHeight = s.orthographicHeight;
+        camera.nearZ = value.nearZ; camera.farZ = value.farZ;
+        controller.SetSpeedMultiplier(value.mouseSpeed);
+        controller.ResetInputState(); controller.InitObjectViewerFromCamera();
     }
 }

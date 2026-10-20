@@ -1,4 +1,7 @@
 #include "App/UndoHistory.h"
+#include "App/ExternalUndoEdit.h"
+#include "App/CameraEditState.h"
+#include <tuple>
 #include "App/SnapshotUndoEdit.h"
 #include "Physics/EnemyAttackType.h"
 
@@ -104,6 +107,51 @@ int main()
     edit.Clear();
     history.Clear();
     Check(!edit.HasPending() && !history.CanUndo(), "A new session must clear pending edits and history");
+    Tank::App::ExternalUndoEdit viewEdit;
+    Tank::App::CameraEditState camera;
+    const auto initialCamera = camera;
+    auto previousCamera = camera;
+    camera.settings.position[0] = 8;
+    camera.settings.fovDegrees = 70;
+    viewEdit.Update(previousCamera, camera, 51, history,
+        [&](const auto& value) { camera = value; }, "Camera");
+    previousCamera = camera;
+    camera.settings.position[0] = 9;
+    viewEdit.Update(previousCamera, camera, 51, history,
+        [&](const auto& value) { camera = value; }, "Camera");
+    viewEdit.FinishInteraction(52);
+    auto preview = std::make_tuple(true, 1.0f, 10, false);
+    const auto initialPreview = preview;
+    std::get<0>(preview) = false;
+    std::get<1>(preview) = 2.0f;
+    viewEdit.Update(initialPreview, preview, 52, history,
+        [&](const auto& value) { preview = value; }, "Grid");
+    viewEdit.Flush();
+    history.Execute(std::make_unique<Tank::App::LambdaUndoCommand>("Object",
+        [&] { mapPosition = 0; }, [&] { mapPosition = 20; }));
+    history.Undo();
+    Check(mapPosition == 0 && !std::get<0>(preview), "Object undo must preserve preview edits");
+    history.Undo();
+    Check(preview == initialPreview && camera.settings.position[0] == 9,
+        "Grid undo must preserve the preceding camera edit");
+    history.Undo();
+    Check(camera == initialCamera, "Camera drag must restore pose and projection together");
+    history.Redo();
+    Check(camera.settings.position[0] == 9 && camera.settings.fovDegrees == 70,
+        "Camera redo must restore the final drag values");
+    previousCamera = camera;
+    camera.nearZ = 0.5f; camera.farZ = 2000; camera.mouseSpeed = 3;
+    viewEdit.Update(previousCamera, camera, 53, history,
+        [&](const auto& value) { camera = value; }, "Camera clipping");
+    viewEdit.Flush(); history.Undo();
+    Check(camera == previousCamera, "Clipping and mouse speed must be undoable");
+    history.Clear();
+    previousCamera = camera;
+    camera.settings.followDistance += 1;
+    viewEdit.Update(previousCamera, camera, 54, history,
+        [&](const auto& value) { camera = value; }, "Camera follow");
+    viewEdit.Clear(); viewEdit.Flush();
+    Check(!history.CanUndo(), "Session cleanup must discard pending view edits");
     std::cout << "Undo history tests passed\n";
     return 0;
 }
