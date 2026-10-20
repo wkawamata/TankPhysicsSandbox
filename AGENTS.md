@@ -11,6 +11,12 @@ Develop convincing tank physics before gameplay, with portability to Godot and a
 - Keep refactoring separate from functional changes.
 - Investigate first; ask only when unresolved ambiguity affects requirements or scope.
 
+## GUI Undo/Redo
+
+- New or changed GUI operations in Editor and Game that edit data or settings must support Undo/Redo by default; use the existing command history and group continuous edits into one command. See `Docs/undo-history.md`.
+- When Undo/Redo is deferred, record the operation, code location, reason and remaining work in `Docs/undo-backlog.md` in the same change, and mention the deferral in the completion report. Deferral does not itself require separate approval; follow the user's requested scope.
+- Consult that backlog when touching a listed operation; remove its entry when support is implemented and verified. File writes/deletion and simulation rewind are intentional exclusions unless explicitly requested; do not list them as deferred work.
+
 ## Architecture
 
 - Physics must not depend on Rendering; keep debug rendering in a separate module.

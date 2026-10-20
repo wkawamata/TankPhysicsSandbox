@@ -57,6 +57,11 @@ that behavior: Undo does not rewind simulation, restore a prior physics world,
 or automatically reset the tank. Live projectile settings continue to use the
 restored edited values through the existing live-application path.
 
+## Deferred support
+
+Record all deferred GUI Undo/Redo work in [undo-backlog.md](undo-backlog.md).
+Do not keep separate pending lists in other documents.
+
 ## Extension points
 
 IUndoCommand provides named Undo and Redo actions. UndoHistory can execute a new
