@@ -1595,6 +1595,16 @@ namespace Ui
             io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
             ctx.settingsUndo->Undo();
         auto beforeSettings = ctx.tankSettings ? *ctx.tankSettings : Tank::Physics::TankSettings{};
+        auto beforeVisual = ctx.visualSettings ? *ctx.visualSettings : Tank::Rendering::TankVisualSettings{};
+        const auto displayState = [&ctx]
+        {
+            return std::array<bool, 4>{ctx.showTrackProxies && *ctx.showTrackProxies,
+                ctx.showGltfBody && *ctx.showGltfBody, ctx.showGltfCannon && *ctx.showGltfCannon,
+                ctx.showGltfSide && *ctx.showGltfSide};
+        };
+        auto beforeDisplay = displayState();
+        auto beforeEnvironment = ctx.envSettings ? *ctx.envSettings : Tank::Physics::PhysicsEnvironmentSettings{};
+        auto beforeEnemies = ctx.enemyEditor ? *ctx.enemyEditor : Tank::Physics::EnemyEditorSettings{};
 		const Tank::Physics::TrackedVehicleTestState& state = *ctx.state;
 		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
@@ -1862,6 +1872,10 @@ namespace Ui
             {
                 ctx.settingsUndo->Undo();
                 beforeSettings = *ctx.tankSettings;
+                if (ctx.visualSettings) beforeVisual = *ctx.visualSettings;
+                beforeDisplay = displayState();
+                if (ctx.envSettings) beforeEnvironment = *ctx.envSettings;
+                if (ctx.enemyEditor) beforeEnemies = *ctx.enemyEditor;
             }
             ImGui::EndDisabled();
             ImGui::TextDisabled("Undo restores edited values. Apply & Reset applies them to the tank.");
@@ -3092,5 +3106,35 @@ namespace Ui
         }
         if (hasSettingsUndo)
             ctx.settingsUndo->Observe(beforeSettings, ImGui::GetActiveID());
+        if (hasSettingsUndo)
+        {
+            const auto interaction = ImGui::GetActiveID();
+            if (ctx.visualSettings)
+                ctx.settingsUndo->ObserveExternal(beforeVisual, *ctx.visualSettings, interaction,
+                    [settings = ctx.visualSettings, materials = ctx.applyMaterials, scene = ctx.updateScene,
+                     pending = ctx.tankVisualMaterialApplyPending](const auto& value)
+                    {
+                        *settings = value;
+                        if (materials) materials();
+                        if (pending) *pending = false;
+                        if (scene) scene();
+                    }, "Tank appearance edit");
+            ctx.settingsUndo->ObserveExternal(beforeDisplay, displayState(), interaction,
+                [proxies = ctx.showTrackProxies, body = ctx.showGltfBody,
+                 cannon = ctx.showGltfCannon, side = ctx.showGltfSide, scene = ctx.updateScene](const auto& value)
+                {
+                    if (proxies) *proxies = value[0];
+                    if (body) *body = value[1];
+                    if (cannon) *cannon = value[2];
+                    if (side) *side = value[3];
+                    if (scene) scene();
+                }, "Tank display edit");
+            if (ctx.envSettings)
+                ctx.settingsUndo->ObserveExternal(beforeEnvironment, *ctx.envSettings, interaction,
+                    [settings = ctx.envSettings](const auto& value) { *settings = value; }, "Environment edit");
+            if (ctx.enemyEditor)
+                ctx.settingsUndo->ObserveExternal(beforeEnemies, *ctx.enemyEditor, interaction,
+                    [settings = ctx.enemyEditor](const auto& value) { *settings = value; }, "Enemy parameter edit");
+        }
 	}
 }

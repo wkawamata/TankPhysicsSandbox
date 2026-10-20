@@ -4,6 +4,7 @@ namespace Tank::Rendering
 {
     struct Color3
     {
+        bool operator==(const Color3&) const = default;
         float r = 1.0f;
         float g = 1.0f;
         float b = 1.0f;
@@ -11,6 +12,7 @@ namespace Tank::Rendering
 
     struct BodyMaterialSettings
     {
+        bool operator==(const BodyMaterialSettings&) const = default;
         Color3 albedo = {};
         float roughness = 1.0f;
         float metallic = 0.0f;
@@ -20,6 +22,7 @@ namespace Tank::Rendering
 
     struct TankVisualSettings
     {
+        bool operator==(const TankVisualSettings&) const = default;
         float gltfModelScale = 1.0f;
         // The glTF tank body is shown by default, so hide the overlapping dummy
         // body unless the user explicitly enables it.

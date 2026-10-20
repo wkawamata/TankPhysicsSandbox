@@ -1,4 +1,7 @@
 #include "App/TankSettingsUndo.h"
+#include "Physics/PhysicsEnvironmentSettings.h"
+#include "Physics/EnemyAttackType.h"
+#include "Rendering/TankVisualSettings.h"
 
 #include <iostream>
 #include <stdexcept>
@@ -80,6 +83,58 @@ int main()
     undo.FinishInteraction(0);
     Check(!undo.CanUndo() && !undo.CanRedo(), "Leaving a session must clear pending and committed edits");
     Check(settings.trackWidthM == 0.6f, "Clearing history must preserve the edited values");
+    Tank::Rendering::TankVisualSettings visual;
+    Tank::Physics::PhysicsEnvironmentSettings environment;
+    Tank::Physics::EnemyEditorSettings enemies;
+    const auto visualInitial = visual;
+    const auto environmentInitial = environment;
+    const auto enemiesInitial = enemies;
+    int visualApplications = 0;
+    visual.hullUpper.albedo.r = 0.9f;
+    undo.ObserveExternal(visualInitial, visual, 201,
+        [&](const auto& value) { visual = value; ++visualApplications; }, "Visual");
+    auto previousVisual = visual;
+    visual.gltfModelScale = 2.0f;
+    undo.ObserveExternal(previousVisual, visual, 201,
+        [&](const auto& value) { visual = value; ++visualApplications; }, "Visual");
+    undo.FinishInteraction(202);
+    environment.floorFriction = 0.2f;
+    environment.obstacleSeed = 42;
+    undo.ObserveExternal(environmentInitial, environment, 202,
+        [&](const auto& value) { environment = value; }, "Environment");
+    undo.FinishInteraction(203);
+    enemies = enemiesInitial;
+    // A catalog edit may replace the complete unit/attack list.
+    enemies.unitTypes.clear();
+    enemies.unitTypes.emplace_back();
+    enemies.unitTypes.back().name = "Undo test";
+    undo.ObserveExternal(enemiesInitial, enemies, 203,
+        [&](const auto& value) { enemies = value; }, "Enemies");
+    change([](auto& value) { value.chassisMassKg = 7000; }, 204);
+    Check(undo.Undo() && settings.chassisMassKg != 7000, "Tank edits must follow external edits");
+    Check(undo.Undo() && enemies == enemiesInitial, "Enemy catalog undo must restore the complete catalog");
+    Check(undo.Undo() && environment == environmentInitial, "Environment undo must restore all edited values");
+    Check(undo.Undo() && visual == visualInitial && visualApplications == 1,
+        "Visual drag must be one command and refresh its presentation");
+    Check(undo.Redo() && visual.gltfModelScale == 2.0f && visualApplications == 2,
+        "Visual redo must restore and refresh the final appearance");
+    undo.Clear();
+    const auto savedVisual = visual;
+    visual.gltfModelScale = 3.0f;
+    undo.ObserveExternal(savedVisual, visual, 301,
+        [&](const auto& value) { visual = value; }, "Visual");
+    previousVisual = visual;
+    visual = savedVisual;
+    undo.ObserveExternal(previousVisual, visual, 301,
+        [&](const auto& value) { visual = value; }, "Visual");
+    undo.FinishInteraction(0);
+    Check(!undo.CanUndo(), "An external drag returning to its origin must add no command");
+    environment.floorSizeM += 1;
+    undo.ObserveExternal(environmentInitial, environment, 302,
+        [&](const auto& value) { environment = value; }, "Environment");
+    undo.Clear();
+    undo.FinishInteraction(0);
+    Check(!undo.CanUndo(), "Session cleanup must discard pending external edits");
     std::cout << "Tank settings undo tests passed\n";
     return 0;
 }

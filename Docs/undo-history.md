@@ -13,6 +13,11 @@ shortcut. Text inputs retain their normal text-editing shortcut while active.
   transform gizmos and supported/breakable object parameters.
 - Enemy Unit Editor in Map Editor: movement settings, attack definitions, unit
   names and HP, and attack mounts. These share the map's command history.
+- Enemy Unit Editor in Tracked Vehicle: movement, attacks, unit types and mounts.
+- Tank appearance: materials, colors, model scale and dummy visibility; restored
+  appearance refreshes materials and the scene.
+- Ground/environment: floor, friction, grid, colors and obstacle generation settings.
+  Apply & Reset remains explicit, as for physics and enemy simulation changes.
 - MyTank in Tracked Vehicle: editable TankSettings, including chassis, engine,
   transmission, suspension, rolling, mortar and assault projectile parameters.
   Profile loads and completed rolling optimization results are batch edits.
