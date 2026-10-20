@@ -398,6 +398,7 @@ bool TrackedVehicleMode::Enter(RtPbrSurvey::SceneRenderer& renderer)
 
 void TrackedVehicleMode::Exit(RtPbrSurvey::SceneRenderer& renderer)
 {
+    m_settingsUndo.Clear();
     for (const auto handle : m_assaultTracerLines) renderer.RemoveDebugLine(handle);
     m_assaultTracerLines.clear();
     m_presenter.Clear();

@@ -512,6 +512,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.enemyEditor = &m_trackedVehicleMode.EnemyEditor();
     m_trackedVehiclePanelCtx.enemyEditorJsonPath = &m_trackedVehicleMode.EnemyEditorJsonPath();
     m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleMode.Settings();
+    m_trackedVehiclePanelCtx.settingsUndo = &m_trackedVehicleMode.SettingsUndo();
     m_trackedVehiclePanelCtx.inputMappingSettings = &m_trackedVehicleMode.InputMappingSettings();
     m_trackedVehiclePanelCtx.inputMappingStatus =
         &m_trackedVehicleMode.InputMappingStatus();
@@ -926,7 +927,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     else if (key == 'S') m_moveBackward = true;
     else if (key == 'A') m_turnRight = true;
     else if (key == 'D') m_turnLeft = true;
-    else if (key == 'Z') m_pivotTurnRight = true;
+    else if (key == 'Z' && !(GetKeyState(VK_CONTROL) & 0x8000)) m_pivotTurnRight = true;
     else if (key == 'C') m_pivotTurnLeft = true;
     else if (key == 'Q') m_rollLeft = true;
     else if (key == 'E') m_rollRight = true;

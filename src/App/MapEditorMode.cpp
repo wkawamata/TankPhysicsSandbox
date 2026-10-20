@@ -10,6 +10,7 @@
 #include <Scene/CameraView.h>
 #include <Scene/CameraProjection.h>
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <ImGuiWidgets.h>
 #include <third_party/ImGuizmo/ImGuizmo.h>
 #include <fstream>
@@ -56,6 +57,7 @@ void MapEditorMode::RefreshAvailableMaps()
 bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::string& error)
 {
     if (!m_map.Open(folder, error)) return false;
+    ClearUndoHistory();
     m_status = "Opened Manifest.json";
     m_previewWarning.clear();
     m_selectedAsset.clear();
@@ -82,6 +84,124 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     return true;
 }
 
+void MapEditorMode::ApplyManifestSnapshot(const Tank::Map::Manifest& manifest)
+{
+    std::string error;
+    if (!m_map.SetManifest(manifest, error))
+    {
+        m_status = "Could not apply undo state: " + error;
+        return;
+    }
+
+    const auto tree = Tank::Map::MapTree(manifest);
+    const auto hasNode = [&tree](const std::string& id)
+    {
+        return std::any_of(tree.begin(), tree.end(), [&](const auto& node) { return node.id == id; });
+    };
+    if (!hasNode(m_selectedNodeId)) m_selectedNodeId = "root";
+    if (std::none_of(manifest.instances.begin(), manifest.instances.end(),
+        [this](const auto& value) { return value.id == m_selectedInstanceId; }))
+        m_selectedInstanceId.clear();
+    if (std::none_of(manifest.enemies.begin(), manifest.enemies.end(),
+        [this](const auto& value) { return value.id == m_selectedEnemyId; }))
+        m_selectedEnemyId.clear();
+    if (std::none_of(manifest.clearAreas.begin(), manifest.clearAreas.end(),
+        [this](const auto& value) { return value.id == m_selectedClearAreaId; }))
+        m_selectedClearAreaId.clear();
+    m_sceneReloadRequested = true;
+}
+
+void MapEditorMode::RecordManifestEdit(const Tank::Map::Manifest& before,
+    const Tank::Map::Manifest& after, const char* name)
+{
+    if (m_replayingUndo) return;
+    std::string beforeJson;
+    std::string afterJson;
+    std::string error;
+    if (!Tank::Map::SerializeManifest(before, beforeJson, error) ||
+        !Tank::Map::SerializeManifest(after, afterJson, error) || beforeJson == afterJson)
+        return;
+
+    const auto beforeState = before;
+    const auto afterState = after;
+    m_undoHistory.RecordApplied(std::make_unique<Tank::App::LambdaUndoCommand>(
+        name,
+        [this, beforeState]
+        {
+            m_replayingUndo = true;
+            ApplyManifestSnapshot(beforeState);
+            m_replayingUndo = false;
+        },
+        [this, afterState]
+        {
+            m_replayingUndo = true;
+            ApplyManifestSnapshot(afterState);
+            m_replayingUndo = false;
+        }));
+}
+
+bool MapEditorMode::CommitManifestEdit(const Tank::Map::Manifest& before,
+    const Tank::Map::Manifest& after, const char* name)
+{
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
+    std::string error;
+    if (!m_map.SetManifest(after, error))
+    {
+        m_status = "Could not update map: " + error;
+        return false;
+    }
+    RecordManifestEdit(before, after, name);
+    m_sceneReloadRequested = true;
+    return true;
+}
+
+void MapEditorMode::FlushPendingManifestEdit()
+{
+    m_manifestEdit.Flush(m_undoHistory,
+        [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
+}
+
+void MapEditorMode::FlushPendingGizmoEdit()
+{
+    if (ImGuizmo::IsUsingAny()) return;
+    m_gizmoEdit.Flush(m_undoHistory,
+        [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Transform selection");
+}
+
+void MapEditorMode::ClearUndoHistory()
+{
+    m_manifestEdit.Clear();
+    m_gizmoEdit.Clear();
+    m_enemyCatalogEdit.Clear();
+    m_undoHistory.Clear();
+}
+
+bool MapEditorMode::Undo()
+{
+    if (!m_map.IsOpen() || ImGuizmo::IsUsingAny()) return false;
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
+    if (!m_undoHistory.CanUndo()) return false;
+    const std::string name = m_undoHistory.Undo();
+    m_status = "Undo: " + name;
+    return true;
+}
+
+bool MapEditorMode::Redo()
+{
+    if (!m_map.IsOpen() || ImGuizmo::IsUsingAny()) return false;
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
+    if (!m_undoHistory.CanRedo()) return false;
+    const std::string name = m_undoHistory.Redo();
+    m_status = "Redo: " + name;
+    return true;
+}
+
 void MapEditorMode::RefreshAssets()
 {
     m_roles = {};
@@ -101,6 +221,9 @@ void MapEditorMode::RefreshAssets()
 void MapEditorMode::Request(Action action)
 {
     if (m_pending != Action::None) return;
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
     m_pending = action;
     m_confirm = m_map.IsDirty();
 }
@@ -192,18 +315,14 @@ bool MapEditorMode::AddSelectedModel()
             return false;
         }
     }
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     Tank::Map::Instance instance;
     instance.id = Tank::Map::MakeUniqueInstanceId(updated);
     instance.asset = m_selectedAsset;
     instance.parentId = SelectedNodeId();
     updated.instances.push_back(std::move(instance));
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not add model: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Add model")) return false;
     m_sceneReloadRequested = true;
     m_selectedInstanceId = updated.instances.back().id;
     m_selectedEnemyId.clear();
@@ -291,7 +410,8 @@ bool MapEditorMode::SaveSelectedMaterialColor()
 
 bool MapEditorMode::UpdateSelectedInstance(const Tank::Map::Transform& transform)
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const auto instance = std::find_if(updated.instances.begin(), updated.instances.end(),
         [this](const Tank::Map::Instance& value) { return value.id == m_selectedInstanceId; });
     if (instance == updated.instances.end())
@@ -302,14 +422,7 @@ bool MapEditorMode::UpdateSelectedInstance(const Tank::Map::Transform& transform
         return false;
     }
     instance->transform = transform;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not update transform: " + error;
-        return false;
-    }
-    m_sceneReloadRequested = true;
-    return true;
+    return CommitManifestEdit(before, updated, "Move model");
 }
 
 void MapEditorMode::SetSelectedInstanceVisible(bool visible)
@@ -327,18 +440,14 @@ void MapEditorMode::SetSelectedInstanceVisible(bool visible)
 
 bool MapEditorMode::RemoveSelectedInstance()
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const auto remove = std::find_if(updated.instances.begin(), updated.instances.end(),
         [this](const Tank::Map::Instance& value) { return value.id == m_selectedInstanceId; });
     if (remove == updated.instances.end()) return false;
     const std::string removedAsset = remove->asset;
     Tank::Map::RemoveInstance(updated, m_selectedInstanceId);
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not remove model: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Remove model")) return false;
     m_hiddenInstanceIds.erase(m_selectedInstanceId);
     m_selectedInstanceId.clear();
     m_playerStartGizmoSelected = false;
@@ -350,16 +459,12 @@ bool MapEditorMode::RemoveSelectedInstance()
 
 bool MapEditorMode::DuplicateSelectedInstance()
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const std::optional<std::string> duplicateId =
         Tank::Map::DuplicateInstance(updated, m_selectedInstanceId);
     if (!duplicateId) return false;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not duplicate model: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Duplicate model")) return false;
     m_selectedInstanceId = *duplicateId;
     m_sceneReloadRequested = true;
     m_focusSelectedRequested = true;
@@ -369,29 +474,19 @@ bool MapEditorMode::DuplicateSelectedInstance()
 
 bool MapEditorMode::UpdatePlayerSpawn(const Tank::Map::Transform& transform)
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     updated.playerSpawn = transform;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not update player start: " + error;
-        return false;
-    }
-    m_sceneReloadRequested = true;
-    return true;
+    return CommitManifestEdit(before, updated, "Move player start");
 }
 
 bool MapEditorMode::AddClearArea()
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const std::string id = Tank::Map::AddClearArea(updated);
     updated.clearAreas.back().parentId = SelectedNodeId();
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not add clear area: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Add clear area")) return false;
     m_selectedClearAreaId = id;
     m_selectedInstanceId.clear();
     m_selectedEnemyId.clear();
@@ -403,7 +498,8 @@ bool MapEditorMode::AddClearArea()
 
 bool MapEditorMode::UpdateSelectedClearArea(const Tank::Map::ClearArea& area)
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const auto selected = std::find_if(updated.clearAreas.begin(), updated.clearAreas.end(),
         [this](const Tank::Map::ClearArea& value) { return value.id == m_selectedClearAreaId; });
     if (selected == updated.clearAreas.end())
@@ -414,26 +510,15 @@ bool MapEditorMode::UpdateSelectedClearArea(const Tank::Map::ClearArea& area)
         return false;
     }
     *selected = area;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not update clear area: " + error;
-        return false;
-    }
-    m_sceneReloadRequested = true;
-    return true;
+    return CommitManifestEdit(before, updated, "Edit clear area");
 }
 
 bool MapEditorMode::RemoveSelectedClearArea()
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     if (!Tank::Map::RemoveClearArea(updated, m_selectedClearAreaId)) return false;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not remove clear area: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Remove clear area")) return false;
     m_selectedClearAreaId.clear();
     m_selectedEnemyId.clear();
     m_sceneReloadRequested = true;
@@ -468,14 +553,29 @@ bool MapEditorMode::LoadEnemyCatalog()
     }
 }
 
+void MapEditorMode::ApplyEnemyCatalogSnapshot(const Tank::Physics::EnemyEditorSettings& settings)
+{
+    m_enemyCatalog = settings;
+    m_enemyTypes.clear();
+    for (const auto& type : m_enemyCatalog.unitTypes) m_enemyTypes.push_back(type.name);
+    if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), m_selectedEnemyType) == m_enemyTypes.end())
+        m_selectedEnemyType = m_enemyTypes.empty() ? "" : m_enemyTypes.front();
+}
+
+void MapEditorMode::FlushPendingEnemyCatalogEdit()
+{
+    m_enemyCatalogEdit.Flush(m_undoHistory,
+        [this](const auto& settings) { ApplyEnemyCatalogSnapshot(settings); }, "Enemy catalog edit");
+}
+
 bool MapEditorMode::AddSelectedEnemy()
 {
-    auto updated = m_map.Document();
+    const auto before = m_map.Document();
+    auto updated = before;
     const auto id = Tank::Map::AddEnemy(updated, m_selectedEnemyType);
     if (id.empty()) return false;
     updated.enemies.back().parentId = SelectedNodeId();
-    std::string error;
-    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
+    if (!CommitManifestEdit(before, updated, "Add enemy")) return false;
     m_selectedEnemyId = id;
     m_selectedInstanceId.clear();
     m_selectedClearAreaId.clear();
@@ -488,23 +588,21 @@ bool MapEditorMode::AddSelectedEnemy()
 
 bool MapEditorMode::UpdateSelectedEnemy(const Tank::Map::EnemyPlacement& enemy)
 {
-    auto updated = m_map.Document();
+    const auto before = m_map.Document();
+    auto updated = before;
     const auto selected = std::find_if(updated.enemies.begin(), updated.enemies.end(),
         [this](const auto& value) { return value.id == m_selectedEnemyId; });
     if (selected == updated.enemies.end()) return false;
     *selected = enemy;
-    std::string error;
-    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
-    m_sceneReloadRequested = true;
-    return true;
+    return CommitManifestEdit(before, updated, "Edit enemy");
 }
 
 bool MapEditorMode::RemoveSelectedEnemy()
 {
-    auto updated = m_map.Document();
+    const auto before = m_map.Document();
+    auto updated = before;
     if (!Tank::Map::RemoveEnemy(updated, m_selectedEnemyId)) return false;
-    std::string error;
-    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
+    if (!CommitManifestEdit(before, updated, "Remove enemy")) return false;
     m_selectedEnemyId.clear();
     m_playerStartGizmoSelected = false;
     m_sceneReloadRequested = true;
@@ -535,8 +633,9 @@ std::string MapEditorMode::SelectedNodeId() const
 void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio)
 {
     if (!m_map.IsOpen() || !m_gizmoEnabled || m_confirm || m_pending != Action::None)
-    { ImGuizmo::Enable(false); return; }
+    { FlushPendingGizmoEdit(); ImGuizmo::Enable(false); return; }
     const auto& document = m_map.Document();
+    FlushPendingGizmoEdit();
     const auto id = SelectedNodeId();
     const auto tree = Tank::Map::MapTree(document);
     const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;});
@@ -565,12 +664,29 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
         }
         Tank::Map::Transform local;
         std::string error;
-        auto updated = document;
+        const auto before = document;
+        auto updated = before;
         if (Tank::Map::NodeTransformFromWorld(document, id, *world.worldMatrix, local, error) &&
-            Tank::Map::SetNodeLocalTransform(updated, id, local) && m_map.SetManifest(updated, error))
-            m_sceneReloadRequested = true;
-        else m_status = "Could not transform node: " + error;
+            Tank::Map::SetNodeLocalTransform(updated, id, local))
+        {
+            FlushPendingEnemyCatalogEdit();
+            FlushPendingManifestEdit();
+            if (m_map.SetManifest(updated, error))
+            {
+                m_gizmoEdit.Update(before, updated, ImGuizmo::IsUsingAny() ? 1 : 0,
+                    m_undoHistory, [this](const auto& manifest) { ApplyManifestSnapshot(manifest); },
+                    "Transform selection");
+                m_sceneReloadRequested = true;
+            }
+            else
+                m_status = "Could not transform node: " + error;
+        }
+        else
+        {
+            m_status = "Could not transform node: " + error;
+        }
     }
+    FlushPendingGizmoEdit();
 }
 void MapEditorMode::UpdateViewportPicking(
     const std::function<std::optional<std::string>(float, float)>& pick)
@@ -811,10 +927,20 @@ void MapEditorMode::DrawMapTree()
     }
     if (changed)
     {
+        FlushPendingEnemyCatalogEdit();
+        FlushPendingGizmoEdit();
+        const auto before = m_map.Document();
         std::string error;
-        if (m_map.SetManifest(updated, error)) m_sceneReloadRequested = true;
+        if (m_map.SetManifest(updated, error))
+        {
+            m_manifestEdit.Update(before, updated, ImGui::GetActiveID(), m_undoHistory,
+                [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
+            m_sceneReloadRequested = true;
+        }
         else m_status = "Could not update map tree: " + error;
     }
+    m_manifestEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
+        [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
 }
 
 void MapEditorMode::DrawEnemies()
@@ -870,6 +996,9 @@ void MapEditorMode::DrawEnemies()
 
 bool MapEditorMode::Save()
 {
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
     std::string error;
     if (!m_map.Save(error))
     {
@@ -940,6 +1069,7 @@ bool MapEditorMode::Execute(HWND__* owner)
     }
     if (action == Action::Exit)
     {
+        ClearUndoHistory();
         if (m_map.IsOpen()) m_closedMapFolder = m_map.Folder();
         m_map = {};
         m_status.clear();
@@ -991,6 +1121,15 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 10, viewport->WorkPos.y + 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(520, 700), ImGuiCond_FirstUseEver);
     ImGui::Begin("Map Editor", nullptr, ImGuiWindowFlags_NoCollapse);
+    m_manifestEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
+        [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
+    m_enemyCatalogEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
+        [this](const auto& settings) { ApplyEnemyCatalogSnapshot(settings); }, "Enemy catalog edit");
+    const auto& io = ImGui::GetIO();
+    if (!m_confirm && !io.WantTextInput && !ImGui::IsAnyItemActive() &&
+        !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) && io.KeyCtrl &&
+        ImGui::IsKeyPressed(ImGuiKey_Z, false))
+        Undo();
     if (!m_availableMapsScanned) RefreshAvailableMaps();
     if (ImGui::Button("Open Folder...")) Request(Action::Open);
     ImGui::SameLine();
@@ -998,6 +1137,10 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     ImGui::SameLine();
     ImGui::BeginDisabled(!m_map.IsOpen());
     if (ImGui::Button("Save")) Save();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!CanUndo());
+    if (ImGui::Button("Undo")) Undo();
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
@@ -1240,6 +1383,7 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
         if (ImGui::Button("Discard"))
         {
             m_map.DiscardChanges();
+            ClearUndoHistory();
             m_sceneReloadRequested = true;
             m_confirm = false;
             ImGui::CloseCurrentPopup();
@@ -1258,11 +1402,20 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     DrawCheatSheet();
     if (m_map.IsOpen() && m_enemyUnitEditor.open)
     {
+        const auto before = m_enemyCatalog;
         m_enemyUnitEditor.Draw(m_enemyCatalog, m_enemyCatalogPath);
+        if (!(before == m_enemyCatalog))
+        {
+            FlushPendingGizmoEdit();
+            FlushPendingManifestEdit();
+        }
+        m_enemyCatalogEdit.Update(before, m_enemyCatalog, ImGui::GetActiveID(), m_undoHistory,
+            [this](const auto& settings) { ApplyEnemyCatalogSnapshot(settings); }, "Enemy catalog edit");
         m_enemyTypes.clear();
         for (const auto& type : m_enemyCatalog.unitTypes) m_enemyTypes.push_back(type.name);
         if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), m_selectedEnemyType) == m_enemyTypes.end())
             m_selectedEnemyType = m_enemyTypes.empty() ? "" : m_enemyTypes.front();
     }
+    else FlushPendingEnemyCatalogEdit();
     return !m_confirm && m_pending != Action::None ? Execute(owner) : false;
 }

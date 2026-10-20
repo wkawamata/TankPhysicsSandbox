@@ -2,6 +2,7 @@
 #include "Ui/EnemyUnitEditorWindow.h"
 #include "Ui/DriveTelemetry.h"
 #include "App/RollingSpeedOptimizationSession.h"
+#include "App/TankSettingsUndo.h"
 #include "App/RollingProfileSlotSelection.h"
 
 #include "Input/GamepadState.h"
@@ -11,6 +12,7 @@
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_stdlib.h"
 #include <ImGuiWidgets.h>
 
@@ -1567,17 +1569,32 @@ namespace Ui
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
 	{
         static EnemyUnitEditorWindow enemyUnitEditor;
+        const bool hasSettingsUndo = ctx.settingsUndo && ctx.tankSettings;
+        if (hasSettingsUndo)
+            ctx.settingsUndo->FinishInteraction(ImGui::GetActiveID());
 		if (ctx.rollingOptimizer)
 		{
 			ctx.rollingOptimizer->Poll();
 			if (ctx.tankSettings && ctx.envSettings)
 			{
+                const auto beforeOptimization = *ctx.tankSettings;
 				// This updates editable internal coefficients only. Speed selection
 				// and Reset Tank remain explicit user actions.
 				ctx.rollingOptimizer->Apply(
 					*ctx.tankSettings, *ctx.envSettings);
+                if (hasSettingsUndo && !(beforeOptimization == *ctx.tankSettings))
+                {
+                    ctx.settingsUndo->Flush();
+                    ctx.settingsUndo->Observe(beforeOptimization, 0);
+                }
 			}
 		}
+        const auto& io = ImGui::GetIO();
+        if (hasSettingsUndo && !io.WantTextInput && !ImGui::IsAnyItemActive() &&
+            !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
+            io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            ctx.settingsUndo->Undo();
+        auto beforeSettings = ctx.tankSettings ? *ctx.tankSettings : Tank::Physics::TankSettings{};
 		const Tank::Physics::TrackedVehicleTestState& state = *ctx.state;
 		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
@@ -1838,6 +1855,17 @@ namespace Ui
         ImGui::EndDisabled();
 
 		ImGui::SeparatorText("Tank Settings");
+        if (hasSettingsUndo)
+        {
+            ImGui::BeginDisabled(!ctx.settingsUndo->CanUndo());
+            if (ImGui::Button("Undo (Ctrl+Z)"))
+            {
+                ctx.settingsUndo->Undo();
+                beforeSettings = *ctx.tankSettings;
+            }
+            ImGui::EndDisabled();
+            ImGui::TextDisabled("Undo restores edited values. Apply & Reset applies them to the tank.");
+        }
 		ImGui::TextUnformatted("Slot");
 		ImGui::SameLine();
 		for (int slot = 0; slot < 3; ++slot)
@@ -3062,5 +3090,7 @@ namespace Ui
             auto& path = ctx.enemyEditorJsonPath ? *ctx.enemyEditorJsonPath : fallbackEnemyPath;
             enemyUnitEditor.Draw(*ctx.enemyEditor, path, ctx.state, ctx.resetTrackedVehicle);
         }
+        if (hasSettingsUndo)
+            ctx.settingsUndo->Observe(beforeSettings, ImGui::GetActiveID());
 	}
 }

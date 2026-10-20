@@ -28,6 +28,7 @@ namespace Tank::Physics
         float projectileRadiusMeters = 0.25f;
         EnemyProjectileShape projectileShape = EnemyProjectileShape::Sphere;
         Vec3 projectileBoxSizeMeters = {1, 1, 1}; // Full dimensions: width, height, depth (+Z flight axis).
+        bool operator==(const EnemyAttackType&) const = default;
     };
 
     inline bool IsValidEnemyAttackType(const EnemyAttackType& type)
@@ -55,6 +56,7 @@ namespace Tank::Physics
         // Enemy-local position. Each mount will own independent aiming/fire state.
         Vec3 localPosition = {};
         int attackTypeIndex = 0;
+        bool operator==(const EnemyAttackMount&) const = default;
     };
 
     struct EnemyUnitType
@@ -63,6 +65,7 @@ namespace Tank::Physics
         // Movement data is independent of attack definitions.
         std::vector<EnemyAttackMount> attackMounts = {EnemyAttackMount{}};
         float hitPoints = 60.0f;
+        bool operator==(const EnemyUnitType&) const = default;
     };
 
     struct EnemyEditorSettings
@@ -70,5 +73,6 @@ namespace Tank::Physics
         EnemySimulationSettings simulation;
         std::vector<EnemyAttackType> attackTypes = {EnemyAttackType{}};
         std::vector<EnemyUnitType> unitTypes = {EnemyUnitType{}};
+        bool operator==(const EnemyEditorSettings&) const = default;
     };
 }

@@ -41,6 +41,7 @@ namespace Tank::Physics
         float maximumDistanceMeters = 40.0f;
         // Tank-local coordinates: +X right, +Y up, +Z forward.
         Vec3 muzzleLocalPosition = {0.0f, 0.85f, 1.8f};
+        bool operator==(const AssaultProjectileSettings&) const = default;
     };
 
     struct AssaultProjectileState

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Map/MapFolder.h"
+#include "App/UndoHistory.h"
+#include "App/SnapshotUndoEdit.h"
+#include "App/ManifestUndoEdit.h"
 #include "Physics/EnemyAttackType.h"
 #include "Ui/EnemyUnitEditorWindow.h"
 #include <array>
@@ -19,6 +22,11 @@ class MapEditorMode
 public:
     // Returns true when the user has completed a request to return to the menu.
     bool DrawUi(HWND__* owner, bool* outputWindowVisible = nullptr);
+    bool Undo();
+    bool Redo();
+    bool CanUndo() const { return m_map.IsOpen() && (m_undoHistory.CanUndo() ||
+        m_enemyCatalogEdit.HasPending() || m_manifestEdit.HasPending() || m_gizmoEdit.HasPending()); }
+    bool CanRedo() const { return m_map.IsOpen() && m_undoHistory.CanRedo(); }
     void DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio);
     bool PlacementGizmoCapturesMouse() const;
     void UpdateViewportPicking(const std::function<std::optional<std::string>(float, float)>& pick);
@@ -75,6 +83,16 @@ private:
     bool AddSelectedEnemy();
     bool UpdateSelectedEnemy(const Tank::Map::EnemyPlacement& enemy);
     bool RemoveSelectedEnemy();
+    bool CommitManifestEdit(const Tank::Map::Manifest& before,
+        const Tank::Map::Manifest& after, const char* name);
+    void RecordManifestEdit(const Tank::Map::Manifest& before,
+        const Tank::Map::Manifest& after, const char* name);
+    void ApplyManifestSnapshot(const Tank::Map::Manifest& manifest);
+    void FlushPendingManifestEdit();
+    void FlushPendingGizmoEdit();
+    void FlushPendingEnemyCatalogEdit();
+    void ClearUndoHistory();
+    void ApplyEnemyCatalogSnapshot(const Tank::Physics::EnemyEditorSettings& settings);
     void DrawCheatSheet();
     void DrawMapTree();
     std::string SelectedNodeId() const;
@@ -137,4 +155,9 @@ private:
     std::array<float, 3> m_visualMeshColor = { 80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
     bool m_showCheatSheet = true;
     bool m_showCameraWindow = true;
+    Tank::App::UndoHistory m_undoHistory;
+    Tank::App::SnapshotUndoEdit<Tank::Physics::EnemyEditorSettings> m_enemyCatalogEdit;
+    Tank::App::ManifestUndoEdit m_manifestEdit;
+    Tank::App::ManifestUndoEdit m_gizmoEdit;
+    bool m_replayingUndo = false;
 };

@@ -18,12 +18,14 @@ namespace Tank::Physics
 }
 
 namespace Tank::App { class RollingSpeedOptimizationSession; }
+namespace Tank::App { class TankSettingsUndo; }
 
 namespace Ui
 {
     struct TrackedVehiclePanelContext
     {
         Tank::App::RollingSpeedOptimizationSession* rollingOptimizer = nullptr;
+        Tank::App::TankSettingsUndo* settingsUndo = nullptr;
         const Tank::Physics::TrackedVehicleTestState* state = nullptr;
         const Tank::Physics::TrackedDriverInput* driverInput = nullptr;
         Tank::Input::GamepadState gamepadState = {};

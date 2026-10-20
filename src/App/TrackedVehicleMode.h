@@ -3,6 +3,7 @@
 #include "Input/GamepadState.h"
 #include "Input/InputDeviceProfiles.h"
 #include "App/RollingSpeedOptimizationSession.h"
+#include "App/TankSettingsUndo.h"
 #include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/MapDefinition.h"
@@ -77,6 +78,7 @@ public:
     Tank::Physics::EnemyEditorSettings& EnemyEditor() { return m_enemyEditor; }
     std::string& EnemyEditorJsonPath() { return m_enemyEditorJsonPath; }
     Tank::Physics::TankSettings& Settings() { return m_settings; }
+    Tank::App::TankSettingsUndo& SettingsUndo() { return m_settingsUndo; }
     const Tank::Physics::TankSettings& AppliedSettings() const { return m_appliedSettings; }
     Tank::Physics::PhysicsEnvironmentSettings& EnvSettings() { return m_environmentSettings; }
     const Tank::Physics::PhysicsEnvironmentSettings& AppliedEnvSettings() const { return m_appliedEnvironmentSettings; }
@@ -169,6 +171,7 @@ private:
     Tank::Physics::TrackedVehicleTest m_test;
 
     Tank::Physics::TankSettings m_settings;
+    Tank::App::TankSettingsUndo m_settingsUndo{m_settings};
     Tank::Input::TankInputMappingSettings m_inputMappingSettings;
     Tank::Input::InputDeviceProfiles m_inputDeviceProfiles;
     std::optional<size_t> m_activeInputDeviceProfile;

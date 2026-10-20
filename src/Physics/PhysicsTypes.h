@@ -7,6 +7,7 @@ namespace Tank::Physics
         float x = 0.0f;
         float y = 0.0f;
         float z = 0.0f;
+        bool operator==(const Vec3&) const = default;
     };
 
     struct Quat
