@@ -59,6 +59,8 @@ add_library(TankMapCore STATIC
     src/Map/MapAssetCatalog.h
     src/Map/MapFolder.cpp
     src/Map/MapFolder.h
+    src/Map/MapHierarchy.cpp
+    src/Map/MapHierarchy.h
     src/Map/MapManifest.cpp
     src/Map/MapManifest.h
 )
@@ -220,6 +222,12 @@ target_link_libraries(TankWindowsInput
 add_executable(TankSandbox
     src/App/MapEditorMode.cpp
     src/App/MapEditorMode.h
+    src/App/ExternalUndoEdit.h
+    src/App/CameraEditState.h
+    src/App/UndoHistory.h
+    src/App/SnapshotUndoEdit.h
+    src/App/ManifestUndoEdit.h
+    src/App/TankSettingsUndo.h
     src/App/MapFolderRegistryStore.cpp
     src/App/MapFolderRegistryStore.h
     src/Platform/Windows/MapFolderPicker.cpp
@@ -267,12 +275,16 @@ add_executable(TankSandbox
     src/Diagnostics/Log.h
     src/Platform/Windows/DebugLogSink.cpp
     src/Platform/Windows/DebugLogSink.h
+    src/Ui/SceneTreeUI.cpp
+    src/Ui/SceneTreeUI.h
     src/Ui/OutputPanel.cpp
     src/Ui/OutputPanel.h
     src/Ui/CameraPanel.cpp
     src/Ui/CameraPanel.h
     src/Ui/RendererSettingsPanel.cpp
     src/Ui/RendererSettingsPanel.h
+    src/Ui/EnemyUnitEditorWindow.cpp
+    src/Ui/EnemyUnitEditorWindow.h
     src/Ui/TrackedVehiclePanel.cpp
     src/Ui/TrackedVehiclePanel.h
     src/TankSandboxApp.cpp
@@ -367,6 +379,27 @@ if(MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(UndoHistoryTests tests/UndoHistoryTests.cpp)
+    target_include_directories(UndoHistoryTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(UndoHistoryTests PRIVATE /W4 /permissive- /utf-8)
+    endif()
+    add_test(NAME TankApp.UndoHistory COMMAND UndoHistoryTests)
+
+    add_executable(TankSettingsUndoTests tests/TankSettingsUndoTests.cpp)
+    target_include_directories(TankSettingsUndoTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(TankSettingsUndoTests PRIVATE /W4 /permissive- /utf-8)
+    endif()
+    add_test(NAME TankApp.TankSettingsUndo COMMAND TankSettingsUndoTests)
+
+    add_executable(MapUndoHistoryTests tests/MapUndoHistoryTests.cpp)
+    target_link_libraries(MapUndoHistoryTests PRIVATE TankMapCore)
+    if(MSVC)
+        target_compile_options(MapUndoHistoryTests PRIVATE /W4 /permissive- /utf-8)
+    endif()
+    add_test(NAME TankApp.MapUndoHistory COMMAND MapUndoHistoryTests)
+
     add_executable(LogTests tests/LogTests.cpp)
     target_link_libraries(LogTests PRIVATE TankDiagnostics)
     if(MSVC)

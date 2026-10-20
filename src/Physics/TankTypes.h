@@ -139,6 +139,7 @@ namespace Tank::Physics
         float stoppedExitSuspensionSpeedMetersPerSecond = 0.20f;
         float stoppedMinimumUpAlignment = 0.90f;
         float stoppedConfirmSeconds = 0.25f;
+        bool operator==(const TankSettings&) const = default;
     };
 
     struct TankInput

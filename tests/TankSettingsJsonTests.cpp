@@ -62,7 +62,7 @@ int main()
     source.suspensionStrokeMeters[
         Tank::Physics::TankSuspensionSlotIndex(1, 1, 4)] = 0.37f;
     source.neutralBrakeEnabled = false;
-    source.neutralBrakeAmount = 0.35f;
+    source.neutralBrakeAmount = 3.0f;
     source.stationaryTurnInnerTrackRatio = 0.25f;
     source.stationaryTurnLeftTraction = 0.6f;
     source.stationaryTurnRightTraction = 0.7f;

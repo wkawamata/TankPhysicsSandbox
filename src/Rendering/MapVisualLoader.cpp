@@ -1,3 +1,4 @@
+#include "Map/MapHierarchy.h"
 #include "MapVisualLoader.h"
 
 #include "Map/GltfRoles.h"
@@ -20,8 +21,14 @@ namespace
 
     DirectX::XMMATRIX ToWorld(const Tank::Map::Transform& transform)
     {
+        if (transform.worldMatrix)
+        {
+            DirectX::XMFLOAT4X4 matrix;
+            std::copy(transform.worldMatrix->begin(), transform.worldMatrix->end(), &matrix._11);
+            return DirectX::XMLoadFloat4x4(&matrix);
+        }
         constexpr float degreesToRadians = DirectX::XM_PI / 180.0f;
-        return DirectX::XMMatrixScaling(transform.scale, transform.scale, transform.scale) *
+        return DirectX::XMMatrixScaling(transform.scale[0], transform.scale[1], transform.scale[2]) *
             DirectX::XMMatrixRotationRollPitchYaw(
                    transform.rotationDegrees[0] * degreesToRadians,
                    transform.rotationDegrees[1] * degreesToRadians,
@@ -41,9 +48,8 @@ namespace
         uint32_t material, const Tank::Map::ClearArea& area,
         std::vector<size_t>& instanceIndices)
     {
-        const float x = area.size[0];
-        const float y = area.size[1];
-        const float z = area.size[2];
+        const float x = 1, y = 1, z = 1;
+        const auto world = ToWorld(Tank::Map::ClearAreaTransform(area));
         const float halfX = x * 0.5f;
         const float halfY = y * 0.5f;
         const float halfZ = z * 0.5f;
@@ -51,8 +57,7 @@ namespace
         const auto addEdge = [&](float sx, float sy, float sz, float px, float py, float pz)
         {
             AddMarkerInstance(builder, cubeMesh,
-                DirectX::XMMatrixScaling(sx, sy, sz) * DirectX::XMMatrixTranslation(
-                    area.center[0] + px, area.center[1] + py, area.center[2] + pz),
+                DirectX::XMMatrixScaling(sx, sy, sz) * DirectX::XMMatrixTranslation(px, py, pz) * world,
                 material, instanceIndices);
         };
         for (const float oy : { -halfY, halfY })
@@ -77,10 +82,12 @@ bool Tank::Rendering::AppendMapVisuals(Engine::SceneBuilder& builder,
     const std::filesystem::path& mapFolder, const Map::Manifest& manifest,
     uint32_t materialId, std::string& error,
     std::vector<MapVisualBounds>* instanceBounds,
-    std::vector<size_t>* instanceIndices)
+    std::vector<size_t>* instanceIndices,
+    std::vector<std::pair<size_t, std::string>>* pickInstances)
 {
     if (instanceBounds) instanceBounds->clear();
     if (instanceIndices) instanceIndices->clear();
+    if (pickInstances) pickInstances->clear();
     for (const Map::Instance& instance : manifest.instances)
     {
         const std::u8string assetUtf8(instance.asset.begin(), instance.asset.end());
@@ -136,6 +143,7 @@ bool Tank::Rendering::AppendMapVisuals(Engine::SceneBuilder& builder,
                 }
             }
             if (instanceIndices) instanceIndices->push_back(builder.GetScene().instances.size());
+            if (pickInstances) pickInstances->emplace_back(builder.GetScene().instances.size(), "mesh/" + instance.id);
             builder.AddInstance(*add.meshId, ToWorld(instance.transform), materialId);
         }
     }
@@ -231,20 +239,26 @@ void Tank::Rendering::AppendMapMarkers(Engine::SceneBuilder& builder,
 {
     std::vector<size_t> appended;
     appended.reserve(3u + manifest.clearAreas.size() * 12u);
-    const DirectX::XMMATRIX spawnWorld = ToWorld(manifest.playerSpawn);
-    AddMarkerInstance(builder, cubeMesh,
-        DirectX::XMMatrixScaling(0.10f, 1.5f, 0.10f) *
-            DirectX::XMMatrixTranslation(0.0f, 0.75f, 0.0f) * spawnWorld,
-        spawnMaterialId, appended);
-    AddMarkerInstance(builder, cubeMesh,
-        DirectX::XMMatrixScaling(0.14f, 0.14f, 1.4f) *
-            DirectX::XMMatrixTranslation(0.0f, 1.5f, 0.7f) * spawnWorld,
-        spawnMaterialId, appended);
-    AddMarkerInstance(builder, cubeMesh,
-        DirectX::XMMatrixScaling(0.5f, 0.22f, 0.5f) *
-            DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4) *
-            DirectX::XMMatrixTranslation(0.0f, 1.5f, 1.4f) * spawnWorld,
-        spawnMaterialId, appended);
+    std::vector<std::pair<std::string, Map::Transform>> starts = {{"player-start", manifest.playerSpawn}};
+    for (const auto& n : manifest.startPoints) starts.emplace_back("start/" + n.id, n.transform);
+    for (const auto& [id, transform] : starts)
+    {
+        if (!Map::GetNodeInfo(manifest, id).visible) continue;
+        const DirectX::XMMATRIX spawnWorld = ToWorld(transform);
+        AddMarkerInstance(builder, cubeMesh,
+            DirectX::XMMatrixScaling(0.10f, 1.5f, 0.10f) *
+                DirectX::XMMatrixTranslation(0.0f, 0.75f, 0.0f) * spawnWorld,
+            spawnMaterialId, appended);
+        AddMarkerInstance(builder, cubeMesh,
+            DirectX::XMMatrixScaling(0.14f, 0.14f, 1.4f) *
+                DirectX::XMMatrixTranslation(0.0f, 1.5f, 0.7f) * spawnWorld,
+            spawnMaterialId, appended);
+        AddMarkerInstance(builder, cubeMesh,
+            DirectX::XMMatrixScaling(0.5f, 0.22f, 0.5f) *
+                DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4) *
+                DirectX::XMMatrixTranslation(0.0f, 1.5f, 1.4f) * spawnWorld,
+            spawnMaterialId, appended);
+    }
     for (const Map::ClearArea& area : manifest.clearAreas)
         AddClearAreaWireframe(builder, cubeMesh, clearAreaMaterialId, area, appended);
     instanceIndices = std::move(appended);

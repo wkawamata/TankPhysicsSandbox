@@ -2,12 +2,16 @@
 
 #include "Map/MapAssetCatalog.h"
 #include "Map/MapEditing.h"
+#include "Map/MapHierarchy.h"
+#include "Ui/SceneTreeUI.h"
 #include "Platform/Windows/MapFolderPicker.h"
 #include "Physics/EnemyEditorJson.h"
 #include "Rendering/EnemyPlacementGizmo.h"
 #include <Scene/CameraView.h>
 #include <Scene/CameraProjection.h>
 #include <imgui.h>
+#include <imgui_internal.h>
+#include <ImGuiWidgets.h>
 #include <third_party/ImGuizmo/ImGuizmo.h>
 #include <fstream>
 #include <iterator>
@@ -53,14 +57,17 @@ void MapEditorMode::RefreshAvailableMaps()
 bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::string& error)
 {
     if (!m_map.Open(folder, error)) return false;
+    ClearUndoHistory();
     m_status = "Opened Manifest.json";
     m_previewWarning.clear();
     m_selectedAsset.clear();
+    m_selectedNodeId = "root";
     m_selectedInstanceId.clear();
     m_focusSelectedRequested = false;
     m_hiddenInstanceIds.clear();
     m_selectedClearAreaId.clear();
     m_selectedEnemyId.clear();
+    m_playerStartGizmoSelected = false;
     auto catalogPath = m_map.Folder() / "enemy_types.json";
     if (!std::filesystem::exists(catalogPath))
         catalogPath = std::filesystem::path(TANK_SOURCE_CONFIG_DIR) / "enemy_types.json";
@@ -74,6 +81,128 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     RefreshAvailableMaps();
     m_selectedAvailableMap = m_map.Folder();
     m_sceneReloadRequested = true;
+    return true;
+}
+
+void MapEditorMode::ApplyManifestSnapshot(const Tank::Map::Manifest& manifest)
+{
+    std::string error;
+    if (!m_map.SetManifest(manifest, error))
+    {
+        m_status = "Could not apply undo state: " + error;
+        return;
+    }
+
+    const auto tree = Tank::Map::MapTree(manifest);
+    const auto hasNode = [&tree](const std::string& id)
+    {
+        return std::any_of(tree.begin(), tree.end(), [&](const auto& node) { return node.id == id; });
+    };
+    if (!hasNode(m_selectedNodeId)) m_selectedNodeId = "root";
+    if (std::none_of(manifest.instances.begin(), manifest.instances.end(),
+        [this](const auto& value) { return value.id == m_selectedInstanceId; }))
+        m_selectedInstanceId.clear();
+    if (std::none_of(manifest.enemies.begin(), manifest.enemies.end(),
+        [this](const auto& value) { return value.id == m_selectedEnemyId; }))
+        m_selectedEnemyId.clear();
+    if (std::none_of(manifest.clearAreas.begin(), manifest.clearAreas.end(),
+        [this](const auto& value) { return value.id == m_selectedClearAreaId; }))
+        m_selectedClearAreaId.clear();
+    m_sceneReloadRequested = true;
+}
+
+void MapEditorMode::RecordManifestEdit(const Tank::Map::Manifest& before,
+    const Tank::Map::Manifest& after, const char* name)
+{
+    if (m_replayingUndo) return;
+    m_viewEdit.Flush();
+    std::string beforeJson;
+    std::string afterJson;
+    std::string error;
+    if (!Tank::Map::SerializeManifest(before, beforeJson, error) ||
+        !Tank::Map::SerializeManifest(after, afterJson, error) || beforeJson == afterJson)
+        return;
+
+    const auto beforeState = before;
+    const auto afterState = after;
+    m_undoHistory.RecordApplied(std::make_unique<Tank::App::LambdaUndoCommand>(
+        name,
+        [this, beforeState]
+        {
+            m_replayingUndo = true;
+            ApplyManifestSnapshot(beforeState);
+            m_replayingUndo = false;
+        },
+        [this, afterState]
+        {
+            m_replayingUndo = true;
+            ApplyManifestSnapshot(afterState);
+            m_replayingUndo = false;
+        }));
+}
+
+bool MapEditorMode::CommitManifestEdit(const Tank::Map::Manifest& before,
+    const Tank::Map::Manifest& after, const char* name)
+{
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
+    std::string error;
+    if (!m_map.SetManifest(after, error))
+    {
+        m_status = "Could not update map: " + error;
+        return false;
+    }
+    RecordManifestEdit(before, after, name);
+    m_sceneReloadRequested = true;
+    return true;
+}
+
+void MapEditorMode::FlushPendingManifestEdit()
+{
+    m_manifestEdit.Flush(m_undoHistory,
+        [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
+}
+
+void MapEditorMode::FlushPendingGizmoEdit()
+{
+    if (ImGuizmo::IsUsingAny()) return;
+    m_gizmoEdit.Flush(m_undoHistory,
+        [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Transform selection");
+}
+
+void MapEditorMode::ClearUndoHistory()
+{
+    m_viewEdit.Clear();
+    m_manifestEdit.Clear();
+    m_gizmoEdit.Clear();
+    m_enemyCatalogEdit.Clear();
+    m_undoHistory.Clear();
+}
+
+bool MapEditorMode::Undo()
+{
+    if (!m_map.IsOpen() || ImGuizmo::IsUsingAny()) return false;
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
+    m_viewEdit.Flush();
+    if (!m_undoHistory.CanUndo()) return false;
+    const std::string name = m_undoHistory.Undo();
+    m_status = "Undo: " + name;
+    return true;
+}
+
+bool MapEditorMode::Redo()
+{
+    if (!m_map.IsOpen() || ImGuizmo::IsUsingAny()) return false;
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
+    m_viewEdit.Flush();
+    if (!m_undoHistory.CanRedo()) return false;
+    const std::string name = m_undoHistory.Redo();
+    m_status = "Redo: " + name;
     return true;
 }
 
@@ -96,6 +225,9 @@ void MapEditorMode::RefreshAssets()
 void MapEditorMode::Request(Action action)
 {
     if (m_pending != Action::None) return;
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
     m_pending = action;
     m_confirm = m_map.IsDirty();
 }
@@ -187,27 +319,103 @@ bool MapEditorMode::AddSelectedModel()
             return false;
         }
     }
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     Tank::Map::Instance instance;
     instance.id = Tank::Map::MakeUniqueInstanceId(updated);
     instance.asset = m_selectedAsset;
+    instance.parentId = SelectedNodeId();
     updated.instances.push_back(std::move(instance));
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not add model: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Add model")) return false;
     m_sceneReloadRequested = true;
     m_selectedInstanceId = updated.instances.back().id;
+    m_selectedEnemyId.clear();
+    m_selectedClearAreaId.clear();
+    m_playerStartGizmoSelected = false;
     m_focusSelectedRequested = true;
     m_status = "Added " + m_selectedAsset + ". Save to write Manifest.json.";
     return true;
 }
 
+bool MapEditorMode::SaveSelectedMaterialColor()
+{
+    if (m_selectedAsset.empty() || !m_materialColorLoaded || m_selectedMaterialIndex < 0 ||
+        static_cast<size_t>(m_selectedMaterialIndex) >= m_materialColors.size())
+    {
+        m_status = "Select a material before saving its color.";
+        return false;
+    }
+    const std::u8string relativeUtf8(m_selectedAsset.begin(), m_selectedAsset.end());
+    const std::filesystem::path source = m_map.Folder() / std::filesystem::path(relativeUtf8);
+    std::filesystem::path destination = source;
+    if (!m_materialOverrideFile)
+    {
+        std::filesystem::path copyName(m_materialCopyName);
+        if (copyName.empty() || copyName.filename() != copyName || copyName == "." || copyName == "..")
+        {
+            m_status = "Enter a file name for the renamed copy.";
+            return false;
+        }
+        if (!copyName.has_extension()) copyName += source.extension();
+        if (copyName.extension() != source.extension())
+        {
+            m_status = "The copy must keep the source file extension.";
+            return false;
+        }
+        destination = source.parent_path() / copyName;
+        std::error_code error;
+        if (std::filesystem::exists(destination, error) || error)
+        {
+            m_status = error ? "Could not check copy destination: " + error.message() :
+                "A file with that name already exists.";
+            return false;
+        }
+        std::filesystem::copy_file(source, destination, std::filesystem::copy_options::none, error);
+        if (error)
+        {
+            m_status = "Could not copy model: " + error.message();
+            return false;
+        }
+    }
+
+    std::string error;
+    if (!Tank::Map::SaveGltfMaterialColor(destination,
+        static_cast<size_t>(m_selectedMaterialIndex), m_materialColorEdit, error))
+    {
+        if (!m_materialOverrideFile)
+        {
+            std::error_code ignored;
+            std::filesystem::remove(destination, ignored);
+        }
+        m_status = "Could not save material color: " + error;
+        return false;
+    }
+
+    const auto relative = std::filesystem::relative(destination, m_map.Folder());
+    const auto relativeUtf8Result = relative.u8string();
+    const std::string updatedAsset(relativeUtf8Result.begin(), relativeUtf8Result.end());
+    if (!m_materialOverrideFile)
+    {
+        m_selectedAsset = updatedAsset;
+        m_materialCopyName = destination.stem().string() + "_Color";
+    }
+    RefreshAssets();
+    m_selectedAsset = updatedAsset;
+    m_materialColors.clear();
+    m_materialColorLoaded = Tank::Map::InspectGltfMaterialColors(destination, m_materialColors, error) &&
+        static_cast<size_t>(m_selectedMaterialIndex) < m_materialColors.size();
+    if (m_materialColorLoaded)
+        m_materialColorEdit = m_materialColors[static_cast<size_t>(m_selectedMaterialIndex)].baseColorFactor;
+    if (m_inspectedAsset == updatedAsset) m_inspectedAsset.clear();
+    m_sceneReloadRequested = true;
+    m_status = std::string(m_materialOverrideFile ? "Updated " : "Saved renamed copy ") + updatedAsset;
+    return true;
+}
+
 bool MapEditorMode::UpdateSelectedInstance(const Tank::Map::Transform& transform)
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const auto instance = std::find_if(updated.instances.begin(), updated.instances.end(),
         [this](const Tank::Map::Instance& value) { return value.id == m_selectedInstanceId; });
     if (instance == updated.instances.end())
@@ -218,14 +426,7 @@ bool MapEditorMode::UpdateSelectedInstance(const Tank::Map::Transform& transform
         return false;
     }
     instance->transform = transform;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not update transform: " + error;
-        return false;
-    }
-    m_sceneReloadRequested = true;
-    return true;
+    return CommitManifestEdit(before, updated, "Move model");
 }
 
 void MapEditorMode::SetSelectedInstanceVisible(bool visible)
@@ -243,20 +444,17 @@ void MapEditorMode::SetSelectedInstanceVisible(bool visible)
 
 bool MapEditorMode::RemoveSelectedInstance()
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const auto remove = std::find_if(updated.instances.begin(), updated.instances.end(),
         [this](const Tank::Map::Instance& value) { return value.id == m_selectedInstanceId; });
     if (remove == updated.instances.end()) return false;
     const std::string removedAsset = remove->asset;
     Tank::Map::RemoveInstance(updated, m_selectedInstanceId);
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not remove model: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Remove model")) return false;
     m_hiddenInstanceIds.erase(m_selectedInstanceId);
     m_selectedInstanceId.clear();
+    m_playerStartGizmoSelected = false;
     m_focusSelectedRequested = false;
     m_sceneReloadRequested = true;
     m_status = "Removed " + removedAsset + ". Save to write Manifest.json.";
@@ -265,16 +463,12 @@ bool MapEditorMode::RemoveSelectedInstance()
 
 bool MapEditorMode::DuplicateSelectedInstance()
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const std::optional<std::string> duplicateId =
         Tank::Map::DuplicateInstance(updated, m_selectedInstanceId);
     if (!duplicateId) return false;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not duplicate model: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Duplicate model")) return false;
     m_selectedInstanceId = *duplicateId;
     m_sceneReloadRequested = true;
     m_focusSelectedRequested = true;
@@ -284,29 +478,23 @@ bool MapEditorMode::DuplicateSelectedInstance()
 
 bool MapEditorMode::UpdatePlayerSpawn(const Tank::Map::Transform& transform)
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     updated.playerSpawn = transform;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not update player start: " + error;
-        return false;
-    }
-    m_sceneReloadRequested = true;
-    return true;
+    return CommitManifestEdit(before, updated, "Move player start");
 }
 
 bool MapEditorMode::AddClearArea()
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const std::string id = Tank::Map::AddClearArea(updated);
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not add clear area: " + error;
-        return false;
-    }
+    updated.clearAreas.back().parentId = SelectedNodeId();
+    if (!CommitManifestEdit(before, updated, "Add clear area")) return false;
     m_selectedClearAreaId = id;
+    m_selectedInstanceId.clear();
+    m_selectedEnemyId.clear();
+    m_playerStartGizmoSelected = false;
     m_sceneReloadRequested = true;
     m_status = "Added clear area. Save to write Manifest.json.";
     return true;
@@ -314,7 +502,8 @@ bool MapEditorMode::AddClearArea()
 
 bool MapEditorMode::UpdateSelectedClearArea(const Tank::Map::ClearArea& area)
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     const auto selected = std::find_if(updated.clearAreas.begin(), updated.clearAreas.end(),
         [this](const Tank::Map::ClearArea& value) { return value.id == m_selectedClearAreaId; });
     if (selected == updated.clearAreas.end())
@@ -325,26 +514,15 @@ bool MapEditorMode::UpdateSelectedClearArea(const Tank::Map::ClearArea& area)
         return false;
     }
     *selected = area;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not update clear area: " + error;
-        return false;
-    }
-    m_sceneReloadRequested = true;
-    return true;
+    return CommitManifestEdit(before, updated, "Edit clear area");
 }
 
 bool MapEditorMode::RemoveSelectedClearArea()
 {
-    Tank::Map::Manifest updated = m_map.Document();
+    const Tank::Map::Manifest before = m_map.Document();
+    Tank::Map::Manifest updated = before;
     if (!Tank::Map::RemoveClearArea(updated, m_selectedClearAreaId)) return false;
-    std::string error;
-    if (!m_map.SetManifest(updated, error))
-    {
-        m_status = "Could not remove clear area: " + error;
-        return false;
-    }
+    if (!CommitManifestEdit(before, updated, "Remove clear area")) return false;
     m_selectedClearAreaId.clear();
     m_selectedEnemyId.clear();
     m_sceneReloadRequested = true;
@@ -366,6 +544,7 @@ bool MapEditorMode::LoadEnemyCatalog()
         std::vector<std::string> names;
         for (const auto& type : loaded.unitTypes) names.push_back(type.name);
         m_enemyTypes = std::move(names);
+        m_enemyCatalog = std::move(loaded);
         if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), m_selectedEnemyType) == m_enemyTypes.end())
             m_selectedEnemyType = m_enemyTypes.empty() ? "" : m_enemyTypes.front();
         m_enemyCatalogError.clear();
@@ -378,65 +557,95 @@ bool MapEditorMode::LoadEnemyCatalog()
     }
 }
 
+void MapEditorMode::ApplyEnemyCatalogSnapshot(const Tank::Physics::EnemyEditorSettings& settings)
+{
+    m_enemyCatalog = settings;
+    m_enemyTypes.clear();
+    for (const auto& type : m_enemyCatalog.unitTypes) m_enemyTypes.push_back(type.name);
+    if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), m_selectedEnemyType) == m_enemyTypes.end())
+        m_selectedEnemyType = m_enemyTypes.empty() ? "" : m_enemyTypes.front();
+}
+
+void MapEditorMode::FlushPendingEnemyCatalogEdit()
+{
+    m_enemyCatalogEdit.Flush(m_undoHistory,
+        [this](const auto& settings) { ApplyEnemyCatalogSnapshot(settings); }, "Enemy catalog edit");
+}
+
 bool MapEditorMode::AddSelectedEnemy()
 {
-    auto updated = m_map.Document();
+    const auto before = m_map.Document();
+    auto updated = before;
     const auto id = Tank::Map::AddEnemy(updated, m_selectedEnemyType);
     if (id.empty()) return false;
-    std::string error;
-    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
+    updated.enemies.back().parentId = SelectedNodeId();
+    if (!CommitManifestEdit(before, updated, "Add enemy")) return false;
     m_selectedEnemyId = id;
     m_selectedInstanceId.clear();
+    m_selectedClearAreaId.clear();
+    m_playerStartGizmoSelected = false;
     m_sceneReloadRequested = true;
     m_focusSelectedRequested = true;
-    m_status = "Added enemy. Set position/rotation, then Save.";
+    m_status = "Added enemy. Edit position/rotation in Map Tree, then Save.";
     return true;
 }
 
 bool MapEditorMode::UpdateSelectedEnemy(const Tank::Map::EnemyPlacement& enemy)
 {
-    auto updated = m_map.Document();
+    const auto before = m_map.Document();
+    auto updated = before;
     const auto selected = std::find_if(updated.enemies.begin(), updated.enemies.end(),
         [this](const auto& value) { return value.id == m_selectedEnemyId; });
     if (selected == updated.enemies.end()) return false;
     *selected = enemy;
-    std::string error;
-    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
-    m_sceneReloadRequested = true;
-    return true;
+    return CommitManifestEdit(before, updated, "Edit enemy");
 }
 
 bool MapEditorMode::RemoveSelectedEnemy()
 {
-    auto updated = m_map.Document();
+    const auto before = m_map.Document();
+    auto updated = before;
     if (!Tank::Map::RemoveEnemy(updated, m_selectedEnemyId)) return false;
-    std::string error;
-    if (!m_map.SetManifest(updated, error)) { m_status = error; return false; }
+    if (!CommitManifestEdit(before, updated, "Remove enemy")) return false;
     m_selectedEnemyId.clear();
+    m_playerStartGizmoSelected = false;
     m_sceneReloadRequested = true;
     m_focusSelectedRequested = false;
     m_status = "Removed enemy. Save to write Manifest.json.";
     return true;
 }
 
-bool MapEditorMode::EnemyGizmoCapturesMouse() const
+bool MapEditorMode::PlacementGizmoCapturesMouse() const
 {
-    return m_enemyGizmoEnabled && !m_selectedEnemyId.empty() &&
+    const bool hasSelection = !m_selectedEnemyId.empty() || !m_selectedInstanceId.empty() ||
+        !m_selectedClearAreaId.empty() || m_playerStartGizmoSelected;
+    return m_gizmoEnabled && hasSelection &&
         (ImGuizmo::IsOver() || ImGuizmo::IsUsingAny());
 }
 
-void MapEditorMode::DrawEnemyGizmo(const Engine::CameraState& camera, float aspectRatio)
+std::string MapEditorMode::SelectedNodeId() const
 {
-    if (!m_map.IsOpen() || !m_enemyGizmoEnabled || m_confirm || m_pending != Action::None)
-    {
-        ImGuizmo::Enable(false);
-        return;
-    }
-    const auto& enemies = m_map.Document().enemies;
-    const auto selected = std::find_if(enemies.begin(), enemies.end(),
-        [this](const auto& enemy) { return enemy.id == m_selectedEnemyId; });
-    if (selected == enemies.end()) { ImGuizmo::Enable(false); return; }
-    // Keep the viewport gizmo below editor panels and don't start a drag through them.
+    std::string id = m_selectedNodeId;
+    if (!m_selectedInstanceId.empty()) id = "mesh/" + m_selectedInstanceId;
+    else if (!m_selectedEnemyId.empty()) id = "enemy/" + m_selectedEnemyId;
+    else if (!m_selectedClearAreaId.empty()) id = "area/" + m_selectedClearAreaId;
+    else if (m_playerStartGizmoSelected)
+        id = m_selectedNodeId.starts_with("start/") ? m_selectedNodeId : "player-start";
+    const auto tree = Tank::Map::MapTree(m_map.Document());
+    return std::any_of(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;}) ? id : "root";
+}
+void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio)
+{
+    if (!m_map.IsOpen() || !m_gizmoEnabled || m_confirm || m_pending != Action::None)
+    { FlushPendingGizmoEdit(); ImGuizmo::Enable(false); return; }
+    const auto& document = m_map.Document();
+    FlushPendingGizmoEdit();
+    const auto id = SelectedNodeId();
+    const auto tree = Tank::Map::MapTree(document);
+    const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;});
+    if (selected == tree.end()) { ImGuizmo::Enable(false); return; }
+    const bool rigid = selected->kind == Tank::Map::NodeKind::Enemy || selected->kind == Tank::Map::NodeKind::PlayerStartPoint;
+    if (rigid && m_gizmoOperation == GizmoOperation::Scale) m_gizmoOperation = GizmoOperation::Translate;
     ImGuizmo::Enable(ImGuizmo::IsUsingAny() || !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow));
     ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
     const auto* viewport = ImGui::GetMainViewport();
@@ -445,11 +654,300 @@ void MapEditorMode::DrawEnemyGizmo(const Engine::CameraState& camera, float aspe
     DirectX::XMFLOAT4X4 view, projection;
     DirectX::XMStoreFloat4x4(&view, Engine::CreateCameraViewMatrix(camera));
     DirectX::XMStoreFloat4x4(&projection, Engine::CreateCameraProjectionMatrix(camera, aspectRatio));
-    auto matrix = Tank::Rendering::EnemyPlacementMatrix(*selected);
-    const auto operation = m_enemyGizmoRotate ? ImGuizmo::ROTATE : ImGuizmo::TRANSLATE;
-    const auto mode = m_enemyGizmoLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
-    if (ImGuizmo::Manipulate(&view._11, &projection._11, operation, mode, &matrix._11))
-        UpdateSelectedEnemy(Tank::Rendering::EnemyPlacementFromGizmo(*selected, matrix, m_enemyGizmoRotate));
+    auto world = Tank::Map::NodeWorldTransform(document, id);
+    const auto operation = m_gizmoOperation == GizmoOperation::Rotate ? ImGuizmo::ROTATE :
+        m_gizmoOperation == GizmoOperation::Scale ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
+    if (ImGuizmo::Manipulate(&view._11, &projection._11, operation,
+        m_gizmoLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD, world.worldMatrix->data()))
+    {
+        if ((m_gridSnapEnabled || ImGui::GetIO().KeyShift) && m_gizmoOperation == GizmoOperation::Translate)
+        {
+            auto& matrix = *world.worldMatrix;
+            const auto snapped = Tank::Map::SnapPositionToGrid({matrix[12], matrix[13], matrix[14]}, m_gridSpacingMeters);
+            std::copy(snapped.begin(), snapped.end(), matrix.begin() + 12);
+        }
+        Tank::Map::Transform local;
+        std::string error;
+        const auto before = document;
+        auto updated = before;
+        if (Tank::Map::NodeTransformFromWorld(document, id, *world.worldMatrix, local, error) &&
+            Tank::Map::SetNodeLocalTransform(updated, id, local))
+        {
+            FlushPendingEnemyCatalogEdit();
+            FlushPendingManifestEdit();
+            if (m_map.SetManifest(updated, error))
+            {
+                m_viewEdit.Flush();
+                m_gizmoEdit.Update(before, updated, ImGuizmo::IsUsingAny() ? 1 : 0,
+                    m_undoHistory, [this](const auto& manifest) { ApplyManifestSnapshot(manifest); },
+                    "Transform selection");
+                m_sceneReloadRequested = true;
+            }
+            else
+                m_status = "Could not transform node: " + error;
+        }
+        else
+        {
+            m_status = "Could not transform node: " + error;
+        }
+    }
+    FlushPendingGizmoEdit();
+}
+void MapEditorMode::UpdateViewportPicking(
+    const std::function<std::optional<std::string>(float, float)>& pick)
+{
+    const auto& io = ImGui::GetIO();
+    const bool blocked = !m_map.IsOpen() || m_confirm || m_pending != Action::None ||
+        io.WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) ||
+        ImGuizmo::IsOver() || ImGuizmo::IsUsingAny();
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) m_viewportPickPending = !blocked;
+    if (blocked) m_viewportPickPending = false;
+    if (!ImGui::IsMouseReleased(ImGuiMouseButton_Left)) return;
+    const bool click = std::exchange(m_viewportPickPending, false) &&
+        io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left] <= io.MouseDragThreshold * io.MouseDragThreshold;
+    if (!click) return;
+    const auto* viewport = ImGui::GetMainViewport();
+    const auto picked = pick(io.MousePos.x - viewport->Pos.x, io.MousePos.y - viewport->Pos.y);
+    if (!picked) return;
+    const auto tree = Tank::Map::MapTree(m_map.Document());
+    const auto node = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == *picked;});
+    if (node == tree.end()) return;
+    m_selectedNodeId = node->id;
+    m_selectedInstanceId = node->kind == Tank::Map::NodeKind::Mesh ? node->objectId : "";
+    m_selectedEnemyId = node->kind == Tank::Map::NodeKind::Enemy ? node->objectId : "";
+    m_selectedClearAreaId = node->kind == Tank::Map::NodeKind::ClearArea ? node->objectId : "";
+    m_playerStartGizmoSelected = node->kind == Tank::Map::NodeKind::PlayerStartPoint;
+    m_revealTreeSelection = true;
+    m_sceneReloadRequested = true;
+}
+
+void MapEditorMode::DrawMapTree()
+{
+    using namespace Tank::Map;
+    ImGui::SeparatorText("Map Tree");
+    auto updated = m_map.Document();
+    const auto tree = MapTree(updated);
+    bool changed = false;
+    std::string selectedId = SelectedNodeId();
+    const auto select = [&](const TreeNode& node)
+    {
+        m_selectedNodeId = node.id;
+        selectedId = node.id;
+        m_selectedInstanceId = node.kind == NodeKind::Mesh ? node.objectId : "";
+        m_selectedEnemyId = node.kind == NodeKind::Enemy ? node.objectId : "";
+        m_selectedClearAreaId = node.kind == NodeKind::ClearArea ? node.objectId : "";
+        m_playerStartGizmoSelected = node.kind == NodeKind::PlayerStartPoint;
+        m_sceneReloadRequested = true;
+    };
+    std::vector<Tank::Ui::SceneTreeItem> items;
+    static constexpr const char* kinds[] = {"Empty", "glTF", "PlayerStartPoint", "Enemy", "ClearArea"};
+    for (const auto& node : tree)
+        items.push_back({node.id, node.parentId, node.name + " [" + kinds[static_cast<int>(node.kind)] + "]" +
+            (NodeIsEnabled(updated, node.id) ? "" : " [Inactive]") +
+            (NodeIsEnabled(updated, node.id, true) ? "" : " [Hidden]")});
+    const auto placement = [](Tank::Ui::SceneTreeDropPosition position)
+    {
+        switch (position)
+        {
+        case Tank::Ui::SceneTreeDropPosition::Before: return NodePlacement::Before;
+        case Tank::Ui::SceneTreeDropPosition::After: return NodePlacement::After;
+        default: return NodePlacement::Child;
+        }
+    };
+    const auto result = Tank::Ui::SceneTreeUI("MapSceneTree", items, "root", selectedId,
+        [&](const Tank::Ui::SceneTreeDrop& drop)
+        {
+            auto probe = updated;
+            std::string error;
+            return MoveNode(probe, drop.sourceId, drop.targetId, placement(drop.position), error);
+        }, std::exchange(m_revealTreeSelection, false));
+    if (result.selectedId)
+        for (const auto& node : tree) if (node.id == *result.selectedId) select(node);
+    const bool contextDuplicate = result.command && result.command->action == Tank::Ui::SceneTreeAction::Duplicate;
+    const bool contextDelete = result.command && result.command->action == Tank::Ui::SceneTreeAction::Delete;
+    if (result.command && result.command->action == Tank::Ui::SceneTreeAction::Rename)
+    {
+        m_renameNodeId = result.command->nodeId;
+        for (const auto& node : tree) if (node.id == m_renameNodeId) m_renameNodeName = node.name;
+        m_renameNodeError.clear();
+        ImGui::OpenPopup("Rename Tree Element");
+    }
+    if (ImGui::BeginPopupModal("Rename Tree Element", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+        const bool enter = ImGui::InputText("Name", &m_renameNodeName, ImGuiInputTextFlags_EnterReturnsTrue);
+        if (!m_renameNodeError.empty()) ImGui::TextWrapped("%s", m_renameNodeError.c_str());
+        if (ImGui::Button("Rename") || enter)
+        {
+            if (RenameNode(updated, m_renameNodeId, m_renameNodeName, m_renameNodeError))
+            { changed = true; ImGui::CloseCurrentPopup(); }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    if (result.drop)
+    {
+        std::string error;
+        if (MoveNode(updated, result.drop->sourceId, result.drop->targetId, placement(result.drop->position), error))
+            changed = true;
+        else m_status = error;
+    }
+    if (ImGui::Button("Add Empty Node"))
+    {
+        std::string id;
+        for (int i = 1;; ++i)
+        {
+            id = "node-" + std::to_string(i);
+            if (std::none_of(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;})) break;
+        }
+        const bool validSelection = std::any_of(tree.begin(), tree.end(), [&](const auto& n) {return n.id == selectedId;});
+        updated.nodes.push_back({id, "Empty", validSelection ? selectedId : "root", {}});
+        select({id, "Empty", validSelection ? selectedId : "root", NodeKind::Empty, id});
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Add Clear Area")) AddClearArea();
+    const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == selectedId;});
+    if (selected != tree.end())
+    {
+        ImGui::Text("Selected: %s", selected->name.c_str());
+        auto info = GetNodeInfo(updated, selectedId);
+        ImGui::BeginDisabled(selectedId == "root");
+        if (ImGui::Checkbox("Active", &info.active))
+        {
+            std::string error;
+            if (SetNodeActive(updated, selectedId, info.active, error)) changed = true;
+            else m_status = error;
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Checkbox("Visible in editor", &info.visible))
+        {
+            auto current = GetNodeInfo(updated, selectedId);
+            current.visible = info.visible;
+            updated.nodeInfo[selectedId] = current;
+            changed = true;
+        }
+        if (selected->kind == NodeKind::Enemy)
+        {
+            auto enemy = std::find_if(updated.enemies.begin(), updated.enemies.end(),
+                [&](const auto& n) {return n.id == selected->objectId;});
+            if (enemy != updated.enemies.end())
+                changed |= ImGui::Checkbox("Supported by parent", &enemy->supportedByParent);
+            ImGui::TextDisabled("Falls when its nearest Breakable ancestor is destroyed.");
+        }
+        if (selected->kind == NodeKind::Mesh)
+        {
+            auto model = std::find_if(updated.instances.begin(), updated.instances.end(),
+                [&](const auto& n) {return n.id == selected->objectId;});
+            if (model != updated.instances.end())
+            {
+                changed |= ImGui::Checkbox("Breakable", &model->breakable);
+                ImGui::BeginDisabled(!model->breakable);
+                changed |= ImGuiWidgets::SliderFloatWithControls("HP", &model->hitPoints,
+                    1, 100000, 10, 60, "%.0f");
+                model->hitPoints = std::clamp(model->hitPoints, 1.0f, 100000.0f);
+                ImGui::EndDisabled();
+            }
+        }
+        if (selected->kind == NodeKind::PlayerStartPoint)
+            ImGui::TextWrapped("Position is the tank chassis center. Keep Y above the HitMesh.");
+        if (selectedId != "root" && ImGui::BeginCombo("Parent", selected->parentId.c_str()))
+        {
+            for (const auto& candidate : tree)
+            {
+                auto probe = updated;
+                std::string error;
+                if (!MoveNode(probe, selectedId, candidate.id, NodePlacement::Child, error)) continue;
+                ImGui::PushID(candidate.id.c_str());
+                if (ImGui::Selectable(candidate.name.c_str(), candidate.id == selected->parentId))
+                { updated = std::move(probe); changed = true; }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::TextDisabled("Transforms are relative to the parent. Reparenting keeps local values.");
+        auto transform = NodeLocalTransform(updated, selectedId);
+        static constexpr float zero[3] = {0, 0, 0};
+        static constexpr float one[3] = {1, 1, 1};
+        ImGui::PushID("TreeInspector");
+        ImGui::TextUnformatted("Position (m) - Local");
+        bool poseChanged = ImGuiWidgets::SliderFloat3AxisWithControls("Position", transform.position.data(),
+            -10000, 10000, m_gridSnapEnabled ? m_gridSpacingMeters : 0.05f, zero, "%.2f");
+        if (poseChanged && m_gridSnapEnabled)
+        {
+            auto probe = updated;
+            if (SetNodeLocalTransform(probe, selectedId, transform))
+            {
+                auto world = NodeWorldTransform(probe, selectedId);
+                auto& matrix = *world.worldMatrix;
+                const auto snapped = SnapPositionToGrid({matrix[12], matrix[13], matrix[14]}, m_gridSpacingMeters);
+                std::copy(snapped.begin(), snapped.end(), matrix.begin() + 12);
+                std::string error;
+                if (!NodeTransformFromWorld(probe, selectedId, matrix, transform, error))
+                    m_status = "Could not snap position: " + error;
+            }
+        }
+        {
+            ImGui::TextUnformatted("Rotation (deg) - Local");
+            poseChanged |= ImGuiWidgets::SliderFloat3AxisWithControls("Rotation", transform.rotationDegrees.data(),
+                -360, 360, 1, zero, "%.1f");
+        }
+        if (selected->kind != NodeKind::Enemy && selected->kind != NodeKind::PlayerStartPoint)
+        {
+            ImGui::TextUnformatted("Scale - Local");
+            poseChanged |= ImGuiWidgets::SliderFloat3AxisWithControls("Scale", transform.scale.data(),
+                0.01f, 100, 0.01f, one, "%.2f");
+        }
+        ImGui::PopID();
+        if (poseChanged) changed |= SetNodeLocalTransform(updated, selectedId, transform);
+        auto nodeName = selected->name;
+        if (ImGui::InputText("Node Name", &nodeName))
+        {
+            std::string error;
+            if (RenameNode(updated, selectedId, nodeName, error)) changed = true;
+            else m_status = error;
+        }
+        ImGui::BeginDisabled(selectedId == "root");
+        if (ImGui::Button("Duplicate") || contextDuplicate)
+        {
+            std::string error;
+            if (const auto duplicate = DuplicateNode(updated, selectedId, error))
+            {
+                for (const auto& n : MapTree(updated)) if (n.id == *duplicate) select(n);
+                changed = true;
+            }
+            else m_status = error;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Remove Selected") || contextDelete)
+        {
+            std::string error;
+            if (RemoveNode(updated, selectedId, error))
+            { select({"root", "Root", "", NodeKind::Empty, "root"}); changed = true; }
+            else m_status = error;
+        }
+        ImGui::EndDisabled();
+    }
+    if (changed)
+    {
+        FlushPendingEnemyCatalogEdit();
+        FlushPendingGizmoEdit();
+        const auto before = m_map.Document();
+        std::string error;
+        if (m_map.SetManifest(updated, error))
+        {
+            m_viewEdit.Flush();
+            m_manifestEdit.Update(before, updated, ImGui::GetActiveID(), m_undoHistory,
+                [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
+            m_sceneReloadRequested = true;
+        }
+        else m_status = "Could not update map tree: " + error;
+    }
+    m_viewEdit.FinishInteraction(ImGui::GetActiveID());
+    m_manifestEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
+        [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
 }
 
 void MapEditorMode::DrawEnemies()
@@ -461,8 +959,7 @@ void MapEditorMode::DrawEnemies()
         LoadEnemyCatalog();
     }
     ImGui::SeparatorText("Enemies");
-    ImGui::InputText("Enemy catalog JSON", &m_enemyCatalogPath);
-    if (ImGui::Button("Load Enemy Catalog")) LoadEnemyCatalog();
+    ImGui::TextWrapped("Enemy catalog: %s", m_enemyCatalogPath.c_str());
     if (!m_enemyCatalogError.empty())
         ImGui::TextWrapped("Catalog load failed (previous types retained): %s", m_enemyCatalogError.c_str());
     auto typeCombo = [this](const char* label, std::string& name)
@@ -490,25 +987,6 @@ void MapEditorMode::DrawEnemies()
     ImGui::EndDisabled();
     ImGui::TextWrapped("Red boxes and forward markers show placements. Dimensions are preview placeholders.");
     const auto& enemies = m_map.Document().enemies;
-    if (ImGui::BeginListBox("##PlacedEnemies", ImVec2(-1, 80)))
-    {
-        for (size_t i = 0; i < enemies.size(); ++i)
-        {
-            ImGui::PushID(static_cast<int>(i));
-            const auto pos = ImGui::GetCursorScreenPos();
-            if (ImGui::Selectable("##enemy", enemies[i].id == m_selectedEnemyId))
-            {
-                m_selectedEnemyId = enemies[i].id;
-                m_selectedInstanceId.clear();
-                m_sceneReloadRequested = true;
-                m_focusSelectedRequested = true;
-            }
-            const std::string label = enemies[i].id + " (" + enemies[i].unitType + ")";
-            ImGui::GetWindowDrawList()->AddText(pos, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
-            ImGui::PopID();
-        }
-        ImGui::EndListBox();
-    }
     const auto selected = std::find_if(enemies.begin(), enemies.end(),
         [this](const auto& value) { return value.id == m_selectedEnemyId; });
     if (selected != enemies.end())
@@ -516,18 +994,18 @@ void MapEditorMode::DrawEnemies()
         auto enemy = *selected;
         if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), enemy.unitType) == m_enemyTypes.end())
             ImGui::TextWrapped("Type is missing from loaded catalog: %s", enemy.unitType.c_str());
-        bool changed = typeCombo("Placement type", enemy.unitType);
-        changed |= ImGui::DragFloat3("Position (m)##Enemy", enemy.position.data(), 0.05f);
-        changed |= ImGui::DragFloat3("Rotation (deg)##Enemy", enemy.rotationDegrees.data(), 1.0f);
+        const bool changed = typeCombo("Placement type", enemy.unitType);
         if (changed) UpdateSelectedEnemy(enemy);
         if (ImGui::Button("Focus Enemy")) { m_sceneReloadRequested = true; m_focusSelectedRequested = true; }
-        ImGui::SameLine();
-        if (ImGui::Button("Remove Enemy")) RemoveSelectedEnemy();
+
     }
 }
 
 bool MapEditorMode::Save()
 {
+    FlushPendingEnemyCatalogEdit();
+    FlushPendingGizmoEdit();
+    FlushPendingManifestEdit();
     std::string error;
     if (!m_map.Save(error))
     {
@@ -550,7 +1028,9 @@ void MapEditorMode::DrawCheatSheet()
     if (ImGui::Begin("Map Editor Cheat Sheet", &m_showCheatSheet, ImGuiWindowFlags_NoCollapse))
     {
         ImGui::SeparatorText("Camera");
+        ImGui::BulletText("Left click: Select visible object");
         ImGui::BulletText("Left drag: Orbit");
+        ImGui::BulletText("Shift + Move gizmo: Grid snap");
         ImGui::BulletText("Middle drag: Pan");
         ImGui::BulletText("Mouse wheel: Zoom");
         ImGui::TextWrapped("Move the pointer outside GUI windows before operating the camera.");
@@ -562,15 +1042,15 @@ void MapEditorMode::DrawCheatSheet()
         ImGui::BulletText("Add to Map");
 
         ImGui::SeparatorText("Edit the Map");
-        ImGui::BulletText("Placed Models: position and rotation");
+        ImGui::BulletText("Map Tree: model position, rotation and scale");
         ImGui::BulletText("Selected model: yellow highlight box");
-        ImGui::BulletText("Visible in editor: preview-only visibility");
-        ImGui::BulletText("Show Visual / Hit Meshes and Visual Mesh Color: preview display settings");
+        ImGui::BulletText("Map Tree: Active, Visible in editor, Duplicate and Remove Selected");
+        ImGui::BulletText("Show Visual / Hit Meshes and Hit Fallback Color: preview display settings");
         ImGui::BulletText("Missing Visual Mesh: warning and Hit fallback");
-        ImGui::BulletText("Player Start: chassis-center position and rotation");
+        ImGui::BulletText("Map Tree: select PlayerStartPoint or Enemy to edit position/rotation");
         ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
-        ImGui::BulletText("Clear Areas: goal AABB center and size");
-        ImGui::BulletText("Enemies: select a placement, then drag the Move/Rotate gizmo");
+        ImGui::BulletText("Clear Areas: 1 m unit box, edited through Tree transforms");
+        ImGui::BulletText("Select a model, enemy, clear area, or player start; drag the Move/Rotate/Scale gizmo");
         ImGui::BulletText("Local: unit axes; unchecked: world axes");
         ImGui::BulletText("Save: write changes to Manifest.json");
 
@@ -596,6 +1076,7 @@ bool MapEditorMode::Execute(HWND__* owner)
     }
     if (action == Action::Exit)
     {
+        ClearUndoHistory();
         if (m_map.IsOpen()) m_closedMapFolder = m_map.Folder();
         m_map = {};
         m_status.clear();
@@ -641,12 +1122,25 @@ bool MapEditorMode::Execute(HWND__* owner)
     return false;
 }
 
-bool MapEditorMode::DrawUi(HWND__* owner)
+bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
 {
     const auto* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 10, viewport->WorkPos.y + 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(520, 700), ImGuiCond_FirstUseEver);
     ImGui::Begin("Map Editor", nullptr, ImGuiWindowFlags_NoCollapse);
+    m_viewEdit.FinishInteraction(ImGui::GetActiveID());
+    m_manifestEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
+        [this](const auto& manifest) { ApplyManifestSnapshot(manifest); }, "Map parameter edit");
+    m_enemyCatalogEdit.FinishInteraction(ImGui::GetActiveID(), m_undoHistory,
+        [this](const auto& settings) { ApplyEnemyCatalogSnapshot(settings); }, "Enemy catalog edit");
+    const auto& io = ImGui::GetIO();
+    if (!m_confirm && !io.WantTextInput && !ImGui::IsAnyItemActive() &&
+        !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) && io.KeyCtrl &&
+        !io.KeyAlt && !io.KeySuper)
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false))) Redo();
+        else if (!io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)) Undo();
+    }
     if (!m_availableMapsScanned) RefreshAvailableMaps();
     if (ImGui::Button("Open Folder...")) Request(Action::Open);
     ImGui::SameLine();
@@ -655,16 +1149,57 @@ bool MapEditorMode::DrawUi(HWND__* owner)
     ImGui::BeginDisabled(!m_map.IsOpen());
     if (ImGui::Button("Save")) Save();
     ImGui::EndDisabled();
+    ImGui::BeginDisabled(!CanUndo());
+    if (ImGui::Button("Undo")) Undo();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!CanRedo());
+    if (ImGui::Button("Redo")) Redo();
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("Ctrl+Y / Ctrl+Shift+Z");
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
-    ImGui::Checkbox("Show Cheat Sheet", &m_showCheatSheet);
-    ImGui::Checkbox("Enemy Gizmo", &m_enemyGizmoEnabled);
+    auto viewFields = [this]()
+    {
+        return std::tie(m_showGrid, m_gridSnapEnabled, m_gridSpacingMeters, m_gridHalfCellCount,
+            m_gridLineWidthMeters, m_showVisualMeshes, m_showHitMeshes, m_visualMeshColor,
+            m_gizmoEnabled, m_gizmoLocal, m_gizmoOperation, m_showCameraWindow, m_showCheatSheet);
+    };
+    const auto beforeView = std::apply([](const auto&... value) { return std::make_tuple(value...); }, viewFields());
+    if (ImGui::CollapsingHeader("Sub Window", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::BeginDisabled(!m_map.IsOpen());
+        if (ImGui::Checkbox("Enemy Unit Editor", &m_enemyUnitEditor.open) && m_enemyUnitEditor.open)
+        {
+            ImGui::SetWindowCollapsed("Enemy Unit Editor", false);
+            ImGui::SetWindowFocus("Enemy Unit Editor");
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::Checkbox("Camera Window", &m_showCameraWindow);
+        ImGui::Checkbox("Show Cheat Sheet", &m_showCheatSheet);
+        if (outputWindowVisible)
+        {
+            ImGui::SameLine();
+            ImGui::Checkbox("Output (F9)", outputWindowVisible);
+        }
+    }
+    ImGui::Checkbox("Placement Gizmo", &m_gizmoEnabled);
     ImGui::SameLine();
-    if (ImGui::RadioButton("Move", !m_enemyGizmoRotate)) m_enemyGizmoRotate = false;
+    if (ImGui::RadioButton("Move", m_gizmoOperation == GizmoOperation::Translate))
+        m_gizmoOperation = GizmoOperation::Translate;
     ImGui::SameLine();
-    if (ImGui::RadioButton("Rotate", m_enemyGizmoRotate)) m_enemyGizmoRotate = true;
+    if (ImGui::RadioButton("Rotate", m_gizmoOperation == GizmoOperation::Rotate))
+        m_gizmoOperation = GizmoOperation::Rotate;
     ImGui::SameLine();
-    ImGui::Checkbox("Local", &m_enemyGizmoLocal);
+    const bool canScaleSelection = !m_selectedInstanceId.empty() || !m_selectedClearAreaId.empty() ||
+        (m_selectedEnemyId.empty() && !m_playerStartGizmoSelected);
+    ImGui::BeginDisabled(!canScaleSelection);
+    if (ImGui::RadioButton("Scale", m_gizmoOperation == GizmoOperation::Scale))
+        m_gizmoOperation = GizmoOperation::Scale;
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::Checkbox("Local", &m_gizmoLocal);
     ImGui::Separator();
     ImGui::BeginChild("##MapEditorScrollArea", ImVec2(0.0f, 0.0f), false);
     ImGui::SeparatorText("Maps in Assets/Map");
@@ -700,21 +1235,32 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         const std::string folder(utf8.begin(), utf8.end());
         ImGui::TextWrapped("Folder: %s", folder.c_str());
         ImGui::TextUnformatted(m_map.IsDirty() ? "Unsaved changes" : "Saved");
+        DrawMapTree();
         const auto& document = m_map.Document();
         ImGui::Text("Models: %zu", document.instances.size());
         ImGui::Text("Clear areas: %zu", document.clearAreas.size());
-        ImGui::Text("Player start: %.2f, %.2f, %.2f m", document.playerSpawn.position[0],
-            document.playerSpawn.position[1], document.playerSpawn.position[2]);
         ImGui::SeparatorText("Grid");
-        bool gridChanged = ImGui::DragFloat("Spacing (m)", &m_gridSpacingMeters, 0.05f, 0.1f, 100.0f, "%.2f");
-        gridChanged |= ImGui::SliderInt("Half cells", &m_gridHalfCellCount, 1, 100);
-        gridChanged |= ImGui::DragFloat("Line width (m)", &m_gridLineWidthMeters, 0.005f, 0.005f, 0.2f, "%.3f");
+        if (ImGui::Checkbox("Show Grid", &m_showGrid)) m_sceneReloadRequested = true;
+        ImGui::Checkbox("Grid Snap", &m_gridSnapEnabled);
+        ImGui::TextDisabled("Snap movement in world XYZ using Spacing (m).");
+        bool gridChanged = ImGuiWidgets::SliderFloatWithControls(
+            "Spacing (m)", &m_gridSpacingMeters, 0.1f, 100.0f, 0.05f, 1.0f, "%.2f");
+        gridChanged |= ImGuiWidgets::SliderIntWithControls(
+            "Half cells", &m_gridHalfCellCount, 1, 100, 1, 10);
+        gridChanged |= ImGuiWidgets::SliderFloatWithControls(
+            "Line width (m)", &m_gridLineWidthMeters, 0.005f, 0.2f, 0.005f, 0.02f, "%.3f");
         if (gridChanged) m_sceneReloadRequested = true;
         ImGui::SeparatorText("Mesh Display");
         bool meshDisplayChanged = ImGui::Checkbox("Show Visual Meshes", &m_showVisualMeshes);
         ImGui::SameLine();
         meshDisplayChanged |= ImGui::Checkbox("Show Hit Meshes", &m_showHitMeshes);
-        meshDisplayChanged |= ImGui::ColorEdit3("Visual Mesh Color", m_visualMeshColor.data());
+        static constexpr float defaultVisualMeshColor[3] = {
+            80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
+        static constexpr const char* colorChannels[3] = { "R", "G", "B" };
+        ImGui::TextUnformatted("Hit Fallback Color");
+        meshDisplayChanged |= ImGuiWidgets::SliderFloat3AxisWithControls(
+            "Hit Fallback Color", m_visualMeshColor.data(), 0.0f, 1.0f, 0.01f,
+            defaultVisualMeshColor, "%.2f", 0, colorChannels);
         if (meshDisplayChanged) m_sceneReloadRequested = true;
         ImGui::TextDisabled("Display only. Hit collision remains active during play.");
         if (!m_previewWarning.empty())
@@ -725,7 +1271,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         }
         ImGui::Separator();
         if (ImGui::Button("Add Indestructible Box")) AddIndestructibleBox();
-        ImGui::TextWrapped("Static box: 2 x 3 x 2 m, origin at its base. Shots cannot destroy it. Edit position/rotation below, then Save.");
+        ImGui::TextWrapped("Static box: 2 x 3 x 2 m, origin at its base. Shots cannot destroy it. Edit position/rotation in Map Tree, then Save.");
         if (ImGui::Button("Refresh Models")) RefreshAssets();
         ImGui::SameLine();
         ImGui::Text("glTF / GLB: %zu", m_assets.size());
@@ -745,6 +1291,10 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                     m_roles = {};
                     m_inspectedAsset.clear();
                     m_roleError.clear();
+                    m_materialColors.clear();
+                    m_materialColorLoaded = false;
+                    m_selectedMaterialIndex = 0;
+                    m_materialCopyName = std::filesystem::path(asset).stem().string() + "_Color";
                 }
                 ImGui::GetWindowDrawList()->AddText(labelPosition, ImGui::GetColorU32(ImGuiCol_Text), asset.c_str());
                 ImGui::PopID();
@@ -783,111 +1333,59 @@ bool MapEditorMode::DrawUi(HWND__* owner)
                 ImGui::Text("%s - node %zu, mesh %zu: %s", node.role == Tank::Map::MeshRole::Visual ? "Visual" : "Hit",
                     node.nodeIndex, node.meshIndex, node.name.empty() ? "(unnamed)" : node.name.c_str());
         }
-        ImGui::TextWrapped("Visual and Hit display can be toggled above. Hit meshes become indestructible static colliders during play.");
+        ImGui::TextWrapped("Visual and Hit display can be toggled above. Hit meshes provide collision during play. Select a Mesh in the Tree to set Breakable and HP.");
 
-        ImGui::SeparatorText("Placed Models");
-        if (document.instances.empty())
+        ImGui::SeparatorText("Material Color");
+        ImGui::BeginDisabled(m_selectedAsset.empty());
+        if (ImGui::Button("Load Materials"))
         {
-            ImGui::TextUnformatted("No models have been added to this map.");
+            const std::u8string pathUtf8(m_selectedAsset.begin(), m_selectedAsset.end());
+            m_materialColors.clear();
+            m_materialColorLoaded = Tank::Map::InspectGltfMaterialColors(
+                m_map.Folder() / std::filesystem::path(pathUtf8), m_materialColors, m_roleError);
+            m_selectedMaterialIndex = 0;
+            if (m_materialColorLoaded && !m_materialColors.empty())
+                m_materialColorEdit = m_materialColors.front().baseColorFactor;
+            if (m_materialColorLoaded && m_materialColors.empty())
+                m_roleError = "This model has no materials.";
         }
-        else
+        ImGui::EndDisabled();
+        if (m_materialColorLoaded && !m_materialColors.empty())
         {
-            if (ImGui::BeginListBox("##PlacedModels", ImVec2(-1, 92)))
+            std::string materialLabel = m_materialColors[static_cast<size_t>(m_selectedMaterialIndex)].name;
+            if (materialLabel.empty()) materialLabel = "Material " + std::to_string(m_selectedMaterialIndex);
+            if (ImGui::BeginCombo("Material", materialLabel.c_str()))
             {
-                for (size_t index = 0; index < document.instances.size(); ++index)
+                for (size_t index = 0; index < m_materialColors.size(); ++index)
                 {
-                    const Tank::Map::Instance& instance = document.instances[index];
+                    const std::string label = m_materialColors[index].name.empty()
+                        ? "Material " + std::to_string(index) : m_materialColors[index].name;
+                    const bool selected = static_cast<size_t>(m_selectedMaterialIndex) == index;
                     ImGui::PushID(static_cast<int>(index));
-                    const bool visible = !m_hiddenInstanceIds.contains(instance.id);
-                    const std::string label = instance.id + (visible ? "  " : "  [Hidden]  ") +
-                        "(" + instance.asset + ")";
-                    if (ImGui::Selectable(label.c_str(), instance.id == m_selectedInstanceId))
+                    if (ImGui::Selectable(label.c_str(), selected))
                     {
-                        m_selectedInstanceId = instance.id;
-                        m_selectedEnemyId.clear();
-                        m_sceneReloadRequested = true;
-                        m_focusSelectedRequested = true;
+                        m_selectedMaterialIndex = static_cast<int>(index);
+                        m_materialColorEdit = m_materialColors[index].baseColorFactor;
                     }
+                    if (selected) ImGui::SetItemDefaultFocus();
                     ImGui::PopID();
                 }
-                ImGui::EndListBox();
+                ImGui::EndCombo();
             }
-            const auto selected = std::find_if(document.instances.begin(), document.instances.end(),
-                [this](const Tank::Map::Instance& instance) { return instance.id == m_selectedInstanceId; });
-            if (selected != document.instances.end())
-            {
-                Tank::Map::Transform transform = selected->transform;
-                ImGui::TextWrapped("Selected: %s", selected->asset.c_str());
-                bool visible = !m_hiddenInstanceIds.contains(selected->id);
-                if (ImGui::Checkbox("Visible in editor", &visible))
-                    SetSelectedInstanceVisible(visible);
-                ImGui::SameLine();
-                ImGui::TextDisabled("(preview only)");
-                if (ImGui::Button("Remove Selected"))
-                {
-                    RemoveSelectedInstance();
-                }
-                ImGui::SameLine();
-                if (ImGui::Button("Duplicate"))
-                {
-                    DuplicateSelectedInstance();
-                }
-                const bool positionChanged = ImGui::DragFloat3("Position (m)", transform.position.data(), 0.05f);
-                const bool rotationChanged = ImGui::DragFloat3("Rotation (deg)", transform.rotationDegrees.data(), 1.0f);
-                const bool scaleChanged = ImGui::DragFloat("Scale", &transform.scale, 0.01f, 0.1f, 20.0f, "%.2f x");
-                if ((positionChanged || rotationChanged || scaleChanged) && !UpdateSelectedInstance(transform))
-                    m_status = "Transform preview was not updated.";
-            }
+            ImGui::ColorEdit4("Base Color", m_materialColorEdit.data());
+            if (ImGui::RadioButton("Override source file", m_materialOverrideFile))
+                m_materialOverrideFile = true;
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Rename copy", !m_materialOverrideFile))
+                m_materialOverrideFile = false;
+            if (!m_materialOverrideFile)
+                ImGui::InputText("Copy file name", &m_materialCopyName);
+            if (ImGui::Button("Save Material Color")) SaveSelectedMaterialColor();
         }
+        if (!m_roleError.empty()) ImGui::TextWrapped("Material: %s", m_roleError.c_str());
 
         DrawEnemies();
 
-        ImGui::SeparatorText("Player Start");
-        ImGui::TextWrapped("Position is the tank chassis center. Keep Y above the HitMesh.");
-        Tank::Map::Transform playerSpawn = document.playerSpawn;
-        const bool spawnPositionChanged =
-            ImGui::DragFloat3("Position (m)##PlayerStart", playerSpawn.position.data(), 0.05f);
-        const bool spawnRotationChanged =
-            ImGui::DragFloat3("Rotation (deg)##PlayerStart", playerSpawn.rotationDegrees.data(), 1.0f);
-        if ((spawnPositionChanged || spawnRotationChanged) && !UpdatePlayerSpawn(playerSpawn))
-            m_status = "Player start preview was not updated.";
-
-        ImGui::SeparatorText("Clear Areas");
-        if (ImGui::Button("Add Clear Area")) AddClearArea();
-        if (document.clearAreas.empty())
-        {
-            ImGui::TextUnformatted("No clear areas have been added to this map.");
-        }
-        else
-        {
-            if (ImGui::BeginListBox("##ClearAreas", ImVec2(-1, 80)))
-            {
-                for (size_t index = 0; index < document.clearAreas.size(); ++index)
-                {
-                    const Tank::Map::ClearArea& area = document.clearAreas[index];
-                    ImGui::PushID(static_cast<int>(index));
-                    const std::string label = area.id + "  (" + area.name + ")";
-                    if (ImGui::Selectable(label.c_str(), area.id == m_selectedClearAreaId))
-                        m_selectedClearAreaId = area.id;
-                    ImGui::PopID();
-                }
-                ImGui::EndListBox();
-            }
-            const auto selected = std::find_if(document.clearAreas.begin(), document.clearAreas.end(),
-                [this](const Tank::Map::ClearArea& area) { return area.id == m_selectedClearAreaId; });
-            if (selected != document.clearAreas.end())
-            {
-                Tank::Map::ClearArea area = *selected;
-                bool areaChanged = ImGui::InputText("Name##ClearArea", &area.name);
-                areaChanged |= ImGui::DragFloat3(
-                    "Center (m)##ClearArea", area.center.data(), 0.05f);
-                areaChanged |= ImGui::DragFloat3(
-                    "Size (m)##ClearArea", area.size.data(), 0.05f, 0.01f, 10000.0f);
-                if (areaChanged && !UpdateSelectedClearArea(area))
-                    m_status = "Clear area preview was not updated.";
-                if (ImGui::Button("Remove Clear Area")) RemoveSelectedClearArea();
-            }
-        }
     }
     if (!m_status.empty()) ImGui::TextWrapped("%s", m_status.c_str());
     ImGui::TextUnformatted("Camera: left drag orbit, middle drag pan, wheel zoom");
@@ -907,6 +1405,7 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         if (ImGui::Button("Discard"))
         {
             m_map.DiscardChanges();
+            ClearUndoHistory();
             m_sceneReloadRequested = true;
             m_confirm = false;
             ImGui::CloseCurrentPopup();
@@ -921,7 +1420,34 @@ bool MapEditorMode::DrawUi(HWND__* owner)
         if (!m_status.empty()) ImGui::TextWrapped("%s", m_status.c_str());
         ImGui::EndPopup();
     }
+    const auto afterView = std::apply([](const auto&... value) { return std::make_tuple(value...); }, viewFields());
+    ObserveViewEdit(beforeView, afterView, ImGui::GetActiveID(),
+        [this](const auto& value)
+        {
+            std::tie(m_showGrid, m_gridSnapEnabled, m_gridSpacingMeters, m_gridHalfCellCount,
+                m_gridLineWidthMeters, m_showVisualMeshes, m_showHitMeshes, m_visualMeshColor,
+                m_gizmoEnabled, m_gizmoLocal, m_gizmoOperation, m_showCameraWindow, m_showCheatSheet) = value;
+            m_sceneReloadRequested = true;
+        }, "Map preview settings");
     ImGui::End();
     DrawCheatSheet();
+    if (m_map.IsOpen() && m_enemyUnitEditor.open)
+    {
+        const auto before = m_enemyCatalog;
+        m_enemyUnitEditor.Draw(m_enemyCatalog, m_enemyCatalogPath);
+        if (!(before == m_enemyCatalog))
+        {
+            m_viewEdit.Flush();
+            FlushPendingGizmoEdit();
+            FlushPendingManifestEdit();
+        }
+        m_enemyCatalogEdit.Update(before, m_enemyCatalog, ImGui::GetActiveID(), m_undoHistory,
+            [this](const auto& settings) { ApplyEnemyCatalogSnapshot(settings); }, "Enemy catalog edit");
+        m_enemyTypes.clear();
+        for (const auto& type : m_enemyCatalog.unitTypes) m_enemyTypes.push_back(type.name);
+        if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), m_selectedEnemyType) == m_enemyTypes.end())
+            m_selectedEnemyType = m_enemyTypes.empty() ? "" : m_enemyTypes.front();
+    }
+    else FlushPendingEnemyCatalogEdit();
     return !m_confirm && m_pending != Action::None ? Execute(owner) : false;
 }

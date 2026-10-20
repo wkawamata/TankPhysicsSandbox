@@ -3,6 +3,7 @@
 #include "Input/GamepadState.h"
 #include "Input/InputDeviceProfiles.h"
 #include "App/RollingSpeedOptimizationSession.h"
+#include "App/TankSettingsUndo.h"
 #include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/MapDefinition.h"
@@ -77,12 +78,19 @@ public:
     Tank::Physics::EnemyEditorSettings& EnemyEditor() { return m_enemyEditor; }
     std::string& EnemyEditorJsonPath() { return m_enemyEditorJsonPath; }
     Tank::Physics::TankSettings& Settings() { return m_settings; }
+    Tank::App::TankSettingsUndo& SettingsUndo() { return m_settingsUndo; }
     const Tank::Physics::TankSettings& AppliedSettings() const { return m_appliedSettings; }
     Tank::Physics::PhysicsEnvironmentSettings& EnvSettings() { return m_environmentSettings; }
     const Tank::Physics::PhysicsEnvironmentSettings& AppliedEnvSettings() const { return m_appliedEnvironmentSettings; }
     Tank::Rendering::TankVisualSettings& VisualSettings() { return m_visualSettings; }
     Tank::Input::TankInputMappingSettings& InputMappingSettings() { return m_inputMappingSettings; }
     Tank::Input::InputDeviceProfile* ActiveInputDeviceProfile();
+    Tank::Input::InputDeviceProfiles& InputDeviceProfiles() { return m_inputDeviceProfiles; }
+    void RestoreInputDeviceProfiles(const Tank::Input::InputDeviceProfiles& profiles)
+    {
+        m_inputDeviceProfiles = profiles;
+        m_activeInputDeviceProfile.reset();
+    }
     const std::string& InputMappingStatus() const { return m_inputMappingStatus; }
 
     bool& Paused() { return m_paused; }
@@ -169,6 +177,7 @@ private:
     Tank::Physics::TrackedVehicleTest m_test;
 
     Tank::Physics::TankSettings m_settings;
+    Tank::App::TankSettingsUndo m_settingsUndo{m_settings};
     Tank::Input::TankInputMappingSettings m_inputMappingSettings;
     Tank::Input::InputDeviceProfiles m_inputDeviceProfiles;
     std::optional<size_t> m_activeInputDeviceProfile;
@@ -182,7 +191,8 @@ private:
     std::filesystem::path m_manifestMapFolder;
     std::optional<Tank::Physics::EnemyNavigationSetup> m_enemyNavigationSetup;
     std::vector<Tank::Map::HitTriangleMesh> m_manifestHitMeshes;
-    std::optional<size_t> m_mapHitMeshOverlayInstance;
+    std::vector<size_t> m_mapHitMeshOverlayInstances;
+    std::vector<std::pair<size_t, std::string>> m_mapVisualNodes;
     std::vector<size_t> m_mapVisualInstances;
     std::vector<DirectX::XMFLOAT4X4> m_mapVisualWorlds;
     std::vector<size_t> m_mapMarkerInstances;

@@ -1,17 +1,18 @@
 #include "Ui/TrackedVehiclePanel.h"
+#include "Ui/EnemyUnitEditorWindow.h"
 #include "Ui/DriveTelemetry.h"
 #include "App/RollingSpeedOptimizationSession.h"
+#include "App/TankSettingsUndo.h"
 #include "App/RollingProfileSlotSelection.h"
 
 #include "Input/GamepadState.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/TankTypes.h"
-#include "Physics/EnemyEditorJson.h"
-#include <fstream>
 #include <windows.h>
 #include "Physics/TrackedVehicleTest.h"
 #include "Rendering/TankVisualSettings.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_stdlib.h"
 #include <ImGuiWidgets.h>
 
@@ -25,7 +26,6 @@
 #include <cfloat>
 #include <cstdint>
 #include <cstdlib>
-#include <iterator>
 #include <Physics/MobilityTypes.h>
 #include <Physics/RollingSpeedOptimizer.h>
 #include <Physics/RollingSpeedTuning.h>
@@ -383,7 +383,9 @@ namespace Ui
 			ImGui::SameLine();
 			if (ImGui::Button("Load Mapping") && ctx.loadInputMappingSettings)
 			{
-				ctx.loadInputMappingSettings();
+                ctx.loadInputMappingSettings();
+                // Loading replaces the profile vector, invalidating the old UI pointer.
+                if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
 			}
 			if (ctx.inputMappingStatus != nullptr &&
 				!ctx.inputMappingStatus->empty())
@@ -1568,17 +1570,62 @@ namespace Ui
 
 	void DrawTrackedVehiclePanel(TrackedVehiclePanelContext& ctx)
 	{
+        static EnemyUnitEditorWindow enemyUnitEditor;
+        const bool hasSettingsUndo = ctx.settingsUndo && ctx.tankSettings;
+        if (hasSettingsUndo)
+            ctx.settingsUndo->FinishInteraction(ImGui::GetActiveID());
 		if (ctx.rollingOptimizer)
 		{
 			ctx.rollingOptimizer->Poll();
 			if (ctx.tankSettings && ctx.envSettings)
 			{
+                const auto beforeOptimization = *ctx.tankSettings;
 				// This updates editable internal coefficients only. Speed selection
 				// and Reset Tank remain explicit user actions.
 				ctx.rollingOptimizer->Apply(
 					*ctx.tankSettings, *ctx.envSettings);
+                if (hasSettingsUndo && !(beforeOptimization == *ctx.tankSettings))
+                {
+                    ctx.settingsUndo->Flush();
+                    ctx.settingsUndo->Observe(beforeOptimization, 0);
+                }
 			}
 		}
+        const auto& io = ImGui::GetIO();
+        if (hasSettingsUndo && !io.WantTextInput && !ImGui::IsAnyItemActive() &&
+            !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
+            io.KeyCtrl && !io.KeyAlt && !io.KeySuper)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)))
+                ctx.settingsUndo->Redo();
+            else if (!io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)) ctx.settingsUndo->Undo();
+        }
+        if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
+        const std::array<bool*, 13> previewFields = {ctx.physicsDebugOverlay, ctx.mapHitMeshOverlay,
+            ctx.mapVisualMeshes, ctx.mapMarkersVisible, ctx.cameraWindowVisible, ctx.telemetryWindowVisible,
+            ctx.rollingParametersWindowVisible, ctx.mortarParametersWindowVisible, ctx.gamepadInputWindowVisible,
+            ctx.renderSettingsWindowVisible, ctx.outputWindowVisible, ctx.rollingCheatWindowVisible,
+            ctx.rollingCheatWindowJapanese};
+        const auto previewState = [previewFields]()
+        {
+            std::array<bool, 13> result{};
+            for (size_t i = 0; i < result.size(); ++i) result[i] = previewFields[i] && *previewFields[i];
+            return result;
+        };
+        auto beforePreview = previewState();
+        auto beforeMapping = ctx.inputMappingSettings ? *ctx.inputMappingSettings : Tank::Input::TankInputMappingSettings{};
+        auto beforeProfiles = ctx.inputDeviceProfiles ? *ctx.inputDeviceProfiles : Tank::Input::InputDeviceProfiles{};
+        auto beforeSettings = ctx.tankSettings ? *ctx.tankSettings : Tank::Physics::TankSettings{};
+        auto beforeVisual = ctx.visualSettings ? *ctx.visualSettings : Tank::Rendering::TankVisualSettings{};
+        const auto displayState = [&ctx]
+        {
+            return std::array<bool, 4>{ctx.showTrackProxies && *ctx.showTrackProxies,
+                ctx.showGltfBody && *ctx.showGltfBody, ctx.showGltfCannon && *ctx.showGltfCannon,
+                ctx.showGltfSide && *ctx.showGltfSide};
+        };
+        auto beforeDisplay = displayState();
+        auto beforeEnvironment = ctx.envSettings ? *ctx.envSettings : Tank::Physics::PhysicsEnvironmentSettings{};
+        auto beforeEnemies = ctx.enemyEditor ? *ctx.enemyEditor : Tank::Physics::EnemyEditorSettings{};
 		const Tank::Physics::TrackedVehicleTestState& state = *ctx.state;
 		const Tank::Input::GamepadState& gamepadState = ctx.gamepadState;
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
@@ -1627,6 +1674,11 @@ namespace Ui
 			{
 				ImGui::Checkbox("Output##SubWindowOnOff", ctx.outputWindowVisible);
 			}
+        if (ctx.enemyEditor && ImGui::Checkbox("Enemy Unit Editor", &enemyUnitEditor.open) && enemyUnitEditor.open)
+        {
+            ImGui::SetWindowCollapsed("Enemy Unit Editor", false);
+            ImGui::SetWindowFocus("Enemy Unit Editor");
+        }
 			if (ctx.mortarParametersWindowVisible != nullptr)
 			{
 				ImGui::Checkbox("Mortar Parameters##SubWindowOnOff", ctx.mortarParametersWindowVisible);
@@ -1834,6 +1886,31 @@ namespace Ui
         ImGui::EndDisabled();
 
 		ImGui::SeparatorText("Tank Settings");
+        if (hasSettingsUndo)
+        {
+            bool historyChanged = false;
+            ImGui::BeginDisabled(!ctx.settingsUndo->CanUndo());
+            if (ImGui::Button("Undo (Ctrl+Z)")) historyChanged = ctx.settingsUndo->Undo();
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(!ctx.settingsUndo->CanRedo());
+            if (ImGui::Button("Redo (Ctrl+Y)")) historyChanged = ctx.settingsUndo->Redo();
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("Ctrl+Y / Ctrl+Shift+Z");
+            if (historyChanged)
+            {
+                beforeSettings = *ctx.tankSettings;
+                if (ctx.visualSettings) beforeVisual = *ctx.visualSettings;
+                beforeDisplay = displayState();
+                beforePreview = previewState();
+                if (ctx.inputMappingSettings) beforeMapping = *ctx.inputMappingSettings;
+                if (ctx.inputDeviceProfiles) beforeProfiles = *ctx.inputDeviceProfiles;
+                if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
+                if (ctx.envSettings) beforeEnvironment = *ctx.envSettings;
+                if (ctx.enemyEditor) beforeEnemies = *ctx.enemyEditor;
+            }
+            ImGui::TextDisabled("Undo/Redo restores edited values. Apply & Reset applies them to the tank.");
+        }
 		ImGui::TextUnformatted("Slot");
 		ImGui::SameLine();
 		for (int slot = 0; slot < 3; ++slot)
@@ -1883,194 +1960,6 @@ namespace Ui
 			"TrackedVehicleControls",
 			ImVec2(0.0f, 0.0f),
 			ImGuiChildFlags_None);
-		        if (ctx.enemyEditor && ImGui::CollapsingHeader("Enemy Unit Editor"))
-        {
-            auto& editor = *ctx.enemyEditor;
-            ImGui::TextUnformatted("Enemy movement simulation (applies during play)");
-            ImGui::DragFloat("Enter tracked physics (m)", &editor.simulation.physicalEnterMeters,
-                1, 1, editor.simulation.simpleReturnMeters - 1, "%.0f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("Return to simple movement (m)", &editor.simulation.simpleReturnMeters,
-                1, editor.simulation.physicalEnterMeters + 1, 10000, "%.0f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("Enemy braking deceleration (m/s2)", &editor.simulation.brakingDecelerationMetersPerSecondSquared,
-                0.1f, 0.1f, 20, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("Enemy route node arrival (m)", &editor.simulation.nodeArrivalMeters,
-                0.05f, 0.1f, 2, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("Observed target node radius (m)", &editor.simulation.observationRadiusMeters,
-                0.1f, 0.1f, 100, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("Observed support height tolerance (m)", &editor.simulation.supportHeightToleranceMeters,
-                0.01f, 0.01f, 2, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-            ImGui::DragFloat("Simple pivot speed (deg/s)", &editor.simulation.simpleTurnDegreesPerSecond,
-                1, 1, 360, "%.0f", ImGuiSliderFlags_AlwaysClamp);
-            if (ImGui::TreeNode("Enemy movement status"))
-            {
-                if (ImGui::BeginTable("PlacedEnemyMovement", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
-                {
-                    ImGui::TableSetupColumn("Enemy"); ImGui::TableSetupColumn("Mode");
-                    ImGui::TableSetupColumn("Distance (m)"); ImGui::TableSetupColumn("HP"); ImGui::TableHeadersRow();
-                    for (const auto& enemy : state.fixedTurrets)
-                    {
-                        ImGui::TableNextRow(); ImGui::TableNextColumn(); ImGui::TextUnformatted(enemy.placementId.c_str());
-                        ImGui::TableNextColumn(); ImGui::TextUnformatted(!enemy.target.active ? "Destroyed" :
-                            (enemy.physicalMoving ? "Tracked physics" : (enemy.simpleMoving ? "Simple" : "Fixed")));
-                        ImGui::TableNextColumn(); ImGui::Text("%.1f", Tank::Physics::NavigationDistance(enemy.position, state.bodyPosition));
-                        ImGui::TableNextColumn(); ImGui::Text("%.0f", enemy.target.hitPoints);
-                    }
-                    ImGui::EndTable();
-                }
-                constexpr const char* actions[] = {"Hold", "Patrol", "Approach", "Attack stop", "Search", "Search wait"};
-                for (const auto& group : state.enemyGroups)
-                {
-                    ImGui::Text("%s: %s  Target surface: %s", group.id.c_str(),
-                        group.behavior ? actions[static_cast<size_t>(group.behavior->action)] : "None",
-                        group.behavior ? group.behavior->targetSurfaceId.c_str() : "");
-                    if (group.navigation && !group.navigation->error.empty()) ImGui::TextWrapped("Route: %s", group.navigation->error.c_str());
-                }
-                ImGui::TreePop();
-            }
-            static std::string fallbackJsonPath = TANK_SOURCE_CONFIG_DIR "/enemy_types.json";
-            auto& jsonPath = ctx.enemyEditorJsonPath ? *ctx.enemyEditorJsonPath : fallbackJsonPath;
-            static std::string jsonStatus;
-            ImGui::InputText("Enemy types JSON path", &jsonPath);
-            if (ImGui::Button("Save enemy types JSON"))
-            {
-                std::string json;
-                if (Tank::Physics::SerializeEnemyEditor(editor, json, jsonStatus))
-                {
-                    const auto path = std::filesystem::u8path(jsonPath);
-                    auto temporary = path;
-                    temporary += L".tmp";
-                    std::ofstream file(temporary, std::ios::binary);
-                    if (file)
-                    {
-                        // Store project JSON with CRLF, regardless of ostream text mode.
-                        std::string crlf;
-                        for (const char character : json) { if (character == '\n') crlf += '\r'; crlf += character; }
-                        file << crlf << "\r\n";
-                        file.close();
-                        if (file && MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
-                            jsonStatus = "Saved: " + jsonPath;
-                        else jsonStatus = "Failed to save; original file retained: " + jsonPath;
-                    }
-                    else jsonStatus = "Cannot open for writing: " + jsonPath;
-                }
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Load enemy types JSON"))
-            {
-                std::ifstream file(std::filesystem::u8path(jsonPath), std::ios::binary);
-                if (!file) jsonStatus = "Cannot open for reading: " + jsonPath;
-                else
-                {
-                    const std::string json((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-                    if (file.bad()) jsonStatus = "Failed to read: " + jsonPath;
-                    else if (Tank::Physics::DeserializeEnemyEditor(json, editor, jsonStatus)) jsonStatus = "Loaded: " + jsonPath;
-                }
-            }
-            if (!jsonStatus.empty()) ImGui::TextWrapped("%s", jsonStatus.c_str());
-            ImGui::TextWrapped("Load replaces the current catalog. Save edits before loading another file. Movement distances apply during play; Reset Tank applies attack/template edits.");
-            if (ImGui::Button("Register attack type"))
-            {
-                Tank::Physics::EnemyAttackType type;
-                type.name = "Attack " + std::to_string(editor.attackTypes.size());
-                editor.attackTypes.push_back(type);
-            }
-            for (size_t i = 0; i < editor.attackTypes.size(); ++i)
-            {
-                ImGui::PushID(static_cast<int>(i));
-                auto& type = editor.attackTypes[i];
-                if (ImGui::TreeNode("Attack", "Attack %zu: %s", i, type.name.c_str()))
-                {
-                    char name[128];
-                    snprintf(name, sizeof(name), "%s", type.name.c_str());
-                    if (ImGui::InputText("Name", name, sizeof(name))) type.name = name;
-                    ImGui::DragFloat("a Detection (m)", &type.detectionRangeMeters, 0.5f, type.reachMeters, 10000, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::DragFloat("b Reach (m)", &type.reachMeters, 0.5f, type.firingRangeMeters, type.detectionRangeMeters, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::DragFloat("c Firing range (m)", &type.firingRangeMeters, 0.5f, 0.1f, type.reachMeters, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::DragFloat("d Bullet speed (m/s)", &type.projectileSpeedMetersPerSecond, 0.1f, 0.1f, 10000, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::DragFloat("e Fire interval (s)", &type.firingIntervalSeconds, 0.1f, 0.01f, 3600, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::DragFloat("f Max turret yaw (deg/s)", &type.maximumYawSpeedDegreesPerSecond, 0.5f, 0.1f, 3600, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::DragFloat("g Aim tolerance (+/- deg)", &type.firingToleranceDegrees, 0.1f, 0, 180, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                    int detectionMode = static_cast<int>(type.detectionMode);
-                    if (ImGui::Combo("Detection mode", &detectionMode, "Optical (ray occlusion)\0Range only\0"))
-                        type.detectionMode = static_cast<Tank::Physics::EnemyDetectionMode>(detectionMode);
-                    ImGui::DragFloat("Alert release delay (s)", &type.alertReleaseSeconds, 0.1f, 0, 3600, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                    ImGui::TextWrapped("Lost target: aim at last known position without firing. After delay: return to initial direction. Reset Tank applies changes.");
-                    int projectileKind = static_cast<int>(type.projectileKind);
-                    if (ImGui::Combo("Projectile kind", &projectileKind, "Ordinary (interceptable)\0Special (unbreakable)\0"))
-                    {
-                        type.projectileKind = static_cast<Tank::Physics::EnemyProjectileKind>(projectileKind);
-                        if (type.projectileKind == Tank::Physics::EnemyProjectileKind::Ordinary)
-                            type.projectileShape = Tank::Physics::EnemyProjectileShape::Sphere;
-                    }
-                    if (type.projectileKind == Tank::Physics::EnemyProjectileKind::Special)
-                    {
-                        int shape = static_cast<int>(type.projectileShape);
-                        if (ImGui::Combo("Bullet shape", &shape, "Sphere\0Box\0"))
-                            type.projectileShape = static_cast<Tank::Physics::EnemyProjectileShape>(shape);
-                    }
-                    if (type.projectileShape == Tank::Physics::EnemyProjectileShape::Box)
-                    {
-                        float size[3] = {type.projectileBoxSizeMeters.x, type.projectileBoxSizeMeters.y, type.projectileBoxSizeMeters.z};
-                        if (ImGui::DragFloat3("Width / Height / Depth (m)", size, 0.05f, 0.1f, 20, "%.2f", ImGuiSliderFlags_AlwaysClamp))
-                            type.projectileBoxSizeMeters = {size[0], size[1], size[2]};
-                        ImGui::TextDisabled("Depth follows the firing direction. Changes apply with Reset Tank.");
-                    }
-                    else ImGui::DragFloat("Bullet radius (m)", &type.projectileRadiusMeters, 0.05f, 0.05f, 10, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                    if (ImGui::Button("Restore default parameters"))
-                    {
-                        const auto savedName = type.name;
-                        type = {};
-                        type.name = savedName;
-                    }
-                    if (!Tank::Physics::IsValidEnemyAttackType(type)) ImGui::TextUnformatted("Invalid attack parameters");
-                    ImGui::TreePop();
-                }
-                ImGui::PopID();
-            }
-            if (ImGui::Button("Register enemy unit type"))
-            {
-                Tank::Physics::EnemyUnitType unit;
-                unit.name = "Enemy " + std::to_string(editor.unitTypes.size());
-                editor.unitTypes.push_back(unit);
-            }
-            for (size_t i = 0; i < editor.unitTypes.size(); ++i)
-            {
-                ImGui::PushID(static_cast<int>(i) + 100000);
-                auto& unit = editor.unitTypes[i];
-                if (ImGui::TreeNode("Unit", "Enemy %zu: %s", i, unit.name.c_str()))
-                {
-                    char name[128];
-                    snprintf(name, sizeof(name), "%s", unit.name.c_str());
-                    if (ImGui::InputText("Name", name, sizeof(name))) unit.name = name;
-                    if (ImGui::Button("Add attack mount")) unit.attackMounts.push_back({});
-                    for (size_t mountIndex = 0; mountIndex < unit.attackMounts.size();)
-                    {
-                        ImGui::PushID(static_cast<int>(mountIndex));
-                        auto& mount = unit.attackMounts[mountIndex];
-                        ImGui::Text("Mount %zu", mountIndex);
-                        ImGui::DragFloat3("Local position (m)", &mount.localPosition.x, 0.1f, -1000, 1000, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                        const auto& selected = editor.attackTypes[static_cast<size_t>(mount.attackTypeIndex)];
-                        if (ImGui::BeginCombo("Attack type", selected.name.c_str()))
-                        {
-                            for (size_t attack = 0; attack < editor.attackTypes.size(); ++attack)
-                            {
-                                ImGui::PushID(static_cast<int>(attack));
-                                if (ImGui::Selectable(editor.attackTypes[attack].name.c_str(), mount.attackTypeIndex == static_cast<int>(attack)))
-                                    mount.attackTypeIndex = static_cast<int>(attack);
-                                ImGui::PopID();
-                            }
-                            ImGui::EndCombo();
-                        }
-                        const bool remove = ImGui::Button("Remove mount");
-                        ImGui::PopID();
-                        if (remove) unit.attackMounts.erase(unit.attackMounts.begin() + mountIndex);
-                        else ++mountIndex;
-                    }
-                    ImGui::TreePop();
-                }
-                ImGui::PopID();
-            }
-        }
         if (ctx.tankSettings && ImGui::CollapsingHeader("Assault Projectiles"))
 		{
 			auto& settings = ctx.tankSettings->assaultProjectiles;
@@ -2233,7 +2122,7 @@ namespace Ui
 				"Neutral Brake Strength",
 				&ctx.tankSettings->neutralBrakeAmount,
 				0.0f,
-				1.0f,
+				3.0f,
 				0.05f,
 				0.30f,
 				"%.2f",
@@ -3240,5 +3129,56 @@ namespace Ui
 		ImGui::EndChild();
 		ImGui::End();
 		DrawRollingCheatWindow(ctx);
+        if (ctx.enemyEditor)
+        {
+            static std::string fallbackEnemyPath = TANK_SOURCE_CONFIG_DIR "/enemy_types.json";
+            auto& path = ctx.enemyEditorJsonPath ? *ctx.enemyEditorJsonPath : fallbackEnemyPath;
+            enemyUnitEditor.Draw(*ctx.enemyEditor, path, ctx.state, ctx.resetTrackedVehicle);
+        }
+        if (hasSettingsUndo)
+            ctx.settingsUndo->Observe(beforeSettings, ImGui::GetActiveID());
+        if (hasSettingsUndo)
+        {
+            const auto interaction = ImGui::GetActiveID();
+            ctx.settingsUndo->ObserveExternal(beforePreview, previewState(), interaction,
+                [previewFields, scene = ctx.updateScene](const auto& value)
+                {
+                    for (size_t i = 0; i < value.size(); ++i)
+                        if (previewFields[i]) *previewFields[i] = value[i];
+                    if (scene) scene();
+                }, "Preview display settings");
+            if (ctx.inputMappingSettings)
+                ctx.settingsUndo->ObserveExternal(beforeMapping, *ctx.inputMappingSettings, interaction,
+                    [settings = ctx.inputMappingSettings](const auto& value) { *settings = value; }, "Input mapping edit");
+            if (ctx.inputDeviceProfiles && ctx.restoreInputDeviceProfiles)
+                ctx.settingsUndo->ObserveExternal(beforeProfiles, *ctx.inputDeviceProfiles, interaction,
+                    ctx.restoreInputDeviceProfiles, "Input device edit");
+            if (ctx.visualSettings)
+                ctx.settingsUndo->ObserveExternal(beforeVisual, *ctx.visualSettings, interaction,
+                    [settings = ctx.visualSettings, materials = ctx.applyMaterials, scene = ctx.updateScene,
+                     pending = ctx.tankVisualMaterialApplyPending](const auto& value)
+                    {
+                        *settings = value;
+                        if (materials) materials();
+                        if (pending) *pending = false;
+                        if (scene) scene();
+                    }, "Tank appearance edit");
+            ctx.settingsUndo->ObserveExternal(beforeDisplay, displayState(), interaction,
+                [proxies = ctx.showTrackProxies, body = ctx.showGltfBody,
+                 cannon = ctx.showGltfCannon, side = ctx.showGltfSide, scene = ctx.updateScene](const auto& value)
+                {
+                    if (proxies) *proxies = value[0];
+                    if (body) *body = value[1];
+                    if (cannon) *cannon = value[2];
+                    if (side) *side = value[3];
+                    if (scene) scene();
+                }, "Tank display edit");
+            if (ctx.envSettings)
+                ctx.settingsUndo->ObserveExternal(beforeEnvironment, *ctx.envSettings, interaction,
+                    [settings = ctx.envSettings](const auto& value) { *settings = value; }, "Environment edit");
+            if (ctx.enemyEditor)
+                ctx.settingsUndo->ObserveExternal(beforeEnemies, *ctx.enemyEditor, interaction,
+                    [settings = ctx.enemyEditor](const auto& value) { *settings = value; }, "Enemy parameter edit");
+        }
 	}
 }

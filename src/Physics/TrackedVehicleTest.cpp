@@ -276,6 +276,8 @@ namespace Tank::Physics
             m_impl->obstacleBodyIds.reserve(m_impl->obstacleBodyIds.size() + staticMeshes->size());
             for (const Map::HitTriangleMesh& mesh : *staticMeshes)
             {
+                if (mesh.breakable && (!std::isfinite(mesh.hitPoints) || mesh.hitPoints <= 0))
+                { if (error) *error = "Invalid destructible mesh HP"; return false; }
                 JPH::BodyID bodyId;
                 std::string shapeError;
                 if (!AddStaticMeshBody(m_impl->world, mesh, bodyId, shapeError))
@@ -283,7 +285,20 @@ namespace Tank::Physics
                     if (error != nullptr) *error = shapeError;
                     return false;
                 }
-                m_impl->obstacleBodyIds.push_back(bodyId);
+                if (mesh.breakable)
+                {
+                    auto minimum = mesh.vertices.front(), maximum = minimum;
+                    for (const auto& vertex : mesh.vertices)
+                        for (size_t axis = 0; axis < 3; ++axis)
+                        { minimum[axis] = (std::min)(minimum[axis], vertex[axis]); maximum[axis] = (std::max)(maximum[axis], vertex[axis]); }
+                    const JPH::Vec3 center((minimum[0]+maximum[0])*0.5f, (minimum[1]+maximum[1])*0.5f, (minimum[2]+maximum[2])*0.5f);
+                    const JPH::Vec3 size(maximum[0]-minimum[0], maximum[1]-minimum[1], maximum[2]-minimum[2]);
+                    m_impl->destructibleBodyIds.push_back(bodyId);
+                    m_state.destructibleBoxes.push_back({
+                        {m_impl->nextCombatTargetId++, CombatTargetKind::Destructible, mesh.hitPoints, true},
+                        {center.GetX(), center.GetY(), center.GetZ()}, {size.GetX(), size.GetY(), size.GetZ()}, mesh.placementId});
+                }
+                else m_impl->obstacleBodyIds.push_back(bodyId);
             }
         }
 
@@ -389,6 +404,17 @@ namespace Tank::Physics
             projectiles.erase(projectiles.begin(), projectiles.end() - current.maximumCount);
         m_impl->controller.SetAssaultCapacityAvailable(
             projectiles.size() < static_cast<size_t>(current.maximumCount));
+    }
+
+    bool TrackedVehicleTest::SetEnemySupport(const std::string& enemyPlacementId, const std::string& supportPlacementId)
+    {
+        const auto support = std::find_if(m_state.destructibleBoxes.begin(), m_state.destructibleBoxes.end(),
+            [&](const auto& object) {return !supportPlacementId.empty() && object.placementId == supportPlacementId;});
+        if (support == m_state.destructibleBoxes.end()) return false;
+        for (auto& enemy : m_state.fixedTurrets)
+            if (enemy.placementId == enemyPlacementId)
+            { enemy.supportPlacementId = supportPlacementId; return true; }
+        return false;
     }
 
     bool TrackedVehicleTest::AddDestructibleBox(const Vec3& position, const Vec3& size, float hitPoints)
@@ -573,6 +599,11 @@ namespace Tank::Physics
         {
             auto& enemy = m_state.fixedTurrets[driver.enemyIndex];
             if (!enemy.target.active) { enemy.physicalMoving = false; enemy.runningGear.reset(); continue; }
+            if (enemy.supportReleased)
+            {
+                if (driver.physical) {driver.physical->SetInput({}); driver.physical->PreStep();}
+                continue;
+            }
             const auto player = m_impl->controller.State().body.position;
             const auto distance = NavigationDistance(player, enemy.position);
             auto& bodyId = m_impl->turretBodyIds[driver.enemyIndex];
@@ -987,6 +1018,10 @@ namespace Tank::Physics
             {
                 if (m_state.invulnerabilitySecondsRemaining <= 0 && m_impl->controller.IsTankBody(hit.mHit.mBodyID2.GetIndexAndSequenceNumber()))
                     m_impl->playerCombat.ApplyDamage(bullet.damage, m_impl->controller.State().body.position);
+                const auto hitBody = hit.mHit.mBodyID2.GetIndexAndSequenceNumber();
+                if (std::any_of(m_impl->destructibleBodyIds.begin(), m_impl->destructibleBodyIds.end(),
+                    [&](const auto& id) {return !id.IsInvalid() && id.GetIndexAndSequenceNumber() == hitBody;}))
+                    ApplyAssaultImpact(hitBody, bullet.damage);
                 bullet.target.active = false;
                 continue;
             }
@@ -1216,6 +1251,22 @@ namespace Tank::Physics
         }
         m_impl->controller.SetAssaultCapacityAvailable(
             m_state.assaultProjectiles.size() < static_cast<size_t>(m_impl->projectileSettings.maximumCount));
+        auto& bodies = m_impl->world.GetBodyInterface();
+        for (size_t i = 0; i < m_state.fixedTurrets.size(); ++i)
+        {
+            auto& enemy = m_state.fixedTurrets[i];
+            if (!enemy.target.active || enemy.supportReleased || enemy.supportPlacementId.empty()) continue;
+            const auto support = std::find_if(m_state.destructibleBoxes.begin(), m_state.destructibleBoxes.end(),
+                [&](const auto& object) {return object.placementId == enemy.supportPlacementId;});
+            if (support == m_state.destructibleBoxes.end() || support->target.active) continue;
+            const auto id = m_impl->turretBodyIds[i];
+            if (id.IsInvalid()) continue;
+            bodies.SetMotionType(id, JPH::EMotionType::Dynamic, JPH::EActivation::Activate);
+            bodies.SetObjectLayer(id, Layers::Moving);
+            bodies.ActivateBody(id);
+            enemy.supportReleased = true;
+            enemy.simpleMoving = false;
+        }
         AdvanceEnemyNavigation(deltaTimeSeconds);
         m_impl->controller.PreStep();
         m_impl->world.Step(deltaTimeSeconds);
@@ -1234,6 +1285,16 @@ namespace Tank::Physics
                     {state.leftTrackAngularVelocityRadians, state.rightTrackAngularVelocityRadians}};
             }
 
+        for (size_t i = 0; i < m_state.fixedTurrets.size(); ++i)
+        {
+            auto& enemy = m_state.fixedTurrets[i];
+            const auto id = m_impl->turretBodyIds[i];
+            if (!enemy.target.active || !enemy.supportReleased || id.IsInvalid()) continue;
+            const auto p = bodies.GetPosition(id);
+            const auto q = bodies.GetRotation(id);
+            enemy.position = {static_cast<float>(p.GetX()), static_cast<float>(p.GetY()), static_cast<float>(p.GetZ())};
+            enemy.rotation = {q.GetX(), q.GetY(), q.GetZ(), q.GetW()};
+        }
         m_state.stepIndex = m_impl->controller.State().stepIndex;
         m_state.timeSeconds = m_impl->controller.State().timeSeconds;
         m_state.bodyPosition = m_impl->controller.State().body.position;

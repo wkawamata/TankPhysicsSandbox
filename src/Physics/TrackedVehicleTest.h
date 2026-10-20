@@ -27,6 +27,7 @@ namespace Tank::Physics
         CombatTarget target = {};
         Vec3 position = {};
         Vec3 size = {};
+        std::string placementId;
     };
 
     struct MortarProjectileState
@@ -69,6 +70,8 @@ namespace Tank::Physics
         Vec3 navigationVelocity = {};
         float navigationYawRadiansPerSecond = 0;
         std::optional<EnemyRunningGearState> runningGear;
+        std::string supportPlacementId;
+        bool supportReleased = false;
     };
 
     struct EnemyGroupState
@@ -173,6 +176,7 @@ namespace Tank::Physics
         bool FireAssault();
         void SetAssaultProjectileSettings(const AssaultProjectileSettings& settings);
         const AssaultProjectileSettings& ProjectileSettings() const;
+        bool SetEnemySupport(const std::string& enemyPlacementId, const std::string& supportPlacementId);
         bool AddDestructibleBox(const Vec3& position, const Vec3& size, float hitPoints = 60.0f);
         bool AddFixedTurret(const Vec3& position, const Vec3& size, float hitPoints, const Quat& rotation = {},
             const std::string& placementId = {}, const EnemyUnitType& unitType = {});

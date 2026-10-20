@@ -55,7 +55,7 @@ namespace Ui
         }
     }
 
-    void OutputPanel::Draw()
+    void OutputPanel::Draw(bool stageCleared)
     {
         if (!open) return;
         ImGui::SetNextWindowSize(ImVec2(860, 280), ImGuiCond_FirstUseEver);
@@ -67,6 +67,24 @@ namespace Ui
         {
             ImGui::End();
             return;
+        }
+
+        if (stageCleared)
+        {
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.30f, 0.15f, 1.0f));
+            if (ImGui::BeginChild("StageClearBanner", ImVec2(0.0f, 48.0f), ImGuiChildFlags_Borders))
+            {
+                const char* message = "Stage Clear ！";
+                const ImVec2 textSize = ImGui::CalcTextSize(message);
+                ImGui::SetCursorPosX((std::max)(0.0f, (ImGui::GetWindowWidth() - textSize.x) * 0.5f));
+                ImGui::SetCursorPosY((std::max)(0.0f, (48.0f - textSize.y) * 0.5f));
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 1.0f, 0.62f, 1.0f));
+                ImGui::TextUnformatted(message);
+                ImGui::PopStyleColor();
+            }
+            ImGui::EndChild();
+            ImGui::PopStyleColor();
+            ImGui::Spacing();
         }
 
         bool dirty = Logs().ReadIfChanged(m_snapshot);

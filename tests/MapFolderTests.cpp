@@ -57,7 +57,7 @@ int main()
         Check(!session.SetManifest({}, error), "Cannot edit unopened session");
         Check(!session.Open({}, error) && !session.IsOpen(), "Empty folder path rejected");
         Check(!session.Open(root.path / "missing", error), "Missing folder rejected");
-        Check(session.Open(folder, error), "Create new manifest in Unicode folder");
+        if (!session.Open(folder, error)) throw std::runtime_error("Create new manifest in Unicode folder: " + error);
         Check(session.IsOpen() && !session.IsDirty() && error.empty(), "New session is saved");
         Check(std::filesystem::is_regular_file(path), "Manifest.json exists");
         const std::string original = Read(path);

@@ -3,6 +3,7 @@
 #include <array>
 #include <string>
 #include <optional>
+#include <map>
 #include <vector>
 
 namespace Tank::Map
@@ -11,8 +12,10 @@ namespace Tank::Map
     {
         std::array<float, 3> position = { 0.0f, 0.0f, 0.0f };
         std::array<float, 3> rotationDegrees = { 0.0f, 0.0f, 0.0f };
-        // Uniform scale keeps Visual and HitMesh placement in the same meter space.
-        float scale = 1.0f;
+        // Per-axis scale keeps Visual and HitMesh placement in the same meter space.
+        std::array<float, 3> scale = { 1.0f, 1.0f, 1.0f };
+        // Runtime-only affine matrix; preserves shear introduced by parent transforms.
+        std::optional<std::array<float, 16>> worldMatrix;
     };
 
     struct Instance
@@ -21,6 +24,9 @@ namespace Tank::Map
         // UTF-8 path relative to the map folder, using forward slashes.
         std::string asset;
         Transform transform;
+        std::string parentId = "root";
+        bool breakable = false;
+        float hitPoints = 60.0f;
     };
 
     struct EnemyPlacement
@@ -30,6 +36,10 @@ namespace Tank::Map
         std::string unitType;
         std::array<float, 3> position = { 0.0f, 0.0f, 0.0f };
         std::array<float, 3> rotationDegrees = { 0.0f, 0.0f, 0.0f };
+        std::string parentId = "root";
+        bool supportedByParent = false;
+        // Runtime-only link resolved before the authored hierarchy is flattened.
+        std::string supportPlacementId;
     };
 
     struct EnemyGroupMember
@@ -68,8 +78,22 @@ namespace Tank::Map
         std::string id;
         std::string name;
         std::array<float, 3> center = { 0.0f, 0.0f, 0.0f };
-        // Full extents in meters, along world axes.
+        // Scale of a centered 1 x 1 x 1 meter box (legacy member name retained).
         std::array<float, 3> size = { 1.0f, 1.0f, 1.0f };
+        std::string parentId = "root";
+        std::array<float, 3> rotationDegrees = {0, 0, 0};
+        std::optional<std::array<float, 16>> worldMatrix;
+    };
+
+    inline Transform ClearAreaTransform(const ClearArea& area)
+    { return {area.center, area.rotationDegrees, area.size, area.worldMatrix}; }
+
+    struct EmptyNode
+    {
+        std::string id;
+        std::string name;
+        std::string parentId;
+        Transform transform;
     };
 
     struct Manifest
@@ -79,6 +103,20 @@ namespace Tank::Map
         std::vector<ClearArea> clearAreas;
         std::vector<EnemyPlacement> enemies;
         std::vector<EnemyGroup> enemyGroups;
+        std::vector<EmptyNode> nodes = { { "root", "Root", "", {} } };
+        std::string playerSpawnParentId = "root";
+        // Stable sibling display order across all node kinds.
+        std::vector<std::string> treeOrder;
+        struct NodeInfo { bool active = true; bool visible = true; std::string name; };
+        std::map<std::string, NodeInfo> nodeInfo;
+        struct StartPoint
+        {
+            std::string id;
+            Transform transform;
+            std::string parentId = "root";
+        };
+        // playerSpawn remains the original start node for legacy maps.
+        std::vector<StartPoint> startPoints;
     };
 
     // Failed operations leave the output unchanged and provide an error.

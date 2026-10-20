@@ -1,10 +1,14 @@
 #include "MapEditorScenePresenter.h"
 
 #include "Map/GltfRoles.h"
+#include "Map/MapHierarchy.h"
 #include "Map/GltfHitMesh.h"
 #include "MapVisualLoader.h"
 
 #include <DirectXMath.h>
+#include <DirectXCollision.h>
+#include <Scene/CameraView.h>
+#include <Scene/CameraProjection.h>
 
 #include <algorithm>
 #include <cmath>
@@ -21,8 +25,14 @@ namespace
 
     DirectX::XMMATRIX ToWorld(const Tank::Map::Transform& transform)
     {
+        if (transform.worldMatrix)
+        {
+            DirectX::XMFLOAT4X4 matrix;
+            std::copy(transform.worldMatrix->begin(), transform.worldMatrix->end(), &matrix._11);
+            return DirectX::XMLoadFloat4x4(&matrix);
+        }
         constexpr float degreesToRadians = DirectX::XM_PI / 180.0f;
-        return DirectX::XMMatrixScaling(transform.scale, transform.scale, transform.scale) *
+        return DirectX::XMMatrixScaling(transform.scale[0], transform.scale[1], transform.scale[2]) *
             DirectX::XMMatrixRotationRollPitchYaw(
                    transform.rotationDegrees[0] * degreesToRadians,
                    transform.rotationDegrees[1] * degreesToRadians,
@@ -84,7 +94,8 @@ namespace
         const float halfY = (bounds.maximum[1] - bounds.minimum[1]) * 0.5f;
         const float halfZ = (bounds.maximum[2] - bounds.minimum[2]) * 0.5f;
         return { { worldCenter.x, worldCenter.y, worldCenter.z },
-            (std::max)(0.5f, instance.transform.scale * std::sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ)) };
+            (std::max)(0.5f, (std::max)({ instance.transform.scale[0], instance.transform.scale[1],
+                instance.transform.scale[2] }) * std::sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ)) };
     }
 
     Tank::Rendering::MapVisualBounds MakeHitBounds(
@@ -139,11 +150,19 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
 }
 
 bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
-    const std::filesystem::path& mapFolder, const Map::Manifest& manifest,
+    const std::filesystem::path& mapFolder, const Map::Manifest& localManifest,
     const MapEditorGridSettings& grid, const MapEditorPreviewSettings& preview,
     std::string& error)
 {
+    Map::Manifest manifest;
+    if (!Map::ResolveHierarchy(localManifest, manifest, error, true)) return false;
     auto next = std::make_unique<Engine::SceneBuilder>();
+    std::vector<PickRange> pickRanges;
+    const auto addPickInstance = [&](size_t index, const std::string& nodeId)
+    {
+        const auto& range = next->GetMesh().ranges[next->GetScene().instances[index].meshId];
+        pickRanges.push_back({nodeId, index, range.firstIndex, range.indexCount});
+    };
     const auto colorByte = [](float value)
     {
         return static_cast<uint8_t>(std::lround(std::clamp(value, 0.0f, 1.0f) * 255.0f));
@@ -162,7 +181,7 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
     const float extent = grid.spacingMeters * static_cast<float>(grid.halfCellCount);
     constexpr float gridSurfaceOffsetMeters = 0.002f;
     const float gridCenterY = gridSurfaceOffsetMeters - grid.lineWidthMeters * 0.5f;
-    for (int cell = -grid.halfCellCount; cell <= grid.halfCellCount; ++cell)
+    for (int cell = -grid.halfCellCount; grid.visible && cell <= grid.halfCellCount; ++cell)
     {
         const float offset = grid.spacingMeters * static_cast<float>(cell);
         const uint32_t xAxisLineMaterial = cell == 0 ? xAxisMaterial : gridMaterial;
@@ -182,10 +201,13 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
     if (!FindMissingVisuals(mapFolder, manifest, missingVisualIds, missingVisualAssets, error))
         return false;
     std::vector<MapVisualBounds> visualBounds;
+    std::vector<std::pair<size_t, std::string>> visualPickInstances;
     if (preview.showVisualMeshes &&
-        !AppendMapVisuals(*next, mapFolder, visibleManifest, fallbackMaterial, error, &visualBounds))
+        !AppendMapVisuals(*next, mapFolder, visibleManifest, fallbackMaterial, error, &visualBounds, nullptr, &visualPickInstances))
         return false;
+    for (const auto& [index, nodeId] : visualPickInstances) addPickInstance(index, nodeId);
     std::vector<Map::HitTriangleMesh> hitMeshes;
+    std::vector<std::string> hitNodeIds;
     std::vector<MapVisualBounds> hitBounds;
     for (const Map::Instance& instance : visibleManifest.instances)
     {
@@ -200,6 +222,7 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
         if (!Map::TransformHitMesh(local, instance.transform, world, error))
             return false;
         hitMeshes.push_back(std::move(world));
+        hitNodeIds.push_back("mesh/" + instance.id);
     }
     if (!hitMeshes.empty())
     {
@@ -209,6 +232,13 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
         Engine::InstanceData& instance = next->GetScene().instances[hitMeshInstance];
         DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixIdentity());
         instance.prevWorld = instance.world;
+        uint32_t firstIndex = next->GetMesh().ranges[instance.meshId].firstIndex;
+        for (size_t i = 0; i < hitMeshes.size(); ++i)
+        {
+            const auto count = static_cast<uint32_t>(hitMeshes[i].triangles.size() * 3);
+            pickRanges.push_back({hitNodeIds[i], hitMeshInstance, firstIndex, count});
+            firstIndex += count;
+        }
     }
     const auto selectedInstance = std::find_if(visibleManifest.instances.begin(), visibleManifest.instances.end(),
         [&preview](const Map::Instance& instance) { return instance.id == preview.selectedInstanceId; });
@@ -227,6 +257,7 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
     const uint32_t enemyMaterial = next->AddSolidColorMaterial(235, 65, 65, 255);
     for (const auto& enemy : manifest.enemies)
     {
+        const size_t firstEnemyInstance = next->GetScene().instances.size();
         const Map::Transform transform = { enemy.position, enemy.rotationDegrees };
         const auto world = ToWorld(transform);
         const bool selected = enemy.id == preview.selectedEnemyId;
@@ -237,14 +268,43 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
         next->AddInstance(gridMesh, DirectX::XMMatrixScaling(0.35f, 0.16f, 0.35f) *
             DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4) *
             DirectX::XMMatrixTranslation(0.0f, 0.0f, 1.75f) * world, material);
+        for (size_t i = firstEnemyInstance; i < next->GetScene().instances.size(); ++i)
+            addPickInstance(i, "enemy/" + enemy.id);
         if (selected) selectedFocusTarget = MapEditorFocusTarget{ enemy.position, 2.0f };
     }
     std::vector<size_t> markerInstances;
     AppendMapMarkers(*next, gridMesh, manifest, spawnMaterial,
         clearAreaMaterial, markerInstances);
+    size_t marker = 0;
+    const auto addMarkerPicks = [&](const std::string& id, size_t count)
+    {
+        for (size_t i = 0; i < count; ++i) addPickInstance(markerInstances[marker++], id);
+    };
+    if (Map::GetNodeInfo(manifest, "player-start").visible)
+        addMarkerPicks("player-start", kPlayerStartMarkerPartCount);
+    for (const auto& start : manifest.startPoints)
+        if (Map::GetNodeInfo(manifest, "start/" + start.id).visible)
+            addMarkerPicks("start/" + start.id, kPlayerStartMarkerPartCount);
+    for (const auto& area : manifest.clearAreas)
+        addMarkerPicks("area/" + area.id, kClearAreaMarkerPartCount);
     next->GetScene().camera.pos = { 8.0f, 6.0f, -8.0f };
     next->GetScene().camera.gazePoint = { 0.0f, 0.0f, 0.0f };
     m_builder = std::move(next);
+    m_pickRanges = std::move(pickRanges);
+    if (!selectedFocusTarget && !preview.selectedNodeId.empty())
+    {
+        const auto tree = Map::MapTree(localManifest);
+        const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == preview.selectedNodeId;});
+        if (selected != tree.end())
+        {
+            const auto transform = Map::NodeWorldTransform(localManifest, selected->id);
+            float radius = 1.5f;
+            for (const auto& area : manifest.clearAreas)
+                if ("area/" + area.id == selected->id)
+                    radius = (std::max)(radius, 0.5f * std::sqrt(area.size[0]*area.size[0] + area.size[1]*area.size[1] + area.size[2]*area.size[2]));
+            selectedFocusTarget = MapEditorFocusTarget{transform.position, radius};
+        }
+    }
     m_selectedFocusTarget = selectedFocusTarget;
     if (missingVisualAssets.empty())
         m_warning.clear();
@@ -300,5 +360,61 @@ void Tank::Rendering::MapEditorScenePresenter::Clear()
 {
     m_builder = std::make_unique<Engine::SceneBuilder>();
     m_selectedFocusTarget.reset();
+    m_pickRanges.clear();
     m_warning.clear();
+}
+
+std::optional<std::string> Tank::Rendering::MapEditorScenePresenter::PickRay(
+    const std::array<float, 3>& origin, const std::array<float, 3>& direction) const
+{
+    using namespace DirectX;
+    for (size_t i = 0; i < 3; ++i)
+        if (!std::isfinite(origin[i]) || !std::isfinite(direction[i])) return std::nullopt;
+    const auto rayOrigin = XMVectorSet(origin[0], origin[1], origin[2], 1);
+    const auto rawDirection = XMVectorSet(direction[0], direction[1], direction[2], 0);
+    if (XMVectorGetX(XMVector3LengthSq(rawDirection)) < 1.0e-12f) return std::nullopt;
+    const auto rayDirection = XMVector3Normalize(rawDirection);
+    const auto& scene = m_builder->GetScene();
+    if (!scene.mesh) return std::nullopt;
+    const auto& mesh = *scene.mesh;
+    float closest = (std::numeric_limits<float>::max)();
+    std::optional<std::string> result;
+    for (const auto& target : m_pickRanges)
+    {
+        const auto& instance = scene.instances[target.instanceIndex];
+        if (!Engine::HasRenderableTransform(instance)) continue;
+        // SceneBuilder stores matrices transposed for the GPU.
+        const auto world = XMMatrixTranspose(XMLoadFloat4x4(&instance.world));
+        for (uint32_t i = target.firstIndex; i + 2 < target.firstIndex + target.indexCount; i += 3)
+        {
+            const auto a = XMVector3TransformCoord(XMLoadFloat3(&mesh.vertices[mesh.indices[i]].position), world);
+            const auto b = XMVector3TransformCoord(XMLoadFloat3(&mesh.vertices[mesh.indices[i + 1]].position), world);
+            const auto c = XMVector3TransformCoord(XMLoadFloat3(&mesh.vertices[mesh.indices[i + 2]].position), world);
+            float distance = 0;
+            if (TriangleTests::Intersects(rayOrigin, rayDirection, a, b, c, distance) && distance < closest)
+            {
+                closest = distance;
+                result = target.nodeId;
+            }
+        }
+    }
+    return result;
+}
+
+std::optional<std::string> Tank::Rendering::MapEditorScenePresenter::PickScreen(
+    float x, float y, float width, float height) const
+{
+    using namespace DirectX;
+    if (!(width > 0 && height > 0) || x < 0 || y < 0 || x >= width || y >= height) return std::nullopt;
+    const auto& camera = m_builder->GetScene().camera;
+    const auto projection = Engine::CreateCameraProjectionMatrix(camera, width / height);
+    const auto view = Engine::CreateCameraViewMatrix(camera);
+    const auto nearPoint = XMVector3Unproject(XMVectorSet(x, y, 0, 1), 0, 0, width, height,
+        0, 1, projection, view, XMMatrixIdentity());
+    const auto farPoint = XMVector3Unproject(XMVectorSet(x, y, 1, 1), 0, 0, width, height,
+        0, 1, projection, view, XMMatrixIdentity());
+    XMFLOAT3 origin, direction;
+    XMStoreFloat3(&origin, nearPoint);
+    XMStoreFloat3(&direction, XMVectorSubtract(farPoint, nearPoint));
+    return PickRay({origin.x, origin.y, origin.z}, {direction.x, direction.y, direction.z});
 }

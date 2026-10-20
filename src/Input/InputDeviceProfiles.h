@@ -15,6 +15,7 @@ namespace Tank::Input
 
     struct InputDeviceProfile
     {
+        bool operator==(const InputDeviceProfile&) const = default;
         std::string id;
         std::string name;
         std::uint16_t vendorId = 0;
@@ -39,6 +40,7 @@ namespace Tank::Input
 
     struct InputDeviceProfiles
     {
+        bool operator==(const InputDeviceProfiles&) const = default;
         static constexpr int CurrentVersion = 1;
 
         int version = CurrentVersion;

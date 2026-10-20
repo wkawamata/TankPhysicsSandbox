@@ -25,7 +25,7 @@
     2.0,
     1.0
   ],
-  "neutralBrakeAmount": 0.20000000298023224,
+  "neutralBrakeAmount": 1.0,
   "neutralBrakeEnabled": true,
   "pivotTurnLeftTraction": 1.0,
   "pivotTurnRightTraction": 1.0,

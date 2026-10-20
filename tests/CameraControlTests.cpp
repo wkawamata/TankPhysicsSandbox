@@ -1,3 +1,4 @@
+#include "App/EditorCameraViews.h"
 #include <Windows.h>
 
 #include "App/CameraController.h"
@@ -539,6 +540,62 @@ int main()
         return 1;
     }
 
+    for (int i = 0; i < 3; ++i)
+    {
+        Engine::CameraState view;
+        view.pos = {3, 14, 5}; view.gazePoint = {3, 4, 5};
+        Tank::App::ApplyEditorOrthoPlane(view, static_cast<Tank::App::EditorOrthoPlane>(i));
+        const bool aligned = i == 0 ? view.pos.x == 3 && view.pos.y == 14 && view.pos.z == 5 && view.up.z == 1 :
+            i == 1 ? view.pos.x == 3 && view.pos.y == 4 && view.pos.z == -5 :
+            view.pos.x == 13 && view.pos.y == 4 && view.pos.z == 5;
+        if (!aligned || view.projection != Engine::CameraProjection::Orthographic || view.gazePoint.y != 4)
+        { std::cerr << "FAIL editor orthographic plane\n"; return 1; }
+    }
+    for (float pole : {-1.0f, 1.0f})
+    {
+        Engine::CameraState view;
+        view.pos = {0, pole * 10, 0}; view.gazePoint = {0, 0, 0}; view.up = {0, 0, 1};
+        RtPbrSurvey::DebugCameraController orbit;
+        orbit.SetCameraState(&view); orbit.SetWindowSize(1280, 720);
+        orbit.InitObjectViewerFromCamera();
+        orbit.OnMouseDown(VK_LBUTTON, 640, 360);
+        orbit.OnMouseMove(640, 380);
+        orbit.OnMouseUp(VK_LBUTTON, 640, 380);
+        if (!std::isfinite(view.pos.x) || !std::isfinite(view.pos.y) || !std::isfinite(view.pos.z))
+        { std::cerr << "FAIL orbit from exact pole\n"; return 1; }
+        const auto released = view.pos;
+        orbit.OnMouseMove(700, 420);
+        if (view.pos.x != released.x || view.pos.y != released.y || view.pos.z != released.z)
+        { std::cerr << "FAIL mouse release must end orbit\n"; return 1; }
+    }
+    for (int plane = 0; plane < 3; ++plane)
+    {
+        Engine::CameraState view;
+        Tank::App::ApplyEditorOrthoPlane(view, static_cast<Tank::App::EditorOrthoPlane>(plane));
+        const auto up = view.up;
+        Tank::App::FocusEditorCamera(view, {30, 5, 10}, 2, 0.5f);
+        const bool aligned = plane == 0 ? view.pos.x == 30 && view.pos.z == 10 :
+            plane == 1 ? view.pos.x == 30 && view.pos.y == 5 : view.pos.y == 5 && view.pos.z == 10;
+        if (!aligned || view.gazePoint.x != 30 || view.gazePoint.y != 5 || view.gazePoint.z != 10 ||
+            std::abs(view.orthographicHeight - 16.0f) > 0.001f || view.up.x != up.x || view.up.y != up.y || view.up.z != up.z)
+        { std::cerr << "FAIL focus preserves ortho plane and frames object\n"; return 1; }
+    }
+    Engine::CameraState focusView;
+    focusView.pos = focusView.gazePoint;
+    Tank::App::FocusEditorCamera(focusView, {10, 3, 20}, 4, 1.5f);
+    if (!std::isfinite(focusView.pos.x) || focusView.gazePoint.z != 20 || focusView.pos.z == 20)
+    { std::cerr << "FAIL perspective focus from degenerate view\n"; return 1; }
+    for (float aspect : {0.5f, 1.0f, 2.0f})
+    {
+        Engine::CameraState view;
+        Tank::App::FocusEditorCamera(view, {0, 0, 0}, 4, aspect);
+        const float distanceSquared = view.pos.x*view.pos.x + view.pos.y*view.pos.y + view.pos.z*view.pos.z;
+        const float halfVertical = DirectX::XMConvertToRadians(view.fov) * 0.5f;
+        const float limitingTangent = (std::min)(std::tan(halfVertical), std::tan(halfVertical)*aspect);
+        const float screenFraction = 4 / std::sqrt(distanceSquared - 16) / limitingTangent;
+        if (std::abs(screenFraction - 0.5f) > 0.001f)
+        { std::cerr << "FAIL focus uses central 50 percent\n"; return 1; }
+    }
     std::cout << "PASS camera-control-contract\n";
     return 0;
 }

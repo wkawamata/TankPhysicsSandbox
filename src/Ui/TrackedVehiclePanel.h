@@ -18,12 +18,14 @@ namespace Tank::Physics
 }
 
 namespace Tank::App { class RollingSpeedOptimizationSession; }
+namespace Tank::App { class TankSettingsUndo; }
 
 namespace Ui
 {
     struct TrackedVehiclePanelContext
     {
         Tank::App::RollingSpeedOptimizationSession* rollingOptimizer = nullptr;
+        Tank::App::TankSettingsUndo* settingsUndo = nullptr;
         const Tank::Physics::TrackedVehicleTestState* state = nullptr;
         const Tank::Physics::TrackedDriverInput* driverInput = nullptr;
         Tank::Input::GamepadState gamepadState = {};
@@ -98,6 +100,9 @@ namespace Ui
         Tank::Physics::TankSettings* tankSettings = nullptr;
         Tank::Input::TankInputMappingSettings* inputMappingSettings = nullptr;
         Tank::Input::InputDeviceProfile* inputDeviceProfile = nullptr;
+        Tank::Input::InputDeviceProfiles* inputDeviceProfiles = nullptr;
+        std::function<Tank::Input::InputDeviceProfile*()> resolveInputDeviceProfile;
+        std::function<void(const Tank::Input::InputDeviceProfiles&)> restoreInputDeviceProfiles;
         const Tank::Physics::TankSettings* appliedTankSettings = nullptr;
         Tank::Physics::PhysicsEnvironmentSettings* envSettings = nullptr;
         const Tank::Physics::PhysicsEnvironmentSettings* appliedEnvSettings = nullptr;

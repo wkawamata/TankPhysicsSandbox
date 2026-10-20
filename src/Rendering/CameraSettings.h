@@ -6,6 +6,7 @@ namespace Tank::Rendering
 {
     struct CameraSettings
     {
+        bool operator==(const CameraSettings&) const = default;
         float position[3] = {};
         float gazePoint[3] = {};
         float up[3] = {0.0f, 1.0f, 0.0f};

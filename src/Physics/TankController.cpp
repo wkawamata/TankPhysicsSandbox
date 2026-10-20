@@ -196,7 +196,7 @@ namespace Tank::Physics
         m_settings.neutralBrakeAmount = std::clamp(
             m_settings.neutralBrakeAmount,
             0.0f,
-            1.0f);
+            3.0f);
         m_settings.pivotTurnThrottleScale = std::clamp(
             m_settings.pivotTurnThrottleScale, 0.0f, 1.0f);
         m_settings.trackWidthM = std::clamp(m_settings.trackWidthM, 0.15f, 1.0f);

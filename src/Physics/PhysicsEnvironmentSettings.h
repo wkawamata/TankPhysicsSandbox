@@ -4,6 +4,7 @@ namespace Tank::Physics
 {
     struct ColorRgb
     {
+        bool operator==(const ColorRgb&) const = default;
         float r = 1.0f;
         float g = 1.0f;
         float b = 1.0f;
@@ -11,6 +12,7 @@ namespace Tank::Physics
 
     struct PhysicsEnvironmentSettings
     {
+        bool operator==(const PhysicsEnvironmentSettings&) const = default;
         float floorSizeM = 200.0f;
         float floorFriction = 0.6f;
         bool gridEnabled = true;

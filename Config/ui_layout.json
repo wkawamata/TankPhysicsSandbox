@@ -1,7 +1,7 @@
 {
   "cameraWindowVisible": true,
-  "gamepadInputWindowVisible": true,
-  "outputWindowVisible": false,
+  "gamepadInputWindowVisible": false,
+  "outputWindowVisible": true,
   "renderSettingsWindowVisible": true,
   "rollingCheatFontScale": 1.3300000429153442,
   "rollingCheatWindowVisible": false,

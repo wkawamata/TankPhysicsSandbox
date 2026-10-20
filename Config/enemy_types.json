@@ -1,26 +1,70 @@
 {
-  "version": 1,
   "attackTypes": [
     {
-      "name": "Type 0",
+      "alertReleaseSeconds": 5.0,
+      "detectionMode": "optical",
       "detectionRangeMeters": 50.0,
-      "reachMeters": 30.0,
-      "firingRangeMeters": 25.0,
-      "projectileSpeedMetersPerSecond": 1.0,
       "firingIntervalSeconds": 3.0,
+      "firingRangeMeters": 40.0,
+      "firingToleranceDegrees": 3.0,
       "maximumYawSpeedDegreesPerSecond": 5.0,
-      "firingToleranceDegrees": 3.0
+      "name": "Type 0",
+      "projectileBoxSizeMeters": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "projectileKind": "ordinary",
+      "projectileRadiusMeters": 0.25,
+      "projectileShape": "sphere",
+      "projectileSpeedMetersPerSecond": 6.0,
+      "reachMeters": 40.0
+    },
+    {
+      "alertReleaseSeconds": 5.0,
+      "detectionMode": "optical",
+      "detectionRangeMeters": 50.0,
+      "firingIntervalSeconds": 3.0,
+      "firingRangeMeters": 25.0,
+      "firingToleranceDegrees": 3.0,
+      "maximumYawSpeedDegreesPerSecond": 5.0,
+      "name": "Attack 1",
+      "projectileBoxSizeMeters": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "projectileKind": "ordinary",
+      "projectileRadiusMeters": 0.25,
+      "projectileShape": "sphere",
+      "projectileSpeedMetersPerSecond": 1.0,
+      "reachMeters": 30.0
     }
   ],
+  "simulation": {
+    "brakingDecelerationMetersPerSecondSquared": 2.0,
+    "nodeArrivalMeters": 0.5,
+    "observationRadiusMeters": 6.0,
+    "physicalEnterMeters": 30.0,
+    "simpleReturnMeters": 40.0,
+    "simpleTurnDegreesPerSecond": 60.0,
+    "supportHeightToleranceMeters": 0.20000000298023224
+  },
   "unitTypes": [
     {
-      "name": "Fixed turret",
       "attackMounts": [
         {
           "attackType": "Type 0",
-          "localPosition": [0.0, 0.0, 0.0]
+          "localPosition": [
+            0.0,
+            0.0,
+            0.0
+          ]
         }
-      ]
+      ],
+      "hitPoints": 40.0,
+      "name": "Fixed turret"
     }
-  ]
+  ],
+  "version": 1
 }

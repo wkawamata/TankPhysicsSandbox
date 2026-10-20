@@ -249,9 +249,132 @@ namespace
         if (!NearlyEqual(body.world._14, 4) || !NearlyEqual(body.world._24, 2) ||
             !NearlyEqual(body.world._34, 6) || !NearlyEqual(forward.world._14, 5) ||
             !NearlyEqual(forward.world._34, 6)) return false;
+        manifest.nodes.push_back({"group", "Group", "root", {{10, 3, -2}, {}}});
+        manifest.enemies[0].parentId = "group";
+        if (!presenter.Rebuild({}, manifest, {1.0f, 1, 0.02f}, preview, error)) return false;
+        const auto& parentedBody = presenter.GetScene().instances[6];
+        if (!NearlyEqual(parentedBody.world._14, 14) || !NearlyEqual(parentedBody.world._24, 5) ||
+            !NearlyEqual(parentedBody.world._34, 4) || !presenter.SelectedFocusTarget() ||
+            presenter.SelectedFocusTarget()->center != std::array<float, 3>{14, 5, 4}) return false;
+        manifest.startPoints.push_back({"second", {{20, 2, 30}, {}}, "root"});
+        if (!presenter.Rebuild({}, manifest, {1.0f, 1, 0.02f}, preview, error) ||
+            presenter.GetScene().instances.size() != 15u) return false;
+        manifest.nodeInfo["player-start"] = {true, false};
+        if (!presenter.Rebuild({}, manifest, {1.0f, 1, 0.02f}, preview, error) ||
+            presenter.GetScene().instances.size() != 12u) return false;
+        manifest.nodeInfo["enemy/enemy-1"] = {false, false};
+        if (!presenter.Rebuild({}, manifest, {1.0f, 1, 0.02f}, preview, error) ||
+            presenter.GetScene().instances.size() != 9u || presenter.SelectedFocusTarget()) return false;
+        manifest.startPoints.clear();
+        manifest.nodeInfo.clear();
         manifest.enemies.clear();
         if (!presenter.Rebuild({}, manifest, { 1.0f, 1, 0.02f }, preview, error)) return false;
         return !presenter.SelectedFocusTarget() && presenter.GetScene().instances.size() == 9u;
+    }
+
+    bool TestTreeFocusTargets()
+    {
+        Tank::Rendering::MapEditorScenePresenter presenter;
+        Tank::Map::Manifest manifest;
+        manifest.playerSpawn.position = {5, 2, 3};
+        manifest.clearAreas.push_back({"area", "Area", {12,1,2}, {10,2,4}});
+        Tank::Rendering::MapEditorPreviewSettings preview;
+        preview.selectedNodeId = "player-start";
+        std::string error;
+        if (!presenter.Rebuild({}, manifest, {1,1,0.02f}, preview, error) ||
+            !presenter.SelectedFocusTarget() || presenter.SelectedFocusTarget()->center != std::array<float,3>{5,2,3}) return false;
+        preview.selectedNodeId = "area/area";
+        if (!presenter.Rebuild({}, manifest, {1,1,0.02f}, preview, error)) return false;
+        return presenter.SelectedFocusTarget() && presenter.SelectedFocusTarget()->center == std::array<float,3>{12,1,2} &&
+            presenter.SelectedFocusTarget()->radius > 5;
+    }
+
+    bool TestRotatedClearAreaBoundary()
+    {
+        Tank::Map::Manifest manifest;
+        manifest.nodeInfo["player-start"] = {true, false};
+        manifest.clearAreas.push_back({"box", "Box", {10,2,0}, {4,2,1}, "root", {0,90,0}});
+        Tank::Rendering::MapEditorScenePresenter presenter;
+        std::string error;
+        if (!presenter.Rebuild({}, manifest, {1,1,0.02f,false}, error)) return false;
+        const auto& instances = presenter.GetScene().instances;
+        if (instances.size() != 12) return false;
+        const auto& edge = instances[0].world;
+        return NearlyEqual(edge._14, 9.5f) && NearlyEqual(edge._24, 1) && NearlyEqual(edge._34, 0) &&
+            NearlyEqual(std::abs(edge._31), 4) && NearlyEqual(edge._11, 0);
+    }
+
+    bool TestGridVisibility()
+    {
+        Tank::Rendering::MapEditorScenePresenter presenter;
+        Tank::Map::Manifest manifest;
+        manifest.playerSpawn.position = {0, 0, 0};
+        Tank::Rendering::MapEditorGridSettings grid{1, 1, 0.02f};
+        std::string error;
+        if (!presenter.Rebuild({}, manifest, grid, error)) return false;
+        const auto visibleCount = presenter.GetScene().instances.size();
+        grid.visible = false;
+        if (!presenter.Rebuild({}, manifest, grid, error)) return false;
+        return visibleCount == presenter.GetScene().instances.size() + 6 &&
+            presenter.PickRay({0, 0.75f, -10}, {0, 0, 1}) == "player-start";
+    }
+
+    bool TestViewportPicking()
+    {
+        using namespace Tank;
+        Rendering::MapEditorScenePresenter presenter;
+        Map::Manifest manifest;
+        manifest.playerSpawn.position = {20, 0, 0};
+        manifest.startPoints.push_back({"second", {{40, 0, 0}, {}}, "root"});
+        manifest.enemies.push_back({"target", "Fixed turret", {10, 2, 0}, {}});
+        manifest.clearAreas.push_back({"finish", "Finish", {30, 1, 0}, {2, 2, 2}});
+        manifest.nodes.push_back({"parent", "Parent", "root", {{3, 0, 6}, {}}});
+        manifest.instances = {
+            {"back", "triangle-visual-hit.gltf", {}, "parent"},
+            {"front", "triangle-visual-hit.gltf", {{0, 2, 0}, {}}, "parent"}
+        };
+        const auto folder = std::filesystem::path(TANK_SOURCE_DIR) / "tests/Fixtures/MapEditor";
+        const auto build = [&](const Rendering::MapEditorPreviewSettings& preview = {})
+        {
+            std::string error;
+            const bool ok = presenter.Rebuild(folder, manifest, {1, 1, 0.02f}, preview, error);
+            if (!ok) std::cerr << error << '\n';
+            return ok;
+        };
+        const auto expect = [&](std::array<float, 3> origin, std::array<float, 3> direction, const std::string& id)
+        {
+            const auto result = presenter.PickRay(origin, direction);
+            if (result.value_or("") == id) return true;
+            std::cerr << "Pick expected " << id << ", got " << result.value_or("none") << '\n';
+            return false;
+        };
+        if (!build() || !expect({3.25f, 10, 5.75f}, {0, -1, 0}, "mesh/front") ||
+            !expect({4.8f, 10, 4.2f}, {0, -1, 0}, "") ||
+            !expect({10, 2, -10}, {0, 0, 1}, "enemy/target") ||
+            !expect({20, 0.75f, -10}, {0, 0, 1}, "player-start") ||
+            !expect({40, 0.75f, -10}, {0, 0, 1}, "start/second") ||
+            !expect({31, 1, -10}, {0, 0, 1}, "area/finish") ||
+            !expect({0, 10, 0}, {0, -1, 0}, "") ||
+            !expect({0, 0, 0}, {0, 0, 0}, "")) return false;
+        auto& camera = presenter.GetScene().camera;
+        camera.pos = {10, 2, -10}; camera.gazePoint = {10, 2, 0};
+        if (presenter.PickScreen(400, 300, 800, 600) != "enemy/target") return false;
+        camera.projection = Engine::CameraProjection::Orthographic;
+        if (presenter.PickScreen(400, 300, 800, 600) != "enemy/target" ||
+            presenter.PickScreen(-1, 300, 800, 600) || presenter.PickScreen(0, 0, 0, 0)) return false;
+        Rendering::MapEditorPreviewSettings preview;
+        preview.hiddenInstanceIds.insert("front");
+        if (!build(preview) || !expect({3.25f, 10, 5.75f}, {0, -1, 0}, "mesh/back")) return false;
+        manifest.nodeInfo["mesh/back"] = {true, false};
+        if (!build(preview) || !expect({3.25f, 10, 5.75f}, {0, -1, 0}, "")) return false;
+        manifest.instances = {{"hit", "hit-only.gltf", {}}};
+        if (!build() || !expect({0.25f, 10, -0.25f}, {0, -1, 0}, "mesh/hit")) return false;
+        preview = {}; preview.showVisualMeshes = false;
+        if (!build(preview) || !expect({0.25f, 10, -0.25f}, {0, -1, 0}, "")) return false;
+        preview.showHitMeshes = true;
+        if (!build(preview) || !expect({0.25f, 10, -0.25f}, {0, -1, 0}, "mesh/hit")) return false;
+        presenter.Clear();
+        return !presenter.PickRay({0, 10, 0}, {0, -1, 0});
     }
 
     bool TestClearBeacons()
@@ -283,7 +406,7 @@ namespace
 int main()
 {
     if (!TestIndestructibleBoxTemplate() || !TestHitMeshOverlayGeometry() || !TestFailureDoesNotMutateScene() ||
-        !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() ||
+        !TestRotatedClearAreaBoundary() || !TestTreeFocusTargets() || !TestGridVisibility() || !TestViewportPicking() || !TestEditorMarkers() || !TestEditorSelectionHighlightAndVisibility() ||
         !TestHitOnlyVisualFallbackAndDisplaySwitches() || !TestEnemyEditorMarkers() || !TestEnemyGizmoTransforms() || !TestClearBeacons())
     {
         std::cerr << "Map visual loader tests failed.\n";

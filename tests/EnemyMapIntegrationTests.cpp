@@ -40,9 +40,11 @@ int main()
         Tank::Physics::TrackedVehicleTest vehicle;
         Tank::Physics::MapSpawn spawn;
         spawn.position = {0, 2, -20};
+        for (auto& unit : catalog.unitTypes) unit.hitPoints = 180;
         auto reset = [&] {
             check(vehicle.InitializeWithStaticMeshes({}, {}, meshes, spawn, error), "Initialize authored floor");
             check(Tank::App::SpawnManifestEnemies(vehicle, reopened, catalog, error), "Place named enemy templates");
+            check(vehicle.State().fixedTurrets[0].target.hitPoints == 180, "Spawn uses unit catalog HP");
         };
         reset();
         for (int i = 0; i < 360; ++i) vehicle.Step(1.0f / 60);

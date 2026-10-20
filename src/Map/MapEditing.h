@@ -6,6 +6,8 @@
 
 namespace Tank::Map
 {
+    std::array<float, 3> SnapPositionToGrid(std::array<float, 3> position, float spacing);
+
     std::string MakeUniqueInstanceId(const Manifest& manifest);
     std::optional<std::string> DuplicateInstance(Manifest& manifest, const std::string& sourceId);
     bool RemoveInstance(Manifest& manifest, const std::string& instanceId);

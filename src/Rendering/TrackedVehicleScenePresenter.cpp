@@ -817,6 +817,8 @@ void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
     const auto cube = m_sceneBuilder.AddCube(1.0f);
     for (const auto& box : state.destructibleBoxes)
     {
+        if (!box.placementId.empty())
+        { m_destructibleBoxInstances.push_back(static_cast<size_t>(-1)); continue; }
         m_destructibleBoxInstances.push_back(m_sceneBuilder.GetScene().instances.size());
         m_sceneBuilder.AddInstance(cube,
             XMMatrixScaling(box.size.x, box.size.y, box.size.z) *
@@ -894,6 +896,7 @@ void TrackedVehicleScenePresenter::UpdateScene(
     for (size_t i = 0; i < m_destructibleBoxInstances.size() && i < state.destructibleBoxes.size(); ++i)
     {
         const auto& box = state.destructibleBoxes[i];
+        if (m_destructibleBoxInstances[i] >= scene.instances.size()) continue;
         SetInstanceWorld(scene.instances[m_destructibleBoxInstances[i]], box.target.active
             ? XMMatrixScaling(box.size.x, box.size.y, box.size.z) *
                 XMMatrixTranslation(box.position.x, box.position.y, box.position.z)

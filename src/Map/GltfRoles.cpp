@@ -1,9 +1,13 @@
 #include "GltfRoles.h"
 
 #include <nlohmann/json.hpp>
+#include <algorithm>
+#include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <functional>
+#include <iterator>
 #include <stdexcept>
 
 namespace Tank::Map
@@ -85,6 +89,107 @@ namespace Tank::Map
         }
     }
 
+    static bool ParseMaterialColors(const std::string& text, std::vector<GltfMaterialColor>& output,
+        std::string& error)
+    {
+        try
+        {
+            const auto json = Json::parse(text);
+            Require(json.value("asset", Json::object()).value("version", std::string()) == "2.0",
+                "Only glTF 2.0 is supported.");
+            std::vector<GltfMaterialColor> result;
+            if (json.contains("materials"))
+            {
+                Require(json["materials"].is_array(), "Materials must be an array.");
+                for (const auto& material : json["materials"])
+                {
+                    Require(material.is_object(), "Material must be an object.");
+                    GltfMaterialColor item;
+                    item.name = material.value("name", std::string());
+                    if (material.contains("pbrMetallicRoughness") &&
+                        material["pbrMetallicRoughness"].contains("baseColorFactor"))
+                    {
+                        const auto& factor = material["pbrMetallicRoughness"]["baseColorFactor"];
+                        Require(factor.is_array() && factor.size() == 4,
+                            "baseColorFactor must have four values.");
+                        for (size_t channel = 0; channel < 4; ++channel)
+                        {
+                            Require(factor[channel].is_number(), "baseColorFactor values must be numbers.");
+                            item.baseColorFactor[channel] = factor[channel].get<float>();
+                            Require(std::isfinite(item.baseColorFactor[channel]) &&
+                                item.baseColorFactor[channel] >= 0.0f && item.baseColorFactor[channel] <= 1.0f,
+                                "baseColorFactor values must be between 0 and 1.");
+                        }
+                    }
+                    result.push_back(std::move(item));
+                }
+            }
+            output = std::move(result);
+            error.clear();
+            return true;
+        }
+        catch (const std::exception& exception) { error = exception.what(); return false; }
+    }
+
+    static bool WriteJson(const std::filesystem::path& path, const std::string& text, std::string& error)
+    {
+        try
+        {
+            std::string extension = path.extension().string();
+            std::transform(extension.begin(), extension.end(), extension.begin(),
+                [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
+            const auto json = Json::parse(text);
+            const std::string formatted = json.dump(2) + "\n";
+            if (extension == ".gltf")
+            {
+                std::ofstream file(path, std::ios::binary | std::ios::trunc);
+                Require(static_cast<bool>(file), "Cannot open glTF for writing.");
+                file.write(formatted.data(), static_cast<std::streamsize>(formatted.size()));
+                Require(static_cast<bool>(file), "Cannot write glTF.");
+                error.clear();
+                return true;
+            }
+            Require(extension == ".glb", "Expected .gltf or .glb.");
+            std::ifstream input(path, std::ios::binary);
+            Require(static_cast<bool>(input), "Cannot open GLB for reading.");
+            std::vector<char> original((std::istreambuf_iterator<char>(input)), {});
+            Require(original.size() >= 20 && original[0] == 'g' && original[1] == 'l' &&
+                original[2] == 'T' && original[3] == 'F', "Invalid GLB header.");
+            const auto readWord = [&original](size_t offset)
+            {
+                return uint32_t(static_cast<unsigned char>(original[offset])) |
+                    (uint32_t(static_cast<unsigned char>(original[offset + 1])) << 8) |
+                    (uint32_t(static_cast<unsigned char>(original[offset + 2])) << 16) |
+                    (uint32_t(static_cast<unsigned char>(original[offset + 3])) << 24);
+            };
+            Require(readWord(4) == 2 && readWord(8) == original.size() && readWord(16) == 0x4e4f534a,
+                "Invalid GLB 2.0 JSON chunk.");
+            const size_t oldJsonLength = readWord(12);
+            Require(oldJsonLength % 4 == 0 && oldJsonLength <= original.size() - 20,
+                "Invalid GLB JSON chunk length.");
+            std::string padded = formatted;
+            while (padded.size() % 4) padded.push_back(' ');
+            const size_t tailOffset = 20 + oldJsonLength;
+            std::vector<char> updated;
+            updated.reserve(original.size() - oldJsonLength + padded.size());
+            updated.insert(updated.end(), original.begin(), original.begin() + 12);
+            const uint32_t jsonLength = static_cast<uint32_t>(padded.size());
+            for (int byte = 0; byte < 4; ++byte) updated.push_back(static_cast<char>((jsonLength >> (byte * 8)) & 255));
+            updated.insert(updated.end(), original.begin() + 16, original.begin() + 20);
+            updated.insert(updated.end(), padded.begin(), padded.end());
+            updated.insert(updated.end(), original.begin() + tailOffset, original.end());
+            const uint32_t totalLength = static_cast<uint32_t>(updated.size());
+            for (int byte = 0; byte < 4; ++byte) updated[8 + byte] = static_cast<char>((totalLength >> (byte * 8)) & 255);
+            std::ofstream file(path, std::ios::binary | std::ios::trunc);
+            Require(static_cast<bool>(file), "Cannot open GLB for writing.");
+            file.write(updated.data(), static_cast<std::streamsize>(updated.size()));
+            Require(static_cast<bool>(file), "Cannot write GLB.");
+            error.clear();
+            return true;
+        }
+        catch (const std::exception& exception) { error = exception.what(); return false; }
+    }
+
     bool ParseGltfRoles(const std::string& text, GltfRoles& output, std::string& error)
     {
         try
@@ -145,6 +250,34 @@ namespace Tank::Map
     bool InspectGltfRoles(const std::filesystem::path& path, GltfRoles& output, std::string& error)
     {
         try { return ParseGltfRoles(ReadJson(path), output, error); }
+        catch (const std::exception& exception) { error = exception.what(); return false; }
+    }
+
+    bool InspectGltfMaterialColors(const std::filesystem::path& path,
+        std::vector<GltfMaterialColor>& output, std::string& error)
+    {
+        try { return ParseMaterialColors(ReadJson(path), output, error); }
+        catch (const std::exception& exception) { error = exception.what(); return false; }
+    }
+
+    bool SaveGltfMaterialColor(const std::filesystem::path& path, size_t materialIndex,
+        const std::array<float, 4>& color, std::string& error)
+    {
+        try
+        {
+            for (float channel : color)
+                Require(std::isfinite(channel) && channel >= 0.0f && channel <= 1.0f,
+                    "Color channels must be between 0 and 1.");
+            Json json = Json::parse(ReadJson(path));
+            Require(json.contains("materials") && json["materials"].is_array() &&
+                materialIndex < json["materials"].size(), "Material index is out of range.");
+            auto& material = json["materials"][materialIndex];
+            if (!material.contains("pbrMetallicRoughness"))
+                material["pbrMetallicRoughness"] = Json::object();
+            material["pbrMetallicRoughness"]["baseColorFactor"] =
+                Json::array({ color[0], color[1], color[2], color[3] });
+            return WriteJson(path, json.dump(), error);
+        }
         catch (const std::exception& exception) { error = exception.what(); return false; }
     }
 }

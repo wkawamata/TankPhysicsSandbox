@@ -207,10 +207,13 @@ int main()
         "pivot right track must use its traction coefficient");
 
     Tank::Physics::TankSettings suspensionLimitSettings;
+    suspensionLimitSettings.neutralBrakeAmount = 4.0f;
     suspensionLimitSettings.suspensionFrequencyHz = 50.0f;
     suspensionLimitSettings.suspensionDamping = -1.0f;
     Tank::Physics::TankController suspensionLimitController;
     suspensionLimitController.Initialize(world, suspensionLimitSettings);
+    passed &= Check(NearlyEqual(suspensionLimitController.Settings().neutralBrakeAmount, 3.0f),
+        "neutral brake strength must allow and clamp at 3.0");
     passed &= Check(
         NearlyEqual(suspensionLimitController.Settings().suspensionFrequencyHz, 10.0f),
         "suspension frequency must be clamped before Jolt setup");

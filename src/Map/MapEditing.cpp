@@ -1,6 +1,7 @@
 #include "MapEditing.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace Tank::Map
 {
@@ -16,6 +17,13 @@ namespace Tank::Map
                 [&candidate](const EnemyPlacement& enemy) { return enemy.id == candidate; });
             return usedByInstance || usedByArea || usedByEnemy;
         }
+    }
+
+    std::array<float, 3> SnapPositionToGrid(std::array<float, 3> position, float spacing)
+    {
+        if (!std::isfinite(spacing) || spacing <= 0) return position;
+        for (auto& value : position) value = std::round(value / spacing) * spacing;
+        return position;
     }
 
     std::string MakeUniqueInstanceId(const Manifest& manifest)

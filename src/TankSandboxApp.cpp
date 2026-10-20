@@ -1,10 +1,12 @@
 #include "TankSandboxApp.h"
+#include "App/EditorCameraViews.h"
 #include "Platform/Windows/DebugLogSink.h"
 #include "Input/TankInputMapper.h"
 #include "Map/MapManifest.h"
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include <third_party/ImGuizmo/ImGuizmo.h>
 #include "imgui_impl_dx12.h"
 
@@ -425,6 +427,11 @@ void TankSandboxApp::OnInit()
     m_lastSavedUiLayoutSettings = CaptureUiLayoutSettings();
 
     m_cameraPanelCtx.cameraController = &m_cameraController;
+    m_cameraPanelCtx.cameraRestored = [this]()
+    {
+        m_debugCameraController.ResetInputState();
+        m_debugCameraController.InitObjectViewerFromCamera();
+    };
     m_cameraPanelCtx.setCamera = [this](const Engine::CameraState& c) { m_sceneRenderer.SetCamera(c); };
     m_cameraPanelCtx.activateOrbitCamera = [this](Engine::Scene& scene, const DirectX::XMFLOAT3& pivot)
         { ActivateOrbitCamera(scene, pivot); };
@@ -511,7 +518,17 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.enemyEditor = &m_trackedVehicleMode.EnemyEditor();
     m_trackedVehiclePanelCtx.enemyEditorJsonPath = &m_trackedVehicleMode.EnemyEditorJsonPath();
     m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleMode.Settings();
+    m_trackedVehiclePanelCtx.settingsUndo = &m_trackedVehicleMode.SettingsUndo();
     m_trackedVehiclePanelCtx.inputMappingSettings = &m_trackedVehicleMode.InputMappingSettings();
+    m_trackedVehiclePanelCtx.inputDeviceProfiles = &m_trackedVehicleMode.InputDeviceProfiles();
+    m_trackedVehiclePanelCtx.resolveInputDeviceProfile = [this]()
+    {
+        return m_trackedVehicleMode.ActiveInputDeviceProfile();
+    };
+    m_trackedVehiclePanelCtx.restoreInputDeviceProfiles = [this](const auto& profiles)
+    {
+        m_trackedVehicleMode.RestoreInputDeviceProfiles(profiles);
+    };
     m_trackedVehiclePanelCtx.inputMappingStatus =
         &m_trackedVehicleMode.InputMappingStatus();
     m_trackedVehiclePanelCtx.appliedTankSettings = &m_trackedVehicleMode.AppliedSettings();
@@ -925,7 +942,7 @@ void TankSandboxApp::OnKeyDown(UINT8 key)
     else if (key == 'S') m_moveBackward = true;
     else if (key == 'A') m_turnRight = true;
     else if (key == 'D') m_turnLeft = true;
-    else if (key == 'Z') m_pivotTurnRight = true;
+    else if (key == 'Z' && !(GetKeyState(VK_CONTROL) & 0x8000)) m_pivotTurnRight = true;
     else if (key == 'C') m_pivotTurnLeft = true;
     else if (key == 'Q') m_rollLeft = true;
     else if (key == 'E') m_rollRight = true;
@@ -963,7 +980,7 @@ bool TankSandboxApp::EnsureDebugCameraForMouse()
     }
     if (m_appMode == AppMode::MapEditor)
     {
-        if (m_mapEditorMode.EnemyGizmoCapturesMouse())
+        if (m_mapEditorMode.PlacementGizmoCapturesMouse())
         {
             m_debugCameraController.ResetInputState();
             return false;
@@ -1051,11 +1068,13 @@ void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 {
+    // Always end a camera gesture, including releases over ImGui windows.
     if (EnsureDebugCameraForMouse())
     {
         m_debugCameraController.OnMouseUp(button, x, y);
         ApplyActiveCameraScene();
     }
+    else m_debugCameraController.ResetInputState();
 }
 
 void TankSandboxApp::OnMouseMove(int x, int y)
@@ -1499,7 +1518,8 @@ void TankSandboxApp::UpdateUiFrame()
     if (m_toolUiVisible)
     {
         DrawToolUi();
-        m_outputPanel.Draw();
+        m_outputPanel.Draw(m_appMode == AppMode::PhysicsTrackedVehicle &&
+            m_trackedVehicleMode.MapCleared());
     }
 
     if (m_appMode == AppMode::MapEditor)
@@ -1512,6 +1532,7 @@ void TankSandboxApp::UpdateUiFrame()
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
+    m_cameraPanelCtx.settingsUndo = m_appMode == AppMode::PhysicsTrackedVehicle ? &m_trackedVehicleMode.SettingsUndo() : nullptr;
     m_cameraPanelCtx.camera = ActiveCamera();
     m_cameraPanelCtx.trackedVehicleActive = (m_appMode == AppMode::PhysicsTrackedVehicle);
     m_cameraPanelCtx.vehicleState = &m_trackedVehicleMode.TestState();
@@ -1854,13 +1875,39 @@ void TankSandboxApp::DrawToolUi()
         m_mapEditorMode.SetAssetValidator([this](const std::filesystem::path& path,
             const Tank::Map::GltfRoles& roles, std::string& error)
             { return m_mapEditorScenePresenter.ValidateVisualAsset(path, roles, error); });
-        const bool leaveMapEditor = m_mapEditorMode.DrawUi(Win32Application::GetHwnd());
+        const bool leaveMapEditor = m_mapEditorMode.DrawUi(Win32Application::GetHwnd(), &m_outputPanel.open);
         if (!leaveMapEditor)
         {
-            m_mapEditorMode.DrawEnemyGizmo(m_mapEditorScenePresenter.GetScene().camera,
+            if (m_mapEditorMode.IsMapOpen())
+            {
+                bool cameraOpen = m_mapEditorMode.CameraWindowVisible();
+                if (Ui::DrawMapEditorCameraWindow(m_mapEditorScenePresenter.GetScene().camera,
+                        m_debugCameraController, cameraOpen, [this]() {m_mapEditorMode.RequestFocusSelected();},
+                        [this](const auto& before, const auto& after)
+                        {
+                            m_mapEditorMode.ObserveViewEdit(before, after, ImGui::GetActiveID(),
+                                [this](const auto& value)
+                                {
+                                    Ui::RestoreEditorCamera(value, m_mapEditorScenePresenter.GetScene().camera, m_debugCameraController);
+                                    ApplyActiveCameraScene();
+                                }, "Editor camera settings");
+                        }))
+                    ApplyActiveCameraScene();
+                m_mapEditorMode.SetCameraWindowVisible(cameraOpen);
+                const auto& io = ImGui::GetIO();
+                if (!io.WantTextInput && !ImGui::IsAnyItemActive() && !io.KeyCtrl && !io.KeyAlt && !io.KeySuper &&
+                    !ImGuizmo::IsUsingAny() && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
+                    ImGui::IsKeyPressed(ImGuiKey_F, false)) m_mapEditorMode.RequestFocusSelected();
+            }
+            m_mapEditorMode.DrawPlacementGizmo(m_mapEditorScenePresenter.GetScene().camera,
                 m_windowInfo.aspectRatio);
-            if (m_mapEditorMode.EnemyGizmoCapturesMouse())
+            if (m_mapEditorMode.PlacementGizmoCapturesMouse())
                 m_debugCameraController.ResetInputState();
+            m_mapEditorMode.UpdateViewportPicking([this](float x, float y)
+            {
+                const auto* viewport = ImGui::GetMainViewport();
+                return m_mapEditorScenePresenter.PickScreen(x, y, viewport->Size.x, viewport->Size.y);
+            });
         }
         if (leaveMapEditor)
         {
@@ -1888,11 +1935,13 @@ void TankSandboxApp::DrawToolUi()
                 const Tank::Rendering::MapEditorGridSettings grid = {
                     m_mapEditorMode.GridSpacingMeters(),
                     m_mapEditorMode.GridHalfCellCount(),
-                    m_mapEditorMode.GridLineWidthMeters() };
+                    m_mapEditorMode.GridLineWidthMeters(),
+                    m_mapEditorMode.GridVisible() };
                 const Tank::Rendering::MapEditorPreviewSettings preview = {
                     m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds(),
                     m_mapEditorMode.ShowVisualMeshes(), m_mapEditorMode.ShowHitMeshes(),
-                    m_mapEditorMode.VisualMeshColor(), m_mapEditorMode.SelectedEnemyId() };
+                    m_mapEditorMode.VisualMeshColor(), m_mapEditorMode.SelectedEnemyId(),
+                    m_mapEditorMode.SelectedTreeNodeId() };
                 if (m_mapEditorScenePresenter.Rebuild(
                     map.Folder(), map.Document(), grid, preview, error))
                 {
@@ -1904,33 +1953,17 @@ void TankSandboxApp::DrawToolUi()
                     {
                         if (const auto& target = m_mapEditorScenePresenter.SelectedFocusTarget())
                         {
-                            float offsetX = scene.camera.pos.x - scene.camera.gazePoint.x;
-                            float offsetY = scene.camera.pos.y - scene.camera.gazePoint.y;
-                            float offsetZ = scene.camera.pos.z - scene.camera.gazePoint.z;
-                            float distance = std::sqrt(
-                                offsetX * offsetX + offsetY * offsetY + offsetZ * offsetZ);
-                            if (distance < 0.1f)
-                            {
-                                offsetX = 1.0f;
-                                offsetY = 0.75f;
-                                offsetZ = -1.0f;
-                                distance = std::sqrt(offsetX * offsetX +
-                                    offsetY * offsetY + offsetZ * offsetZ);
-                            }
-                            const float targetDistance = (std::max)(2.0f, target->radius * 2.5f);
-                            const float scale = targetDistance / distance;
-                            cameraPivot = { target->center[0], target->center[1], target->center[2] };
-                            scene.camera.pos = { cameraPivot.x + offsetX * scale,
-                                cameraPivot.y + offsetY * scale,
-                                cameraPivot.z + offsetZ * scale };
-                            scene.camera.gazePoint = cameraPivot;
+                            Tank::App::FocusEditorCamera(scene.camera, target->center, target->radius, m_windowInfo.aspectRatio);
+                            cameraPivot = scene.camera.gazePoint;
                         }
                     }
                     m_sceneRenderer.SetScene(scene);
                     m_sceneRenderer.ReloadSceneResources(scene);
                     m_sceneRenderer.SetDisplayInstanceCount(
                         static_cast<int>(scene.instances.size()));
+                    const auto editorCamera = scene.camera;
                     ActivateOrbitCamera(scene, cameraPivot);
+                    scene.camera = editorCamera;
                     ApplyActiveCameraScene();
                     m_mapEditorMode.SetPreviewWarning(m_mapEditorScenePresenter.Warning());
                 }
@@ -2248,7 +2281,7 @@ void TankSandboxApp::ApplyActiveCameraScene()
 {
     if (Engine::CameraState* camera = ActiveCamera())
     {
-        if (m_cameraController.IsDebugSlot())
+        if (m_appMode != AppMode::MapEditor && m_cameraController.IsDebugSlot())
         {
             Tank::App::CameraController::StabilizeWorldUp(*camera);
         }
