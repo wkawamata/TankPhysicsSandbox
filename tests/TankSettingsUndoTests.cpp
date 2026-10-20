@@ -1,4 +1,6 @@
 #include "App/TankSettingsUndo.h"
+#include "Input/InputDeviceProfiles.h"
+#include "Input/TankInputMapper.h"
 #include "Physics/PhysicsEnvironmentSettings.h"
 #include "Physics/EnemyAttackType.h"
 #include "Rendering/TankVisualSettings.h"
@@ -135,6 +137,45 @@ int main()
     undo.Clear();
     undo.FinishInteraction(0);
     Check(!undo.CanUndo(), "Session cleanup must discard pending external edits");
+    Tank::Input::InputDeviceProfiles devices;
+    devices.profiles.emplace_back();
+    devices.profiles.front().id = "pad-A";
+    devices.profiles.emplace_back();
+    devices.profiles.back().id = "pad-B";
+    const auto devicesInitial = devices;
+    auto previousDevices = devices;
+    devices.profiles.front().deadzone = 0.25f;
+    undo.ObserveExternal(previousDevices, devices, 401,
+        [&](const auto& value) { devices = value; }, "Input devices");
+    previousDevices = devices;
+    devices.profiles.front().deadzone = 0.3f;
+    undo.ObserveExternal(previousDevices, devices, 401,
+        [&](const auto& value) { devices = value; }, "Input devices");
+    undo.FinishInteraction(402);
+    previousDevices = devices;
+    devices.profiles.back().leftTrackAxis = 8;
+    devices.profiles.back().fireButton = 9;
+    devices.profiles.back().invertLeftTrack = false;
+    devices.profiles.back().neutral = 0.4f;
+    undo.ObserveExternal(previousDevices, devices, 402,
+        [&](const auto& value) { devices = value; }, "Input devices");
+    Check(undo.Undo() && devices.profiles.back() == devicesInitial.profiles.back() &&
+        devices.profiles.front().deadzone == 0.3f, "Device edits must restore the correct device across selection changes");
+    Check(undo.Undo() && devices == devicesInitial, "Deadzone drag must undo as one command");
+    undo.Redo();
+    const auto beforeLoad = devices;
+    devices.profiles.clear();
+    undo.ObserveExternal(beforeLoad, devices, 0,
+        [&](const auto& value) { devices = value; }, "Load devices");
+    Check(undo.Undo() && devices == beforeLoad, "Loading profiles must be undoable despite vector replacement");
+    Tank::Input::TankInputMappingSettings mapping;
+    const auto mappingInitial = mapping;
+    mapping.stickDeadzone = 0.4f;
+    mapping.leftLeverAxis = 7;
+    undo.ObserveExternal(mappingInitial, mapping, 0,
+        [&](const auto& value) { mapping = value; }, "Mapping");
+    Check(undo.Undo() && mapping == mappingInitial, "Mapping undo must restore axis and deadzone values");
+    undo.Clear();
     std::cout << "Tank settings undo tests passed\n";
     return 0;
 }

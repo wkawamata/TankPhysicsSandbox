@@ -20,6 +20,7 @@ namespace Tank::Input
 
     struct TankInputMappingSettings
     {
+        bool operator==(const TankInputMappingSettings&) const = default;
         float stickDeadzone = 0.15f;
         float pivotThreshold = 0.1f;
         float pivotSpeed = 1.0f;

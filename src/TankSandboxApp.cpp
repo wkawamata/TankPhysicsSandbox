@@ -514,6 +514,15 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.tankSettings = &m_trackedVehicleMode.Settings();
     m_trackedVehiclePanelCtx.settingsUndo = &m_trackedVehicleMode.SettingsUndo();
     m_trackedVehiclePanelCtx.inputMappingSettings = &m_trackedVehicleMode.InputMappingSettings();
+    m_trackedVehiclePanelCtx.inputDeviceProfiles = &m_trackedVehicleMode.InputDeviceProfiles();
+    m_trackedVehiclePanelCtx.resolveInputDeviceProfile = [this]()
+    {
+        return m_trackedVehicleMode.ActiveInputDeviceProfile();
+    };
+    m_trackedVehiclePanelCtx.restoreInputDeviceProfiles = [this](const auto& profiles)
+    {
+        m_trackedVehicleMode.RestoreInputDeviceProfiles(profiles);
+    };
     m_trackedVehiclePanelCtx.inputMappingStatus =
         &m_trackedVehicleMode.InputMappingStatus();
     m_trackedVehiclePanelCtx.appliedTankSettings = &m_trackedVehicleMode.AppliedSettings();

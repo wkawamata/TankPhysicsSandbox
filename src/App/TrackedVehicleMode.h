@@ -85,6 +85,12 @@ public:
     Tank::Rendering::TankVisualSettings& VisualSettings() { return m_visualSettings; }
     Tank::Input::TankInputMappingSettings& InputMappingSettings() { return m_inputMappingSettings; }
     Tank::Input::InputDeviceProfile* ActiveInputDeviceProfile();
+    Tank::Input::InputDeviceProfiles& InputDeviceProfiles() { return m_inputDeviceProfiles; }
+    void RestoreInputDeviceProfiles(const Tank::Input::InputDeviceProfiles& profiles)
+    {
+        m_inputDeviceProfiles = profiles;
+        m_activeInputDeviceProfile.reset();
+    }
     const std::string& InputMappingStatus() const { return m_inputMappingStatus; }
 
     bool& Paused() { return m_paused; }

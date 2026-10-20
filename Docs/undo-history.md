@@ -16,6 +16,11 @@ shortcut. Text inputs retain their normal text-editing shortcut while active.
 - Enemy Unit Editor in Tracked Vehicle: movement, attacks, unit types and mounts.
 - Tank appearance: materials, colors, model scale and dummy visibility; restored
   appearance refreshes materials and the scene.
+- Input Mapping: device axis/button assignments, inversion, neutral/tolerance and
+  deadzone settings, plus complete profile replacement via Load Mapping. The
+  profile collection is restored safely across device switches and reloads.
+  Keyboard bindings currently have no editing UI. Save Mapping still writes disk
+  explicitly and is not undone.
 - Ground/environment: floor, friction, grid, colors and obstacle generation settings.
   Apply & Reset remains explicit, as for physics and enemy simulation changes.
 - MyTank in Tracked Vehicle: editable TankSettings, including chassis, engine,
@@ -32,8 +37,7 @@ its required snapshots. Memory usage therefore grows with the number and size
 of edits until the session is cleared or the process exits.
 
 A successful map open, Discard, or Back to Menu clears the map editing history.
-Leaving Tracked Vehicle clears its separate MyTank history. Camera, preview and
-input-device settings are outside the current Undo scope.
+Leaving Tracked Vehicle clears its separate MyTank history. Camera and other preview preferences are outside the current Undo scope.
 
 Save does not clear history. Undo after saving changes the in-memory document
 and updates its dirty state; it does not overwrite the saved file. Material

@@ -383,7 +383,9 @@ namespace Ui
 			ImGui::SameLine();
 			if (ImGui::Button("Load Mapping") && ctx.loadInputMappingSettings)
 			{
-				ctx.loadInputMappingSettings();
+                ctx.loadInputMappingSettings();
+                // Loading replaces the profile vector, invalidating the old UI pointer.
+                if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
 			}
 			if (ctx.inputMappingStatus != nullptr &&
 				!ctx.inputMappingStatus->empty())
@@ -1594,6 +1596,9 @@ namespace Ui
             !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
             io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
             ctx.settingsUndo->Undo();
+        if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
+        auto beforeMapping = ctx.inputMappingSettings ? *ctx.inputMappingSettings : Tank::Input::TankInputMappingSettings{};
+        auto beforeProfiles = ctx.inputDeviceProfiles ? *ctx.inputDeviceProfiles : Tank::Input::InputDeviceProfiles{};
         auto beforeSettings = ctx.tankSettings ? *ctx.tankSettings : Tank::Physics::TankSettings{};
         auto beforeVisual = ctx.visualSettings ? *ctx.visualSettings : Tank::Rendering::TankVisualSettings{};
         const auto displayState = [&ctx]
@@ -1874,6 +1879,9 @@ namespace Ui
                 beforeSettings = *ctx.tankSettings;
                 if (ctx.visualSettings) beforeVisual = *ctx.visualSettings;
                 beforeDisplay = displayState();
+                if (ctx.inputMappingSettings) beforeMapping = *ctx.inputMappingSettings;
+                if (ctx.inputDeviceProfiles) beforeProfiles = *ctx.inputDeviceProfiles;
+                if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
                 if (ctx.envSettings) beforeEnvironment = *ctx.envSettings;
                 if (ctx.enemyEditor) beforeEnemies = *ctx.enemyEditor;
             }
@@ -3109,6 +3117,12 @@ namespace Ui
         if (hasSettingsUndo)
         {
             const auto interaction = ImGui::GetActiveID();
+            if (ctx.inputMappingSettings)
+                ctx.settingsUndo->ObserveExternal(beforeMapping, *ctx.inputMappingSettings, interaction,
+                    [settings = ctx.inputMappingSettings](const auto& value) { *settings = value; }, "Input mapping edit");
+            if (ctx.inputDeviceProfiles && ctx.restoreInputDeviceProfiles)
+                ctx.settingsUndo->ObserveExternal(beforeProfiles, *ctx.inputDeviceProfiles, interaction,
+                    ctx.restoreInputDeviceProfiles, "Input device edit");
             if (ctx.visualSettings)
                 ctx.settingsUndo->ObserveExternal(beforeVisual, *ctx.visualSettings, interaction,
                     [settings = ctx.visualSettings, materials = ctx.applyMaterials, scene = ctx.updateScene,
