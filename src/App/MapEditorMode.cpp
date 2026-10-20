@@ -1136,8 +1136,11 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     const auto& io = ImGui::GetIO();
     if (!m_confirm && !io.WantTextInput && !ImGui::IsAnyItemActive() &&
         !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) && io.KeyCtrl &&
-        ImGui::IsKeyPressed(ImGuiKey_Z, false))
-        Undo();
+        !io.KeyAlt && !io.KeySuper)
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false))) Redo();
+        else if (!io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)) Undo();
+    }
     if (!m_availableMapsScanned) RefreshAvailableMaps();
     if (ImGui::Button("Open Folder...")) Request(Action::Open);
     ImGui::SameLine();
@@ -1146,10 +1149,14 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     ImGui::BeginDisabled(!m_map.IsOpen());
     if (ImGui::Button("Save")) Save();
     ImGui::EndDisabled();
-    ImGui::SameLine();
     ImGui::BeginDisabled(!CanUndo());
     if (ImGui::Button("Undo")) Undo();
     ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!CanRedo());
+    if (ImGui::Button("Redo")) Redo();
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("Ctrl+Y / Ctrl+Shift+Z");
     ImGui::SameLine();
     if (ImGui::Button("Back to Menu")) RequestExit();
     auto viewFields = [this]()

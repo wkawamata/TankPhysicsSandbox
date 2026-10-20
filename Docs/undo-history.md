@@ -1,8 +1,8 @@
 # Editor Undo
 
 The Map Editor has an Undo button beside Back to Menu and a Ctrl+Z shortcut.
-The Tracked Vehicle panel has an Undo button under Tank Settings and the same
-shortcut. Text inputs retain their normal text-editing shortcut while active.
+The Tracked Vehicle panel has Undo/Redo buttons under Tank Settings. Both
+screens support Ctrl+Z (Undo), Ctrl+Y and Ctrl+Shift+Z (Redo). Text inputs retain their normal text-editing shortcut while active.
 
 ## Supported edits
 
@@ -61,8 +61,7 @@ restored edited values through the existing live-application path.
 
 IUndoCommand provides named Undo and Redo actions. UndoHistory can execute a new
 command or record an immediate-mode UI edit that has already been applied.
-Adding a new command after Undo discards its redo branch. Redo is available in
-the history API; this UI increment exposes Undo only.
+Adding a new command after Undo discards its redo branch. Both Undo and Redo are exposed through buttons and shortcuts.
 
 SnapshotUndoEdit groups widget interactions. ManifestUndoEdit compares validated
 manifest serialization, while enemy and tank settings compare their values,

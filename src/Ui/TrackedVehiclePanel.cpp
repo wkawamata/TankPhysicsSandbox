@@ -1594,8 +1594,12 @@ namespace Ui
         const auto& io = ImGui::GetIO();
         if (hasSettingsUndo && !io.WantTextInput && !ImGui::IsAnyItemActive() &&
             !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
-            io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false))
-            ctx.settingsUndo->Undo();
+            io.KeyCtrl && !io.KeyAlt && !io.KeySuper)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)))
+                ctx.settingsUndo->Redo();
+            else if (!io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)) ctx.settingsUndo->Undo();
+        }
         if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
         const std::array<bool*, 13> previewFields = {ctx.physicsDebugOverlay, ctx.mapHitMeshOverlay,
             ctx.mapVisualMeshes, ctx.mapMarkersVisible, ctx.cameraWindowVisible, ctx.telemetryWindowVisible,
@@ -1884,10 +1888,17 @@ namespace Ui
 		ImGui::SeparatorText("Tank Settings");
         if (hasSettingsUndo)
         {
+            bool historyChanged = false;
             ImGui::BeginDisabled(!ctx.settingsUndo->CanUndo());
-            if (ImGui::Button("Undo (Ctrl+Z)"))
+            if (ImGui::Button("Undo (Ctrl+Z)")) historyChanged = ctx.settingsUndo->Undo();
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(!ctx.settingsUndo->CanRedo());
+            if (ImGui::Button("Redo (Ctrl+Y)")) historyChanged = ctx.settingsUndo->Redo();
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("Ctrl+Y / Ctrl+Shift+Z");
+            if (historyChanged)
             {
-                ctx.settingsUndo->Undo();
                 beforeSettings = *ctx.tankSettings;
                 if (ctx.visualSettings) beforeVisual = *ctx.visualSettings;
                 beforeDisplay = displayState();
@@ -1898,8 +1909,7 @@ namespace Ui
                 if (ctx.envSettings) beforeEnvironment = *ctx.envSettings;
                 if (ctx.enemyEditor) beforeEnemies = *ctx.enemyEditor;
             }
-            ImGui::EndDisabled();
-            ImGui::TextDisabled("Undo restores edited values. Apply & Reset applies them to the tank.");
+            ImGui::TextDisabled("Undo/Redo restores edited values. Apply & Reset applies them to the tank.");
         }
 		ImGui::TextUnformatted("Slot");
 		ImGui::SameLine();
