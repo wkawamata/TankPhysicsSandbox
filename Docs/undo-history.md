@@ -6,6 +6,8 @@ screens support Ctrl+Z (Undo), Ctrl+Y and Ctrl+Shift+Z (Redo). Text inputs retai
 
 ## Supported edits
 
+- Map names: Apply Name / Enter is one command; Undo/Redo restores the name
+  and list label. Save remains an explicit disk write.
 - Map hierarchy: local transforms, parenting and sibling order, active/visible
   states, names, subtree duplication, and node creation/removal. Parent removal
   retains the hierarchy editor's rule to move or remove its children first.

@@ -113,6 +113,18 @@ int RunTests()
     Check(map.Open(folder.path, error), "Reopen map in a new session");
     edit.FinishInteraction(0, history, apply, "Map edit");
     Check(!history.CanUndo() && !edit.HasPending(), "Closed sessions must not leak pending or saved commands");
+    const auto savedName = map.Document().name;
+    const auto fileBeforeRename = Read(path);
+    change([](auto& state) { state.name = "Renamed arena"; }, 0);
+    Check(map.Document().name == "Renamed arena" && map.IsDirty(), "Rename changes the map document");
+    history.Undo();
+    Check(map.Document().name == savedName && !map.IsDirty(), "Undo restores saved map name");
+    history.Redo();
+    Check(map.Document().name == "Renamed arena", "Redo restores map name");
+    Check(Read(path) == fileBeforeRename, "Undo/Redo rename leaves disk unchanged until Save");
+    Check(map.Save(error), "Save renamed map");
+    MapFolder reopened;
+    Check(reopened.Open(folder.path, error) && reopened.Document().name == "Renamed arena", "Saved name survives reopen");
     std::cout << "Map undo history tests passed\n";
     return 0;
 }

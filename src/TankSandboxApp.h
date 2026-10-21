@@ -219,6 +219,7 @@ private:
     // Auto scene entry and screenshot for CLI.
     std::optional<AppMode> m_autoSceneMode;
     std::optional<std::filesystem::path> m_autoMapPath;
+    std::optional<std::string> m_autoMapName;
     UINT64 m_autoCaptureFrameCount = 0;
     UINT64 m_autoFramesElapsed = 0;
     bool m_quitAfterCapture = false;

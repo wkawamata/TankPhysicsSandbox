@@ -58,6 +58,7 @@ add_library(TankMapCore STATIC
     src/Map/MapAssetCatalog.cpp
     src/Map/MapAssetCatalog.h
     src/Map/MapFolder.cpp
+    src/Map/MapCatalog.cpp
     src/Map/MapFolder.h
     src/Map/MapHierarchy.cpp
     src/Map/MapHierarchy.h
@@ -461,6 +462,10 @@ if(BUILD_TESTING)
         target_compile_options(MapAssetCatalogTests PRIVATE /W4 /permissive-)
     endif()
     add_test(NAME TankMap.AssetCatalog COMMAND MapAssetCatalogTests)
+
+    add_executable(MapCatalogTests tests/MapCatalogTests.cpp)
+    target_link_libraries(MapCatalogTests PRIVATE TankMapCore)
+    add_test(NAME TankMap.Catalog COMMAND MapCatalogTests)
 
     add_executable(MapFolderTests tests/MapFolderTests.cpp)
     target_link_libraries(MapFolderTests PRIVATE TankMapCore)

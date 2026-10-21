@@ -107,6 +107,20 @@ namespace Tank::Map
         }
     }
 
+    bool IsValidMapName(const std::string& name, std::string& error)
+    {
+        if (name.empty() || name.size() > 256 ||
+            std::isspace(static_cast<unsigned char>(name.front())) ||
+            std::isspace(static_cast<unsigned char>(name.back())) ||
+            std::any_of(name.begin(), name.end(), [](unsigned char c) { return c < 32 || c == 127; }))
+        {
+            error = "Map name must be 1-256 UTF-8 bytes, without control characters or surrounding whitespace.";
+            return false;
+        }
+        error.clear();
+        return true;
+    }
+
     bool IsValidEnemyPatrolSettings(const EnemyPatrolSettings& settings)
     {
         return !settings.points.empty() &&
@@ -132,6 +146,12 @@ namespace Tank::Map
             Require(json.at("instances").is_array(), "instances must be an array");
             Require(json.at("clearAreas").is_array(), "clearAreas must be an array");
             Manifest loaded;
+            if (const auto name = json.find("name"); name != json.end())
+            {
+                Require(name->is_string(), "Map name must be a string");
+                loaded.name = name->get<std::string>();
+                Require(IsValidMapName(loaded.name, error), error);
+            }
             loaded.playerSpawn = ReadTransform(json.at("playerSpawn"));
             loaded.playerSpawnParentId = json.at("playerSpawn").value("parentId", std::string("root"));
             std::set<std::string> ids;
@@ -309,6 +329,11 @@ namespace Tank::Map
                 { "startPoints", Json::array() },
                 { "nodeInfo", Json::object() }
             };
+            if (!manifest.name.empty())
+            {
+                Require(IsValidMapName(manifest.name, error), error);
+                json["name"] = manifest.name;
+            }
             for (const auto& node : MapTree(manifest))
             {
                 json["treeOrder"].push_back(node.id);

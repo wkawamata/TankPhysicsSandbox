@@ -3,6 +3,7 @@
 #include "Platform/Windows/DebugLogSink.h"
 #include "Input/TankInputMapper.h"
 #include "Map/MapManifest.h"
+#include "Map/MapCatalog.h"
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
@@ -200,6 +201,12 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
         {
             m_rollCaptureIntervalFrames = (std::max)(
                 UINT64{1}, static_cast<UINT64>(_wtoi64(argv[++i])));
+        }
+        else if (arg == L"--map-name")
+        {
+            if (i + 1 >= argc) throw std::invalid_argument("--map-name requires a map name");
+            const auto utf8 = std::filesystem::path(argv[++i]).u8string();
+            m_autoMapName = std::string(utf8.begin(), utf8.end());
         }
         else if (arg == L"--map" && i + 1 < argc)
         {
@@ -647,7 +654,7 @@ void TankSandboxApp::OnInit()
     if (m_autoSceneMode.has_value())
     {
         if (*m_autoSceneMode == AppMode::PhysicsTrackedVehicle &&
-            m_autoMapPath && !LoadAutoMap())
+            (m_autoMapPath || m_autoMapName) && !LoadAutoMap())
         {
             m_autoSceneMode.reset();
             if (m_cliCaptureConfig)
@@ -2074,8 +2081,11 @@ void TankSandboxApp::DrawTopMenuUi()
     {
         ImGui::PushID(static_cast<int>(m_customMaps.size() + index));
         const bool selected = m_selectedManifestMap == index;
-        const std::string label = m_manifestMaps[index].folder.filename().string() + " (Manifest)";
-        if (ImGui::RadioButton(label.c_str(), selected))
+        const std::string label = Tank::Map::MapListLabel(m_manifestMaps[index].document, m_manifestMaps[index].folder);
+        const bool selectedButton = ImGui::RadioButton("##ManifestMap", selected);
+        ImGui::SameLine();
+        ImGui::TextUnformatted(label.c_str());
+        if (selectedButton || ImGui::IsItemClicked())
         {
             m_selectedManifestMap = index;
             m_selectedCustomMap.reset();
@@ -2188,11 +2198,27 @@ void TankSandboxApp::ReloadCustomMaps()
 
 bool TankSandboxApp::LoadAutoMap()
 {
-    if (!m_autoMapPath)
+    std::string error;
+    if (m_autoMapName)
     {
+        if (m_autoMapPath)
+        {
+            m_customMapStatus = "Use either --map or --map-name.";
+            return false;
+        }
+        std::vector<Tank::Map::NamedMap> maps;
+        Tank::Map::NamedMap map;
+        if (!Tank::Map::LoadMapCatalog(ResolveMapAssetsDirectory(), maps, error) ||
+            !Tank::Map::ResolveMapByName(maps, *m_autoMapName, map, error) ||
+            !m_trackedVehicleMode.SelectManifestMap(map.folder, map.document, error))
+        {
+            m_customMapStatus = "Map load failed: " + error;
+            return false;
+        }
+        m_customMapStatus = "Auto map: " + Tank::Map::MapName(map.document, map.folder);
         return true;
     }
-    std::string error;
+    if (!m_autoMapPath) return true;
     if (std::filesystem::is_directory(*m_autoMapPath) || m_autoMapPath->filename() == "Manifest.json")
     {
         const auto folder = std::filesystem::is_directory(*m_autoMapPath)

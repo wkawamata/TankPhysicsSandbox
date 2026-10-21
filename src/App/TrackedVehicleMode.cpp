@@ -1,4 +1,5 @@
 #include "Map/MapHierarchy.h"
+#include "Map/MapCatalog.h"
 #include "App/TrackedVehicleMode.h"
 #include "App/ManifestEnemySpawner.h"
 #include <unordered_set>
@@ -246,7 +247,7 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     m_mapCleared = false;
     m_clearedAreaName.clear();
     m_environmentSettings = {};
-    m_activeMapName = folder.filename().string();
+    m_activeMapName = Tank::Map::MapName(localManifest, folder);
     if (missingVisuals)
     {
         m_mapLoadStatus = "Warning: Visual Mesh missing for " + m_activeMapName;

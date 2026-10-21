@@ -98,6 +98,8 @@ namespace Tank::Map
 
     struct Manifest
     {
+        // Empty only for legacy manifests; MapName falls back to the folder name.
+        std::string name;
         Transform playerSpawn = { { 0.0f, 2.0f, 0.0f }, {} };
         std::vector<Instance> instances;
         std::vector<ClearArea> clearAreas;
@@ -118,6 +120,8 @@ namespace Tank::Map
         // playerSpawn remains the original start node for legacy maps.
         std::vector<StartPoint> startPoints;
     };
+
+    bool IsValidMapName(const std::string& name, std::string& error);
 
     // Failed operations leave the output unchanged and provide an error.
     bool SerializeManifest(const Manifest& manifest, std::string& jsonText, std::string& error);

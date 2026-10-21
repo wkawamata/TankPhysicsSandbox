@@ -33,24 +33,11 @@ void MapEditorMode::RefreshAvailableMaps()
 {
     m_availableMapsScanned = true;
     m_availableMaps.clear();
-    std::error_code error;
-    const std::filesystem::path root = MapAssetsRoot();
-    if (!std::filesystem::is_directory(root, error)) return;
-
-    for (const std::filesystem::directory_entry& entry :
-         std::filesystem::directory_iterator(root, error))
-    {
-        // A folder without a Manifest must not suppress later map folders.
-        error.clear();
-        if (!entry.is_directory(error) || error) continue;
-        if (std::filesystem::is_regular_file(entry.path() / "Manifest.json", error))
-            m_availableMaps.push_back(entry.path());
-    }
-    std::sort(m_availableMaps.begin(), m_availableMaps.end(),
-        [](const std::filesystem::path& left, const std::filesystem::path& right)
-        { return left.filename().wstring() < right.filename().wstring(); });
-    if (std::find(m_availableMaps.begin(), m_availableMaps.end(), m_selectedAvailableMap) ==
-        m_availableMaps.end())
+    std::string error;
+    if (!Tank::Map::LoadMapCatalog(MapAssetsRoot(), m_availableMaps, error))
+        m_status = "Map list: " + error;
+    if (std::none_of(m_availableMaps.begin(), m_availableMaps.end(),
+        [this](const auto& map) { return map.folder == m_selectedAvailableMap; }))
         m_selectedAvailableMap.clear();
 }
 
@@ -59,6 +46,8 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     if (!m_map.Open(folder, error)) return false;
     ClearUndoHistory();
     m_status = "Opened Manifest.json";
+    m_mapNameDraft = m_map.Document().name;
+    m_mapNameError.clear();
     m_previewWarning.clear();
     m_selectedAsset.clear();
     m_selectedNodeId = "root";
@@ -93,6 +82,8 @@ void MapEditorMode::ApplyManifestSnapshot(const Tank::Map::Manifest& manifest)
         return;
     }
 
+    m_mapNameDraft = Tank::Map::MapName(manifest, m_map.Folder());
+    m_mapNameError.clear();
     const auto tree = Tank::Map::MapTree(manifest);
     const auto hasNode = [&tree](const std::string& id)
     {
@@ -1007,12 +998,16 @@ bool MapEditorMode::Save()
     FlushPendingGizmoEdit();
     FlushPendingManifestEdit();
     std::string error;
-    if (!m_map.Save(error))
+    std::vector<Tank::Map::NamedMap> maps;
+    if (!Tank::Map::LoadMapCatalog(MapAssetsRoot(), maps, error) ||
+        !Tank::Map::IsMapNameAvailable(maps, m_map.Folder(), m_map.Document().name, error) ||
+        !m_map.Save(error))
     {
         m_status = "Save failed: " + error;
         return false;
     }
     m_status = "Saved Manifest.json";
+    RefreshAvailableMaps();
     return true;
 }
 
@@ -1210,9 +1205,15 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     {
         for (size_t index = 0; index < m_availableMaps.size(); ++index)
         {
-            const std::string label = m_availableMaps[index].filename().string();
-            if (ImGui::Selectable(label.c_str(), m_availableMaps[index] == m_selectedAvailableMap))
-                m_selectedAvailableMap = m_availableMaps[index];
+            const auto& map = m_availableMaps[index];
+            const auto& document = map.folder == m_map.Folder() ? m_map.Document() : map.document;
+            const std::string label = Tank::Map::MapListLabel(document, map.folder);
+            ImGui::PushID(static_cast<int>(index));
+            const ImVec2 labelPosition = ImGui::GetCursorScreenPos();
+            if (ImGui::Selectable("##map", map.folder == m_selectedAvailableMap))
+                m_selectedAvailableMap = map.folder;
+            ImGui::GetWindowDrawList()->AddText(labelPosition, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
+            ImGui::PopID();
         }
         ImGui::EndListBox();
     }
@@ -1234,6 +1235,24 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
         const auto utf8 = m_map.Folder().u8string();
         const std::string folder(utf8.begin(), utf8.end());
         ImGui::TextWrapped("Folder: %s", folder.c_str());
+        const bool rename = ImGui::InputText("Map Name", &m_mapNameDraft, ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::SameLine();
+        const bool applyName = ImGui::Button("Apply Name");
+        if (rename || applyName)
+        {
+            std::vector<Tank::Map::NamedMap> maps;
+            if (Tank::Map::LoadMapCatalog(MapAssetsRoot(), maps, m_mapNameError) &&
+                Tank::Map::IsMapNameAvailable(maps, m_map.Folder(), m_mapNameDraft, m_mapNameError))
+            {
+                const auto before = m_map.Document();
+                auto after = before;
+                after.name = m_mapNameDraft;
+                if (CommitManifestEdit(before, after, "Rename map"))
+                    m_status = "Map name changed. Save to update name references on disk.";
+            }
+        }
+        ImGui::TextDisabled("Enter / Apply Name, then Save. Map references use this name (case-sensitive).");
+        if (!m_mapNameError.empty()) ImGui::TextWrapped("%s", m_mapNameError.c_str());
         ImGui::TextUnformatted(m_map.IsDirty() ? "Unsaved changes" : "Saved");
         DrawMapTree();
         const auto& document = m_map.Document();
