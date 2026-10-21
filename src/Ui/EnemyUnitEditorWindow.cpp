@@ -1,4 +1,5 @@
 #include "EnemyUnitEditorWindow.h"
+#include "TankCollisionProfileEditor.h"
 
 #include "Physics/EnemyEditorJson.h"
 #include "Physics/TrackedVehicleTest.h"
@@ -186,6 +187,8 @@ namespace Ui
                 if (ImGui::InputText("Name", name, sizeof(name))) unit.name = name;
                 ImGuiWidgets::SliderFloatWithControls("HP", &unit.hitPoints, 1, 100000, 10, 60, "%.0f");
                 unit.hitPoints = std::clamp(unit.hitPoints, 1.0f, 100000.0f);
+                DrawTankCollisionProfileEditor("UnitCollision",
+                    unit.collisionProfile);
                 if (ImGui::Button("Add attack mount")) unit.attackMounts.push_back({});
                 for (size_t mountIndex = 0; mountIndex < unit.attackMounts.size();)
                 {

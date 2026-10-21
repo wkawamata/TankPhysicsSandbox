@@ -131,6 +131,9 @@ namespace Tank::Physics
         std::vector<AssaultProjectileState> assaultProjectiles;
         ImpactMarkBuffer assaultImpactMarks;
         std::uint64_t assaultHitTargetId = 0;
+        std::string assaultHitRegionName;
+        Vec3 assaultHitPosition = {};
+        Vec3 assaultHitNormal = {};
         std::vector<MortarProjectileState> mortarProjectiles;
         std::vector<MortarBlastState> mortarBlasts;
         std::uint64_t mortarShotsFired = 0;

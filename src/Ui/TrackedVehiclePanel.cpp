@@ -1,4 +1,5 @@
 #include "Ui/TrackedVehiclePanel.h"
+#include "Ui/TankCollisionProfileEditor.h"
 #include "Ui/EnemyUnitEditorWindow.h"
 #include "Ui/DriveTelemetry.h"
 #include "App/RollingSpeedOptimizationSession.h"
@@ -2857,6 +2858,13 @@ namespace Ui
 			SliderFloatWithPendingColor(
 				"Chassis Length", &ctx.tankSettings->chassisLengthM, 3.0f, 5.5f, 0.1f, 4.0f, "%.2f m",
 				IsPending(ctx.tankSettings->chassisLengthM, ctx.appliedTankSettings->chassisLengthM));
+			if (ImGui::TreeNode("Tank Collision and Hit Regions"))
+			{
+				DrawTankCollisionProfileEditor("PlayerCollision",
+					ctx.tankSettings->collisionProfile);
+				ImGui::TextDisabled("Apply Tank Settings to rebuild the movement body.");
+				ImGui::TreePop();
+			}
 			SliderFloatWithPendingColor(
 				"End Wheel Radius",
 				&ctx.tankSettings->endWheelRadiusM,

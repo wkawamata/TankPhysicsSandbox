@@ -812,6 +812,7 @@ void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
             m_sceneBuilder.AddInstance(boxBullet, XMMatrixScaling(0, 0, 0), m_enemySpecialProjectileMaterial);
         }
     }
+    m_physicsDebugOverlay.EnsureTankShapeCapacity(state.fixedTurrets.size());
     if (state.destructibleBoxes.empty()) return;
     const uint32_t material = m_sceneBuilder.AddSolidColorMaterial(175, 100, 35, 255);
     const auto cube = m_sceneBuilder.AddCube(1.0f);

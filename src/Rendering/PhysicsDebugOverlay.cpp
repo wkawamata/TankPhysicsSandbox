@@ -14,6 +14,9 @@ using namespace DirectX;
 
 namespace
 {
+    constexpr size_t kMaximumShapesPerTank = 17;
+    constexpr size_t kMaximumLinesPerShape = 64;
+
     void SetInstanceWorld(Engine::InstanceData& instance, FXMMATRIX world)
     {
         instance.prevWorld = instance.world;
@@ -59,6 +62,86 @@ namespace
             midpointValues.x, midpointValues.y, midpointValues.z, 1.0f);
         return XMMatrixScaling(thickness, thickness, length) * orientation;
     }
+
+    Tank::Physics::Vec3 TransformPoint(const Tank::Physics::Vec3& point,
+        FXMMATRIX transform)
+    {
+        XMFLOAT3 result;
+        XMStoreFloat3(&result, XMVector3TransformCoord(
+            XMVectorSet(point.x, point.y, point.z, 1.0f), transform));
+        return {result.x, result.y, result.z};
+    }
+
+    void AppendShapeLines(const Tank::Physics::TankShapeSettings& shape,
+        FXMMATRIX bodyTransform,
+        std::vector<std::pair<Tank::Physics::Vec3,
+            Tank::Physics::Vec3>>& lines)
+    {
+        constexpr float radians = XM_PI / 180.0f;
+        const XMMATRIX local =
+            XMMatrixRotationRollPitchYaw(
+                shape.localRotationDegrees.x * radians,
+                shape.localRotationDegrees.y * radians,
+                shape.localRotationDegrees.z * radians) *
+            XMMatrixTranslation(shape.localPosition.x,
+                shape.localPosition.y, shape.localPosition.z) * bodyTransform;
+        const auto add = [&](Tank::Physics::Vec3 a, Tank::Physics::Vec3 b)
+        {
+            lines.emplace_back(TransformPoint(a, local),
+                TransformPoint(b, local));
+        };
+        if (shape.kind == Tank::Physics::TankShapeKind::Box)
+        {
+            const float x = 0.5f * shape.sizeMeters.x;
+            const float y = 0.5f * shape.sizeMeters.y;
+            const float z = 0.5f * shape.sizeMeters.z;
+            for (const float sy : {-y, y})
+                for (const float sz : {-z, z}) add({-x, sy, sz}, {x, sy, sz});
+            for (const float sx : {-x, x})
+                for (const float sz : {-z, z}) add({sx, -y, sz}, {sx, y, sz});
+            for (const float sx : {-x, x})
+                for (const float sy : {-y, y}) add({sx, sy, -z}, {sx, sy, z});
+            return;
+        }
+
+        const float radius = 0.5f * shape.sizeMeters.x;
+        const float halfCylinder = 0.5f * shape.sizeMeters.z - radius;
+        constexpr int ringSegments = 8;
+        for (const float z : {-halfCylinder, halfCylinder})
+        {
+            for (int segment = 0; segment < ringSegments; ++segment)
+            {
+                const float a = XM_2PI * segment / ringSegments;
+                const float b = XM_2PI * (segment + 1) / ringSegments;
+                add({radius * std::cos(a), radius * std::sin(a), z},
+                    {radius * std::cos(b), radius * std::sin(b), z});
+            }
+        }
+        for (int segment = 0; segment < 4; ++segment)
+        {
+            const float angle = XM_PIDIV2 * segment;
+            const float x = radius * std::cos(angle);
+            const float y = radius * std::sin(angle);
+            add({x, y, -halfCylinder}, {x, y, halfCylinder});
+        }
+        constexpr int arcSegments = 4;
+        for (int plane = 0; plane < 2; ++plane)
+            for (const float end : {-1.0f, 1.0f})
+                for (int side = -1; side <= 1; side += 2)
+                    for (int segment = 0; segment < arcSegments; ++segment)
+                    {
+                        const float a = XM_PIDIV2 * segment / arcSegments;
+                        const float b = XM_PIDIV2 * (segment + 1) / arcSegments;
+                        const auto point = [&](float angle)
+                        {
+                            const float radial = side * radius * std::cos(angle);
+                            const float z = end * (halfCylinder + radius * std::sin(angle));
+                            return plane == 0 ? Tank::Physics::Vec3{radial, 0, z}
+                                : Tank::Physics::Vec3{0, radial, z};
+                        };
+                        add(point(a), point(b));
+                    }
+    }
 }
 
 PhysicsDebugOverlay::PhysicsDebugOverlay(Engine::SceneBuilder& sceneBuilder)
@@ -73,6 +156,10 @@ void PhysicsDebugOverlay::BuildScene(uint32_t trackProxyMaterial)
         m_sceneBuilder.AddSolidColorMaterial(60, 230, 90, 255);
     m_debugAirborneMaterial =
         m_sceneBuilder.AddSolidColorMaterial(255, 145, 35, 255);
+    m_movementShapeMaterial =
+        m_sceneBuilder.AddSolidColorMaterial(40, 220, 235, 255);
+    m_hitRegionMaterial =
+        m_sceneBuilder.AddSolidColorMaterial(255, 55, 190, 255);
 
     const uint32_t debugSuspensionMaterial =
         m_sceneBuilder.AddSolidColorMaterial(40, 210, 230, 255);
@@ -108,6 +195,20 @@ void PhysicsDebugOverlay::BuildScene(uint32_t trackProxyMaterial)
             XMMatrixScaling(0.0f, 0.0f, 0.0f),
             debugNormalMaterial);
     }
+    EnsureTankShapeCapacity(0);
+}
+
+void PhysicsDebugOverlay::EnsureTankShapeCapacity(size_t enemyCount)
+{
+    const size_t required = (enemyCount + 1) * kMaximumShapesPerTank *
+        kMaximumLinesPerShape;
+    while (m_tankShapeCapacity < required)
+    {
+        m_tankShapeLines.push_back(m_sceneBuilder.GetScene().instances.size());
+        m_sceneBuilder.AddInstance(XMMatrixScaling(0, 0, 0),
+            m_hitRegionMaterial);
+        ++m_tankShapeCapacity;
+    }
 }
 
 void PhysicsDebugOverlay::UpdateScene(
@@ -123,6 +224,50 @@ void PhysicsDebugOverlay::UpdateScene(
     const XMMATRIX bodyTransform =
         XMMatrixRotationQuaternion(bodyRotation) *
         XMMatrixTranslation(state.bodyPosition.x, state.bodyPosition.y, state.bodyPosition.z);
+
+    std::vector<std::pair<Tank::Physics::Vec3, Tank::Physics::Vec3>> shapeLines;
+    std::vector<uint32_t> shapeMaterials;
+    const auto appendProfile = [&](const Tank::Physics::TankCollisionProfile& profile,
+        FXMMATRIX transform)
+    {
+        AppendShapeLines(profile.movementShape, transform, shapeLines);
+        shapeMaterials.resize(shapeLines.size(), m_movementShapeMaterial);
+        for (const auto& region : profile.hitRegions)
+        {
+            const size_t regionBefore = shapeLines.size();
+            AppendShapeLines(region.shape, transform, shapeLines);
+            shapeMaterials.resize(shapeLines.size(), m_hitRegionMaterial);
+            for (size_t i = regionBefore; i < shapeLines.size(); ++i)
+                shapeMaterials[i] = m_hitRegionMaterial;
+        }
+    };
+    if (visible)
+    {
+        appendProfile(tankSettings.collisionProfile, bodyTransform);
+        for (const auto& enemy : state.fixedTurrets)
+        {
+            if (!enemy.target.active) continue;
+            const XMMATRIX enemyTransform = XMMatrixRotationQuaternion(XMVectorSet(
+                enemy.rotation.x, enemy.rotation.y, enemy.rotation.z,
+                enemy.rotation.w)) * XMMatrixTranslation(enemy.position.x,
+                enemy.position.y, enemy.position.z);
+            appendProfile(enemy.unitType.collisionProfile, enemyTransform);
+        }
+    }
+    for (size_t index = 0; index < m_tankShapeLines.size(); ++index)
+    {
+        auto& instance = scene.instances[m_tankShapeLines[index]];
+        if (index < shapeLines.size())
+        {
+            SetInstanceWorld(instance, MakeLineTransform(shapeLines[index].first,
+                shapeLines[index].second, 0.025f));
+            instance.materialId = shapeMaterials[index];
+        }
+        else
+        {
+            SetInstanceWorld(instance, XMMatrixScaling(0, 0, 0));
+        }
+    }
 
     const float chassisLength = tankSettings.chassisLengthM;
 

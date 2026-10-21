@@ -6,6 +6,7 @@
 #include "SpecialMoveTypes.h"
 #include "MortarAimController.h"
 #include "AssaultWeapon.h"
+#include "TankCollisionProfile.h"
 
 #include <array>
 #include <cstdint>
@@ -50,6 +51,8 @@ namespace Tank::Physics
 
     struct TankSettings
     {
+        TankCollisionProfile collisionProfile =
+            MakeTankCollisionProfile({2.4f, 1.0f, 4.0f});
         AssaultProjectileSettings assaultProjectiles = {};
         float chassisMassKg = 4000.0f;
         float recoilImpulseNewtonSeconds = 20000.0f;
