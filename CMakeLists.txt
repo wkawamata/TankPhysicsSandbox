@@ -474,6 +474,11 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME TankMap.Folder COMMAND MapFolderTests)
 
+    add_executable(GateTests tests/GateTests.cpp)
+    target_link_libraries(GateTests PRIVATE TankPhysicsCore TankMapCore)
+    target_compile_definitions(GateTests PRIVATE TANK_TEST_GATE_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Assets/Map/Templates")
+    add_test(NAME TankPhysics.Gates COMMAND GateTests)
+
     add_executable(MapManifestTests tests/MapManifestTests.cpp)
     target_link_libraries(MapManifestTests PRIVATE TankMapCore nlohmann_json::nlohmann_json)
     if(MSVC)

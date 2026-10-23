@@ -64,9 +64,11 @@ int main()
         Check(session.Open(found.folder, error), "Open named map");
         auto renamed = session.Document();
         renamed.name = "Next arena";
+        renamed.playable = false;
         Check(session.SetManifest(renamed, error) && session.Save(error), "Rename and save");
         Check(LoadMapCatalog(root.path, maps, error) && ResolveMapByName(maps, "Next arena", found, error),
             "Saved rename updates reference key");
+        Check(!found.document.playable, "Catalog retains playable state and permits editor lookup of nonplayable maps");
         Check(!ResolveMapByName(maps, unicodeName, found, error), "Old name no longer resolves after rename");
         WriteMap(root.path / "Duplicate", "Next arena");
         Check(LoadMapCatalog(root.path, maps, error) && !ResolveMapByName(maps, "Next arena", found, error) &&

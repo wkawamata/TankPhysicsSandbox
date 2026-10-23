@@ -35,7 +35,8 @@ namespace Tank::Physics
         {
             Validate(settings);
             nlohmann::json root = {{"version", 1}, {"attackTypes", nlohmann::json::array()}, {"unitTypes", nlohmann::json::array()}};
-            root["simulation"] = {{"physicalEnterMeters", settings.simulation.physicalEnterMeters},
+            root["simulation"] = {{"movementEnabled", settings.simulation.movementEnabled},
+                {"physicalEnterMeters", settings.simulation.physicalEnterMeters},
                 {"simpleReturnMeters", settings.simulation.simpleReturnMeters},
                 {"brakingDecelerationMetersPerSecondSquared", settings.simulation.brakingDecelerationMetersPerSecondSquared},
                 {"nodeArrivalMeters", settings.simulation.nodeArrivalMeters},
@@ -80,8 +81,13 @@ namespace Tank::Physics
             EnemyEditorSettings candidate;
             if (root.contains("simulation"))
             {
-                candidate.simulation.physicalEnterMeters = root.at("simulation").at("physicalEnterMeters").get<float>();
-                candidate.simulation.simpleReturnMeters = root.at("simulation").at("simpleReturnMeters").get<float>();
+                if (const auto enabled = root.at("simulation").find("movementEnabled"); enabled != root.at("simulation").end())
+                {
+                    if (!enabled->is_boolean()) throw std::runtime_error("movementEnabled must be a boolean");
+                    candidate.simulation.movementEnabled = enabled->get<bool>();
+                }
+                candidate.simulation.physicalEnterMeters = root.at("simulation").value("physicalEnterMeters", 30.0f);
+                candidate.simulation.simpleReturnMeters = root.at("simulation").value("simpleReturnMeters", 40.0f);
                 candidate.simulation.brakingDecelerationMetersPerSecondSquared = root.at("simulation").value("brakingDecelerationMetersPerSecondSquared", 2.0f);
                 candidate.simulation.nodeArrivalMeters = root.at("simulation").value("nodeArrivalMeters", 0.5f);
                 candidate.simulation.observationRadiusMeters = root.at("simulation").value("observationRadiusMeters", 6.0f);

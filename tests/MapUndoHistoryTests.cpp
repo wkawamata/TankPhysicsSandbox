@@ -125,6 +125,17 @@ int RunTests()
     Check(map.Save(error), "Save renamed map");
     MapFolder reopened;
     Check(reopened.Open(folder.path, error) && reopened.Document().name == "Renamed arena", "Saved name survives reopen");
+    const auto fileBeforePlayable = Read(path);
+    history.Clear();
+    change([](auto& state) { state.playable = false; }, 0);
+    Check(!map.Document().playable && map.IsDirty(), "Playable checkbox edits map metadata");
+    history.Undo();
+    Check(map.Document().playable && !map.IsDirty(), "Undo restores playable and saved state");
+    history.Redo();
+    Check(!map.Document().playable && map.IsDirty(), "Redo restores playable off");
+    Check(Read(path) == fileBeforePlayable, "Playable Undo/Redo does not overwrite disk");
+    Check(map.Save(error) && reopened.Open(folder.path, error) && !reopened.Document().playable,
+        "Saved playable flag survives reopening");
     std::cout << "Map undo history tests passed\n";
     return 0;
 }

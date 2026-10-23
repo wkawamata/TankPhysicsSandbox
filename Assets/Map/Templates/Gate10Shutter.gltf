@@ -1,0 +1,107 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "Tank gate dummy prefab"
+  },
+  "buffers": [
+    {
+      "byteLength": 168,
+      "uri": "data:application/octet-stream;base64,AACgwAAAAACamRm+AACgQAAAAACamRm+AACgQAAAQECamRm+AACgwAAAQECamRm+AACgwAAAAACamRk+AACgQAAAAACamRk+AACgQAAAQECamRk+AACgwAAAQECamRk+AAACAAEAAAADAAIABAAFAAYABAAGAAcAAAAEAAcAAAAHAAMAAQACAAYAAQAGAAUAAAABAAUAAAAFAAQAAwAHAAYAAwAGAAIA"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 96
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 96,
+      "byteLength": 72
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 8,
+      "type": "VEC3",
+      "min": [
+        -5.0,
+        0,
+        -0.15
+      ],
+      "max": [
+        5.0,
+        3,
+        0.15
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 36,
+      "type": "SCALAR"
+    }
+  ],
+  "materials": [
+    {
+      "name": "GateDummy",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.7,
+          0.38,
+          0.08,
+          1
+        ],
+        "metallicFactor": 0.4,
+        "roughnessFactor": 0.65
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "Visual",
+      "children": [
+        1
+      ]
+    },
+    {
+      "name": "GateVisual",
+      "mesh": 0
+    },
+    {
+      "name": "Hit",
+      "children": [
+        3
+      ]
+    },
+    {
+      "name": "GateCollision",
+      "mesh": 0
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": [
+        0,
+        2
+      ]
+    }
+  ],
+  "scene": 0
+}

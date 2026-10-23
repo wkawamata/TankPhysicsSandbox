@@ -16,3 +16,7 @@ This directory contains project documentation.
 ## Map editing
 
 - [Map names and name references](map-names.md)
+
+- [Enemy Unit Editor controls and movement toggle](enemy-unit-editor.md)
+
+- [Proximity shutter gates](gates.md)

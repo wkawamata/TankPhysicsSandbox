@@ -4,6 +4,7 @@
 #include "Input/TankInputMapper.h"
 #include "Map/MapManifest.h"
 #include "Map/MapCatalog.h"
+#include "Ui/MapListUi.h"
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
@@ -2077,20 +2078,19 @@ void TankSandboxApp::DrawTopMenuUi()
         }
         ImGui::PopID();
     }
-    for (size_t index = 0; index < m_manifestMaps.size(); ++index)
+    if (Ui::BeginMapListTable("##ManifestMaps", ImGui::GetTextLineHeightWithSpacing() * 6.0f))
     {
-        ImGui::PushID(static_cast<int>(m_customMaps.size() + index));
-        const bool selected = m_selectedManifestMap == index;
-        const std::string label = Tank::Map::MapListLabel(m_manifestMaps[index].document, m_manifestMaps[index].folder);
-        const bool selectedButton = ImGui::RadioButton("##ManifestMap", selected);
-        ImGui::SameLine();
-        ImGui::TextUnformatted(label.c_str());
-        if (selectedButton || ImGui::IsItemClicked())
+        for (size_t index = 0; index < m_manifestMaps.size(); ++index)
         {
-            m_selectedManifestMap = index;
-            m_selectedCustomMap.reset();
+            const auto& map = m_manifestMaps[index];
+            if (!map.document.playable) continue;
+            if (Ui::DrawMapListRow(map.document, map.folder, m_selectedManifestMap == index))
+            {
+                m_selectedManifestMap = index;
+                m_selectedCustomMap.reset();
+            }
         }
-        ImGui::PopID();
+        ImGui::EndTable();
     }
     if (m_selectedManifestMap && *m_selectedManifestMap < m_manifestMaps.size())
     {
@@ -2105,6 +2105,10 @@ void TankSandboxApp::DrawTopMenuUi()
     {
         ImGui::TextUnformatted(m_customMapStatus.c_str());
     }
+    const bool selectedMapNotPlayable = m_selectedManifestMap && *m_selectedManifestMap < m_manifestMaps.size() &&
+        !m_manifestMaps[*m_selectedManifestMap].document.playable;
+    if (selectedMapNotPlayable) ImGui::TextWrapped("This map is not playable. Enable Playable in Map Editor to play it.");
+    ImGui::BeginDisabled(selectedMapNotPlayable);
     if (ImGui::Button("Start Tracked Vehicle"))
     {
         bool canStart = true;
@@ -2129,6 +2133,7 @@ void TankSandboxApp::DrawTopMenuUi()
         }
         if (canStart) EnterTrackedVehicleMode();
     }
+    ImGui::EndDisabled();
     ImGui::End();
 }
 

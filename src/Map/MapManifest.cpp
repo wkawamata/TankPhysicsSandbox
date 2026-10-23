@@ -152,6 +152,11 @@ namespace Tank::Map
                 loaded.name = name->get<std::string>();
                 Require(IsValidMapName(loaded.name, error), error);
             }
+            if (const auto playable = json.find("playable"); playable != json.end())
+            {
+                Require(playable->is_boolean(), "playable must be a boolean");
+                loaded.playable = playable->get<bool>();
+            }
             loaded.playerSpawn = ReadTransform(json.at("playerSpawn"));
             loaded.playerSpawnParentId = json.at("playerSpawn").value("parentId", std::string("root"));
             std::set<std::string> ids;
@@ -166,6 +171,17 @@ namespace Tank::Map
                 instance.breakable = entry.value("breakable", false);
                 instance.hitPoints = entry.value("hitPoints", 60.0f);
                 Require(std::isfinite(instance.hitPoints) && instance.hitPoints > 0, "Mesh hitPoints must be positive and finite");
+                if (entry.contains("gate"))
+                {
+                    const auto& gate = entry.at("gate");
+                    instance.gate = GateSettings{gate.at("triggerRadiusMeters").get<float>(),
+                        gate.at("travelMeters").get<float>(), gate.value("openingSpeedMetersPerSecond", 2.0f)};
+                    const auto& g = *instance.gate;
+                    Require(!instance.breakable && std::isfinite(g.triggerRadiusMeters) && g.triggerRadiusMeters > 0 &&
+                        std::isfinite(g.travelMeters) && g.travelMeters > 0 &&
+                        std::isfinite(g.openingSpeedMetersPerSecond) && g.openingSpeedMetersPerSecond > 0,
+                        "Gate must be indestructible with positive finite radius, travel and speed");
+                }
                 loaded.instances.push_back(std::move(instance));
             }
             for (const auto& entry : json.at("clearAreas"))
@@ -316,6 +332,7 @@ namespace Tank::Map
         {
             Json json = {
                 { "version", 2 },
+                { "playable", manifest.playable },
                 { "playerSpawn", {
                     { "parentId", manifest.playerSpawnParentId },
                     { "position", manifest.playerSpawn.position },
@@ -358,6 +375,16 @@ namespace Tank::Map
                     { "rotationDegrees", instance.transform.rotationDegrees },
                     { "scale", instance.transform.scale },
                     { "breakable", instance.breakable }, { "hitPoints", instance.hitPoints } });
+                if (instance.gate)
+                {
+                    const auto& g = *instance.gate;
+                    Require(!instance.breakable && std::isfinite(g.triggerRadiusMeters) && g.triggerRadiusMeters > 0 &&
+                        std::isfinite(g.travelMeters) && g.travelMeters > 0 &&
+                        std::isfinite(g.openingSpeedMetersPerSecond) && g.openingSpeedMetersPerSecond > 0,
+                        "Gate must be indestructible with positive finite radius, travel and speed");
+                    json["instances"].back()["gate"] = {{"triggerRadiusMeters", g.triggerRadiusMeters},
+                        {"travelMeters", g.travelMeters}, {"openingSpeedMetersPerSecond", g.openingSpeedMetersPerSecond}};
+                }
             }
             for (const auto& area : manifest.clearAreas)
             {

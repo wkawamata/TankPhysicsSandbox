@@ -18,6 +18,13 @@ namespace Tank::Map
         std::optional<std::array<float, 16>> worldMatrix;
     };
 
+    struct GateSettings
+    {
+        float triggerRadiusMeters = 12.0f;
+        float travelMeters = 3.2f;
+        float openingSpeedMetersPerSecond = 2.0f;
+    };
+
     struct Instance
     {
         std::string id;
@@ -27,6 +34,7 @@ namespace Tank::Map
         std::string parentId = "root";
         bool breakable = false;
         float hitPoints = 60.0f;
+        std::optional<GateSettings> gate;
     };
 
     struct EnemyPlacement
@@ -100,6 +108,7 @@ namespace Tank::Map
     {
         // Empty only for legacy manifests; MapName falls back to the folder name.
         std::string name;
+        bool playable = true;
         Transform playerSpawn = { { 0.0f, 2.0f, 0.0f }, {} };
         std::vector<Instance> instances;
         std::vector<ClearArea> clearAreas;

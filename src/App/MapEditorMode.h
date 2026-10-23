@@ -91,6 +91,8 @@ private:
     bool AddSelectedModel();
     bool SaveSelectedMaterialColor();
     bool AddIndestructibleBox();
+    bool AddGate(int variant);
+    int m_gateVariant = 0;
     bool UpdateSelectedInstance(const Tank::Map::Transform& transform);
     void SetSelectedInstanceVisible(bool visible);
     bool DuplicateSelectedInstance();

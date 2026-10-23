@@ -160,6 +160,11 @@ void TrackedVehicleMode::SelectCustomMap(
 bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
     const Tank::Map::Manifest& localManifest, std::string& error)
 {
+    if (!localManifest.playable)
+    {
+        error = "Map is not playable: " + Tank::Map::MapName(localManifest, folder);
+        return false;
+    }
     Tank::Map::Manifest manifest;
     if (!Tank::Map::ResolveHierarchy(localManifest, manifest, error)) return false;
     std::vector<Tank::Map::HitTriangleMesh> meshes;
@@ -193,6 +198,17 @@ bool TrackedVehicleMode::SelectManifestMap(const std::filesystem::path& folder,
         world.placementId = instance.id;
         world.breakable = instance.breakable;
         world.hitPoints = instance.hitPoints;
+        if (instance.gate)
+        {
+            Tank::Map::HitTriangleMesh motion;
+            motion.vertices = {{0, 0, 0}, {0, instance.gate->travelMeters, 0}};
+            Tank::Map::HitTriangleMesh placedMotion;
+            if (!Tank::Map::TransformHitMesh(motion, instance.transform, placedMotion, error)) return false;
+            world.gate = instance.gate;
+            world.gateTriggerCenter = placedMotion.vertices[0];
+            for (size_t axis = 0; axis < 3; ++axis)
+                world.gateTravel[axis] = placedMotion.vertices[1][axis] - placedMotion.vertices[0][axis];
+        }
         meshes.push_back(std::move(world));
     }
     if (meshes.empty())
@@ -537,6 +553,13 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
         DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(
             m_mapHitMeshOverlay && !destroyed(m_manifestHitMeshes[i].placementId)
                 ? DirectX::XMMatrixIdentity() : DirectX::XMMatrixScaling(0, 0, 0)));
+        if (m_mapHitMeshOverlay)
+            for (const auto& gate : m_test.State().gates)
+                if (gate.placementId == m_manifestHitMeshes[i].placementId)
+                {
+                    const auto offset = gate.Offset();
+                    instance.world._14 += offset[0]; instance.world._24 += offset[1]; instance.world._34 += offset[2];
+                }
     }
     for (size_t visual = 0; visual < m_mapVisualInstances.size(); ++visual)
     {
@@ -546,7 +569,16 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
         instance.prevWorld = instance.world;
         if (m_mapVisualMeshes && (visual >= m_mapVisualNodes.size() ||
             !destroyed(m_mapVisualNodes[visual].second)))
+        {
             instance.world = m_mapVisualWorlds[visual];
+            if (visual < m_mapVisualNodes.size())
+                for (const auto& gate : m_test.State().gates)
+                    if (gate.placementId == m_mapVisualNodes[visual].second)
+                    {
+                        const auto offset = gate.Offset();
+                        instance.world._14 += offset[0]; instance.world._24 += offset[1]; instance.world._34 += offset[2];
+                    }
+        }
         else
             DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(
                 DirectX::XMMatrixScaling(0.0f, 0.0f, 0.0f)));

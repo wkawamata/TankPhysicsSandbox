@@ -152,6 +152,19 @@ int main()
         [&](const auto& value) { camera = value; }, "Camera follow");
     viewEdit.Clear(); viewEdit.Flush();
     Check(!history.CanUndo(), "Session cleanup must discard pending view edits");
+    history.Clear();
+    edit.Clear();
+    catalog.simulation.movementEnabled = true;
+    catalog.simulation.nodeArrivalMeters = 1.25f;
+    const auto beforeMovementToggle = catalog;
+    change([](auto& settings) { settings.simulation.movementEnabled = false; }, 0);
+    Check(history.UndoCount() == 1 && !catalog.simulation.movementEnabled,
+        "Movement checkbox records one command");
+    history.Undo();
+    Check(catalog == beforeMovementToggle, "Movement Undo restores ON and retained tuning");
+    history.Redo();
+    Check(!catalog.simulation.movementEnabled && catalog.simulation.nodeArrivalMeters == 1.25f,
+        "Movement Redo restores OFF without discarding hidden tuning");
     std::cout << "Undo history tests passed\n";
     return 0;
 }
