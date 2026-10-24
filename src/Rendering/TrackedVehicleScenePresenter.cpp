@@ -1318,6 +1318,7 @@ void TrackedVehicleScenePresenter::ApplyMaterials(
 
 void TrackedVehicleScenePresenter::Clear()
 {
+    m_physicsDebugOverlay.Clear();
     m_sceneBuilder.Clear();
     m_destructibleBoxInstances.clear();
     m_fixedTurretInstances.clear();

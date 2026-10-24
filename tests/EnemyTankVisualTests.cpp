@@ -134,6 +134,24 @@ int main()
         check(Engine::HasRenderableTransform(visibility), "Flat visible geometry retains drawing");
         presenter.Clear();
         check(presenter.GetScene().instances.empty(), "Clear removes enemy instances");
+
+        // Re-entering Tracked Vehicle after another mode rebuilds the same
+        // presenter. Debug overlay instance indices must belong to the new scene.
+        state.fixedTurrets.resize(1);
+        state.fixedTurrets[0].target.active = true;
+        state.fixedTurrets[0].simpleMoving = false;
+        state.fixedTurrets[0].size = {1, 1, 1};
+        presenter.BuildScene({}, {}, visual, tank, nullptr, false);
+        const auto rebuiltStart = presenter.GetScene().instances.size();
+        presenter.AppendDestructibleBoxes(state);
+        update();
+        check(presenter.GetScene().instances.size() > rebuiltStart + 1,
+            "Scene presenter rebuilds after Clear");
+        check(Engine::HasRenderableTransform(
+                presenter.GetScene().instances[rebuiltStart]) &&
+            Engine::HasRenderableTransform(
+                presenter.GetScene().instances[rebuiltStart + 1]),
+            "Rebuilt stationary enemy displays its body and turret direction");
         std::cout << "PASS EnemyTankVisual\n";
         return 0;
     }

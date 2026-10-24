@@ -376,4 +376,6 @@ void PhysicsDebugOverlay::UpdateScene(
 
 void PhysicsDebugOverlay::Clear()
 {
+    m_tankShapeLines.clear();
+    m_tankShapeCapacity = 0;
 }
