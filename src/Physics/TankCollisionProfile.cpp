@@ -39,8 +39,7 @@ namespace Tank::Physics
         if (shape.kind == TankShapeKind::Capsule)
         {
             constexpr float tolerance = 0.0001f;
-            if (std::abs(shape.sizeMeters.x - shape.sizeMeters.y) > tolerance ||
-                shape.sizeMeters.z + tolerance < shape.sizeMeters.x)
+            if (shape.sizeMeters.z + tolerance < shape.sizeMeters.y)
             {
                 return false;
             }

@@ -38,6 +38,18 @@ int main()
     check(turret && std::abs(turret->position.z - 4.0f) < 0.001f,
         "Z-axis capsule is independently hittable");
 
+    const std::vector<TankHitRegion> wideCapsule = {
+        {"Wide", {TankShapeKind::Capsule, {}, {}, {2, 1, 2}}}
+    };
+    const auto wideHit = TraceTankHitRegions({10.9f, 0, 0},
+        {10.9f, 0, 10}, tank, wideCapsule);
+    check(wideHit.has_value(),
+        "capsule X scale expands hit testing independently of diameter");
+    const auto outsideWide = TraceTankHitRegions({11.1f, 0, 0},
+        {11.1f, 0, 10}, tank, wideCapsule);
+    check(!outsideWide,
+        "capsule X scale retains its authored outer width");
+
     tank.rotation = {0, std::sqrt(0.5f), 0, std::sqrt(0.5f)};
     const auto rotated = TraceTankHitRegions({5, 0, 5}, {15, 0, 5},
         tank, std::span(regions).first(1));

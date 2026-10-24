@@ -13,8 +13,9 @@ namespace Tank::Physics
         Capsule
     };
 
-    // Tank-local shape. Size contains full dimensions. Capsules use a circular
-    // X/Y diameter and run along local +Z; size.z is the total end-to-end length.
+    // Tank-local shape. Size contains full dimensions. Capsules run along local
+    // +Z; size.y is the diameter, size.x is its independently scalable width,
+    // and size.z is the total end-to-end length.
     struct TankShapeSettings
     {
         TankShapeKind kind = TankShapeKind::Box;

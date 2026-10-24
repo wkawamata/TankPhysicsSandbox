@@ -104,8 +104,9 @@ namespace
             return;
         }
 
-        const float radius = 0.5f * shape.sizeMeters.x;
-        const float halfCylinder = 0.5f * shape.sizeMeters.z - radius;
+        const float radiusX = 0.5f * shape.sizeMeters.x;
+        const float radiusY = 0.5f * shape.sizeMeters.y;
+        const float halfCylinder = 0.5f * shape.sizeMeters.z - radiusY;
         constexpr int ringSegments = 8;
         for (const float z : {-halfCylinder, halfCylinder})
         {
@@ -113,15 +114,15 @@ namespace
             {
                 const float a = XM_2PI * segment / ringSegments;
                 const float b = XM_2PI * (segment + 1) / ringSegments;
-                add({radius * std::cos(a), radius * std::sin(a), z},
-                    {radius * std::cos(b), radius * std::sin(b), z});
+                add({radiusX * std::cos(a), radiusY * std::sin(a), z},
+                    {radiusX * std::cos(b), radiusY * std::sin(b), z});
             }
         }
         for (int segment = 0; segment < 4; ++segment)
         {
             const float angle = XM_PIDIV2 * segment;
-            const float x = radius * std::cos(angle);
-            const float y = radius * std::sin(angle);
+            const float x = radiusX * std::cos(angle);
+            const float y = radiusY * std::sin(angle);
             add({x, y, -halfCylinder}, {x, y, halfCylinder});
         }
         constexpr int arcSegments = 4;
@@ -134,9 +135,14 @@ namespace
                         const float b = XM_PIDIV2 * (segment + 1) / arcSegments;
                         const auto point = [&](float angle)
                         {
-                            const float radial = side * radius * std::cos(angle);
-                            const float z = end * (halfCylinder + radius * std::sin(angle));
-                            return plane == 0 ? Tank::Physics::Vec3{radial, 0, z}
+                            const float radialRadius =
+                                plane == 0 ? radiusX : radiusY;
+                            const float radial = side * radialRadius *
+                                std::cos(angle);
+                            const float z = end * (halfCylinder +
+                                radiusY * std::sin(angle));
+                            return plane == 0
+                                ? Tank::Physics::Vec3{radial, 0, z}
                                 : Tank::Physics::Vec3{0, radial, z};
                         };
                         add(point(a), point(b));

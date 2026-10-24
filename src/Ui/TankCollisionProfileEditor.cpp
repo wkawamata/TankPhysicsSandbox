@@ -34,14 +34,24 @@ namespace Ui
                 "%.1f", ImGuiSliderFlags_AlwaysClamp);
             if (shape.kind == Tank::Physics::TankShapeKind::Capsule)
             {
-                float diameter = shape.sizeMeters.x;
+                float diameter = shape.sizeMeters.y;
+                float xScale = shape.sizeMeters.x / diameter;
                 if (ImGui::DragFloat("Diameter (m)", &diameter, 0.02f,
                         0.05f, 100.0f, "%.2f",
                         ImGuiSliderFlags_AlwaysClamp))
                 {
-                    shape.sizeMeters.x = diameter;
                     shape.sizeMeters.y = diameter;
+                    shape.sizeMeters.x = std::clamp(diameter * xScale,
+                        0.05f, 100.0f);
                     shape.sizeMeters.z = std::max(shape.sizeMeters.z, diameter);
+                    changed = true;
+                }
+                if (ImGui::DragFloat("X scale", &xScale, 0.01f,
+                        0.05f, 20.0f, "%.2f",
+                        ImGuiSliderFlags_AlwaysClamp))
+                {
+                    shape.sizeMeters.x = std::clamp(diameter * xScale,
+                        0.05f, 100.0f);
                     changed = true;
                 }
                 changed |= ImGui::DragFloat("Total length (m)",

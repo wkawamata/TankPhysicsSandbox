@@ -158,15 +158,32 @@ namespace Tank::Physics
             const JPH::Vec3 direction = inverseLocalRotation * tankDirection;
             float fraction = 0.0f;
             JPH::Vec3 localNormal;
-            const bool hit = settings.kind == TankShapeKind::Capsule
-                ? TraceCapsule(origin, direction,
-                    0.5f * settings.sizeMeters.x,
-                    0.5f * (settings.sizeMeters.z - settings.sizeMeters.x),
-                    fraction, localNormal)
-                : TraceBox(origin, direction,
+            bool hit = false;
+            if (settings.kind == TankShapeKind::Capsule)
+            {
+                const float xScale =
+                    settings.sizeMeters.x / settings.sizeMeters.y;
+                const JPH::Vec3 scaledOrigin(origin.GetX() / xScale,
+                    origin.GetY(), origin.GetZ());
+                const JPH::Vec3 scaledDirection(direction.GetX() / xScale,
+                    direction.GetY(), direction.GetZ());
+                hit = TraceCapsule(scaledOrigin, scaledDirection,
+                    0.5f * settings.sizeMeters.y,
+                    0.5f * (settings.sizeMeters.z - settings.sizeMeters.y),
+                    fraction, localNormal);
+                if (hit)
+                {
+                    localNormal = JPH::Vec3(localNormal.GetX() / xScale,
+                        localNormal.GetY(), localNormal.GetZ()).Normalized();
+                }
+            }
+            else
+            {
+                hit = TraceBox(origin, direction,
                     JPH::Vec3(settings.sizeMeters.x, settings.sizeMeters.y,
                         settings.sizeMeters.z) * 0.5f,
                     fraction, localNormal);
+            }
             if (!hit || (closest && fraction >= closest->fraction)) continue;
             const JPH::Vec3 worldNormal =
                 bodyRotation * (localRotation * localNormal);
