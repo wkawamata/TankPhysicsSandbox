@@ -1,6 +1,7 @@
 #include "TankController.h"
 
 #include "TankMotionObservation.h"
+#include "TankJoltShape.h"
 #include "PhysicsWorld.h"
 
 #include <Jolt/Jolt.h>
@@ -328,16 +329,27 @@ namespace Tank::Physics
 
         const float roadWheelRadius = m_settings.roadWheelRadiusM;
         const float wheelWidth = m_settings.trackWidthM;
-        const float halfVehicleWidth = 0.5f * m_settings.chassisWidthM;
         const float halfTrackSpacing = 0.5f * m_settings.trackSpacingM;
         const float halfVehicleLength = 0.5f * m_settings.chassisLengthM;
-        const float halfVehicleHeight = 0.5f;
         const float suspensionMinLength = 0.3f * m_settings.rideHeightScale;
 
         JPH::BodyInterface& bodyInterface = world.GetBodyInterface();
 
+        if (m_settings.collisionProfile ==
+            MakeTankCollisionProfile({2.4f, 1.0f, 4.0f}))
+        {
+            m_settings.collisionProfile = MakeTankCollisionProfile(
+                {m_settings.chassisWidthM, 1.0f, m_settings.chassisLengthM});
+        }
         JPH::RefConst<JPH::Shape> tankBodyShape =
-            new JPH::BoxShape(JPH::Vec3(halfVehicleWidth, halfVehicleHeight, halfVehicleLength));
+            CreateTankJoltShape(m_settings.collisionProfile.movementShape);
+        if (tankBodyShape == nullptr)
+        {
+            m_settings.collisionProfile = MakeTankCollisionProfile(
+                {m_settings.chassisWidthM, 1.0f, m_settings.chassisLengthM});
+            tankBodyShape =
+                CreateTankJoltShape(m_settings.collisionProfile.movementShape);
+        }
         const JPH::Quat yawRotation =
             JPH::Quat::sRotation(JPH::Vec3::sAxisY(), spawn.yawRadians);
         const JPH::Quat initialRotation = m_settings.startUpsideDown ?
@@ -609,7 +621,8 @@ namespace Tank::Physics
     }
 
     bool TankController::CastAssaultSegment(const Vec3& start, Vec3& end, std::uint32_t& hitBodyId,
-        Vec3& surfaceNormal, bool& staticSurface) const
+        Vec3& surfaceNormal, bool& staticSurface,
+        std::span<const std::uint32_t> ignoredBodyIds) const
     {
         surfaceNormal = {};
         staticSurface = false;
@@ -617,8 +630,13 @@ namespace Tank::Physics
         const JPH::RRayCast ray(JPH::RVec3(start.x, start.y, start.z),
             JPH::Vec3(end.x - start.x, end.y - start.y, end.z - start.z));
         JPH::RayCastResult hit;
+        JPH::IgnoreMultipleBodiesFilter ignored;
+        ignored.Reserve(static_cast<JPH::uint>(ignoredBodyIds.size() + 1));
+        ignored.IgnoreBody(m_impl->bodyId);
+        for (const auto bodyId : ignoredBodyIds)
+            ignored.IgnoreBody(JPH::BodyID(bodyId));
         const bool collided = m_impl->world.GetPhysicsSystem().GetNarrowPhaseQuery().CastRay(
-            ray, hit, {}, {}, JPH::IgnoreSingleBodyFilter(m_impl->bodyId));
+            ray, hit, {}, {}, ignored);
         const JPH::RVec3 endpoint = ray.GetPointOnRay(collided ? hit.mFraction : 1.0f);
         end = {static_cast<float>(endpoint.GetX()), static_cast<float>(endpoint.GetY()), static_cast<float>(endpoint.GetZ())};
         hitBodyId = collided ? hit.mBodyID.GetIndexAndSequenceNumber() : JPH::BodyID::cInvalidBodyID;

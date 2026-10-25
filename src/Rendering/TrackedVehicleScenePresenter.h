@@ -55,7 +55,7 @@ public:
         const Engine::GltfSceneAsset* tankModelAsset,
         bool showDefaultFloor = true);
 
-    void UpdateScene(
+    bool UpdateScene(
         const Tank::Physics::TrackedVehicleTestState& state,
         const Tank::Physics::TankSettings& tankSettings,
         const Tank::Rendering::TankVisualSettings& visualSettings,

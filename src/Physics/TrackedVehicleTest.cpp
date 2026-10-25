@@ -1,4 +1,6 @@
 #include "TrackedVehicleTest.h"
+#include "TankJoltShape.h"
+#include "TankHitRegionQuery.h"
 #include "PhysicsWorld.h"
 #include "TankController.h"
 #include "StaticMeshShape.h"
@@ -478,8 +480,18 @@ namespace Tank::Physics
             !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
             !std::isfinite(size.x) || !std::isfinite(size.y) || !std::isfinite(size.z) ||
             size.x < 0.1f || size.y < 0.1f || size.z < 0.1f) return false;
+        EnemyUnitType resolvedUnitType = unitType;
+        const auto defaultProfile = MakeTankCollisionProfile({1.0f, 1.0f, 1.0f});
+        if (resolvedUnitType.collisionProfile == defaultProfile &&
+            (size.x != 1.0f || size.y != 1.0f || size.z != 1.0f))
+        {
+            resolvedUnitType.collisionProfile = MakeTankCollisionProfile(size);
+        }
+        const auto movementShape =
+            CreateTankJoltShape(resolvedUnitType.collisionProfile.movementShape);
+        if (movementShape == nullptr) return false;
         JPH::BodyCreationSettings settings(
-            new JPH::BoxShape(JPH::Vec3(size.x, size.y, size.z) * 0.5f),
+            movementShape,
             JPH::RVec3(position.x, position.y, position.z), JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w),
             JPH::EMotionType::Static, Layers::NonMoving);
         auto& bodies = m_impl->world.GetBodyInterface();
@@ -491,7 +503,9 @@ namespace Tank::Physics
         m_impl->turretBodyIds.push_back(id);
         m_state.fixedTurrets.push_back({
             {m_impl->nextCombatTargetId++, CombatTargetKind::Enemy, hitPoints, true},
-            position, size, rotation, placementId, unitType, {}});
+            position,
+            resolvedUnitType.collisionProfile.movementShape.sizeMeters,
+            rotation, placementId, resolvedUnitType, {}});
         auto& turret = m_state.fixedTurrets.back();
         const auto forward = JPH::Quat(rotation.x, rotation.y, rotation.z, rotation.w) * JPH::Vec3::sAxisZ();
         if (!m_impl->enemyAttackTypes.empty())
@@ -670,7 +684,8 @@ namespace Tank::Physics
                 auto settings = m_impl->controller.Settings();
                 settings.startUpsideDown = false;
                 settings.rollingInputEnabled = false;
-                enemy.size = {settings.chassisWidthM, 1, settings.chassisLengthM};
+                settings.collisionProfile = enemy.unitType.collisionProfile;
+                enemy.size = settings.collisionProfile.movementShape.sizeMeters;
                 driver.physical->Initialize(m_impl->world, settings, {enemy.position, 0});
                 driver.physical->RestoreMotion({enemy.position, enemy.rotation}, enemy.navigationVelocity);
                 bodyId = JPH::BodyID(driver.physical->BodyId());
@@ -695,7 +710,8 @@ namespace Tank::Physics
                         m_impl->groupAnchorSurfaces[driver.groupIndex] = cell->surfaceId;
                         driver.navigationAnchor = cell->position;
                         driver.physical.reset();
-                        JPH::BodyCreationSettings proxy(new JPH::BoxShape(JPH::Vec3(enemy.size.x/2, enemy.size.y/2, enemy.size.z/2)),
+                        JPH::BodyCreationSettings proxy(CreateTankJoltShape(
+                                enemy.unitType.collisionProfile.movementShape),
                             JPH::RVec3(enemy.position.x, enemy.position.y, enemy.position.z),
                             JPH::Quat(enemy.rotation.x, enemy.rotation.y, enemy.rotation.z, enemy.rotation.w),
                             JPH::EMotionType::Kinematic, Layers::Moving);
@@ -928,6 +944,7 @@ namespace Tank::Physics
     void TrackedVehicleTest::AdvanceAssaultProjectiles(float deltaTimeSeconds)
     {
         m_state.assaultHitTargetId = 0;
+        m_state.assaultHitRegionName.clear();
         auto advance = [&](AssaultProjectileState& projectile)
         {
             float flightTime = deltaTimeSeconds;
@@ -951,23 +968,70 @@ namespace Tank::Physics
             Vec3 normal;
             bool staticSurface = false;
             const Vec3 fullEnd = end;
-            const bool worldHit = m_impl->controller.CastAssaultSegment(projectile.position, end, hitBodyId, normal, staticSurface);
+            std::vector<std::uint32_t> ignoredEnemyBodies;
+            ignoredEnemyBodies.reserve(m_impl->turretBodyIds.size());
+            for (const auto id : m_impl->turretBodyIds)
+                if (!id.IsInvalid())
+                    ignoredEnemyBodies.push_back(id.GetIndexAndSequenceNumber());
+            const bool worldHit = m_impl->controller.CastAssaultSegment(
+                projectile.position, end, hitBodyId, normal, staticSurface,
+                ignoredEnemyBodies);
             const float worldFraction = worldHit && speed > 0 ? std::sqrt(
                 (end.x-projectile.position.x)*(end.x-projectile.position.x) +
                 (end.y-projectile.position.y)*(end.y-projectile.position.y) +
                 (end.z-projectile.position.z)*(end.z-projectile.position.z)) / (speed * flightTime) : 1.0f;
             float closest = worldFraction;
             EnemyProjectileState* intercepted = nullptr;
+            FixedTurretState* hitTank = nullptr;
+            TankHitRegionTrace hitRegion;
+            for (auto& enemy : m_state.fixedTurrets)
+            {
+                if (!enemy.target.active) continue;
+                const auto hit = TraceTankHitRegions(projectile.position,
+                    fullEnd, {enemy.position, enemy.rotation},
+                    enemy.unitType.collisionProfile.hitRegions);
+                if (hit && hit->fraction < closest)
+                {
+                    closest = hit->fraction;
+                    hitTank = &enemy;
+                    hitRegion = *hit;
+                }
+            }
             for (auto& enemy : m_state.enemyProjectiles)
             {
                 if (!enemy.target.active || enemy.target.kind != CombatTargetKind::EnemyProjectile) continue;
                 const float t = EnemyInterceptionFraction(projectile.position, fullEnd, enemy, flightTime);
-                if (t < closest) { closest = t; intercepted = &enemy; }
+                if (t < closest)
+                {
+                    closest = t;
+                    intercepted = &enemy;
+                    hitTank = nullptr;
+                }
             }
             if (intercepted)
             {
                 AssaultWeapon({projectile.damage, 8}).ApplyHit(intercepted->target);
                 m_state.assaultHitTargetId = intercepted->target.id;
+                return true;
+            }
+            if (hitTank)
+            {
+                const auto result = AssaultWeapon({projectile.damage, 8.0f})
+                    .ApplyHit(hitTank->target);
+                if (result.hit)
+                {
+                    m_state.assaultHitTargetId = hitTank->target.id;
+                    m_state.assaultHitRegionName = hitTank->unitType
+                        .collisionProfile.hitRegions[hitRegion.regionIndex].name;
+                    m_state.assaultHitPosition = hitRegion.position;
+                    m_state.assaultHitNormal = hitRegion.normal;
+                }
+                if (result.destroyed)
+                {
+                    const size_t tankIndex = static_cast<size_t>(
+                        hitTank - m_state.fixedTurrets.data());
+                    m_impl->DestroyCombatBody(m_impl->turretBodyIds[tankIndex]);
+                }
                 return true;
             }
             if (worldHit)

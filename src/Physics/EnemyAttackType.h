@@ -2,6 +2,7 @@
 #include "EnemySimulationSettings.h"
 
 #include "PhysicsTypes.h"
+#include "TankCollisionProfile.h"
 #include <cmath>
 #include <string>
 #include <vector>
@@ -62,6 +63,8 @@ namespace Tank::Physics
     struct EnemyUnitType
     {
         std::string name = "Fixed turret";
+        TankCollisionProfile collisionProfile =
+            MakeTankCollisionProfile({1.0f, 1.0f, 1.0f});
         // Movement data is independent of attack definitions.
         std::vector<EnemyAttackMount> attackMounts = {EnemyAttackMount{}};
         float hitPoints = 60.0f;

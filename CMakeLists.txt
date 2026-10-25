@@ -72,6 +72,14 @@ if(MSVC)
 endif()
 
 add_library(TankPhysicsCore STATIC
+    src/Physics/TankCollisionProfile.cpp
+    src/Physics/TankCollisionProfile.h
+    src/Physics/TankCollisionProfileJson.cpp
+    src/Physics/TankCollisionProfileJson.h
+    src/Physics/TankJoltShape.cpp
+    src/Physics/TankJoltShape.h
+    src/Physics/TankHitRegionQuery.cpp
+    src/Physics/TankHitRegionQuery.h
     src/Physics/EnemyAttackType.h
     src/Physics/EnemyEditorJson.cpp
     src/Physics/EnemyEditorJson.h
@@ -286,6 +294,8 @@ add_executable(TankSandbox
     src/Ui/RendererSettingsPanel.h
     src/Ui/EnemyUnitEditorWindow.cpp
     src/Ui/EnemyUnitEditorWindow.h
+    src/Ui/TankCollisionProfileEditor.cpp
+    src/Ui/TankCollisionProfileEditor.h
     src/Ui/TrackedVehiclePanel.cpp
     src/Ui/TrackedVehiclePanel.h
     src/TankSandboxApp.cpp
@@ -380,6 +390,13 @@ if(MSVC)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(TankHitRegionQueryTests tests/TankHitRegionQueryTests.cpp)
+    target_link_libraries(TankHitRegionQueryTests PRIVATE TankPhysicsCore)
+    if(MSVC)
+        target_compile_options(TankHitRegionQueryTests PRIVATE /W4 /permissive- /utf-8)
+    endif()
+    add_test(NAME TankPhysics.TankHitRegionQuery COMMAND TankHitRegionQueryTests)
+
     add_executable(UndoHistoryTests tests/UndoHistoryTests.cpp)
     target_include_directories(UndoHistoryTests PRIVATE src)
     if(MSVC)

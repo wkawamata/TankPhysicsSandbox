@@ -13,6 +13,47 @@
   "chassisMassKg": 4000.0,
   "chassisWidthM": 2.4000000953674316,
   "clutchReleaseTimeSeconds": 0.009999999776482582,
+  "collisionProfile": {
+    "hitRegions": [
+      {
+        "kind": "box",
+        "name": "Hull",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotationDegrees": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "sizeMeters": [
+          5.619999885559082,
+          1.5199999809265137,
+          6.28000020980835
+        ]
+      }
+    ],
+    "movementShape": {
+      "kind": "capsule",
+      "position": [
+        0.0,
+        -0.019999999552965164,
+        0.0
+      ],
+      "rotationDegrees": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sizeMeters": [
+        5.918601036071777,
+        2.0199999809265137,
+        7.360000133514404
+      ]
+    }
+  },
   "endWheelOffsetM": 0.20000000298023224,
   "endWheelRadiusM": 0.23000000417232513,
   "endWheelVerticalOffsetM": 0.10000000149011612,
@@ -92,7 +133,7 @@
   "transmissionShiftDownRpm": 1000.0,
   "transmissionShiftUpRpm": 1000.0,
   "twoRoadWheelOffsetM": 0.6700000166893005,
-  "version": 23,
+  "version": 24,
   "wheelHorizontalOffsetM": -0.019999999552965164,
   "yawDamping": 30.0,
   "yawSpeedLimitDegrees": 72.0

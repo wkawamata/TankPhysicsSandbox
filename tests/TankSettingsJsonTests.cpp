@@ -49,6 +49,12 @@ int main()
     source.trackLateralFriction = 2.8f;
     source.chassisWidthM = 2.65f;
     source.chassisLengthM = 4.75f;
+    source.collisionProfile.movementShape.kind =
+        Tank::Physics::TankShapeKind::Capsule;
+    source.collisionProfile.movementShape.sizeMeters = {2.0f, 2.0f, 4.5f};
+    source.collisionProfile.hitRegions.push_back({"Turret",
+        {Tank::Physics::TankShapeKind::Capsule, {0.0f, 0.8f, 0.2f},
+            {0.0f, 15.0f, 0.0f}, {1.2f, 1.2f, 2.0f}}});
     source.endWheelRadiusM = 0.44f;
     source.roadWheelRadiusM = 0.32f;
     source.roadWheelCount = 4;
@@ -103,6 +109,8 @@ int main()
         "serialized settings must deserialize");
     passed &= Check(NearlyEqual(loaded.chassisMassKg, source.chassisMassKg),
         "chassis mass must round trip");
+    passed &= Check(loaded.collisionProfile == source.collisionProfile,
+        "movement shape and hit regions must round trip");
     passed &= Check(loaded.assaultProjectiles.maximumCount == 128 && loaded.assaultProjectiles.maximumImpactMarks == 17 &&
         NearlyEqual(loaded.assaultProjectiles.speedMetersPerSecond, 150.0f) &&
         NearlyEqual(loaded.assaultProjectiles.damagePerRound, 35.0f) &&

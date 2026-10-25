@@ -525,7 +525,7 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
             Tank::Diagnostics::Write(Tank::Diagnostics::LogLevel::Warning, "Vehicle", message);
         }
     }
-    m_presenter.UpdateScene(
+    const bool tankShapePoolChanged = m_presenter.UpdateScene(
         state,
         m_settings,
         m_visualSettings,
@@ -537,7 +537,7 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
         m_showGltfBody,
         m_showGltfCannon,
         m_showGltfSide);
-    if (impactMarkPoolChanged || mortarPoolChanged)
+    if (impactMarkPoolChanged || mortarPoolChanged || tankShapePoolChanged)
     {
         renderer.ReloadSceneResources(m_presenter.GetScene());
         renderer.SetDisplayInstanceCount(static_cast<int>(m_presenter.GetScene().instances.size()));
