@@ -7,6 +7,7 @@ int main()
 {
     try
     {
+        constexpr size_t kRendererInstanceLimit = 1000;
         const auto check = [](bool value, const char* message) { if (!value) throw std::runtime_error(message); };
         TrackedVehicleScenePresenter presenter;
         Tank::Physics::TankSettings tank;
@@ -26,7 +27,12 @@ int main()
         const auto start = presenter.GetScene().instances.size();
         presenter.AppendDestructibleBoxes(state);
         bool showShoes = true, showWheels = true;
-        const auto update = [&] { presenter.UpdateScene(state, tank, visual, showShoes, false, false, true, showWheels, false, false, false); };
+        const auto update = [&]
+        {
+            return presenter.UpdateScene(
+                state, tank, visual, showShoes, false, false, true,
+                showWheels, false, false, false);
+        };
         update();
         const auto& scene = presenter.GetScene();
         const auto source = presenter.Model().hullUpper;
@@ -137,14 +143,22 @@ int main()
 
         // Re-entering Tracked Vehicle after another mode rebuilds the same
         // presenter. Debug overlay instance indices must belong to the new scene.
-        state.fixedTurrets.resize(1);
-        state.fixedTurrets[0].target.active = true;
-        state.fixedTurrets[0].simpleMoving = false;
-        state.fixedTurrets[0].size = {1, 1, 1};
+        state.fixedTurrets.resize(8);
+        for (auto& fixedTurret : state.fixedTurrets)
+        {
+            fixedTurret = {};
+            fixedTurret.target.active = true;
+            fixedTurret.simpleMoving = false;
+            fixedTurret.rotation.w = 1;
+            fixedTurret.size = {1, 1, 1};
+        }
         presenter.BuildScene({}, {}, visual, tank, nullptr, false);
         const auto rebuiltStart = presenter.GetScene().instances.size();
         presenter.AppendDestructibleBoxes(state);
-        update();
+        check(update(), "Enemy profiles extend the tank shape debug pool");
+        check(presenter.GetScene().instances.size() <=
+                kRendererInstanceLimit,
+            "Eight stationary enemies fit within the renderer instance limit");
         check(presenter.GetScene().instances.size() > rebuiltStart + 1,
             "Scene presenter rebuilds after Clear");
         check(Engine::HasRenderableTransform(
@@ -152,6 +166,19 @@ int main()
             Engine::HasRenderableTransform(
                 presenter.GetScene().instances[rebuiltStart + 1]),
             "Rebuilt stationary enemy displays its body and turret direction");
+        const size_t beforeAddedHitRegion = presenter.GetScene().instances.size();
+        Tank::Physics::TankHitRegion turretRegion;
+        turretRegion.name = "Turret";
+        turretRegion.shape.kind = Tank::Physics::TankShapeKind::Capsule;
+        turretRegion.shape.sizeMeters = {1, 1, 2};
+        tank.collisionProfile.hitRegions.push_back(turretRegion);
+        check(update(), "Runtime hit-region edits extend the debug shape pool");
+        check(presenter.GetScene().instances.size() ==
+                beforeAddedHitRegion + 52,
+            "A capsule hit region reserves its exact wireframe line count");
+        check(presenter.GetScene().instances.size() <=
+                kRendererInstanceLimit,
+            "Runtime hit-region edits preserve the renderer instance budget");
         std::cout << "PASS EnemyTankVisual\n";
         return 0;
     }

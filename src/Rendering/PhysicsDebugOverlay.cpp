@@ -14,9 +14,6 @@ using namespace DirectX;
 
 namespace
 {
-    constexpr size_t kMaximumShapesPerTank = 17;
-    constexpr size_t kMaximumLinesPerShape = 64;
-
     void SetInstanceWorld(Engine::InstanceData& instance, FXMMATRIX world)
     {
         instance.prevWorld = instance.world;
@@ -148,6 +145,21 @@ namespace
                         add(point(a), point(b));
                     }
     }
+
+    size_t ShapeLineCount(const Tank::Physics::TankShapeSettings& shape)
+    {
+        return shape.kind == Tank::Physics::TankShapeKind::Box ? 12u : 52u;
+    }
+
+    size_t ProfileLineCount(const Tank::Physics::TankCollisionProfile& profile)
+    {
+        size_t count = ShapeLineCount(profile.movementShape);
+        for (const auto& region : profile.hitRegions)
+        {
+            count += ShapeLineCount(region.shape);
+        }
+        return count;
+    }
 }
 
 PhysicsDebugOverlay::PhysicsDebugOverlay(Engine::SceneBuilder& sceneBuilder)
@@ -155,7 +167,8 @@ PhysicsDebugOverlay::PhysicsDebugOverlay(Engine::SceneBuilder& sceneBuilder)
 {
 }
 
-void PhysicsDebugOverlay::BuildScene(uint32_t trackProxyMaterial)
+void PhysicsDebugOverlay::BuildScene(uint32_t trackProxyMaterial,
+    const Tank::Physics::TankCollisionProfile& playerProfile)
 {
     m_trackProxyMaterial = trackProxyMaterial;
     m_debugContactMaterial =
@@ -201,20 +214,29 @@ void PhysicsDebugOverlay::BuildScene(uint32_t trackProxyMaterial)
             XMMatrixScaling(0.0f, 0.0f, 0.0f),
             debugNormalMaterial);
     }
-    EnsureTankShapeCapacity(0);
+    const Tank::Physics::TrackedVehicleTestState emptyState;
+    EnsureTankShapeCapacity(playerProfile, emptyState);
 }
 
-void PhysicsDebugOverlay::EnsureTankShapeCapacity(size_t enemyCount)
+bool PhysicsDebugOverlay::EnsureTankShapeCapacity(
+    const Tank::Physics::TankCollisionProfile& playerProfile,
+    const Tank::Physics::TrackedVehicleTestState& state)
 {
-    const size_t required = (enemyCount + 1) * kMaximumShapesPerTank *
-        kMaximumLinesPerShape;
+    size_t required = ProfileLineCount(playerProfile);
+    for (const auto& enemy : state.fixedTurrets)
+    {
+        required += ProfileLineCount(enemy.unitType.collisionProfile);
+    }
+    bool changed = false;
     while (m_tankShapeCapacity < required)
     {
         m_tankShapeLines.push_back(m_sceneBuilder.GetScene().instances.size());
         m_sceneBuilder.AddInstance(XMMatrixScaling(0, 0, 0),
             m_hitRegionMaterial);
         ++m_tankShapeCapacity;
+        changed = true;
     }
+    return changed;
 }
 
 void PhysicsDebugOverlay::UpdateScene(

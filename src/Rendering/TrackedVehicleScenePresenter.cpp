@@ -446,7 +446,7 @@ void TrackedVehicleScenePresenter::BuildScene(
     const Tank::Physics::PhysicsEnvironmentSettings& envSettings,
     const std::vector<Tank::Physics::MapPrimitive>& mapPrimitives,
     const Tank::Rendering::TankVisualSettings& visualSettings,
-    const Tank::Physics::TankSettings&,
+    const Tank::Physics::TankSettings& tankSettings,
     const Engine::GltfSceneAsset* tankModelAsset,
     bool showDefaultFloor)
 {
@@ -655,7 +655,8 @@ void TrackedVehicleScenePresenter::BuildScene(
         }
     }
 
-    m_physicsDebugOverlay.BuildScene(m_model.trackProxyMaterial);
+    m_physicsDebugOverlay.BuildScene(m_model.trackProxyMaterial,
+        tankSettings.collisionProfile);
 
     for (const Tank::Physics::MapPrimitive& primitive : mapPrimitives)
     {
@@ -812,7 +813,6 @@ void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
             m_sceneBuilder.AddInstance(boxBullet, XMMatrixScaling(0, 0, 0), m_enemySpecialProjectileMaterial);
         }
     }
-    m_physicsDebugOverlay.EnsureTankShapeCapacity(state.fixedTurrets.size());
     if (state.destructibleBoxes.empty()) return;
     const uint32_t material = m_sceneBuilder.AddSolidColorMaterial(175, 100, 35, 255);
     const auto cube = m_sceneBuilder.AddCube(1.0f);
@@ -827,7 +827,7 @@ void TrackedVehicleScenePresenter::AppendDestructibleBoxes(
     }
 }
 
-void TrackedVehicleScenePresenter::UpdateScene(
+bool TrackedVehicleScenePresenter::UpdateScene(
     const Tank::Physics::TrackedVehicleTestState& state,
     const Tank::Physics::TankSettings& tankSettings,
     const Tank::Rendering::TankVisualSettings& visualSettings,
@@ -840,6 +840,9 @@ void TrackedVehicleScenePresenter::UpdateScene(
     bool showGltfCannon,
     bool showGltfSide)
 {
+    const bool tankShapePoolChanged =
+        m_physicsDebugOverlay.EnsureTankShapeCapacity(
+            tankSettings.collisionProfile, state);
     Engine::Scene& scene = m_sceneBuilder.GetScene();
     const auto& marks = state.assaultImpactMarks.Slots();
     for (size_t i = 0; i < m_impactMarkInstances.size(); ++i)
@@ -1258,6 +1261,7 @@ void TrackedVehicleScenePresenter::UpdateScene(
     }
     m_physicsDebugOverlay.UpdateScene(
         state, tankSettings, showTrackProxies, physicsDebugOverlay);
+    return tankShapePoolChanged;
 }
 
 void TrackedVehicleScenePresenter::ApplyMaterials(

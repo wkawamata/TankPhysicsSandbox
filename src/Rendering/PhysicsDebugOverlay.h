@@ -16,8 +16,11 @@ class PhysicsDebugOverlay
 public:
     explicit PhysicsDebugOverlay(Engine::SceneBuilder& sceneBuilder);
 
-    void BuildScene(uint32_t trackProxyMaterial);
-    void EnsureTankShapeCapacity(size_t enemyCount);
+    void BuildScene(uint32_t trackProxyMaterial,
+        const Tank::Physics::TankCollisionProfile& playerProfile);
+    bool EnsureTankShapeCapacity(
+        const Tank::Physics::TankCollisionProfile& playerProfile,
+        const Tank::Physics::TrackedVehicleTestState& state);
 
     void UpdateScene(
         const Tank::Physics::TrackedVehicleTestState& state,
