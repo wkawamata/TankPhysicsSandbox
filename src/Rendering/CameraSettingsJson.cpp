@@ -58,6 +58,7 @@ namespace Tank::Rendering
             { "mortarPitchOffsetDegrees", settings.mortarPitchOffsetDegrees },
             { "mortarDistanceOffsetMeters", settings.mortarDistanceOffsetMeters },
             { "mortarResponseSpeed", settings.mortarResponseSpeed },
+            { "mortarReadyOffsetPercent", settings.mortarReadyOffsetPercent },
         }.dump(2);
     }
 
@@ -116,9 +117,11 @@ namespace Tank::Rendering
         loaded.mortarPitchOffsetDegrees = 18.0f;
         loaded.mortarDistanceOffsetMeters = 0.0f;
         loaded.mortarResponseSpeed = 6.0f;
+        loaded.mortarReadyOffsetPercent = 50.0f;
         ReadFloat(json, "mortarPitchOffsetDegrees", loaded.mortarPitchOffsetDegrees);
         ReadFloat(json, "mortarDistanceOffsetMeters", loaded.mortarDistanceOffsetMeters);
         ReadFloat(json, "mortarResponseSpeed", loaded.mortarResponseSpeed);
+        ReadFloat(json, "mortarReadyOffsetPercent", loaded.mortarReadyOffsetPercent);
         settings = loaded;
         if (error != nullptr)
         {

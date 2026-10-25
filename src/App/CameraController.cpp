@@ -74,6 +74,7 @@ namespace Tank::App
         settings.mortarPitchOffsetDegrees = m_mortarMaximumPitchOffsetDegrees;
         settings.mortarDistanceOffsetMeters = m_mortarMaximumDistanceOffsetMeters;
         settings.mortarResponseSpeed = m_mortarResponseSpeed;
+        settings.mortarReadyOffsetPercent = m_mortarReadyOffsetPercent;
         return settings;
     }
 
@@ -169,6 +170,7 @@ namespace Tank::App
         SetMortarPitchOffsetDegrees(settings.mortarPitchOffsetDegrees);
         SetMortarDistanceOffsetMeters(settings.mortarDistanceOffsetMeters);
         SetMortarResponseSpeed(settings.mortarResponseSpeed);
+        SetMortarReadyOffsetPercent(settings.mortarReadyOffsetPercent);
         ResetFollowState();
     }
 

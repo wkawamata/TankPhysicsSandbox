@@ -307,6 +307,11 @@ namespace Ui
                     ctx.mortarCheatWindowVisible = true;
                 ImGui::TextWrapped("Offsets at maximum mortar elevation. Changes apply immediately to Follow Tank; Save Camera stores them in the selected camera slot.");
                 ImGui::BeginDisabled(!ctx.cameraController->FollowEnabled());
+                float readyPercent = ctx.cameraController->MortarReadyOffsetPercent();
+                if (ImGuiWidgets::SliderFloatWithControls("Mortar Ready Offset (%)", &readyPercent,
+                    0.0f, 100.0f, 1.0f, 50.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp))
+                    ctx.cameraController->SetMortarReadyOffsetPercent(readyPercent);
+                ImGui::TextWrapped("Pitch and distance applied when firing becomes possible. 100%% gives a single stage; maximum elevation always applies 100%%.");
                 float pitch = ctx.cameraController->MortarPitchOffsetDegrees();
                 if (ImGuiWidgets::SliderFloatWithControls("Mortar Pitch Offset", &pitch,
                     -60.0f, 60.0f, 1.0f, 18.0f, "%.1f deg"))

@@ -27,6 +27,7 @@ namespace Tank::Rendering
         float mortarPitchOffsetDegrees = 18.0f;
         float mortarDistanceOffsetMeters = 0.0f;
         float mortarResponseSpeed = 6.0f;
+        float mortarReadyOffsetPercent = 50.0f;
     };
 
     std::string SerializeCameraSettings(const CameraSettings& settings);

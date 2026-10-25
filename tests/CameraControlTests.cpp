@@ -467,6 +467,7 @@ int main()
         settings.mortarPitchOffsetDegrees = 30.0f;
         settings.mortarDistanceOffsetMeters = 12.0f;
         settings.mortarResponseSpeed = 10.0f;
+        settings.mortarReadyOffsetPercent = 100;
         controller.ApplySettings(settings, false, camera);
         Tank::Physics::TrackedVehicleTestState state;
         state.bodyRotation.w = 1.0f;
@@ -489,7 +490,7 @@ int main()
             NearlyEqual(distance(), 16.0f, 0.02f) &&
             NearlyEqual(captured.mortarPitchOffsetDegrees, 30.0f) &&
             NearlyEqual(captured.mortarDistanceOffsetMeters, 12.0f) &&
-            NearlyEqual(captured.mortarResponseSpeed, 10.0f);
+            NearlyEqual(captured.mortarResponseSpeed, 10.0f) && NearlyEqual(captured.mortarReadyOffsetPercent, 100);
     }();
     const bool camera2Horizontal = TestHorizontalDragUsesWorldYaw(0.5f);
     const bool camera2Vertical = TestVerticalDragPreservesWorldYaw(0.5f, 20);

@@ -92,6 +92,8 @@ namespace Tank::App
         void SetMortarPitchOffsetDegrees(float value) { m_mortarMaximumPitchOffsetDegrees = std::clamp(value, -60.0f, 60.0f); }
         float MortarDistanceOffsetMeters() const { return m_mortarMaximumDistanceOffsetMeters; }
         void SetMortarDistanceOffsetMeters(float value) { m_mortarMaximumDistanceOffsetMeters = std::clamp(value, -100.0f, 100.0f); }
+        float MortarReadyOffsetPercent() const { return m_mortarReadyOffsetPercent; }
+        void SetMortarReadyOffsetPercent(float value) { m_mortarReadyOffsetPercent = std::clamp(value, 0.0f, 100.0f); }
         float MortarResponseSpeed() const { return m_mortarResponseSpeed; }
         void SetMortarResponseSpeed(float value) { m_mortarResponseSpeed = std::clamp(value, 0.1f, 30.0f); }
         void SetMortarCameraCue(const Tank::Physics::MortarCameraCue& cue)
@@ -219,6 +221,7 @@ namespace Tank::App
         float m_mortarMaximumPitchOffsetDegrees = 18.0f;
         float m_mortarMaximumDistanceOffsetMeters = 0.0f;
         float m_mortarResponseSpeed = 6.0f;
+        float m_mortarReadyOffsetPercent = 50.0f;
     };
 
 }
