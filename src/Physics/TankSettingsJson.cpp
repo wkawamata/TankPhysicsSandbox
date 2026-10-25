@@ -1,4 +1,5 @@
 #include "TankSettingsJson.h"
+#include "TankCollisionProfileJson.h"
 
 #include <nlohmann/json.hpp>
 
@@ -6,7 +7,7 @@ namespace Tank::Physics
 {
     namespace
     {
-        constexpr int kSchemaVersion = 23;
+        constexpr int kSchemaVersion = 24;
 
         void ReadFloat(
             const nlohmann::json& object,
@@ -85,6 +86,8 @@ namespace Tank::Physics
     {
         nlohmann::json json;
         json["version"] = kSchemaVersion;
+        json["collisionProfile"] =
+            SerializeTankCollisionProfile(settings.collisionProfile);
         json["chassisMassKg"] = settings.chassisMassKg;
         json["assaultMaximumProjectiles"] = settings.assaultProjectiles.maximumCount;
         json["assaultSpeedMetersPerSecond"] = settings.assaultProjectiles.speedMetersPerSecond;
@@ -214,6 +217,22 @@ namespace Tank::Physics
         ReadFloat(json, "trackLateralFriction", loaded.trackLateralFriction);
         ReadFloat(json, "chassisWidthM", loaded.chassisWidthM);
         ReadFloat(json, "chassisLengthM", loaded.chassisLengthM);
+        const auto collisionProfile = json.find("collisionProfile");
+        if (collisionProfile != json.end())
+        {
+            std::string profileError;
+            if (!DeserializeTankCollisionProfile(*collisionProfile,
+                    loaded.collisionProfile, profileError))
+            {
+                if (error != nullptr) *error = profileError;
+                return false;
+            }
+        }
+        else
+        {
+            loaded.collisionProfile = MakeTankCollisionProfile(
+                {loaded.chassisWidthM, 1.0f, loaded.chassisLengthM});
+        }
         const auto legacyWheelRadius = json.find("wheelRadiusM");
         if (schemaVersion == 1 &&
             legacyWheelRadius != json.end() &&

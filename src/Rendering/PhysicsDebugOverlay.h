@@ -7,6 +7,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 namespace Engine { class SceneBuilder; }
 
@@ -15,7 +16,11 @@ class PhysicsDebugOverlay
 public:
     explicit PhysicsDebugOverlay(Engine::SceneBuilder& sceneBuilder);
 
-    void BuildScene(uint32_t trackProxyMaterial);
+    void BuildScene(uint32_t trackProxyMaterial,
+        const Tank::Physics::TankCollisionProfile& playerProfile);
+    bool EnsureTankShapeCapacity(
+        const Tank::Physics::TankCollisionProfile& playerProfile,
+        const Tank::Physics::TrackedVehicleTestState& state);
 
     void UpdateScene(
         const Tank::Physics::TrackedVehicleTestState& state,
@@ -46,5 +51,9 @@ private:
     uint32_t m_trackProxyMaterial = 0;
     uint32_t m_debugContactMaterial = 0;
     uint32_t m_debugAirborneMaterial = 0;
+    uint32_t m_movementShapeMaterial = 0;
+    uint32_t m_hitRegionMaterial = 0;
+    std::vector<size_t> m_tankShapeLines;
+    size_t m_tankShapeCapacity = 0;
     Tank::Rendering::MortarRangeCue m_mortarRangeCue = {};
 };

@@ -17,6 +17,12 @@ int main()
     original.attackTypes[1].projectileShape = EnemyProjectileShape::Box;
     original.attackTypes[1].projectileBoxSizeMeters = {2, 0.5f, 3};
     original.unitTypes[0].hitPoints = 250;
+    original.unitTypes[0].collisionProfile.movementShape.kind =
+        TankShapeKind::Capsule;
+    original.unitTypes[0].collisionProfile.movementShape.sizeMeters =
+        {1.0f, 1.0f, 2.0f};
+    original.unitTypes[0].collisionProfile.hitRegions.push_back(
+        {"Turret", {TankShapeKind::Box, {0, 1, 0}, {}, {1, 0.5f, 1}}});
     original.unitTypes[0].attackMounts.push_back({{2, 1, -3}, 1});
     std::string text, error;
     check(SerializeEnemyEditor(original, text, error), "serialize");
@@ -29,6 +35,9 @@ int main()
         loaded.unitTypes[0].attackMounts[1].attackTypeIndex == 1 && loaded.unitTypes[0].attackMounts[1].localPosition.z == -3,
         "multiple templates and mounts survive round trip");
     check(loaded.unitTypes[0].hitPoints == 250, "unit HP survives round trip");
+    check(loaded.unitTypes[0].collisionProfile ==
+        original.unitTypes[0].collisionProfile,
+        "unit movement shape and hit regions survive round trip");
     check(loaded.simulation.physicalEnterMeters == 50 && loaded.simulation.simpleReturnMeters == 70 &&
         loaded.simulation.brakingDecelerationMetersPerSecondSquared == 3 && loaded.simulation.nodeArrivalMeters == 0.75f &&
         loaded.simulation.observationRadiusMeters == 4 && loaded.simulation.supportHeightToleranceMeters == 0.15f && loaded.simulation.simpleTurnDegreesPerSecond == 45, "simulation distances round trip");

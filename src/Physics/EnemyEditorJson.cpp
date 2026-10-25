@@ -1,4 +1,5 @@
 #include "EnemyEditorJson.h"
+#include "TankCollisionProfileJson.h"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <set>
@@ -20,6 +21,7 @@ namespace Tank::Physics
             {
                 if (unit.name.empty() || !names.insert(unit.name).second) throw std::runtime_error("Invalid or duplicate enemy name");
                 if (!std::isfinite(unit.hitPoints) || unit.hitPoints <= 0) throw std::runtime_error("Enemy HP must be positive and finite");
+                if (!IsValidTankCollisionProfile(unit.collisionProfile)) throw std::runtime_error("Invalid tank collision profile");
                 for (const auto& mount : unit.attackMounts)
                     if (mount.attackTypeIndex < 0 || static_cast<size_t>(mount.attackTypeIndex) >= settings.attackTypes.size() ||
                         !std::isfinite(mount.localPosition.x) || !std::isfinite(mount.localPosition.y) || !std::isfinite(mount.localPosition.z))
@@ -57,7 +59,9 @@ namespace Tank::Physics
                     {"projectileBoxSizeMeters", {type.projectileBoxSizeMeters.x, type.projectileBoxSizeMeters.y, type.projectileBoxSizeMeters.z}}});
             for (const auto& unit : settings.unitTypes)
             {
-                nlohmann::json entry = {{"name", unit.name}, {"hitPoints", unit.hitPoints}, {"attackMounts", nlohmann::json::array()}};
+                nlohmann::json entry = {{"name", unit.name}, {"hitPoints", unit.hitPoints},
+                    {"collisionProfile", SerializeTankCollisionProfile(unit.collisionProfile)},
+                    {"attackMounts", nlohmann::json::array()}};
                 for (const auto& mount : unit.attackMounts)
                     entry["attackMounts"].push_back({{"attackType", settings.attackTypes[static_cast<size_t>(mount.attackTypeIndex)].name},
                         {"localPosition", {mount.localPosition.x, mount.localPosition.y, mount.localPosition.z}}});
@@ -141,6 +145,13 @@ namespace Tank::Physics
                 EnemyUnitType unit;
                 unit.name = entry.at("name").get<std::string>();
                 unit.hitPoints = entry.value("hitPoints", 60.0f);
+                if (entry.contains("collisionProfile"))
+                {
+                    std::string profileError;
+                    if (!DeserializeTankCollisionProfile(entry.at("collisionProfile"),
+                            unit.collisionProfile, profileError))
+                        throw std::runtime_error(profileError);
+                }
                 unit.attackMounts.clear();
                 if (!entry.at("attackMounts").is_array()) throw std::runtime_error("Expected attackMounts array");
                 for (const auto& mountEntry : entry.at("attackMounts"))
