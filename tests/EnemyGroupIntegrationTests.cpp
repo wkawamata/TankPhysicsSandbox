@@ -43,7 +43,10 @@ int main()
         observer.name = "Observer";
         observer.firingIntervalSeconds = 3600;
         catalog.attackTypes.push_back(observer);
-        catalog.unitTypes.push_back({"Observer turret", {{{}, 1}}});
+        EnemyUnitType observerUnit;
+        observerUnit.name = "Observer turret";
+        observerUnit.attackMounts = {{{}, 1}};
+        catalog.unitTypes.push_back(observerUnit);
         Tank::Map::Manifest manifest;
         manifest.enemies = {
             {"leader", "Fixed turret", {0, 1.5f, 12}, {}},
@@ -285,6 +288,72 @@ int main()
             world.State().enemyGroups[0].lastNavigationObservation->surfaceId == "ground" &&
             !world.State().enemyGroups[0].navigation->stopped,
             "Search retains last observed support surface after occlusion");
+        world.Initialize();
+        catalog.attackTypes[0].detectionRangeMeters = 1;
+        manifest.enemyGroups[0].patrol->points = {{{0, 1.5f, 20}, "ground"}, {{0, 1.5f, 12}, "ground"}};
+        manifest.enemyGroups[0].patrol->arrivalMeters = 0.1f;
+        check(Tank::App::SpawnManifestEnemies(world, manifest, catalog, error) &&
+            world.ConfigureEnemyMovement(setup, error), "Configure movement toggle fixture");
+        EnemySimulationSettings movementToggle{1, 2};
+        movementToggle.movementEnabled = false;
+        check(world.SetEnemySimulationSettings(movementToggle), "Start with enemy movement disabled");
+        const auto disabledStart = world.State().fixedTurrets[0].position;
+        advance(world, 180);
+        check(NavigationDistance(world.State().fixedTurrets[0].position, disabledStart) < 0.00001f &&
+            !world.State().fixedTurrets[0].simpleMoving && !world.State().fixedTurrets[0].physicalMoving,
+            "Disabled authored patrol stays fixed and never enters tracked physics");
+        movementToggle.movementEnabled = true;
+        check(world.SetEnemySimulationSettings(movementToggle), "Enable movement live");
+        advance(world, 120);
+        check(world.State().fixedTurrets[0].position.z > disabledStart.z + 0.5f,
+            "Enabling resumes simple patrol");
+        const auto simpleStop = world.State().fixedTurrets[0].position;
+        movementToggle.movementEnabled = false;
+        check(world.SetEnemySimulationSettings(movementToggle), "Disable simple patrol live");
+        advance(world, 180);
+        check(NavigationDistance(world.State().fixedTurrets[0].position, simpleStop) < 0.00001f &&
+            NavigationDistance(world.State().fixedTurrets[0].navigationVelocity, {}) < 0.00001f,
+            "Disabling simple movement removes residual velocity");
+        movementToggle.movementEnabled = true;
+        check(world.SetEnemySimulationSettings(movementToggle), "Reenable simple patrol");
+        advance(world, 60);
+        check(NavigationDistance(world.State().fixedTurrets[0].position, simpleStop) > 0.1f,
+            "Reenabled patrol continues from stopped pose");
+        movementToggle.physicalEnterMeters = 30;
+        movementToggle.simpleReturnMeters = 40;
+        check(world.SetEnemySimulationSettings(movementToggle), "Enable nearby physical enemy");
+        advance(world, 1);
+        check(world.State().fixedTurrets[0].physicalMoving, "Toggle fixture enters tracked physics");
+        const auto physicalStop = world.State().fixedTurrets[0].position;
+        movementToggle.movementEnabled = false;
+        check(world.SetEnemySimulationSettings(movementToggle), "Disable tracked physics movement live");
+        advance(world, 120);
+        check(NavigationDistance(world.State().fixedTurrets[0].position, physicalStop) < 0.00001f &&
+            !world.State().fixedTurrets[0].physicalMoving && !world.State().fixedTurrets[0].runningGear &&
+            world.State().fixedTurrets[0].target.hitPoints == 60,
+            "Disabling physical movement fixes current pose and preserves combat HP");
+        movementToggle.movementEnabled = true;
+        check(world.SetEnemySimulationSettings(movementToggle), "Reenable physical movement without reset");
+        advance(world, 1);
+        check(world.State().fixedTurrets[0].physicalMoving && world.State().fixedTurrets[0].runningGear,
+            "Physical controller can be recreated after OFF/ON");
+        world.Initialize();
+        advance(world, 180);
+        catalog.attackTypes[0] = {};
+        catalog.attackTypes[0].detectionMode = EnemyDetectionMode::RangeOnly;
+        catalog.attackTypes[0].firingIntervalSeconds = 0.1f;
+        catalog.attackTypes[0].maximumYawSpeedDegreesPerSecond = 360;
+        movementToggle.movementEnabled = false;
+        check(Tank::App::SpawnManifestEnemies(world, manifest, catalog, error) &&
+            world.ConfigureEnemyMovement(setup, error) && world.SetEnemySimulationSettings(movementToggle),
+            "Configure armed enemy with movement OFF");
+        advance(world, 120);
+        check(world.State().fixedTurrets[0].mounts[0].aim.detected &&
+            world.State().fixedTurrets[0].mounts[0].aim.shotsFired > 0 &&
+            std::abs(world.State().fixedTurrets[0].position.z - 12) < 0.00001f,
+            "Movement OFF preserves detection, aiming and firing");
+        world.Initialize();
+        check(world.State().fixedTurrets.empty(), "Reset cleans up controllers after repeated movement toggles");
         std::cout << "PASS EnemyGroupIntegration\n";
         return 0;
     }

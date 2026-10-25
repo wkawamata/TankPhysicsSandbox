@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Map/MapFolder.h"
+#include "Map/MapCatalog.h"
 #include "App/UndoHistory.h"
 #include "App/ExternalUndoEdit.h"
 #include <tuple>
@@ -90,6 +91,8 @@ private:
     bool AddSelectedModel();
     bool SaveSelectedMaterialColor();
     bool AddIndestructibleBox();
+    bool AddGate(int variant);
+    int m_gateVariant = 0;
     bool UpdateSelectedInstance(const Tank::Map::Transform& transform);
     void SetSelectedInstanceVisible(bool visible);
     bool DuplicateSelectedInstance();
@@ -124,7 +127,9 @@ private:
     std::string m_status;
     std::string m_previewWarning;
     std::vector<std::string> m_assets;
-    std::vector<std::filesystem::path> m_availableMaps;
+    std::vector<Tank::Map::NamedMap> m_availableMaps;
+    std::string m_mapNameDraft;
+    std::string m_mapNameError;
     std::filesystem::path m_selectedAvailableMap;
     bool m_availableMapsScanned = false;
     std::string m_selectedAsset;

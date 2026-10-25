@@ -15,6 +15,7 @@
 #include "EnemyNavigationPlanner.h"
 #include "EnemyNavigationSetup.h"
 #include "Map/MapManifest.h"
+#include "GateMotion.h"
 
 #include <array>
 #include <memory>
@@ -138,6 +139,7 @@ namespace Tank::Physics
         std::vector<MortarBlastState> mortarBlasts;
         std::uint64_t mortarShotsFired = 0;
         std::uint64_t mortarHitTargetId = 0;
+        std::vector<GateState> gates;
         std::vector<DestructibleBoxState> destructibleBoxes;
         std::vector<FixedTurretState> fixedTurrets;
         std::vector<EnemyGroupState> enemyGroups;

@@ -11,6 +11,7 @@ namespace Tank::Physics
         float observationRadiusMeters = 6;
         float supportHeightToleranceMeters = 0.2f;
         float simpleTurnDegreesPerSecond = 60;
+        bool movementEnabled = true;
         bool operator==(const EnemySimulationSettings&) const = default;
     };
     inline bool IsValidEnemySimulationSettings(const EnemySimulationSettings& s)

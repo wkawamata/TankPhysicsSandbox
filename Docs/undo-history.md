@@ -6,6 +6,10 @@ screens support Ctrl+Z (Undo), Ctrl+Y and Ctrl+Shift+Z (Redo). Text inputs retai
 
 ## Supported edits
 
+- Map Playable: the checkbox is one command; Undo/Redo restores the flag
+  and table checkmark without writing disk.
+- Map names: Apply Name / Enter is one command; Undo/Redo restores the name
+  and list label. Save remains an explicit disk write.
 - Map hierarchy: local transforms, parenting and sibling order, active/visible
   states, names, subtree duplication, and node creation/removal. Parent removal
   retains the hierarchy editor's rule to move or remove its children first.
@@ -14,6 +18,8 @@ screens support Ctrl+Z (Undo), Ctrl+Y and Ctrl+Shift+Z (Redo). Text inputs retai
 - Enemy Unit Editor in Map Editor: movement settings, attack definitions, unit
   names and HP, and attack mounts. These share the map's command history.
 - Enemy Unit Editor in Tracked Vehicle: movement, attacks, unit types and mounts.
+  Movement ON/OFF retains hidden tuning values; numeric slider drags and each
+  step/default button use the same history in both editor and game.
 - Tank appearance: materials, colors, model scale and dummy visibility; restored
   appearance refreshes materials and the scene.
 - Map preview: grid visibility/spacing/extent/line width, grid snap, visual/hit mesh

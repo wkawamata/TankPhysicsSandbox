@@ -1,4 +1,5 @@
 #include "MapFolder.h"
+#include "MapCatalog.h"
 
 #define NOMINMAX
 #include <Windows.h>
@@ -93,6 +94,7 @@ namespace Tank::Map
             auto resolved = std::filesystem::canonical(folder);
             const auto path = resolved / L"Manifest.json";
             Manifest loaded;
+            loaded.name = MapName(loaded, resolved);
             std::string serialized;
             // A broken link or a directory is not a missing manifest.
             if (std::filesystem::symlink_status(path).type() != std::filesystem::file_type::not_found)
@@ -110,6 +112,7 @@ namespace Tank::Map
                 if (!SerializeManifest(loaded, serialized, error) ||
                     !WriteManifest(resolved, serialized, false, error)) return false;
             }
+            if (loaded.name.empty()) loaded.name = MapName(loaded, resolved);
             if (!SerializeManifest(loaded, serialized, error)) return false;
             m_folder = std::move(resolved);
             m_manifest = std::move(loaded);

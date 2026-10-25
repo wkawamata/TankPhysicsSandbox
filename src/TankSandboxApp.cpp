@@ -3,6 +3,8 @@
 #include "Platform/Windows/DebugLogSink.h"
 #include "Input/TankInputMapper.h"
 #include "Map/MapManifest.h"
+#include "Map/MapCatalog.h"
+#include "Ui/MapListUi.h"
 #include "Platform/Win32Application.h"
 #include "Scene/SceneBuilder.h"
 #include "imgui.h"
@@ -200,6 +202,12 @@ void TankSandboxApp::ParseCommandLineArgs(WCHAR* argv[], int argc)
         {
             m_rollCaptureIntervalFrames = (std::max)(
                 UINT64{1}, static_cast<UINT64>(_wtoi64(argv[++i])));
+        }
+        else if (arg == L"--map-name")
+        {
+            if (i + 1 >= argc) throw std::invalid_argument("--map-name requires a map name");
+            const auto utf8 = std::filesystem::path(argv[++i]).u8string();
+            m_autoMapName = std::string(utf8.begin(), utf8.end());
         }
         else if (arg == L"--map" && i + 1 < argc)
         {
@@ -647,7 +655,7 @@ void TankSandboxApp::OnInit()
     if (m_autoSceneMode.has_value())
     {
         if (*m_autoSceneMode == AppMode::PhysicsTrackedVehicle &&
-            m_autoMapPath && !LoadAutoMap())
+            (m_autoMapPath || m_autoMapName) && !LoadAutoMap())
         {
             m_autoSceneMode.reset();
             if (m_cliCaptureConfig)
@@ -2070,17 +2078,19 @@ void TankSandboxApp::DrawTopMenuUi()
         }
         ImGui::PopID();
     }
-    for (size_t index = 0; index < m_manifestMaps.size(); ++index)
+    if (Ui::BeginMapListTable("##ManifestMaps", ImGui::GetTextLineHeightWithSpacing() * 6.0f))
     {
-        ImGui::PushID(static_cast<int>(m_customMaps.size() + index));
-        const bool selected = m_selectedManifestMap == index;
-        const std::string label = m_manifestMaps[index].folder.filename().string() + " (Manifest)";
-        if (ImGui::RadioButton(label.c_str(), selected))
+        for (size_t index = 0; index < m_manifestMaps.size(); ++index)
         {
-            m_selectedManifestMap = index;
-            m_selectedCustomMap.reset();
+            const auto& map = m_manifestMaps[index];
+            if (!map.document.playable) continue;
+            if (Ui::DrawMapListRow(map.document, map.folder, m_selectedManifestMap == index))
+            {
+                m_selectedManifestMap = index;
+                m_selectedCustomMap.reset();
+            }
         }
-        ImGui::PopID();
+        ImGui::EndTable();
     }
     if (m_selectedManifestMap && *m_selectedManifestMap < m_manifestMaps.size())
     {
@@ -2095,6 +2105,10 @@ void TankSandboxApp::DrawTopMenuUi()
     {
         ImGui::TextUnformatted(m_customMapStatus.c_str());
     }
+    const bool selectedMapNotPlayable = m_selectedManifestMap && *m_selectedManifestMap < m_manifestMaps.size() &&
+        !m_manifestMaps[*m_selectedManifestMap].document.playable;
+    if (selectedMapNotPlayable) ImGui::TextWrapped("This map is not playable. Enable Playable in Map Editor to play it.");
+    ImGui::BeginDisabled(selectedMapNotPlayable);
     if (ImGui::Button("Start Tracked Vehicle"))
     {
         bool canStart = true;
@@ -2119,6 +2133,7 @@ void TankSandboxApp::DrawTopMenuUi()
         }
         if (canStart) EnterTrackedVehicleMode();
     }
+    ImGui::EndDisabled();
     ImGui::End();
 }
 
@@ -2188,11 +2203,27 @@ void TankSandboxApp::ReloadCustomMaps()
 
 bool TankSandboxApp::LoadAutoMap()
 {
-    if (!m_autoMapPath)
+    std::string error;
+    if (m_autoMapName)
     {
+        if (m_autoMapPath)
+        {
+            m_customMapStatus = "Use either --map or --map-name.";
+            return false;
+        }
+        std::vector<Tank::Map::NamedMap> maps;
+        Tank::Map::NamedMap map;
+        if (!Tank::Map::LoadMapCatalog(ResolveMapAssetsDirectory(), maps, error) ||
+            !Tank::Map::ResolveMapByName(maps, *m_autoMapName, map, error) ||
+            !m_trackedVehicleMode.SelectManifestMap(map.folder, map.document, error))
+        {
+            m_customMapStatus = "Map load failed: " + error;
+            return false;
+        }
+        m_customMapStatus = "Auto map: " + Tank::Map::MapName(map.document, map.folder);
         return true;
     }
-    std::string error;
+    if (!m_autoMapPath) return true;
     if (std::filesystem::is_directory(*m_autoMapPath) || m_autoMapPath->filename() == "Manifest.json")
     {
         const auto folder = std::filesystem::is_directory(*m_autoMapPath)

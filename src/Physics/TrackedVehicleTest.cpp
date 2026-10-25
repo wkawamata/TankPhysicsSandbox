@@ -43,6 +43,7 @@ namespace Tank::Physics
         TankController controller;
         JPH::BodyID floorBodyId;
         std::vector<JPH::BodyID> obstacleBodyIds;
+        std::vector<JPH::BodyID> gateBodyIds;
         std::vector<JPH::BodyID> destructibleBodyIds;
         std::vector<JPH::BodyID> turretBodyIds;
         std::uint64_t nextCombatTargetId = 1;
@@ -282,6 +283,31 @@ namespace Tank::Physics
                 { if (error) *error = "Invalid destructible mesh HP"; return false; }
                 JPH::BodyID bodyId;
                 std::string shapeError;
+                if (mesh.gate)
+                {
+                    const auto& g = *mesh.gate;
+                    const auto finiteVector = [](const auto& vector) {return std::all_of(vector.begin(), vector.end(),
+                        [](float value) {return std::isfinite(value);});};
+                    double travelSquared = 0;
+                    for (float value : mesh.gateTravel) travelSquared += double(value) * value;
+                    if (!finiteVector(mesh.gateTriggerCenter) || !finiteVector(mesh.gateTravel) || travelSquared <= 0 ||
+                        mesh.breakable || !std::isfinite(g.triggerRadiusMeters) || g.triggerRadiusMeters <= 0 ||
+                        !std::isfinite(g.openingSpeedMetersPerSecond) || g.openingSpeedMetersPerSecond <= 0)
+                    { if (error) *error = "Invalid gate settings"; return false; }
+                    JPH::Array<JPH::Vec3> points;
+                    for (const auto& p : mesh.vertices) points.emplace_back(p[0], p[1], p[2]);
+                    const auto shape = JPH::ConvexHullShapeSettings(points).Create();
+                    if (shape.HasError()) { if (error) *error = shape.GetError().c_str(); return false; }
+                    JPH::BodyCreationSettings gateBody(shape.Get(), JPH::RVec3::sZero(), JPH::Quat::sIdentity(),
+                        JPH::EMotionType::Kinematic, Layers::Moving);
+                    bodyId = bodyInterface.CreateAndAddBody(gateBody, JPH::EActivation::DontActivate);
+                    if (bodyId.IsInvalid()) { if (error) *error = "Cannot create gate collision"; return false; }
+                    m_impl->obstacleBodyIds.push_back(bodyId);
+                    m_impl->gateBodyIds.push_back(bodyId);
+                    m_state.gates.push_back({mesh.placementId, mesh.gateTriggerCenter, mesh.gateTravel,
+                        g.triggerRadiusMeters, g.openingSpeedMetersPerSecond});
+                    continue;
+                }
                 if (!AddStaticMeshBody(m_impl->world, mesh, bodyId, shapeError))
                 {
                     if (error != nullptr) *error = shapeError;
@@ -618,6 +644,31 @@ namespace Tank::Physics
                 if (driver.physical) {driver.physical->SetInput({}); driver.physical->PreStep();}
                 continue;
             }
+            if (m_impl->simulationSettings && !m_impl->simulationSettings->movementEnabled)
+            {
+                auto& bodies = m_impl->world.GetBodyInterface();
+                auto& bodyId = m_impl->turretBodyIds[driver.enemyIndex];
+                if (driver.physical)
+                {
+                    driver.physical.reset();
+                    JPH::BodyCreationSettings proxy(CreateTankJoltShape(enemy.unitType.collisionProfile.movementShape),
+                        JPH::RVec3(enemy.position.x, enemy.position.y, enemy.position.z),
+                        JPH::Quat(enemy.rotation.x, enemy.rotation.y, enemy.rotation.z, enemy.rotation.w),
+                        JPH::EMotionType::Kinematic, Layers::Moving);
+                    auto* body = bodies.CreateBody(proxy);
+                    bodyId = body->GetID();
+                    bodies.AddBody(bodyId, JPH::EActivation::Activate);
+                    driver.movement.reset(); // Replan from the stopped pose when movement resumes.
+                }
+                bodies.SetLinearAndAngularVelocity(bodyId, JPH::Vec3::sZero(), JPH::Vec3::sZero());
+                enemy.simpleMoving = false;
+                enemy.physicalMoving = false;
+                enemy.runningGear.reset();
+                enemy.navigationVelocity = {};
+                enemy.navigationYawRadiansPerSecond = 0;
+                continue;
+            }
+            enemy.simpleMoving = true;
             const auto player = m_impl->controller.State().body.position;
             const auto distance = NavigationDistance(player, enemy.position);
             auto& bodyId = m_impl->turretBodyIds[driver.enemyIndex];
@@ -767,6 +818,7 @@ namespace Tank::Physics
     void TrackedVehicleTest::UpdateEnemyGroups(float dt)
     {
         const bool playerAlive = m_impl->playerCombat.Snapshot().phase == PlayerCombatPhase::Alive;
+        const bool movementEnabled = !m_impl->simulationSettings || m_impl->simulationSettings->movementEnabled;
         for (size_t i = 0; i < m_state.enemyGroups.size(); ++i)
         {
             auto& group = m_state.enemyGroups[i];
@@ -788,7 +840,7 @@ namespace Tank::Physics
                 group.lastKnownPosition = m_impl->controller.State().body.position;
                 group.lastObservedSeconds = m_impl->enemyObservationTimeSeconds;
                 group.lastNavigationObservation.reset();
-                if (m_impl->groupNavigation[i])
+                if (movementEnabled && m_impl->groupNavigation[i])
                 {
                     const auto& state = m_impl->controller.State();
                     const TrackedWheelState* support = nullptr;
@@ -807,7 +859,7 @@ namespace Tank::Physics
                     }
                 }
             }
-            if (dt > 0 && m_impl->groupBehaviors[i])
+            if (movementEnabled && dt > 0 && m_impl->groupBehaviors[i])
             {
                 Vec3 anchor;
                 for (size_t j = 0; j < group.members.size(); ++j)
@@ -836,7 +888,7 @@ namespace Tank::Physics
                     group.lastNavigationObservation ? group.lastNavigationObservation->surfaceId : std::string{},
                     group.lastNavigationObservation ? &group.lastNavigationObservation->position : nullptr);
                 group.behavior = m_impl->groupBehaviors[i]->State();
-                if (m_impl->groupNavigation[i])
+                if (movementEnabled && m_impl->groupNavigation[i])
                 {
                     const auto& request = *group.behavior;
                     const bool sameTarget = driver != m_impl->navigationDrivers.end() && driver->movement &&
@@ -1330,6 +1382,14 @@ namespace Tank::Physics
             bodies.ActivateBody(id);
             enemy.supportReleased = true;
             enemy.simpleMoving = false;
+        }
+        for (size_t i = 0; i < m_state.gates.size(); ++i)
+        {
+            auto& gate = m_state.gates[i];
+            gate.Advance({m_state.bodyPosition.x, m_state.bodyPosition.y, m_state.bodyPosition.z}, deltaTimeSeconds);
+            const auto offset = gate.Offset();
+            bodies.MoveKinematic(m_impl->gateBodyIds[i], JPH::RVec3(offset[0], offset[1], offset[2]),
+                JPH::Quat::sIdentity(), deltaTimeSeconds);
         }
         AdvanceEnemyNavigation(deltaTimeSeconds);
         m_impl->controller.PreStep();

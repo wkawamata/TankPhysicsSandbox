@@ -2,8 +2,10 @@
 
 #include "Map/MapAssetCatalog.h"
 #include "Map/MapEditing.h"
+#include "Map/GatePrefab.h"
 #include "Map/MapHierarchy.h"
 #include "Ui/SceneTreeUI.h"
+#include "Ui/MapListUi.h"
 #include "Platform/Windows/MapFolderPicker.h"
 #include "Physics/EnemyEditorJson.h"
 #include "Rendering/EnemyPlacementGizmo.h"
@@ -33,24 +35,11 @@ void MapEditorMode::RefreshAvailableMaps()
 {
     m_availableMapsScanned = true;
     m_availableMaps.clear();
-    std::error_code error;
-    const std::filesystem::path root = MapAssetsRoot();
-    if (!std::filesystem::is_directory(root, error)) return;
-
-    for (const std::filesystem::directory_entry& entry :
-         std::filesystem::directory_iterator(root, error))
-    {
-        // A folder without a Manifest must not suppress later map folders.
-        error.clear();
-        if (!entry.is_directory(error) || error) continue;
-        if (std::filesystem::is_regular_file(entry.path() / "Manifest.json", error))
-            m_availableMaps.push_back(entry.path());
-    }
-    std::sort(m_availableMaps.begin(), m_availableMaps.end(),
-        [](const std::filesystem::path& left, const std::filesystem::path& right)
-        { return left.filename().wstring() < right.filename().wstring(); });
-    if (std::find(m_availableMaps.begin(), m_availableMaps.end(), m_selectedAvailableMap) ==
-        m_availableMaps.end())
+    std::string error;
+    if (!Tank::Map::LoadMapCatalog(MapAssetsRoot(), m_availableMaps, error))
+        m_status = "Map list: " + error;
+    if (std::none_of(m_availableMaps.begin(), m_availableMaps.end(),
+        [this](const auto& map) { return map.folder == m_selectedAvailableMap; }))
         m_selectedAvailableMap.clear();
 }
 
@@ -59,6 +48,8 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     if (!m_map.Open(folder, error)) return false;
     ClearUndoHistory();
     m_status = "Opened Manifest.json";
+    m_mapNameDraft = m_map.Document().name;
+    m_mapNameError.clear();
     m_previewWarning.clear();
     m_selectedAsset.clear();
     m_selectedNodeId = "root";
@@ -93,6 +84,8 @@ void MapEditorMode::ApplyManifestSnapshot(const Tank::Map::Manifest& manifest)
         return;
     }
 
+    m_mapNameDraft = Tank::Map::MapName(manifest, m_map.Folder());
+    m_mapNameError.clear();
     const auto tree = Tank::Map::MapTree(manifest);
     const auto hasNode = [&tree](const std::string& id)
     {
@@ -268,6 +261,39 @@ std::optional<std::filesystem::path> MapEditorMode::ConsumeClosedMapFolder()
     std::optional<std::filesystem::path> folder = std::move(m_closedMapFolder);
     m_closedMapFolder.reset();
     return folder;
+}
+
+bool MapEditorMode::AddGate(int variant)
+{
+    if (variant < 0 || variant >= 3) return false;
+    const auto size = std::to_string(static_cast<int>(Tank::Map::GateWidths[variant]));
+    for (const auto* part : {"Frame", "Shutter"})
+    {
+        const auto filename = "Gate" + size + part + ".gltf";
+        const auto destination = m_map.Folder() / "Models" / filename;
+        std::error_code error;
+        std::filesystem::create_directories(destination.parent_path(), error);
+        if (!error && !std::filesystem::exists(destination, error))
+            std::filesystem::copy_file(MapAssetsRoot() / "Templates" / filename, destination,
+                std::filesystem::copy_options::none, error);
+        if (error) {m_status = "Could not prepare gate asset: " + error.message(); return false;}
+        Tank::Map::GltfRoles roles;
+        std::string validationError;
+        if (!Tank::Map::InspectGltfRoles(destination, roles, validationError) ||
+            (m_assetValidator && !m_assetValidator(destination, roles, validationError)))
+        {m_status = "Invalid gate asset: " + validationError; return false;}
+    }
+    const auto before = m_map.Document();
+    auto updated = before;
+    const auto group = Tank::Map::AddGatePrefab(updated, variant);
+    if (!CommitManifestEdit(before, updated, "Add gate")) return false;
+    m_selectedNodeId = group;
+    m_selectedInstanceId.clear(); m_selectedEnemyId.clear(); m_selectedClearAreaId.clear();
+    m_playerStartGizmoSelected = false;
+    m_sceneReloadRequested = true; m_focusSelectedRequested = false;
+    RefreshAssets();
+    m_status = "Added gate. Move the Gate group in Map Tree; Save to write Manifest.json.";
+    return true;
 }
 
 bool MapEditorMode::AddIndestructibleBox()
@@ -829,6 +855,19 @@ void MapEditorMode::DrawMapTree()
             updated.nodeInfo[selectedId] = current;
             changed = true;
         }
+        for (auto& model : updated.instances)
+            if (model.gate && ("mesh/" + model.id == selectedId || model.parentId == selectedId))
+            {
+                ImGui::PushID(model.id.c_str());
+                if (ImGui::CollapsingHeader("Gate proximity trigger", ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    changed |= ImGuiWidgets::SliderFloatWithControls("Open radius (m)", &model.gate->triggerRadiusMeters,
+                        0.5f, 1000, 0.5f, 12, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+                    ImGui::TextWrapped("Starts closed. Opens when the player center enters this sphere; stays open until replay.");
+                    ImGui::TextDisabled("Radius center: shutter base. Move/rotate the Gate group to keep the frame aligned.");
+                }
+                ImGui::PopID();
+            }
         if (selected->kind == NodeKind::Enemy)
         {
             auto enemy = std::find_if(updated.enemies.begin(), updated.enemies.end(),
@@ -843,11 +882,13 @@ void MapEditorMode::DrawMapTree()
                 [&](const auto& n) {return n.id == selected->objectId;});
             if (model != updated.instances.end())
             {
+                ImGui::BeginDisabled(model->gate.has_value());
                 changed |= ImGui::Checkbox("Breakable", &model->breakable);
                 ImGui::BeginDisabled(!model->breakable);
                 changed |= ImGuiWidgets::SliderFloatWithControls("HP", &model->hitPoints,
                     1, 100000, 10, 60, "%.0f");
                 model->hitPoints = std::clamp(model->hitPoints, 1.0f, 100000.0f);
+                ImGui::EndDisabled();
                 ImGui::EndDisabled();
             }
         }
@@ -981,11 +1022,15 @@ void MapEditorMode::DrawEnemies()
         }
         return changed;
     };
-    typeCombo("Enemy type", m_selectedEnemyType);
-    ImGui::BeginDisabled(m_selectedEnemyType.empty());
-    if (ImGui::Button("Add Enemy")) AddSelectedEnemy();
-    ImGui::EndDisabled();
-    ImGui::TextWrapped("Red boxes and forward markers show placements. Dimensions are preview placeholders.");
+    if (ImGui::CollapsingHeader("New Enemy", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        typeCombo("Placement type", m_selectedEnemyType);
+        ImGui::BeginDisabled(m_selectedEnemyType.empty());
+        if (ImGui::Button("Add Enemy")) AddSelectedEnemy();
+        ImGui::EndDisabled();
+        ImGui::TextWrapped("Red boxes and forward markers show placements. Dimensions are preview placeholders.");
+    }
+    if (!ImGui::CollapsingHeader("Selected Enemy", ImGuiTreeNodeFlags_DefaultOpen)) return;
     const auto& enemies = m_map.Document().enemies;
     const auto selected = std::find_if(enemies.begin(), enemies.end(),
         [this](const auto& value) { return value.id == m_selectedEnemyId; });
@@ -994,11 +1039,13 @@ void MapEditorMode::DrawEnemies()
         auto enemy = *selected;
         if (std::find(m_enemyTypes.begin(), m_enemyTypes.end(), enemy.unitType) == m_enemyTypes.end())
             ImGui::TextWrapped("Type is missing from loaded catalog: %s", enemy.unitType.c_str());
-        const bool changed = typeCombo("Placement type", enemy.unitType);
+        ImGui::Text("Enemy ID: %s", enemy.id.c_str());
+        const bool changed = typeCombo("Enemy type", enemy.unitType);
         if (changed) UpdateSelectedEnemy(enemy);
         if (ImGui::Button("Focus Enemy")) { m_sceneReloadRequested = true; m_focusSelectedRequested = true; }
-
     }
+    else
+        ImGui::TextUnformatted("Select an enemy in the map to edit its type.");
 }
 
 bool MapEditorMode::Save()
@@ -1007,12 +1054,16 @@ bool MapEditorMode::Save()
     FlushPendingGizmoEdit();
     FlushPendingManifestEdit();
     std::string error;
-    if (!m_map.Save(error))
+    std::vector<Tank::Map::NamedMap> maps;
+    if (!Tank::Map::LoadMapCatalog(MapAssetsRoot(), maps, error) ||
+        !Tank::Map::IsMapNameAvailable(maps, m_map.Folder(), m_map.Document().name, error) ||
+        !m_map.Save(error))
     {
         m_status = "Save failed: " + error;
         return false;
     }
     m_status = "Saved Manifest.json";
+    RefreshAvailableMaps();
     return true;
 }
 
@@ -1202,28 +1253,34 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     ImGui::Checkbox("Local", &m_gizmoLocal);
     ImGui::Separator();
     ImGui::BeginChild("##MapEditorScrollArea", ImVec2(0.0f, 0.0f), false);
-    ImGui::SeparatorText("Maps in Assets/Map");
-    if (ImGui::Button("Refresh Map List")) RefreshAvailableMaps();
-    ImGui::SameLine();
-    ImGui::TextUnformatted("Create New... starts in Assets/Map.");
-    if (ImGui::BeginListBox("##AvailableMaps", ImVec2(-1, 92)))
+    if (ImGui::CollapsingHeader("Map List", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        for (size_t index = 0; index < m_availableMaps.size(); ++index)
+        char mapFolder[] = "Assets/Map";
+        ImGui::BeginDisabled();
+        ImGui::TextUnformatted("MapFolder:");
+        ImGui::SameLine();
+        ImGui::InputText("##MapFolder", mapFolder, sizeof(mapFolder), ImGuiInputTextFlags_ReadOnly);
+        ImGui::EndDisabled();
+        if (ImGui::Button("Refresh Map List")) RefreshAvailableMaps();
+        if (Ui::BeginMapListTable("##AvailableMaps", ImGui::GetTextLineHeightWithSpacing() * 6.0f))
         {
-            const std::string label = m_availableMaps[index].filename().string();
-            if (ImGui::Selectable(label.c_str(), m_availableMaps[index] == m_selectedAvailableMap))
-                m_selectedAvailableMap = m_availableMaps[index];
+            for (const auto& map : m_availableMaps)
+            {
+                const auto& document = map.folder == m_map.Folder() ? m_map.Document() : map.document;
+                if (Ui::DrawMapListRow(document, map.folder, map.folder == m_selectedAvailableMap))
+                    m_selectedAvailableMap = map.folder;
+            }
+            ImGui::EndTable();
         }
-        ImGui::EndListBox();
+        ImGui::BeginDisabled(m_selectedAvailableMap.empty());
+        if (ImGui::Button("Open Selected"))
+        {
+            m_pendingFolder = m_selectedAvailableMap;
+            Request(Action::OpenSelected);
+        }
+        ImGui::EndDisabled();
+        if (m_availableMaps.empty()) ImGui::TextUnformatted("No map folders with Manifest.json found in Assets/Map.");
     }
-    ImGui::BeginDisabled(m_selectedAvailableMap.empty());
-    if (ImGui::Button("Open Selected"))
-    {
-        m_pendingFolder = m_selectedAvailableMap;
-        Request(Action::OpenSelected);
-    }
-    ImGui::EndDisabled();
-    if (m_availableMaps.empty()) ImGui::TextUnformatted("No map folders with Manifest.json found in Assets/Map.");
     ImGui::Separator();
     if (!m_map.IsOpen())
     {
@@ -1234,6 +1291,32 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
         const auto utf8 = m_map.Folder().u8string();
         const std::string folder(utf8.begin(), utf8.end());
         ImGui::TextWrapped("Folder: %s", folder.c_str());
+        const bool rename = ImGui::InputText("Map Name", &m_mapNameDraft, ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::SameLine();
+        const bool applyName = ImGui::Button("Apply Name");
+        if (rename || applyName)
+        {
+            std::vector<Tank::Map::NamedMap> maps;
+            if (Tank::Map::LoadMapCatalog(MapAssetsRoot(), maps, m_mapNameError) &&
+                Tank::Map::IsMapNameAvailable(maps, m_map.Folder(), m_mapNameDraft, m_mapNameError))
+            {
+                const auto before = m_map.Document();
+                auto after = before;
+                after.name = m_mapNameDraft;
+                if (CommitManifestEdit(before, after, "Rename map"))
+                    m_status = "Map name changed. Save to update name references on disk.";
+            }
+        }
+        ImGui::TextDisabled("Enter / Apply Name, then Save. Map references use this name (case-sensitive).");
+        if (!m_mapNameError.empty()) ImGui::TextWrapped("%s", m_mapNameError.c_str());
+        bool playable = m_map.Document().playable;
+        if (ImGui::Checkbox("Playable", &playable))
+        {
+            const auto before = m_map.Document();
+            auto after = before;
+            after.playable = playable;
+            CommitManifestEdit(before, after, "Set map playable");
+        }
         ImGui::TextUnformatted(m_map.IsDirty() ? "Unsaved changes" : "Saved");
         DrawMapTree();
         const auto& document = m_map.Document();
@@ -1270,6 +1353,15 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
             ImGui::PopStyleColor();
         }
         ImGui::Separator();
+        if (ImGui::CollapsingHeader("Gate", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            const int previousVariant = m_gateVariant;
+            ImGui::Combo("Opening (W x H)", &m_gateVariant, "10m x 3m\0" "5m x 3m\0" "20m x 5m\0");
+            ObserveViewEdit(previousVariant, m_gateVariant, ImGui::GetActiveID(),
+                [this](int value) {m_gateVariant = value;}, "Gate placement size");
+            if (ImGui::Button("Add Gate")) AddGate(m_gateVariant);
+            ImGui::TextWrapped("Framed vertical shutter. Select the Gate group or shutter in Map Tree to set its open radius.");
+        }
         if (ImGui::Button("Add Indestructible Box")) AddIndestructibleBox();
         ImGui::TextWrapped("Static box: 2 x 3 x 2 m, origin at its base. Shots cannot destroy it. Edit position/rotation in Map Tree, then Save.");
         if (ImGui::Button("Refresh Models")) RefreshAssets();

@@ -1,0 +1,107 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "Tank gate dummy prefab"
+  },
+  "buffers": [
+    {
+      "byteLength": 504,
+      "uri": "data:application/octet-stream;base64,AACwwAAAAADNzMy+AACgwAAAAADNzMy+AACgwAAAYEDNzMy+AACwwAAAYEDNzMy+AACwwAAAAADNzMw+AACgwAAAAADNzMw+AACgwAAAYEDNzMw+AACwwAAAYEDNzMw+AACgQAAAAADNzMy+AACwQAAAAADNzMy+AACwQAAAYEDNzMy+AACgQAAAYEDNzMy+AACgQAAAAADNzMw+AACwQAAAAADNzMw+AACwQAAAYEDNzMw+AACgQAAAYEDNzMw+AACgwAAAQEDNzMy+AACgQAAAQEDNzMy+AACgQAAAYEDNzMy+AACgwAAAYEDNzMy+AACgwAAAQEDNzMw+AACgQAAAQEDNzMw+AACgQAAAYEDNzMw+AACgwAAAYEDNzMw+AAACAAEAAAADAAIABAAFAAYABAAGAAcAAAAEAAcAAAAHAAMAAQACAAYAAQAGAAUAAAABAAUAAAAFAAQAAwAHAAYAAwAGAAIACAAKAAkACAALAAoADAANAA4ADAAOAA8ACAAMAA8ACAAPAAsACQAKAA4ACQAOAA0ACAAJAA0ACAANAAwACwAPAA4ACwAOAAoAEAASABEAEAATABIAFAAVABYAFAAWABcAEAAUABcAEAAXABMAEQASABYAEQAWABUAEAARABUAEAAVABQAEwAXABYAEwAWABIA"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 288
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 288,
+      "byteLength": 216
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 24,
+      "type": "VEC3",
+      "min": [
+        -5.5,
+        0,
+        -0.4
+      ],
+      "max": [
+        5.5,
+        3.5,
+        0.4
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 108,
+      "type": "SCALAR"
+    }
+  ],
+  "materials": [
+    {
+      "name": "GateDummy",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.18,
+          0.22,
+          0.26,
+          1
+        ],
+        "metallicFactor": 0.4,
+        "roughnessFactor": 0.65
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "Visual",
+      "children": [
+        1
+      ]
+    },
+    {
+      "name": "GateVisual",
+      "mesh": 0
+    },
+    {
+      "name": "Hit",
+      "children": [
+        3
+      ]
+    },
+    {
+      "name": "GateCollision",
+      "mesh": 0
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": [
+        0,
+        2
+      ]
+    }
+  ],
+  "scene": 0
+}

@@ -18,6 +18,10 @@ namespace Tank::Map
         std::string placementId;
         bool breakable = false;
         float hitPoints = 60.0f;
+        // World-space gate motion, resolved by the application from authored settings.
+        std::optional<GateSettings> gate;
+        std::array<float, 3> gateTriggerCenter = {};
+        std::array<float, 3> gateTravel = {};
     };
 
     // Loads Hit-role triangle primitives and bakes their glTF hierarchy transforms.

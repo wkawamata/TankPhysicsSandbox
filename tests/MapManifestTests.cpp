@@ -51,6 +51,27 @@ int main()
         Check(SerializeManifest(source, text, error), "Serialize populated map");
         Manifest loaded;
         Check(DeserializeManifest(text, loaded, error), "Load populated map");
+        Check(loaded.playable, "Maps default to playable");
+        auto legacyPlayable = Json::parse(text);
+        legacyPlayable.erase("playable");
+        Check(DeserializeManifest(legacyPlayable.dump(), loaded, error) && loaded.playable,
+            "Legacy maps without playable remain playable");
+        auto notPlayable = source;
+        notPlayable.playable = false;
+        std::string playableJson;
+        Check(SerializeManifest(notPlayable, playableJson, error) &&
+            DeserializeManifest(playableJson, loaded, error) && !loaded.playable,
+            "Playable false survives save and reload");
+        auto malformed = legacyPlayable;
+        malformed["playable"] = "true";
+        loaded.playable = false;
+        Check(!DeserializeManifest(malformed.dump(), loaded, error) && !loaded.playable,
+            "Playable string rejected without changing output");
+        malformed["playable"] = 1;
+        Check(!DeserializeManifest(malformed.dump(), loaded, error), "Playable number rejected");
+        malformed["playable"] = nullptr;
+        Check(!DeserializeManifest(malformed.dump(), loaded, error), "Playable null rejected");
+        Check(DeserializeManifest(text, loaded, error), "Restore original populated map");
         std::string roundTrip;
         Check(SerializeManifest(loaded, roundTrip, error) && roundTrip == text, "All fields survive round trip");
         Check(loaded.instances.size() == 3 && loaded.clearAreas.size() == 2,

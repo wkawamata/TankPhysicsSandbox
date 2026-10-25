@@ -58,6 +58,7 @@ add_library(TankMapCore STATIC
     src/Map/MapAssetCatalog.cpp
     src/Map/MapAssetCatalog.h
     src/Map/MapFolder.cpp
+    src/Map/MapCatalog.cpp
     src/Map/MapFolder.h
     src/Map/MapHierarchy.cpp
     src/Map/MapHierarchy.h
@@ -479,12 +480,21 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME TankMap.AssetCatalog COMMAND MapAssetCatalogTests)
 
+    add_executable(MapCatalogTests tests/MapCatalogTests.cpp)
+    target_link_libraries(MapCatalogTests PRIVATE TankMapCore)
+    add_test(NAME TankMap.Catalog COMMAND MapCatalogTests)
+
     add_executable(MapFolderTests tests/MapFolderTests.cpp)
     target_link_libraries(MapFolderTests PRIVATE TankMapCore)
     if(MSVC)
         target_compile_options(MapFolderTests PRIVATE /W4 /permissive-)
     endif()
     add_test(NAME TankMap.Folder COMMAND MapFolderTests)
+
+    add_executable(GateTests tests/GateTests.cpp)
+    target_link_libraries(GateTests PRIVATE TankPhysicsCore TankMapCore)
+    target_compile_definitions(GateTests PRIVATE TANK_TEST_GATE_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Assets/Map/Templates")
+    add_test(NAME TankPhysics.Gates COMMAND GateTests)
 
     add_executable(MapManifestTests tests/MapManifestTests.cpp)
     target_link_libraries(MapManifestTests PRIVATE TankMapCore nlohmann_json::nlohmann_json)

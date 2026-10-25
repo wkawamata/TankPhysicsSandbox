@@ -18,6 +18,17 @@
 
 namespace Ui
 {
+    namespace
+    {
+        bool EnemySlider(const char* label, float* value, float minimum, float maximum,
+            float step, float defaultValue, const char* format)
+        {
+            maximum = (std::max)(minimum, maximum);
+            return ImGuiWidgets::SliderFloatWithControls(label, value, minimum, maximum, step,
+                std::clamp(defaultValue, minimum, maximum), format, ImGuiSliderFlags_AlwaysClamp);
+        }
+    }
+
     void EnemyUnitEditorWindow::Draw(Tank::Physics::EnemyEditorSettings& editor, std::string& jsonPath,
         const Tank::Physics::TrackedVehicleTestState* state, const std::function<void()>& applyAndReset)
     {
@@ -32,20 +43,25 @@ namespace Ui
 
 
         ImGui::TextUnformatted("Enemy movement simulation (applies during play)");
-        ImGui::DragFloat("Enter tracked physics (m)", &editor.simulation.physicalEnterMeters,
-            1, 1, editor.simulation.simpleReturnMeters - 1, "%.0f", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::DragFloat("Return to simple movement (m)", &editor.simulation.simpleReturnMeters,
-            1, editor.simulation.physicalEnterMeters + 1, 10000, "%.0f", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::DragFloat("Enemy braking deceleration (m/s2)", &editor.simulation.brakingDecelerationMetersPerSecondSquared,
-            0.1f, 0.1f, 20, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::DragFloat("Enemy route node arrival (m)", &editor.simulation.nodeArrivalMeters,
-            0.05f, 0.1f, 2, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::DragFloat("Observed target node radius (m)", &editor.simulation.observationRadiusMeters,
-            0.1f, 0.1f, 100, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::DragFloat("Observed support height tolerance (m)", &editor.simulation.supportHeightToleranceMeters,
-            0.01f, 0.01f, 2, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::DragFloat("Simple pivot speed (deg/s)", &editor.simulation.simpleTurnDegreesPerSecond,
-            1, 1, 360, "%.0f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::Checkbox("Enemy movement enabled", &editor.simulation.movementEnabled);
+        if (editor.simulation.movementEnabled)
+        {
+            const Tank::Physics::EnemySimulationSettings defaults;
+            EnemySlider("Enter tracked physics (m)", &editor.simulation.physicalEnterMeters,
+                1, editor.simulation.simpleReturnMeters - 1, 1, defaults.physicalEnterMeters, "%.0f");
+            EnemySlider("Return to simple movement (m)", &editor.simulation.simpleReturnMeters,
+                editor.simulation.physicalEnterMeters + 1, 10000, 1, defaults.simpleReturnMeters, "%.0f");
+            EnemySlider("Enemy braking deceleration (m/s2)", &editor.simulation.brakingDecelerationMetersPerSecondSquared,
+                0.1f, 20, 0.1f, defaults.brakingDecelerationMetersPerSecondSquared, "%.1f");
+            EnemySlider("Enemy route node arrival (m)", &editor.simulation.nodeArrivalMeters,
+                0.1f, 2, 0.05f, defaults.nodeArrivalMeters, "%.2f");
+            EnemySlider("Observed target node radius (m)", &editor.simulation.observationRadiusMeters,
+                0.1f, 100, 0.1f, defaults.observationRadiusMeters, "%.1f");
+            EnemySlider("Observed support height tolerance (m)", &editor.simulation.supportHeightToleranceMeters,
+                0.01f, 2, 0.01f, defaults.supportHeightToleranceMeters, "%.2f");
+            EnemySlider("Simple pivot speed (deg/s)", &editor.simulation.simpleTurnDegreesPerSecond,
+                1, 360, 1, defaults.simpleTurnDegreesPerSecond, "%.0f");
+        }
         if (state && ImGui::TreeNode("Enemy movement status"))
         {
             if (ImGui::BeginTable("PlacedEnemyMovement", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
@@ -63,12 +79,15 @@ namespace Ui
                 ImGui::EndTable();
             }
             constexpr const char* actions[] = {"Hold", "Patrol", "Approach", "Attack stop", "Search", "Search wait"};
-            for (const auto& group : state->enemyGroups)
+            if (editor.simulation.movementEnabled)
             {
-                ImGui::Text("%s: %s  Target surface: %s", group.id.c_str(),
-                    group.behavior ? actions[static_cast<size_t>(group.behavior->action)] : "None",
-                    group.behavior ? group.behavior->targetSurfaceId.c_str() : "");
-                if (group.navigation && !group.navigation->error.empty()) ImGui::TextWrapped("Route: %s", group.navigation->error.c_str());
+                for (const auto& group : state->enemyGroups)
+                {
+                    ImGui::Text("%s: %s  Target surface: %s", group.id.c_str(),
+                        group.behavior ? actions[static_cast<size_t>(group.behavior->action)] : "None",
+                        group.behavior ? group.behavior->targetSurfaceId.c_str() : "");
+                    if (group.navigation && !group.navigation->error.empty()) ImGui::TextWrapped("Route: %s", group.navigation->error.c_str());
+                }
             }
             ImGui::TreePop();
         }
@@ -121,22 +140,23 @@ namespace Ui
         {
             ImGui::PushID(static_cast<int>(i));
             auto& type = editor.attackTypes[i];
+            const Tank::Physics::EnemyAttackType defaults;
             if (ImGui::TreeNode("Attack", "Attack %zu: %s", i, type.name.c_str()))
             {
                 char name[128];
                 snprintf(name, sizeof(name), "%s", type.name.c_str());
                 if (ImGui::InputText("Name", name, sizeof(name))) type.name = name;
-                ImGui::DragFloat("a Detection (m)", &type.detectionRangeMeters, 0.5f, type.reachMeters, 10000, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::DragFloat("b Reach (m)", &type.reachMeters, 0.5f, type.firingRangeMeters, type.detectionRangeMeters, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::DragFloat("c Firing range (m)", &type.firingRangeMeters, 0.5f, 0.1f, type.reachMeters, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::DragFloat("d Bullet speed (m/s)", &type.projectileSpeedMetersPerSecond, 0.1f, 0.1f, 10000, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::DragFloat("e Fire interval (s)", &type.firingIntervalSeconds, 0.1f, 0.01f, 3600, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::DragFloat("f Max turret yaw (deg/s)", &type.maximumYawSpeedDegreesPerSecond, 0.5f, 0.1f, 3600, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::DragFloat("g Aim tolerance (+/- deg)", &type.firingToleranceDegrees, 0.1f, 0, 180, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+                EnemySlider("a Detection (m)", &type.detectionRangeMeters, type.reachMeters, 10000, 0.5f, defaults.detectionRangeMeters, "%.1f");
+                EnemySlider("b Reach (m)", &type.reachMeters, type.firingRangeMeters, type.detectionRangeMeters, 0.5f, defaults.reachMeters, "%.1f");
+                EnemySlider("c Firing range (m)", &type.firingRangeMeters, 0.1f, type.reachMeters, 0.5f, defaults.firingRangeMeters, "%.1f");
+                EnemySlider("d Bullet speed (m/s)", &type.projectileSpeedMetersPerSecond, 0.1f, 10000, 0.1f, defaults.projectileSpeedMetersPerSecond, "%.1f");
+                EnemySlider("e Fire interval (s)", &type.firingIntervalSeconds, 0.01f, 3600, 0.1f, defaults.firingIntervalSeconds, "%.2f");
+                EnemySlider("f Max turret yaw (deg/s)", &type.maximumYawSpeedDegreesPerSecond, 0.1f, 3600, 0.5f, defaults.maximumYawSpeedDegreesPerSecond, "%.1f");
+                EnemySlider("g Aim tolerance (+/- deg)", &type.firingToleranceDegrees, 0, 180, 0.1f, defaults.firingToleranceDegrees, "%.1f");
                 int detectionMode = static_cast<int>(type.detectionMode);
                 if (ImGui::Combo("Detection mode", &detectionMode, "Optical (ray occlusion)\0Range only\0"))
                     type.detectionMode = static_cast<Tank::Physics::EnemyDetectionMode>(detectionMode);
-                ImGui::DragFloat("Alert release delay (s)", &type.alertReleaseSeconds, 0.1f, 0, 3600, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+                EnemySlider("Alert release delay (s)", &type.alertReleaseSeconds, 0, 3600, 0.1f, defaults.alertReleaseSeconds, "%.1f");
                 ImGui::TextWrapped("Lost target: aim at last known position without firing. After delay: return to initial direction. During play, Apply & Reset applies changes.");
                 int projectileKind = static_cast<int>(type.projectileKind);
                 if (ImGui::Combo("Projectile kind", &projectileKind, "Ordinary (interceptable)\0Special (unbreakable)\0"))
@@ -153,12 +173,15 @@ namespace Ui
                 }
                 if (type.projectileShape == Tank::Physics::EnemyProjectileShape::Box)
                 {
-                    float size[3] = {type.projectileBoxSizeMeters.x, type.projectileBoxSizeMeters.y, type.projectileBoxSizeMeters.z};
-                    if (ImGui::DragFloat3("Width / Height / Depth (m)", size, 0.05f, 0.1f, 20, "%.2f", ImGuiSliderFlags_AlwaysClamp))
-                        type.projectileBoxSizeMeters = {size[0], size[1], size[2]};
+                    EnemySlider("Bullet width (m)", &type.projectileBoxSizeMeters.x, 0.1f, 20, 0.05f,
+                        defaults.projectileBoxSizeMeters.x, "%.2f");
+                    EnemySlider("Bullet height (m)", &type.projectileBoxSizeMeters.y, 0.1f, 20, 0.05f,
+                        defaults.projectileBoxSizeMeters.y, "%.2f");
+                    EnemySlider("Bullet depth (m)", &type.projectileBoxSizeMeters.z, 0.1f, 20, 0.05f,
+                        defaults.projectileBoxSizeMeters.z, "%.2f");
                     ImGui::TextDisabled("Depth follows the firing direction. During play, changes apply with Apply & Reset.");
                 }
-                else ImGui::DragFloat("Bullet radius (m)", &type.projectileRadiusMeters, 0.05f, 0.05f, 10, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                else EnemySlider("Bullet radius (m)", &type.projectileRadiusMeters, 0.05f, 10, 0.05f, defaults.projectileRadiusMeters, "%.2f");
                 if (ImGui::Button("Restore default parameters"))
                 {
                     const auto savedName = type.name;
@@ -195,7 +218,9 @@ namespace Ui
                     ImGui::PushID(static_cast<int>(mountIndex));
                     auto& mount = unit.attackMounts[mountIndex];
                     ImGui::Text("Mount %zu", mountIndex);
-                    ImGui::DragFloat3("Local position (m)", &mount.localPosition.x, 0.1f, -1000, 1000, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                    EnemySlider("Mount X (m)", &mount.localPosition.x, -1000, 1000, 0.1f, 0, "%.2f");
+                    EnemySlider("Mount Y (m)", &mount.localPosition.y, -1000, 1000, 0.1f, 0, "%.2f");
+                    EnemySlider("Mount Z (m)", &mount.localPosition.z, -1000, 1000, 0.1f, 0, "%.2f");
                     const auto& selected = editor.attackTypes[static_cast<size_t>(mount.attackTypeIndex)];
                     if (ImGui::BeginCombo("Attack type", selected.name.c_str()))
                     {

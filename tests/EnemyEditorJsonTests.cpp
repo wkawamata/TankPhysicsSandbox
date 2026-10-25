@@ -8,6 +8,7 @@ int main()
     auto check = [&](bool value, const char* message) { if (!value) { passed = false; std::cerr << message << '\n'; } };
     EnemyEditorSettings original;
     original.simulation = {50, 70, 3, 0.75f, 4, 0.15f, 45};
+    original.simulation.movementEnabled = false;
     original.attackTypes[0].name = "A";
     original.attackTypes.push_back({});
     original.attackTypes[1].name = "B";
@@ -41,6 +42,11 @@ int main()
     check(loaded.simulation.physicalEnterMeters == 50 && loaded.simulation.simpleReturnMeters == 70 &&
         loaded.simulation.brakingDecelerationMetersPerSecondSquared == 3 && loaded.simulation.nodeArrivalMeters == 0.75f &&
         loaded.simulation.observationRadiusMeters == 4 && loaded.simulation.supportHeightToleranceMeters == 0.15f && loaded.simulation.simpleTurnDegreesPerSecond == 45, "simulation distances round trip");
+    check(!loaded.simulation.movementEnabled && loaded.simulation.nodeArrivalMeters == 0.75f,
+        "movement OFF and hidden tuning survive save and load");
+    original.simulation.movementEnabled = true;
+    check(SerializeEnemyEditor(original, text, error) && DeserializeEnemyEditor(text, loaded, error) &&
+        loaded.simulation.movementEnabled, "movement ON survives save and load");
     original.attackTypes[1].detectionMode = EnemyDetectionMode::RangeOnly;
     original.attackTypes[1].alertReleaseSeconds = 12.5f;
     check(SerializeEnemyEditor(original, text, error) && DeserializeEnemyEditor(text, loaded, error) &&
@@ -58,7 +64,13 @@ int main()
         "old catalogs default to optical and five second alert");
     check(loaded.unitTypes[0].hitPoints == 60, "old catalogs use default unit HP");
     check(loaded.simulation.physicalEnterMeters == 30 && loaded.simulation.simpleReturnMeters == 40, "old catalogs use agreed simulation distances");
+    check(loaded.simulation.movementEnabled, "legacy catalogs preserve enabled movement");
+    check(DeserializeEnemyEditor(R"({"version":1,"simulation":{"movementEnabled":false},"attackTypes":[{"name":"A"}],"unitTypes":[]})",
+        loaded, error) && !loaded.simulation.movementEnabled && loaded.simulation.nodeArrivalMeters == 0.5f,
+        "disabled movement accepts omitted tuning with safe defaults");
     for (const auto invalid : {"{}", "[]", "{", R"({"version":2,"attackTypes":[],"unitTypes":[]})",
+        R"({"version":1,"simulation":{"movementEnabled":"false"},"attackTypes":[{"name":"A"}],"unitTypes":[]})",
+        R"({"version":1,"simulation":{"movementEnabled":0},"attackTypes":[{"name":"A"}],"unitTypes":[]})",
         R"({"version":1,"simulation":{"physicalEnterMeters":40,"simpleReturnMeters":30},"attackTypes":[{"name":"A"}],"unitTypes":[]})",
         R"({"version":1,"simulation":{"physicalEnterMeters":30,"simpleReturnMeters":40,"nodeArrivalMeters":0},"attackTypes":[{"name":"A"}],"unitTypes":[]})",
         R"({"version":1,"attackTypes":[],"unitTypes":[]})",
