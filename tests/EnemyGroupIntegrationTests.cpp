@@ -43,7 +43,10 @@ int main()
         observer.name = "Observer";
         observer.firingIntervalSeconds = 3600;
         catalog.attackTypes.push_back(observer);
-        catalog.unitTypes.push_back({"Observer turret", {{{}, 1}}});
+        EnemyUnitType observerUnit;
+        observerUnit.name = "Observer turret";
+        observerUnit.attackMounts = {{{}, 1}};
+        catalog.unitTypes.push_back(observerUnit);
         Tank::Map::Manifest manifest;
         manifest.enemies = {
             {"leader", "Fixed turret", {0, 1.5f, 12}, {}},
