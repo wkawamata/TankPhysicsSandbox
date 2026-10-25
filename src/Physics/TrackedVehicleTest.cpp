@@ -651,7 +651,7 @@ namespace Tank::Physics
                 if (driver.physical)
                 {
                     driver.physical.reset();
-                    JPH::BodyCreationSettings proxy(new JPH::BoxShape(JPH::Vec3(enemy.size.x/2, enemy.size.y/2, enemy.size.z/2)),
+                    JPH::BodyCreationSettings proxy(CreateTankJoltShape(enemy.unitType.collisionProfile.movementShape),
                         JPH::RVec3(enemy.position.x, enemy.position.y, enemy.position.z),
                         JPH::Quat(enemy.rotation.x, enemy.rotation.y, enemy.rotation.z, enemy.rotation.w),
                         JPH::EMotionType::Kinematic, Layers::Moving);
