@@ -49,6 +49,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <tuple>
+#include "App/GameViewportJson.h"
 #include <ios>
 #include <iterator>
 #include <limits>
@@ -1068,6 +1070,7 @@ void TankSandboxApp::ClearVehicleInputState()
 
 void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 {
+    if (!GameViewportContains(x, y)) return;
     if (EnsureDebugCameraForMouse())
     {
         m_debugCameraController.OnMouseDown(button, x, y);
@@ -1087,6 +1090,7 @@ void TankSandboxApp::OnMouseUp(UINT8 button, int x, int y)
 
 void TankSandboxApp::OnMouseMove(int x, int y)
 {
+    if (!GameViewportContains(x, y)) { m_debugCameraController.ResetInputState(); return; }
     if (EnsureDebugCameraForMouse())
     {
         m_debugCameraController.OnMouseMove(x, y);
@@ -1096,6 +1100,9 @@ void TankSandboxApp::OnMouseMove(int x, int y)
 
 void TankSandboxApp::OnMouseWheel(int wheelDelta)
 {
+    POINT cursor;
+    if (GetCursorPos(&cursor) && ScreenToClient(Win32Application::GetHwnd(), &cursor) &&
+        !GameViewportContains(cursor.x, cursor.y)) return;
     if (EnsureDebugCameraForMouse())
     {
         Engine::CameraState* camera = ActiveCamera();
@@ -1277,6 +1284,7 @@ void TankSandboxApp::OnIdle()
     }
 
     UpdateUiFrame();
+    PrepareGameViewport();
 
     // Schedule only after the host has published the scene pose for this frame.
     UpdateCaptureSession();
@@ -1478,6 +1486,13 @@ void TankSandboxApp::FinishFrameBenchmark()
 
 void TankSandboxApp::InitializeImGui()
 {
+    std::ifstream viewportInput(TANK_SOURCE_CONFIG_DIR "/game_viewport.json", std::ios::binary);
+    if (viewportInput)
+    {
+        const std::string bytes(std::istreambuf_iterator<char>(viewportInput), {});
+        if (!Tank::App::DeserializeGameViewport(bytes, m_gameViewport, m_gameViewportStatus))
+            m_gameViewportStatus = "Viewport load failed: " + m_gameViewportStatus;
+    }
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
     heapDesc.NumDescriptors = kImGuiDescriptorCount;
     heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -1520,6 +1535,78 @@ void TankSandboxApp::InitializeImGui()
     }
 }
 
+bool TankSandboxApp::GameViewportContains(int x, int y) const
+{
+    return m_appMode != AppMode::PhysicsTrackedVehicle ||
+        Tank::App::ResolveGameViewport(m_gameViewport, m_windowInfo.width, m_windowInfo.height).Contains(float(x), float(y));
+}
+
+void TankSandboxApp::DrawGameViewportControls()
+{
+    const auto before = m_gameViewport;
+    ImGui::Checkbox("Custom game viewport", &m_gameViewport.enabled);
+    ImGui::BeginDisabled(!m_gameViewport.enabled);
+    ImGui::TextWrapped("Origin: window top-left. Position and size use window fractions (0-1). Overflow is clipped.");
+    ImGui::Combo("Aspect ratio", &m_gameViewport.aspect, "Free rectangle\0" "16:9\0" "4:3\0" "21:9\0");
+    for (auto [name, value, reset] : {std::tuple{"Position X", &m_gameViewport.x, 0.0f},
+        {"Position Y", &m_gameViewport.y, 0.0f}, {"Width", &m_gameViewport.width, 1.0f},
+        {"Height", &m_gameViewport.height, 1.0f}})
+        ImGuiWidgets::SliderFloatWithControls(name, value, 0, 1, 0.01f, reset, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    // Keep a valid one-pixel viewport even at a zero-width/edge slider endpoint.
+    m_gameViewport.width = std::max(m_gameViewport.width, 1.0f / std::max(1u, m_windowInfo.width));
+    m_gameViewport.height = std::max(m_gameViewport.height, 1.0f / std::max(1u, m_windowInfo.height));
+    if (ImGui::Button("Center viewport"))
+    {
+        const auto rect = Tank::App::ResolveGameViewport(m_gameViewport, m_windowInfo.width, m_windowInfo.height);
+        m_gameViewport.width = float(rect.width) / std::max(1u, m_windowInfo.width);
+        m_gameViewport.height = float(rect.height) / std::max(1u, m_windowInfo.height);
+        m_gameViewport.x = (1 - m_gameViewport.width) / 2; m_gameViewport.y = (1 - m_gameViewport.height) / 2;
+    }
+    ImGui::EndDisabled();
+    if (ImGui::Button("Reset viewport")) m_gameViewport = {};
+    if (ImGui::Button("Save Viewport"))
+    {
+        const std::filesystem::path path = TANK_SOURCE_CONFIG_DIR "/game_viewport.json";
+        auto temporary = path; temporary += ".tmp";
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        const auto json = Tank::App::SerializeGameViewport(m_gameViewport);
+        for (char c : json) {if (c == '\n') output.put('\r'); output.put(c);}
+        output << "\r\n"; output.close();
+        if (output && MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+            m_gameViewportStatus = "Saved Config/game_viewport.json";
+        else m_gameViewportStatus = "Could not save viewport settings";
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load Viewport"))
+    {
+        std::ifstream input(TANK_SOURCE_CONFIG_DIR "/game_viewport.json", std::ios::binary);
+        const std::string bytes(std::istreambuf_iterator<char>(input), {});
+        if (!input || !Tank::App::DeserializeGameViewport(bytes, m_gameViewport, m_gameViewportStatus))
+            m_gameViewportStatus = "Viewport load failed: " + m_gameViewportStatus;
+        else m_gameViewportStatus = "Loaded viewport settings";
+    }
+    m_trackedVehicleMode.SettingsUndo().ObserveExternal(before, m_gameViewport, ImGui::GetActiveID(),
+        [this](const auto& value) {m_gameViewport = value;}, "Game viewport edit");
+    ImGui::TextWrapped("%s", m_gameViewportStatus.c_str());
+    const auto frame = m_sceneRenderer.GetUiFrameContext();
+    ImGui::Text("Scene output: %u x %u / Internal buffers: %u x %u",
+        frame.outputWidth, frame.outputHeight, frame.renderWidth, frame.renderHeight);
+    ImGui::TextDisabled("Global game display setting; independent of camera slots. Save Viewport persists it.");
+}
+
+void TankSandboxApp::PrepareGameViewport()
+{
+    if (m_appMode == AppMode::PhysicsTrackedVehicle && m_gameViewport.enabled)
+    {
+        const auto rect = Tank::App::ResolveGameViewport(m_gameViewport, m_windowInfo.width, m_windowInfo.height);
+        m_sceneRenderer.SetSceneViewport(rect.x, rect.y, rect.width, rect.height);
+    }
+    else
+    {
+        m_sceneRenderer.SetSceneViewport(0, 0, 0, 0);
+    }
+}
+
 void TankSandboxApp::UpdateUiFrame()
 {
     m_imguiSystem.BeginFrame();
@@ -1541,6 +1628,7 @@ void TankSandboxApp::UpdateUiFrame()
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
 
     m_cameraPanelCtx.settingsUndo = m_appMode == AppMode::PhysicsTrackedVehicle ? &m_trackedVehicleMode.SettingsUndo() : nullptr;
+    m_cameraPanelCtx.drawGameViewportControls = [this] { DrawGameViewportControls(); };
     m_cameraPanelCtx.camera = ActiveCamera();
     m_cameraPanelCtx.trackedVehicleActive = (m_appMode == AppMode::PhysicsTrackedVehicle);
     m_cameraPanelCtx.vehicleState = &m_trackedVehicleMode.TestState();

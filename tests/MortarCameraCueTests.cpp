@@ -9,7 +9,13 @@ int main()
     const auto cue = MortarCameraCue::FromWheelieProgress(0.5f);
     const auto clamped = MortarCameraCue::FromWheelieProgress(2.0f);
     const bool passed = cue.progress == 0.5f && cue.pitchOffsetDegrees == 9.0f &&
-        cue.rangeVisibilityRequired && clamped.progress == 1.0f;
+        cue.rangeVisibilityRequired && clamped.progress == 1.0f &&
+        MortarCameraCue::FromAimingState(false, false, 100).progress == 0 &&
+        MortarCameraCue::FromAimingState(true, false, 50).progress == 0.5f &&
+        MortarCameraCue::FromAimingState(true, false, 100).progress == 1 &&
+        MortarCameraCue::FromAimingState(true, true, 0).progress == 1 &&
+        MortarCameraCue::FromAimingState(true, false, -10).progress == 0 &&
+        MortarCameraCue::FromAimingState(true, false, 110).progress == 1;
     if (!passed)
     {
         std::cerr << "FAIL MortarCameraCue\n";

@@ -29,6 +29,7 @@ int main()
     source.mortarPitchOffsetDegrees = 30.0f;
     source.mortarDistanceOffsetMeters = 12.0f;
     source.mortarResponseSpeed = 4.0f;
+    source.mortarReadyOffsetPercent = 100;
 
     Tank::Rendering::CameraSettings loaded;
     std::string error;
@@ -51,7 +52,7 @@ int main()
         NearlyEqual(loaded.yawDamping, 6.0f) &&
         NearlyEqual(loaded.mortarPitchOffsetDegrees, 30.0f) &&
         NearlyEqual(loaded.mortarDistanceOffsetMeters, 12.0f) &&
-        NearlyEqual(loaded.mortarResponseSpeed, 4.0f);
+        NearlyEqual(loaded.mortarResponseSpeed, 4.0f) && NearlyEqual(loaded.mortarReadyOffsetPercent, 100);
     Tank::Rendering::CameraSettings legacy;
     legacy.mortarPitchOffsetDegrees = 50.0f;
     legacy.mortarDistanceOffsetMeters = 20.0f;
@@ -66,7 +67,7 @@ int main()
         NearlyEqual(legacy.perspectiveLensShiftY, 0.0f) &&
         NearlyEqual(legacy.mortarPitchOffsetDegrees, 18.0f) &&
         NearlyEqual(legacy.mortarDistanceOffsetMeters, 0.0f) &&
-        NearlyEqual(legacy.mortarResponseSpeed, 6.0f);
+        NearlyEqual(legacy.mortarResponseSpeed, 6.0f) && NearlyEqual(legacy.mortarReadyOffsetPercent, 50);
     if (!passed || !legacyPassed)
     {
         std::cerr << "FAIL CameraSettings JSON: " << error << "\n";

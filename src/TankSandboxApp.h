@@ -11,6 +11,7 @@
 #include "App/BoxDropMode.h"
 #include "App/MapEditorMode.h"
 #include "App/CameraController.h"
+#include "App/GameViewport.h"
 #include "App/CameraSettingsStore.h"
 #include "App/UiLayoutSettingsStore.h"
 #include "App/TankSettingsStore.h"
@@ -78,6 +79,11 @@ private:
 
     void InitializeImGui();
     void UpdateUiFrame();
+    void DrawGameViewportControls();
+    void PrepareGameViewport();
+    bool GameViewportContains(int x, int y) const;
+    Tank::App::GameViewportSettings m_gameViewport;
+    std::string m_gameViewportStatus;
     void DrawToolUi();
     void RequestScreenshot();
     void RequestScreenshot(const std::filesystem::path& path);

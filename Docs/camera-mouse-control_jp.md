@@ -101,3 +101,11 @@ Mouse Control Modeは現時点ではセッション設定であり、Camera Slot
 - Debug Cameraへ移行するModifier keyを設定可能にする
 - Previous Slotへ戻るコマンドを追加
 - Mouse Control Modeをアプリケーション設定として保存
+
+## Mortar Camera の適用率
+
+Camera > Mortar Camera の Mortar Ready Offset (%) は発射可能になった時に適用する
+Pitch Offset / Distance Offset の割合。初期値50%、最大仰角では常に100%。
+100%に設定すると発射可能時と最大時で同じ追加値になり、一段階の変化になる。
+カメラスロット1・2・3ごとに設定し、Save Cameraで保存する。変更はUndo/Redoに対応する。
+従来のCamera JSONに項目がない場合は50%で読み込む。
