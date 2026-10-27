@@ -20,3 +20,5 @@ This directory contains project documentation.
 - [Enemy Unit Editor controls and movement toggle](enemy-unit-editor.md)
 
 - [Proximity shutter gates](gates.md)
+
+- [Game viewport placement and black bands](game-viewport.md)

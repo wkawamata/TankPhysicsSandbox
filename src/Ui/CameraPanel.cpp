@@ -93,6 +93,8 @@ namespace Ui
             ctx.cameraController->SetMouseControlMode(
                 static_cast<Tank::App::CameraController::MouseControlMode>(mouseMode));
         }
+        if (ctx.trackedVehicleActive && ctx.drawGameViewportControls && ImGui::CollapsingHeader("Game Viewport"))
+            ctx.drawGameViewportControls();
         ImGui::SeparatorText("Save Slot");
         for (int slot = 0; slot < 3; ++slot)
         {

@@ -26,6 +26,7 @@ namespace Ui
         std::function<void()> cameraRestored;
         std::function<void()> saveCamera;
         std::function<void()> loadCamera;
+        std::function<void()> drawGameViewportControls;
 
         bool telemetryWasTransitioning = false;
         bool mortarCheatWindowVisible = false;

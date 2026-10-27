@@ -1043,6 +1043,11 @@ if(BUILD_TESTING)
         COMMAND TankVisualSettingsJsonTests
     )
 
+    add_executable(GameViewportTests tests/GameViewportTests.cpp)
+    target_include_directories(GameViewportTests PRIVATE src External/RtPbrSurvey)
+    target_link_libraries(GameViewportTests PRIVATE nlohmann_json::nlohmann_json)
+    add_test(NAME TankApp.GameViewport COMMAND GameViewportTests)
+
     add_executable(CameraSettingsJsonTests
         src/Rendering/CameraSettingsJson.cpp
         tests/CameraSettingsJsonTests.cpp
