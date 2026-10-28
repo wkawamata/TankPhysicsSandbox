@@ -1327,6 +1327,7 @@ void TankSandboxApp::OnIdle()
             m_imguiSystem.Render(commandList);
         });
     timing.Phase(CpuPhase::Renderer) = ElapsedMs(rendererStart);
+    timing.renderer = m_sceneRenderer.CpuFrameTiming();
     ++m_captureRenderFrame;
     m_peakCpuFrameTimeMs = (std::max)(
         m_peakCpuFrameTimeMs,

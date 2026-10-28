@@ -1046,8 +1046,12 @@ if(BUILD_TESTING)
         COMMAND TankVisualSettingsJsonTests
     )
 
+    add_executable(RendererCpuTimingTests tests/RendererCpuTimingTests.cpp)
+    target_include_directories(RendererCpuTimingTests PRIVATE External/RtPbrSurvey)
+    add_test(NAME TankApp.RendererCpuTiming COMMAND RendererCpuTimingTests)
+
     add_executable(PerformanceMeterTests tests/PerformanceMeterTests.cpp)
-    target_include_directories(PerformanceMeterTests PRIVATE src)
+    target_include_directories(PerformanceMeterTests PRIVATE src External/RtPbrSurvey)
     add_test(NAME TankApp.PerformanceMeter COMMAND PerformanceMeterTests)
 
     add_executable(GameViewportTests tests/GameViewportTests.cpp)

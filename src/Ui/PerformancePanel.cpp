@@ -72,6 +72,24 @@ namespace Ui
             }
             ImGui::TextWrapped("Physics includes vehicle/enemy/projectile gameplay and Jolt workers. Scene sync includes transforms, debug lines and renderer SetScene. Renderer includes command recording, GPU synchronization and Present/VSync waits.");
         }
+        if (ImGui::CollapsingHeader("Renderer CPU breakdown", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            if (!data.rendererFrames) ImGui::TextDisabled("Waiting for renderer CPU timings");
+            else
+            {
+                ImGui::Text("Renderer call avg %.2f ms / timed inside %.2f ms",
+                    data.cpu[static_cast<size_t>(Tank::App::CpuPhase::Renderer)].average, data.rendererTotal.average);
+                if (ImGui::BeginTable("RendererCpuTimings", 6,
+                    ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable))
+                {
+                    Columns();
+                    for (size_t i = 0; i < data.renderer.size(); ++i)
+                        TimingRow(RtPbrSurvey::kRendererCpuPhaseNames[i], data.renderer[i], data.rendererTotal.average);
+                    ImGui::EndTable();
+                }
+                ImGui::TextWrapped("These four rows split the renderer row above; do not add them to host total. Present includes VSync/driver blocking. GPU fence wait is CPU waiting, not GPU rendering time.");
+            }
+        }
         if (ImGui::CollapsingHeader("GPU pass breakdown (RtPbr)", ImGuiTreeNodeFlags_DefaultOpen))
         {
             ImGui::Text("Completed GPU samples: %zu (readback delayed by in-flight frames)", data.gpuFrames);

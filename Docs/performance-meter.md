@@ -57,3 +57,37 @@ GUI verification (Debug, Hybrid + DLSS Quality) confirmed FPS/host/GPU bars,
 CPU interval ranking, DLSS and other GPU pass rows, and zero physics latest time
 while paused. The D3D12 debug log contained no errors (startup COMMON-state
 warnings remained). Manual UI layout settings were restored after validation.
+
+## Renderer CPU breakdown
+
+The Renderer CPU breakdown header splits the Renderer / submit / waits row into
+four exclusive CPU elapsed intervals. Each row has rolling Last/Avg/P95/Peak and a
+share of the instrumented renderer total. This is a nested breakdown: do not add
+these rows to the host table or to GPU times.
+
+- Update / housekeeping: frame update, instance/constants/descriptors, resource
+  resize and HDR setup, capture readback and cleanup, excluding explicit waits.
+- Record / submit: PopulateCommandList, renderer pass recording (including DLSS
+  SDK CPU calls and ImGui command recording), command submission and history commit.
+- GPU fence wait: time inside explicit fence-wait calls, including normal frame
+  rotation, resize FlushGpu and diagnostic readbacks. It measures CPU blocked in
+  the API, not GPU execution. Waits nested in other intervals are subtracted there.
+- Present: the Present API call, including any VSync/compositor/driver blocking.
+
+The engine exposes a completed CPU snapshot directly, without obtaining GPU data
+or querying DLSS settings. The full RunFrame boundary is measured, including resize
+work that the older renderer-only counter excludes. Tiny host/facade call-boundary
+cost can make the host's Renderer row slightly larger than the instrumented total.
+Driver/SDK waits hidden inside update/recording APIs remain in those categories;
+only explicit fence waits and Present are separated. No new waits are introduced.
+
+RendererCpuTimingTests uses deterministic timestamps to check nested waits,
+phase resumption, exact totals, frame reset and inactive initialization/shutdown.
+PerformanceMeterTests also verifies renderer rolling statistics, missing snapshots,
+zero-wait frames and separation from the host total.
+
+Renderer CPU GUI validation confirmed all four rows, rolling statistics and matching
+host renderer-call/instrumented totals. In that Debug validation session the largest
+interval was Record / submit, followed by GPU fence wait; Present was small. These
+are local validation observations, not a reproduction of a user's prior capture.
+The D3D12 log had no errors. Original UI JSON settings were restored afterwards.

@@ -68,6 +68,26 @@ int main()
         check(near(history.Summary().host.average,5) && near(history.Summary().gpu.average,6),
             "CPU and GPU histories remain independent; never sum overlapping timelines");
         history.Clear(); check(history.Summary().frames == 0 && history.Summary().gpuPasses.empty(), "Mode change clears statistics");
+        PerformanceFrame detailed;
+        detailed.FinishCpu(20);
+        detailed.renderer.available = true;
+        detailed.renderer.ms = {1,2,3,10};
+        detailed.renderer.totalMs = 16;
+        history.Add(detailed);
+        PerformanceFrame noRenderer; noRenderer.FinishCpu(5); history.Add(noRenderer);
+        history.Refresh();
+        check(history.Summary().rendererFrames == 1 && near(history.Summary().rendererTotal.average,16),
+            "Unavailable renderer snapshot is not averaged as zero");
+        float rendererSum = 0;
+        for (const auto& phase : history.Summary().renderer) rendererSum += phase.average;
+        check(near(rendererSum,history.Summary().rendererTotal.average) && near(history.Summary().host.average,12.5f),
+            "Renderer details partition renderer time and are not added to host total");
+        detailed.renderer.ms = {0,1,0,3}; detailed.renderer.totalMs = 4;
+        history.Add(detailed); history.Refresh();
+        check(near(history.Summary().rendererTotal.average,10) &&
+            near(history.Summary().renderer[static_cast<size_t>(RtPbrSurvey::RendererCpuPhase::GpuWait)].latest,0),
+            "Rolling renderer stats retain zero-wait frames and latest Present value");
+        history.Clear(); check(history.Summary().rendererFrames == 0, "Mode reset clears renderer timing details");
         std::cout << "PASS PerformanceMeter\n";
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

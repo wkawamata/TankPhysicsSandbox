@@ -8,6 +8,7 @@
 #include <span>
 #include <string>
 #include <vector>
+#include "Runtime/RendererCpuTiming.h"
 
 namespace Tank::App
 {
@@ -63,6 +64,7 @@ namespace Tank::App
         float hostMs = 0;
         std::array<float, kCpuPhaseCount> cpu = {};
         GpuTiming gpu;
+        RtPbrSurvey::RendererCpuTiming renderer;
         float& Phase(CpuPhase phase) { return cpu[static_cast<size_t>(phase)]; }
         void FinishCpu(float totalMs)
         {
@@ -98,6 +100,9 @@ namespace Tank::App
     {
         size_t frames = 0, gpuFrames = 0;
         TimingStats interval, host, gpu;
+        size_t rendererFrames = 0;
+        TimingStats rendererTotal;
+        std::array<TimingStats, RtPbrSurvey::kRendererCpuPhaseCount> renderer;
         std::array<TimingStats, kCpuPhaseCount> cpu;
         std::vector<GpuPassStats> gpuPasses;
     };
@@ -119,7 +124,8 @@ namespace Tank::App
         void Refresh()
         {
             m_summary = {}; m_summary.frames = m_count;
-            std::vector<float> interval, host, gpu;
+            std::vector<float> interval, host, gpu, renderer;
+            std::array<std::vector<float>, RtPbrSurvey::kRendererCpuPhaseCount> rendererPhases;
             std::array<std::vector<float>, kCpuPhaseCount> phases;
             for (size_t i = 0; i < m_count; ++i)
             {
@@ -127,6 +133,12 @@ namespace Tank::App
                 if (frame.intervalMs > 0 && std::isfinite(frame.intervalMs)) interval.push_back(frame.intervalMs);
                 host.push_back(frame.hostMs);
                 for (size_t j = 0; j < phases.size(); ++j) phases[j].push_back(frame.cpu[j]);
+                if (frame.renderer.available)
+                {
+                    renderer.push_back(frame.renderer.totalMs);
+                    for (size_t j = 0; j < rendererPhases.size(); ++j)
+                        rendererPhases[j].push_back(frame.renderer.ms[j]);
+                }
                 if (!frame.gpu.available) continue;
                 gpu.push_back(frame.gpu.totalMs);
                 for (const auto& pass : frame.gpu.passes)
@@ -136,6 +148,10 @@ namespace Tank::App
             }
             m_summary.interval = SummarizeTimings(std::move(interval));
             m_summary.host = SummarizeTimings(std::move(host));
+            m_summary.rendererFrames = renderer.size();
+            m_summary.rendererTotal = SummarizeTimings(std::move(renderer));
+            for (size_t j = 0; j < rendererPhases.size(); ++j)
+                m_summary.renderer[j] = SummarizeTimings(std::move(rendererPhases[j]));
             m_summary.gpuFrames = gpu.size();
             m_summary.gpu = SummarizeTimings(std::move(gpu));
             for (size_t j = 0; j < phases.size(); ++j) m_summary.cpu[j] = SummarizeTimings(std::move(phases[j]));
