@@ -12,6 +12,7 @@
 #include "App/MapEditorMode.h"
 #include "App/CameraController.h"
 #include "App/GameViewport.h"
+#include "App/PerformanceMeter.h"
 #include "App/CameraSettingsStore.h"
 #include "App/UiLayoutSettingsStore.h"
 #include "App/TankSettingsStore.h"
@@ -184,6 +185,9 @@ private:
     Ui::CameraPanelContext m_cameraPanelCtx;
     Ui::RendererSettingsPanelContext m_rendererPanelCtx;
     Ui::TrackedVehiclePanelContext m_trackedVehiclePanelCtx;
+    Tank::App::PerformanceHistory m_performanceHistory;
+    Tank::App::PerformanceClock::time_point m_previousFrameStart = {};
+    int m_performanceMode = -1;
     float m_peakCpuFrameTimeMs = 0.0f;
     static constexpr size_t kFrameTimingSampleCount = 300;
     std::array<float, kFrameTimingSampleCount> m_cpuFrameTimeSamples = {};

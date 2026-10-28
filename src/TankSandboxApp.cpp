@@ -51,6 +51,7 @@
 #include <fstream>
 #include <tuple>
 #include "App/GameViewportJson.h"
+#include "Ui/PerformancePanel.h"
 #include <ios>
 #include <iterator>
 #include <limits>
@@ -364,6 +365,7 @@ void TankSandboxApp::OnInit()
             if (m_toolUiVisible)
             {
                 DrawToolUi();
+        Ui::DrawPerformancePanel(m_performanceHistory);
             }
         });
 
@@ -1133,6 +1135,20 @@ void TankSandboxApp::OnWindowSizeChanged(UINT width, UINT height)
 
 void TankSandboxApp::OnIdle()
 {
+    using Tank::App::CpuPhase;
+    using Tank::App::ElapsedMs;
+    using Tank::App::PerformanceClock;
+    const auto frameStart = PerformanceClock::now();
+    Tank::App::PerformanceFrame timing;
+    if (m_performanceMode != static_cast<int>(m_appMode))
+    {
+        m_performanceHistory.Clear();
+        m_performanceMode = static_cast<int>(m_appMode);
+        m_previousFrameStart = {};
+    }
+    if (m_previousFrameStart != PerformanceClock::time_point{})
+        timing.intervalMs = std::chrono::duration<float, std::milli>(frameStart - m_previousFrameStart).count();
+    m_previousFrameStart = frameStart;
     const bool toolUiToggleChordDown =
         (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0 &&
         (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
@@ -1151,9 +1167,12 @@ void TankSandboxApp::OnIdle()
         ClearVehicleInputState();
     }
 
+    timing.Phase(CpuPhase::Input) = ElapsedMs(frameStart);
+    const auto modeStart = PerformanceClock::now();
     if (advanceSimulation && m_appMode == AppMode::PhysicsBoxDrop && m_boxDropMode.ConsumeSimulationStep())
     {
         m_boxDropMode.Update(m_sceneRenderer);
+        timing.Phase(CpuPhase::Simulation) = ElapsedMs(modeStart);
         m_captureSimulationSeconds += 1.0 / 60.0;
     }
     else if (advanceSimulation && m_appMode == AppMode::PhysicsTrackedVehicle)
@@ -1233,7 +1252,13 @@ void TankSandboxApp::OnIdle()
             m_assaultFire || m_debugAssaultFire,
             m_mortar);
         const int previousStep = m_trackedVehicleMode.TestState().stepIndex;
+        timing.Phase(CpuPhase::Input) += ElapsedMs(modeStart);
+        const auto stepStart = PerformanceClock::now();
         m_trackedVehicleMode.Step(m_sceneRenderer, m_cameraController);
+        timing.Phase(CpuPhase::Simulation) = m_trackedVehicleMode.PhysicsStepTimeMs();
+        timing.Phase(CpuPhase::SceneSync) = m_trackedVehicleMode.SceneUpdateTimeMs();
+        timing.Phase(CpuPhase::Camera) = std::max(0.0f, ElapsedMs(stepStart) -
+            timing.Phase(CpuPhase::Simulation) - timing.Phase(CpuPhase::SceneSync));
         if (m_trackedVehicleMode.TestState().stepIndex != previousStep)
         {
             m_captureSimulationSeconds += 1.0 / 60.0;
@@ -1269,6 +1294,7 @@ void TankSandboxApp::OnIdle()
         }
 
     }
+    const auto cameraStart = PerformanceClock::now();
     if (advanceSimulation)
     {
         if (m_appMode == AppMode::TopMenu || m_appMode == AppMode::MapEditor)
@@ -1283,17 +1309,24 @@ void TankSandboxApp::OnIdle()
         }
     }
 
+    timing.Phase(CpuPhase::Camera) += ElapsedMs(cameraStart);
+    const auto uiStart = PerformanceClock::now();
     UpdateUiFrame();
     PrepareGameViewport();
+    timing.Phase(CpuPhase::Ui) = ElapsedMs(uiStart);
 
     // Schedule only after the host has published the scene pose for this frame.
+    const auto captureStart = PerformanceClock::now();
     UpdateCaptureSession();
+    timing.Phase(CpuPhase::Capture) = ElapsedMs(captureStart);
+    const auto rendererStart = PerformanceClock::now();
 
     m_sceneRenderer.RunFrame(
         [this](ID3D12GraphicsCommandList* commandList)
         {
             m_imguiSystem.Render(commandList);
         });
+    timing.Phase(CpuPhase::Renderer) = ElapsedMs(rendererStart);
     ++m_captureRenderFrame;
     m_peakCpuFrameTimeMs = (std::max)(
         m_peakCpuFrameTimeMs,
@@ -1337,6 +1370,7 @@ void TankSandboxApp::OnIdle()
             }
         }
     }
+    const auto capturePollStart = PerformanceClock::now();
     UpdateScreenshotResult();
 
     CaptureRollTestFrame();
@@ -1368,6 +1402,14 @@ void TankSandboxApp::OnIdle()
         FlushD3d12DebugLog();
         LogFps(m_sceneRenderer.CpuFrameTimeMs());
     }
+    timing.Phase(CpuPhase::Capture) += ElapsedMs(capturePollStart);
+    std::vector<Tank::App::GpuCheckpoint> gpu;
+    for (const auto& checkpoint : m_sceneRenderer.GetUiFrameContext().gpuCheckPoints)
+        gpu.push_back({checkpoint.name, checkpoint.timeStamp});
+    timing.gpu = Tank::App::ResolveGpuTiming(gpu);
+    timing.FinishCpu(ElapsedMs(frameStart));
+    m_performanceHistory.Add(std::move(timing));
+
 }
 
 void TankSandboxApp::FlushD3d12DebugLog()
@@ -1613,6 +1655,7 @@ void TankSandboxApp::UpdateUiFrame()
     if (m_toolUiVisible)
     {
         DrawToolUi();
+        Ui::DrawPerformancePanel(m_performanceHistory);
         m_outputPanel.Draw(m_appMode == AppMode::PhysicsTrackedVehicle &&
             m_trackedVehicleMode.MapCleared());
     }

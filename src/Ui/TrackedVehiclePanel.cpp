@@ -1204,7 +1204,7 @@ namespace Ui
 	{
         if (ImGui::CollapsingHeader("Frame Timing"))
         {
-            ImGui::Text("Total CPU: %.2f ms  peak %.2f ms",
+            ImGui::Text("Renderer CPU (incl waits): %.2f ms  peak %.2f ms",
                 ctx.cpuFrameTimeMs,
                 ctx.peakCpuFrameTimeMs);
             ImGui::Text("Rolling 300: avg %.2f  p95 %.2f  p99 %.2f ms",
@@ -1635,7 +1635,7 @@ namespace Ui
 
 		if (ctx.cpuFrameTimeMs > 0.0f)
 		{
-			ImGui::Text("Frame: %.1f ms (%.1f FPS)",
+			ImGui::Text("Renderer: %.1f ms (%.1f calls/s)",
 				ctx.cpuFrameTimeMs,
 				1000.0f / ctx.cpuFrameTimeMs);
 		}

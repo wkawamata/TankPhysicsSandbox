@@ -296,6 +296,9 @@ add_executable(TankSandbox
     src/Ui/EnemyUnitEditorWindow.h
     src/Ui/TankCollisionProfileEditor.cpp
     src/Ui/TankCollisionProfileEditor.h
+    src/Ui/PerformancePanel.cpp
+    src/Ui/PerformancePanel.h
+    src/App/PerformanceMeter.h
     src/Ui/TrackedVehiclePanel.cpp
     src/Ui/TrackedVehiclePanel.h
     src/TankSandboxApp.cpp
@@ -1042,6 +1045,10 @@ if(BUILD_TESTING)
         NAME TankRendering.TankVisualSettingsJson
         COMMAND TankVisualSettingsJsonTests
     )
+
+    add_executable(PerformanceMeterTests tests/PerformanceMeterTests.cpp)
+    target_include_directories(PerformanceMeterTests PRIVATE src)
+    add_test(NAME TankApp.PerformanceMeter COMMAND PerformanceMeterTests)
 
     add_executable(GameViewportTests tests/GameViewportTests.cpp)
     target_include_directories(GameViewportTests PRIVATE src External/RtPbrSurvey)

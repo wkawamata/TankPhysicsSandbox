@@ -22,3 +22,5 @@ This directory contains project documentation.
 - [Proximity shutter gates](gates.md)
 
 - [Game viewport placement and black bands](game-viewport.md)
+
+- [Performance Meter](performance-meter.md) — host CPU intervals and RtPbr GPU pass timings.

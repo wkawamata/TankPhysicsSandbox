@@ -819,12 +819,17 @@ void TrackedVehicleMode::Step(
     RtPbrSurvey::SceneRenderer& renderer,
     Tank::App::CameraController& cameraController)
 {
+    m_physicsStepTimeMs = 0;
+    m_sceneUpdateTimeMs = 0;
+    const auto prepareStart = std::chrono::steady_clock::now();
     const int previousMaximum = m_test.ProjectileSettings().maximumCount;
     const int previousMarkMaximum = m_test.ProjectileSettings().maximumImpactMarks;
     ApplyAssaultProjectileSettings();
     if (m_paused && !m_singleStep && (previousMaximum != m_test.ProjectileSettings().maximumCount ||
         previousMarkMaximum != m_test.ProjectileSettings().maximumImpactMarks))
         UpdateSceneInternal(renderer);
+    m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
+        std::chrono::steady_clock::now() - prepareStart).count();
     if (!m_paused || m_singleStep)
     {
         const auto physicsStart = std::chrono::steady_clock::now();
@@ -860,7 +865,7 @@ void TrackedVehicleMode::Step(
         UpdateClearCondition();
         UpdateSceneInternal(renderer);
         renderer.SetScene(m_presenter.GetScene());
-        m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
+        m_sceneUpdateTimeMs += std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - sceneStart).count();
         m_sceneUpdatePeakTimeMs = (std::max)(
             m_sceneUpdatePeakTimeMs,
