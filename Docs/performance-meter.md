@@ -1,6 +1,8 @@
 # Performance Meter
 
 The Performance Meter window appears with the tool UI in game, editor and menu.
+Use Sub Windows in the Tank Sandbox start menu or Tracked Vehicle panel to turn it
+on or off. The visibility is saved with the UI layout and supports Undo/Redo.
 Collapse its title bar to save space; left + right mouse buttons hide all tool UI.
 It is a read-only diagnostic view and does not edit saved settings or simulation.
 
@@ -91,3 +93,22 @@ host renderer-call/instrumented totals. In that Debug validation session the lar
 interval was Record / submit, followed by GPU fence wait; Present was small. These
 are local validation observations, not a reproduction of a user's prior capture.
 The D3D12 log had no errors. Original UI JSON settings were restored afterwards.
+
+## Dump a report
+
+The DumpToOutput button at the upper right of Performance Meter refreshes the
+rolling statistics, writes a line-by-line report to the Output log (category
+Performance) and copies the complete plain-text report to the clipboard. Paste
+it directly into a chat for diagnosis. Output can be shown from Sub Windows or
+with F9; its filters still apply. If a console is attached, the same report is
+also written to stdout. Dumping does not clear previous log entries.
+
+The report includes application mode, paused state, display map name, build type,
+GPU adapter, rendering path/view, VSync, shadow/reflection and DLSS SR status,
+window/viewport/render dimensions, sample counts, frame time, host CPU breakdown,
+renderer CPU breakdown, and completed GPU pass timings. It omits filesystem paths.
+The CPU, renderer, and GPU timelines overlap as described above; GPU query data is
+delayed. The reported settings are current while rolling samples may include
+earlier settings or startup; collect 300 new frames after changing settings.
+If samples are unavailable, the report marks them unavailable, not zero.
+The dump is a diagnostic output action and does not edit the scene or settings.

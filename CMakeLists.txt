@@ -250,6 +250,7 @@ add_executable(TankSandbox
     src/App/CameraSettingsStore.h
     src/App/UiLayoutSettingsStore.cpp
     src/App/UiLayoutSettingsStore.h
+    src/App/UiVisibilityUndo.h
     src/App/TankSettingsStore.cpp
     src/App/TankSettingsStore.h
     src/App/RollingSpeedOptimizationSession.cpp
@@ -299,6 +300,7 @@ add_executable(TankSandbox
     src/Ui/PerformancePanel.cpp
     src/Ui/PerformancePanel.h
     src/App/PerformanceMeter.h
+    src/App/PerformanceReport.h
     src/Ui/TrackedVehiclePanel.cpp
     src/Ui/TrackedVehiclePanel.h
     src/TankSandboxApp.cpp
@@ -1049,6 +1051,11 @@ if(BUILD_TESTING)
     add_executable(RendererCpuTimingTests tests/RendererCpuTimingTests.cpp)
     target_include_directories(RendererCpuTimingTests PRIVATE External/RtPbrSurvey)
     add_test(NAME TankApp.RendererCpuTiming COMMAND RendererCpuTimingTests)
+
+    add_executable(PerformanceReportTests tests/PerformanceReportTests.cpp)
+    target_include_directories(PerformanceReportTests PRIVATE src External/RtPbrSurvey)
+    target_link_libraries(PerformanceReportTests PRIVATE TankDiagnostics)
+    add_test(NAME TankApp.PerformanceReport COMMAND PerformanceReportTests)
 
     add_executable(PerformanceMeterTests tests/PerformanceMeterTests.cpp)
     target_include_directories(PerformanceMeterTests PRIVATE src External/RtPbrSurvey)

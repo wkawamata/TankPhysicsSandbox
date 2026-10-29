@@ -51,7 +51,9 @@
 #include <fstream>
 #include <tuple>
 #include "App/GameViewportJson.h"
+#include "App/PerformanceReport.h"
 #include "Ui/PerformancePanel.h"
+#include "App/UiVisibilityUndo.h"
 #include <ios>
 #include <iterator>
 #include <limits>
@@ -365,7 +367,8 @@ void TankSandboxApp::OnInit()
             if (m_toolUiVisible)
             {
                 DrawToolUi();
-        Ui::DrawPerformancePanel(m_performanceHistory);
+                if (m_performanceMeterVisible) Ui::DrawPerformancePanel(m_performanceHistory,
+                    [this](const auto& summary) { DumpPerformanceReport(summary); });
             }
         });
 
@@ -475,6 +478,7 @@ void TankSandboxApp::OnInit()
     m_trackedVehiclePanelCtx.activeMapName = &m_trackedVehicleMode.ActiveMapName();
     m_trackedVehiclePanelCtx.physicsDebugOverlay = &m_trackedVehicleMode.PhysicsDebugOverlay();
     m_trackedVehiclePanelCtx.cameraWindowVisible = &m_cameraWindowVisible;
+    m_trackedVehiclePanelCtx.performanceMeterVisible = &m_performanceMeterVisible;
     m_trackedVehiclePanelCtx.telemetryWindowVisible =
         &m_trackedVehicleMode.TelemetryWindowVisible();
     m_trackedVehiclePanelCtx.rollingParametersWindowVisible =
@@ -1637,6 +1641,86 @@ void TankSandboxApp::DrawGameViewportControls()
     ImGui::TextDisabled("Global game display setting; independent of camera slots. Save Viewport persists it.");
 }
 
+void TankSandboxApp::DumpPerformanceReport(const Tank::App::PerformanceSummary& summary)
+{
+    Tank::App::PerformanceReportContext context;
+    switch (m_appMode)
+    {
+    case AppMode::TopMenu: context.mode = "Top Menu"; break;
+    case AppMode::MapEditor: context.mode = "Map Editor"; break;
+    case AppMode::PhysicsBoxDrop:
+        context.mode = "Box Drop"; context.paused = m_boxDropMode.Paused() ? "yes" : "no"; break;
+    case AppMode::PhysicsTrackedVehicle:
+        context.mode = "Tracked Vehicle"; context.map = m_trackedVehicleMode.ActiveMapName();
+        context.paused = m_trackedVehicleMode.Paused() ? "yes" : "no"; break;
+    }
+#ifdef _DEBUG
+    context.build = "Debug";
+#else
+    context.build = "Non-Debug";
+#endif
+    const wchar_t* adapter = m_graphicsDevice.AdapterDescription().Description;
+    const int bytes = WideCharToMultiByte(CP_UTF8, 0, adapter, -1, nullptr, 0, nullptr, nullptr);
+    if (bytes > 1)
+    {
+        context.adapter.resize(static_cast<size_t>(bytes));
+        if (WideCharToMultiByte(CP_UTF8, 0, adapter, -1, context.adapter.data(), bytes, nullptr, nullptr) > 0)
+            context.adapter.pop_back();
+        else context.adapter = "unknown";
+    }
+    switch (m_sceneRenderer.GetRenderingPath())
+    {
+    case RtPbrSurveyEngine::RenderingPath::Forward: context.renderingPath = "Forward"; break;
+    case RtPbrSurveyEngine::RenderingPath::Deferred: context.renderingPath = "Deferred"; break;
+    case RtPbrSurveyEngine::RenderingPath::PathTracing: context.renderingPath = "Path Tracing"; break;
+    }
+    const auto renderView = m_sceneRenderer.GetRenderViewMode();
+    context.renderView = renderView == RtPbrSurveyEngine::RenderViewMode::LightPass
+        ? "LightPass" : "Debug view " + std::to_string(static_cast<int>(renderView));
+    context.vSync = m_sceneRenderer.EngineForDebugTools().VSyncEnabled();
+    context.hybridReflection = m_sceneRenderer.GetHybridReflectionSettings().enabled;
+    context.shadows = m_sceneRenderer.GetShadowSettings().enabled;
+    const auto& upscaler = m_sceneRenderer.GetTemporalUpscalerSettings();
+    context.upscalerEnabled = upscaler.enabled;
+    context.upscalerBackend = upscaler.backend == Engine::TemporalUpscalerBackend::Streamline ? "Streamline" : "None";
+    switch (upscaler.qualityMode)
+    {
+    case Engine::TemporalUpscalerQualityMode::Native: context.upscalerQuality = "Native / DLAA"; break;
+    case Engine::TemporalUpscalerQualityMode::Quality: context.upscalerQuality = "Quality"; break;
+    case Engine::TemporalUpscalerQualityMode::Balanced: context.upscalerQuality = "Balanced"; break;
+    case Engine::TemporalUpscalerQualityMode::Performance: context.upscalerQuality = "Performance"; break;
+    case Engine::TemporalUpscalerQualityMode::UltraPerformance: context.upscalerQuality = "Ultra Performance"; break;
+    }
+    const auto renderer = m_sceneRenderer.GetUiFrameContext();
+    context.upscalerAvailable = renderer.temporalUpscalerAvailable;
+    context.upscalerOutputAvailable = renderer.temporalUpscalerOutputAvailable;
+    if (renderer.temporalUpscalerStatusText) context.upscalerStatus = renderer.temporalUpscalerStatusText;
+    context.windowWidth = static_cast<int>(m_windowInfo.width);
+    context.windowHeight = static_cast<int>(m_windowInfo.height);
+    context.viewportEnabled = m_appMode == AppMode::PhysicsTrackedVehicle && m_gameViewport.enabled;
+    const auto rect = context.viewportEnabled
+        ? Tank::App::ResolveGameViewport(m_gameViewport, context.windowWidth, context.windowHeight)
+        : Tank::App::GameViewportRect{0, 0, context.windowWidth, context.windowHeight};
+    context.viewportX = rect.x; context.viewportY = rect.y;
+    context.viewportWidth = rect.width; context.viewportHeight = rect.height;
+    context.outputWidth = renderer.outputWidth; context.outputHeight = renderer.outputHeight;
+    context.renderWidth = renderer.renderWidth; context.renderHeight = renderer.renderHeight;
+
+    const std::string report = Tank::App::FormatPerformanceReport(summary, context);
+    // One physical line per entry avoids the log buffer's per-entry length cap.
+    Tank::App::ForEachPerformanceReportLine(report, [](const std::string& line)
+    {
+        Tank::Diagnostics::Write(Tank::Diagnostics::LogLevel::Info, "Performance", line);
+    });
+    // Also support a parent console with redirected stdout. Output and clipboard work without a console.
+    if (_fileno(stdout) >= 0)
+    {
+        std::fwrite(report.data(), 1, report.size(), stdout);
+        std::fflush(stdout);
+    }
+    ImGui::SetClipboardText(report.c_str());
+}
+
 void TankSandboxApp::PrepareGameViewport()
 {
     if (m_appMode == AppMode::PhysicsTrackedVehicle && m_gameViewport.enabled)
@@ -1656,7 +1740,8 @@ void TankSandboxApp::UpdateUiFrame()
     if (m_toolUiVisible)
     {
         DrawToolUi();
-        Ui::DrawPerformancePanel(m_performanceHistory);
+        if (m_performanceMeterVisible) Ui::DrawPerformancePanel(m_performanceHistory,
+                    [this](const auto& summary) { DumpPerformanceReport(summary); });
         m_outputPanel.Draw(m_appMode == AppMode::PhysicsTrackedVehicle &&
             m_trackedVehicleMode.MapCleared());
     }
@@ -1888,12 +1973,14 @@ Tank::App::UiLayoutSettings TankSandboxApp::CaptureUiLayoutSettings()
         m_outputPanel.open,
         m_trackedVehicleMode.RollingCheatWindowVisible(),
         m_trackedVehicleMode.RollingCheatFontScale(),
+        m_performanceMeterVisible,
     };
 }
 
 void TankSandboxApp::ApplyUiLayoutSettings(const Tank::App::UiLayoutSettings& settings)
 {
     m_cameraWindowVisible = settings.cameraWindowVisible;
+    m_performanceMeterVisible = settings.performanceMeterVisible;
     m_trackedVehicleMode.TelemetryWindowVisible() = settings.telemetryWindowVisible;
     m_trackedVehicleMode.RollingParametersWindowVisible() = settings.rollingParametersWindowVisible;
     m_trackedVehicleMode.GamepadInputWindowVisible() = settings.gamepadInputWindowVisible;
@@ -2172,7 +2259,35 @@ void TankSandboxApp::DrawToolUi()
 void TankSandboxApp::DrawTopMenuUi()
 {
     ImGui::Begin("Tank Sandbox");
-    ImGui::Checkbox("Output (F9)", &m_outputPanel.open);
+    const auto& io = ImGui::GetIO();
+    if (!io.WantTextInput && !ImGui::IsAnyItemActive() &&
+        !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) &&
+        io.KeyCtrl && !io.KeyAlt && !io.KeySuper)
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_Y, false) || (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)))
+            m_topMenuUiHistory.Redo();
+        else if (!io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)) m_topMenuUiHistory.Undo();
+    }
+    if (ImGui::CollapsingHeader("Sub Windows", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        const auto visibilityCheckbox = [this](const char* label, bool& visible)
+        {
+            const bool previous = visible;
+            if (ImGui::Checkbox(label, &visible))
+                Tank::App::RecordUiVisibilityChange(m_topMenuUiHistory, visible, previous);
+        };
+        visibilityCheckbox("Performance Meter", m_performanceMeterVisible);
+        visibilityCheckbox("Camera", m_cameraWindowVisible);
+        visibilityCheckbox("Render Settings", m_renderSettingsWindowVisible);
+        visibilityCheckbox("Output (F9)", m_outputPanel.open);
+        ImGui::BeginDisabled(!m_topMenuUiHistory.CanUndo());
+        if (ImGui::Button("Undo##TopMenuWindows")) m_topMenuUiHistory.Undo();
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!m_topMenuUiHistory.CanRedo());
+        if (ImGui::Button("Redo##TopMenuWindows")) m_topMenuUiHistory.Redo();
+        ImGui::EndDisabled();
+    }
     if (ImGui::Button("Map Editor"))
     {
         ClearVehicleInputState();

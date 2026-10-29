@@ -16,6 +16,7 @@ namespace Tank::App
         bool outputWindowVisible = true;
         bool rollingCheatWindowVisible = false;
         float rollingCheatFontScale = 1.0f;
+        bool performanceMeterVisible = true;
 
         bool operator==(const UiLayoutSettings&) const = default;
     };

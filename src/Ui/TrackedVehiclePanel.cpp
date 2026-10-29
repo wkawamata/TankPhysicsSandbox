@@ -1602,14 +1602,14 @@ namespace Ui
             else if (!io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)) ctx.settingsUndo->Undo();
         }
         if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
-        const std::array<bool*, 13> previewFields = {ctx.physicsDebugOverlay, ctx.mapHitMeshOverlay,
+        const std::array<bool*, 14> previewFields = {ctx.physicsDebugOverlay, ctx.mapHitMeshOverlay,
             ctx.mapVisualMeshes, ctx.mapMarkersVisible, ctx.cameraWindowVisible, ctx.telemetryWindowVisible,
             ctx.rollingParametersWindowVisible, ctx.mortarParametersWindowVisible, ctx.gamepadInputWindowVisible,
             ctx.renderSettingsWindowVisible, ctx.outputWindowVisible, ctx.rollingCheatWindowVisible,
-            ctx.rollingCheatWindowJapanese};
+            ctx.rollingCheatWindowJapanese, ctx.performanceMeterVisible};
         const auto previewState = [previewFields]()
         {
-            std::array<bool, 13> result{};
+            std::array<bool, 14> result{};
             for (size_t i = 0; i < result.size(); ++i) result[i] = previewFields[i] && *previewFields[i];
             return result;
         };
@@ -1647,6 +1647,10 @@ namespace Ui
 		if (ImGui::CollapsingHeader(
 			"Sub Windows", ImGuiTreeNodeFlags_DefaultOpen))
 		{
+            if (ctx.performanceMeterVisible != nullptr)
+            {
+                ImGui::Checkbox("Performance Meter##SubWindowOnOff", ctx.performanceMeterVisible);
+            }
 			if (ctx.cameraWindowVisible != nullptr)
 			{
 				ImGui::Checkbox("Camera##SubWindowOnOff", ctx.cameraWindowVisible);

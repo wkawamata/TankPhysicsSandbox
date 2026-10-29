@@ -4,6 +4,9 @@ The Map Editor has an Undo button beside Back to Menu and a Ctrl+Z shortcut.
 The Tracked Vehicle panel has Undo/Redo buttons under Tank Settings. Both
 screens support Ctrl+Z (Undo), Ctrl+Y and Ctrl+Shift+Z (Redo). Text inputs retain their normal text-editing shortcut while active.
 
+The Tank Sandbox start menu has Undo/Redo buttons and Ctrl+Z / Ctrl+Y for its
+Sub Windows visibility controls.
+
 ## Supported edits
 
 - Map Playable: the checkbox is one command; Undo/Redo restores the flag
@@ -29,7 +32,8 @@ screens support Ctrl+Z (Undo), Ctrl+Y and Ctrl+Shift+Z (Redo). Text inputs retai
 - Play camera panel: follow/mortar tuning, projection, presets, slots, loaded
   settings, mouse-control mode and auto-load preferences. Automatic follow and
   transition frames and ordinary viewport navigation do not create commands.
-- Play preview: physics debug, map mesh/marker visibility and auxiliary windows.
+- Play preview: physics debug, map mesh/marker visibility and auxiliary windows,
+  including Performance Meter. Start-menu visibility edits use their own history.
 - Input Mapping: device axis/button assignments, inversion, neutral/tolerance and
   deadzone settings, plus complete profile replacement via Load Mapping. The
   profile collection is restored safely across device switches and reloads.

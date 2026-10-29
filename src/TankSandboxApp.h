@@ -15,6 +15,7 @@
 #include "App/PerformanceMeter.h"
 #include "App/CameraSettingsStore.h"
 #include "App/UiLayoutSettingsStore.h"
+#include "App/UndoHistory.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
 #include "App/TrackedVehicleMode.h"
@@ -106,6 +107,7 @@ private:
     void SaveUiLayoutSettings();
     void PersistUiLayoutSettingsIfChanged();
     void DrawTopMenuUi();
+    void DumpPerformanceReport(const Tank::App::PerformanceSummary& summary);
     void ReloadCustomMaps();
     bool LoadAutoMap();
     void EnterTrackedVehicleMode();
@@ -210,6 +212,8 @@ private:
 
     // Renderer state
     bool m_cameraWindowVisible = true;
+    bool m_performanceMeterVisible = true;
+    Tank::App::UndoHistory m_topMenuUiHistory;
     bool m_renderSettingsWindowVisible = true;
     Tank::App::UiLayoutSettings m_lastSavedUiLayoutSettings;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;

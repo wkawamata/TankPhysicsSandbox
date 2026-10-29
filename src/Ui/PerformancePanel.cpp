@@ -37,11 +37,38 @@ namespace Ui
         }
     }
 
-    void DrawPerformancePanel(const Tank::App::PerformanceHistory& history)
+    void DrawPerformancePanel(Tank::App::PerformanceHistory& history,
+                              const std::function<void(const Tank::App::PerformanceSummary&)>& dumpReport)
     {
         ImGui::SetNextWindowPos(ImVec2(615, 40), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(570, 800), ImGuiCond_FirstUseEver);
-        if (!ImGui::Begin("Performance Meter")) { ImGui::End(); return; }
+        if (!ImGui::Begin("Performance Meter", nullptr, ImGuiWindowFlags_MenuBar)) { ImGui::End(); return; }
+        if (ImGui::BeginMenuBar())
+        {
+            static double lastDumpTime = -1.0;
+            const float buttonWidth = ImGui::CalcTextSize("DumpToOutput").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+            const float right = ImGui::GetWindowContentRegionMax().x;
+            if (lastDumpTime >= 0.0 && ImGui::GetTime() - lastDumpTime < 3.0)
+            {
+                const float messageWidth = ImGui::CalcTextSize("Copied").x + ImGui::GetStyle().ItemSpacing.x;
+                ImGui::SetCursorPosX((std::max)(ImGui::GetCursorPosX(), right - buttonWidth - messageWidth));
+                ImGui::TextDisabled("Copied");
+                ImGui::SameLine();
+            }
+            else
+            {
+                ImGui::SetCursorPosX((std::max)(ImGui::GetCursorPosX(), right - buttonWidth));
+            }
+            if (ImGui::Button("DumpToOutput") && dumpReport)
+            {
+                history.Refresh();
+                dumpReport(history.Summary());
+                lastDumpTime = ImGui::GetTime();
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Write the report to Output and copy it to the clipboard for pasting.");
+            ImGui::EndMenuBar();
+        }
         const auto& data = history.Summary();
         if (!data.frames) { ImGui::TextUnformatted("Collecting frame timings..."); ImGui::End(); return; }
         ImGui::Text("%.1f FPS | frame avg %.2f ms | p95 %.2f | peak %.2f",
