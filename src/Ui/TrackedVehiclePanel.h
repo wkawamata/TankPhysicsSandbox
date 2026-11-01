@@ -50,6 +50,7 @@ namespace Ui
 
         bool* physicsDebugOverlay = nullptr;
         bool* cameraWindowVisible = nullptr;
+        bool* performanceMeterVisible = nullptr;
         bool* telemetryWindowVisible = nullptr;
         bool* rollingParametersWindowVisible = nullptr;
         bool* mortarParametersWindowVisible = nullptr;

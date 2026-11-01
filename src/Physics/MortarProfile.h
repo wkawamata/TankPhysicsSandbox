@@ -22,6 +22,7 @@ namespace Tank::Physics
         float muzzleVelocityMetersPerSecond = 20.0f;
         bool muzzleVelocityAuto = true;
         float explosionDamage = 80.0f;
+        Vec3 muzzleLocalPosition = {0.0f, 0.85f, 1.8f};
     };
 
     MortarProfile ExtractMortarProfile(const TankSettings& settings);

@@ -71,6 +71,7 @@ namespace Tank::Physics
         float mortarEmergencyBrakeAmount = 1.0f;
         int mortarMaximumProjectileCount = 8;
         float mortarExplosionDamage = 80.0f;
+        Vec3 mortarMuzzleLocalPosition = {0.0f, 0.85f, 1.8f};
         bool mortarMuzzleVelocityAuto = true;
         float mortarMuzzleVelocityMetersPerSecond = 20.0f;
         bool rollingInputEnabled = true;

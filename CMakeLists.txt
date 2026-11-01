@@ -250,6 +250,7 @@ add_executable(TankSandbox
     src/App/CameraSettingsStore.h
     src/App/UiLayoutSettingsStore.cpp
     src/App/UiLayoutSettingsStore.h
+    src/App/UiVisibilityUndo.h
     src/App/TankSettingsStore.cpp
     src/App/TankSettingsStore.h
     src/App/RollingSpeedOptimizationSession.cpp
@@ -296,6 +297,10 @@ add_executable(TankSandbox
     src/Ui/EnemyUnitEditorWindow.h
     src/Ui/TankCollisionProfileEditor.cpp
     src/Ui/TankCollisionProfileEditor.h
+    src/Ui/PerformancePanel.cpp
+    src/Ui/PerformancePanel.h
+    src/App/PerformanceMeter.h
+    src/App/PerformanceReport.h
     src/Ui/TrackedVehiclePanel.cpp
     src/Ui/TrackedVehiclePanel.h
     src/TankSandboxApp.cpp
@@ -1043,6 +1048,19 @@ if(BUILD_TESTING)
         COMMAND TankVisualSettingsJsonTests
     )
 
+    add_executable(RendererCpuTimingTests tests/RendererCpuTimingTests.cpp)
+    target_include_directories(RendererCpuTimingTests PRIVATE External/RtPbrSurvey)
+    add_test(NAME TankApp.RendererCpuTiming COMMAND RendererCpuTimingTests)
+
+    add_executable(PerformanceReportTests tests/PerformanceReportTests.cpp)
+    target_include_directories(PerformanceReportTests PRIVATE src External/RtPbrSurvey)
+    target_link_libraries(PerformanceReportTests PRIVATE TankDiagnostics)
+    add_test(NAME TankApp.PerformanceReport COMMAND PerformanceReportTests)
+
+    add_executable(PerformanceMeterTests tests/PerformanceMeterTests.cpp)
+    target_include_directories(PerformanceMeterTests PRIVATE src External/RtPbrSurvey)
+    add_test(NAME TankApp.PerformanceMeter COMMAND PerformanceMeterTests)
+
     add_executable(GameViewportTests tests/GameViewportTests.cpp)
     target_include_directories(GameViewportTests PRIVATE src External/RtPbrSurvey)
     target_link_libraries(GameViewportTests PRIVATE nlohmann_json::nlohmann_json)
@@ -1283,6 +1301,9 @@ if(BUILD_TESTING)
     add_executable(AssaultWeaponTests tests/AssaultWeaponTests.cpp)
     add_executable(AssaultDestructibleTests tests/AssaultDestructibleTests.cpp)
     add_executable(AssaultProjectileTests tests/AssaultProjectileTests.cpp)
+    add_executable(AssaultAimAssistTests tests/AssaultAimAssistTests.cpp)
+    target_link_libraries(AssaultAimAssistTests PRIVATE TankPhysicsCore)
+    add_test(NAME TankPhysics.AssaultAimAssist COMMAND AssaultAimAssistTests)
     add_executable(EnemyTankVisualTests
         tests/EnemyTankVisualTests.cpp
         src/Rendering/TrackedVehicleScenePresenter.cpp

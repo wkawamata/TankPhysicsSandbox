@@ -46,19 +46,28 @@ int main()
     EnemyUnitType unit;
     unit.attackMounts.push_back({{0.2f,0,0},0});
     check(world.AddFixedTurret({0,1.5f,12},{1,1,1},60,{0,1,0,0},"enemy-1",unit), "multiple mounts");
-    Advance(world,30);
+    for (int i=0; i<30 && world.State().playerCombat.phase==PlayerCombatPhase::Alive; ++i) Advance(world,1);
     check(world.State().fixedTurrets[0].mounts.size()==2 && world.State().fixedTurrets[0].mounts[0].aim.shotsFired>0,
         "independent mount fire state");
     check(world.State().playerCombat.phase==PlayerCombatPhase::Lost && world.State().playerCombat.hitPoints==0 &&
         world.State().playerCombat.lives==2, "100 damage loses exactly one life despite simultaneous hits");
     check(world.State().enemyProjectiles.empty(), "hit bullets removed");
+    check(world.State().mortarBlasts.size()==1 && world.State().mortarBlasts[0].ageSeconds==0 && world.State().mortarBlasts[0].radiusMeters==6.0f &&
+        world.State().mortarBlasts[0].position.x==world.State().playerCombat.lostPosition.x &&
+        world.State().mortarBlasts[0].position.y==world.State().playerCombat.lostPosition.y &&
+        world.State().mortarBlasts[0].position.z==world.State().playerCombat.lostPosition.z,
+        "loss creates one visual explosion at the player position");
+    Advance(world,1);
+    check(world.State().mortarBlasts.size()==1 && world.State().mortarBlasts[0].ageSeconds>0,
+        "loss explosion animates without duplicating");
 
     const auto lost = world.State().playerCombat.lostPosition;
     const auto turretId = world.State().fixedTurrets[0].target.id;
     check(!world.FireAssault(), "Lost rejects shooting");
+    check(world.State().respawnSecondsRemaining > 2.9f, "respawn delay is three seconds");
     const int waitingSteps = std::max(0,static_cast<int>(std::floor(world.State().respawnSecondsRemaining*60))-1);
     Advance(world,waitingSteps);
-    check(world.State().playerCombat.phase==PlayerCombatPhase::Lost, "waits one second before respawn");
+    check(world.State().playerCombat.phase==PlayerCombatPhase::Lost, "waits three seconds before respawn");
     for(int i=0;i<3 && world.State().playerCombat.phase==PlayerCombatPhase::Lost;++i)Advance(world,1);
     check(world.State().playerCombat.phase==PlayerCombatPhase::Alive && world.State().playerCombat.hitPoints==100 &&
         world.State().playerCombat.lives==2 && world.State().invulnerabilitySecondsRemaining==2,
@@ -73,7 +82,10 @@ int main()
     for(int i=0;i<2000 && world.State().playerCombat.phase!=PlayerCombatPhase::GameOver;++i)Advance(world,1);
     check(world.State().playerCombat.phase==PlayerCombatPhase::GameOver && world.State().playerCombat.lives==0 &&
         world.State().respawnCount==2, "third loss reaches GameOver without respawn");
+    check(world.State().mortarBlasts.size()==1 && world.State().mortarBlasts[0].ageSeconds==0,
+        "final loss creates an explosion at GameOver");
     const auto frozenStep=world.State().stepIndex;Advance(world,120);
+    check(world.State().mortarBlasts.empty(), "GameOver explosion expires while the world remains frozen");
     check(world.State().stepIndex==frozenStep && !world.FireAssault(), "GameOver stops world and shooting");
     world.Initialize({}, {}, {}, {{3,2,4},0});
     check(world.State().bodyPosition.x==3 && world.State().bodyPosition.y==2 && world.State().bodyPosition.z==4,
@@ -88,8 +100,13 @@ int main()
     world.AddFixedTurret({0,1.5f,12},{1,1,1},60,{0,1,0,0}); Advance(world,120);
     check(!world.State().fixedTurrets[0].mounts[0].aim.detected && world.State().enemyProjectiles.empty(), "terrain blocks detection and firing");
 
+    // Test one swept impact: repeated 100-damage shots would destroy this
+    // 60-HP blocker and a later shot would legitimately reach the player.
+    type.firingIntervalSeconds=3;
     world.Initialize(); Advance(world,180);world.ConfigureEnemyAttacks({type});
-    world.AddFixedTurret({0,1.5f,12},{1,1,1},60,{0,1,0,0});Advance(world,6);
+    world.AddFixedTurret({0,1.5f,12},{1,1,1},60,{0,1,0,0});
+    for(int i=0;i<300 && world.State().enemyProjectiles.empty();++i)Advance(world,1);
+    // Install cover as soon as a round spawns, before it crosses z=6.
     check(!world.State().enemyProjectiles.empty(), "round in flight before blocker");
     world.AddDestructibleBox({0,1.5f,6},{4,3,0.2f},60);Advance(world,20);
     check(world.State().enemyProjectiles.empty() && world.State().playerCombat.hitPoints==100,

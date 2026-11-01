@@ -8,7 +8,7 @@ namespace Tank::App
     inline std::string SerializeGameViewport(const GameViewportSettings& s)
     {
         return nlohmann::json{{"version", 1}, {"enabled", s.enabled}, {"x", s.x}, {"y", s.y},
-            {"width", s.width}, {"height", s.height}, {"aspect", s.aspect}}.dump(2);
+            {"width", s.width}, {"height", s.height}, {"aspect", s.aspect}, {"alignment", s.alignment}}.dump(2);
     }
 
     inline bool DeserializeGameViewport(const std::string& text, GameViewportSettings& output, std::string& error)
@@ -20,7 +20,13 @@ namespace Tank::App
                 throw std::runtime_error("Invalid viewport settings version or type");
             GameViewportSettings s;
             s.enabled = json.at("enabled").get<bool>(); s.aspect = json.at("aspect").get<int>();
-            if (s.aspect < 0 || s.aspect > 3) throw std::runtime_error("Invalid aspect selection");
+            if (s.aspect < 0 || s.aspect > 4) throw std::runtime_error("Invalid aspect selection");
+            if (json.contains("alignment"))
+            {
+                if (!json.at("alignment").is_number_integer()) throw std::runtime_error("Invalid alignment type");
+                s.alignment = json.at("alignment").get<int>();
+                if (s.alignment < 0 || s.alignment > 2) throw std::runtime_error("Invalid alignment selection");
+            }
             for (auto [name, value] : {std::pair{"x", &s.x}, {"y", &s.y}, {"width", &s.width}, {"height", &s.height}})
             {
                 if (!json.at(name).is_number()) throw std::runtime_error("Viewport values must be numbers");

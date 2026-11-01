@@ -108,6 +108,23 @@ int main()
         const auto leftDelta = scene.instances[secondShoe].world._34-simpleLeft._34;
         const auto rightDelta = scene.instances[secondRightShoe].world._34-simpleRight._34;
         check(leftDelta*rightDelta < 0, "Simple pivot drives the two displayed tracks in opposite directions");
+        state.playerCombat.phase = Tank::Physics::PlayerCombatPhase::Lost;
+        update();
+        check(scene.instances[source].world._11 == 0 &&
+            scene.instances[presenter.Model().wheels[0]].world._11 == 0 &&
+            scene.instances[presenter.Model().trackShoes[0][0]].world._11 == 0,
+            "Player hull and running gear are hidden during respawn");
+        check(scene.instances[first].world._11 != 0 && scene.instances[second].world._11 != 0,
+            "Player loss does not hide enemy tanks");
+        state.playerCombat.phase = Tank::Physics::PlayerCombatPhase::Alive;
+        update();
+        check(scene.instances[source].world._11 != 0 && scene.instances[presenter.Model().trackShoes[0][0]].world._11 != 0,
+            "Player model reappears after respawn");
+        state.playerCombat.phase = Tank::Physics::PlayerCombatPhase::GameOver;
+        update();
+        check(scene.instances[source].world._11 == 0 && scene.instances[second].world._11 != 0,
+            "GameOver hides player but not enemies");
+        state.playerCombat.phase = Tank::Physics::PlayerCombatPhase::Alive;
         state.fixedTurrets[0].target.active = false;
         update();
         check(scene.instances[first].world._11 == 0 && scene.instances[second].world._11 != 0,

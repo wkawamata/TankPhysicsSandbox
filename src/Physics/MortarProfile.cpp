@@ -28,7 +28,7 @@ namespace Tank::Physics
             s.mortarStanceTorqueNm, s.mortarStanceDampingNms,
             s.mortarEmergencyBrakeAmount,
             s.mortarMuzzleVelocityMetersPerSecond, s.mortarMuzzleVelocityAuto,
-            s.mortarExplosionDamage};
+            s.mortarExplosionDamage, s.mortarMuzzleLocalPosition};
     }
 
     void ApplyMortarProfile(const MortarProfile& p, TankSettings& s)
@@ -47,6 +47,7 @@ namespace Tank::Physics
         s.mortarMuzzleVelocityMetersPerSecond = p.muzzleVelocityMetersPerSecond;
         s.mortarMuzzleVelocityAuto = p.muzzleVelocityAuto;
         s.mortarExplosionDamage = p.explosionDamage;
+        s.mortarMuzzleLocalPosition = p.muzzleLocalPosition;
     }
 
     std::string SerializeMortarProfile(const MortarProfile& p)
@@ -65,7 +66,10 @@ namespace Tank::Physics
             {"emergencyBrakeAmount", p.emergencyBrakeAmount},
             {"muzzleVelocityMetersPerSecond", p.muzzleVelocityMetersPerSecond},
             {"muzzleVelocityAuto", p.muzzleVelocityAuto},
-            {"explosionDamage", p.explosionDamage}};
+            {"explosionDamage", p.explosionDamage},
+            {"muzzleLocalX", p.muzzleLocalPosition.x},
+            {"muzzleLocalY", p.muzzleLocalPosition.y},
+            {"muzzleLocalZ", p.muzzleLocalPosition.z}};
         return json.dump(2);
     }
 
@@ -92,6 +96,9 @@ namespace Tank::Physics
         ReadFloat(json, "muzzleVelocityMetersPerSecond", loaded.muzzleVelocityMetersPerSecond);
         ReadBool(json, "muzzleVelocityAuto", loaded.muzzleVelocityAuto);
         ReadFloat(json, "explosionDamage", loaded.explosionDamage);
+        ReadFloat(json, "muzzleLocalX", loaded.muzzleLocalPosition.x);
+        ReadFloat(json, "muzzleLocalY", loaded.muzzleLocalPosition.y);
+        ReadFloat(json, "muzzleLocalZ", loaded.muzzleLocalPosition.z);
         profile = loaded; if (error) error->clear(); return true;
     }
 }

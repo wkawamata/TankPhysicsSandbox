@@ -89,6 +89,11 @@ namespace Tank::Physics
         json["collisionProfile"] =
             SerializeTankCollisionProfile(settings.collisionProfile);
         json["chassisMassKg"] = settings.chassisMassKg;
+        json["assaultHitRadiusMeters"] = settings.assaultProjectiles.hitRadiusMeters;
+        json["assaultAimAssistEnabled"] = settings.assaultProjectiles.aimAssistEnabled;
+        json["assaultAimAssistHorizontalDegrees"] = settings.assaultProjectiles.aimAssistHorizontalDegrees;
+        json["assaultAimAssistVerticalDegrees"] = settings.assaultProjectiles.aimAssistVerticalDegrees;
+        json["assaultAimAssistDistanceMeters"] = settings.assaultProjectiles.aimAssistDistanceMeters;
         json["assaultMaximumProjectiles"] = settings.assaultProjectiles.maximumCount;
         json["assaultSpeedMetersPerSecond"] = settings.assaultProjectiles.speedMetersPerSecond;
         json["assaultDamagePerRound"] = settings.assaultProjectiles.damagePerRound;
@@ -99,6 +104,9 @@ namespace Tank::Physics
         json["assaultMuzzleLocalX"] = settings.assaultProjectiles.muzzleLocalPosition.x;
         json["assaultMuzzleLocalY"] = settings.assaultProjectiles.muzzleLocalPosition.y;
         json["assaultMuzzleLocalZ"] = settings.assaultProjectiles.muzzleLocalPosition.z;
+        json["mortarMuzzleLocalX"] = settings.mortarMuzzleLocalPosition.x;
+        json["mortarMuzzleLocalY"] = settings.mortarMuzzleLocalPosition.y;
+        json["mortarMuzzleLocalZ"] = settings.mortarMuzzleLocalPosition.z;
         json["recoilImpulseNewtonSeconds"] = settings.recoilImpulseNewtonSeconds;
         json["recoilPointForwardM"] = settings.recoilPointForwardM;
         json["recoilPointHeightM"] = settings.recoilPointHeightM;
@@ -195,6 +203,11 @@ namespace Tank::Physics
 
         TankSettings loaded = settings;
         ReadFloat(json, "chassisMassKg", loaded.chassisMassKg);
+        ReadFloat(json, "assaultHitRadiusMeters", loaded.assaultProjectiles.hitRadiusMeters);
+        ReadBool(json, "assaultAimAssistEnabled", loaded.assaultProjectiles.aimAssistEnabled);
+        ReadFloat(json, "assaultAimAssistHorizontalDegrees", loaded.assaultProjectiles.aimAssistHorizontalDegrees);
+        ReadFloat(json, "assaultAimAssistVerticalDegrees", loaded.assaultProjectiles.aimAssistVerticalDegrees);
+        ReadFloat(json, "assaultAimAssistDistanceMeters", loaded.assaultProjectiles.aimAssistDistanceMeters);
         ReadInt(json, "assaultMaximumProjectiles", loaded.assaultProjectiles.maximumCount);
         ReadFloat(json, "assaultSpeedMetersPerSecond", loaded.assaultProjectiles.speedMetersPerSecond);
         ReadFloat(json, "assaultDamagePerRound", loaded.assaultProjectiles.damagePerRound);
@@ -205,6 +218,14 @@ namespace Tank::Physics
         ReadFloat(json, "assaultMuzzleLocalX", loaded.assaultProjectiles.muzzleLocalPosition.x);
         ReadFloat(json, "assaultMuzzleLocalY", loaded.assaultProjectiles.muzzleLocalPosition.y);
         ReadFloat(json, "assaultMuzzleLocalZ", loaded.assaultProjectiles.muzzleLocalPosition.z);
+        // Old files used the assault muzzle for both weapons.
+        if (!json.contains("mortarMuzzleLocalX") && !json.contains("mortarMuzzleLocalY") &&
+            !json.contains("mortarMuzzleLocalZ") && (json.contains("assaultMuzzleLocalX") ||
+                json.contains("assaultMuzzleLocalY") || json.contains("assaultMuzzleLocalZ")))
+            loaded.mortarMuzzleLocalPosition = loaded.assaultProjectiles.muzzleLocalPosition;
+        ReadFloat(json, "mortarMuzzleLocalX", loaded.mortarMuzzleLocalPosition.x);
+        ReadFloat(json, "mortarMuzzleLocalY", loaded.mortarMuzzleLocalPosition.y);
+        ReadFloat(json, "mortarMuzzleLocalZ", loaded.mortarMuzzleLocalPosition.z);
         ReadFloat(json, "recoilImpulseNewtonSeconds", loaded.recoilImpulseNewtonSeconds);
         ReadFloat(json, "recoilPointForwardM", loaded.recoilPointForwardM);
         ReadFloat(json, "recoilPointHeightM", loaded.recoilPointHeightM);

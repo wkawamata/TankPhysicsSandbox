@@ -1,6 +1,7 @@
 #include "TrackedVehicleTest.h"
 #include "TankJoltShape.h"
 #include "TankHitRegionQuery.h"
+#include "AssaultAimAssist.h"
 #include "PhysicsWorld.h"
 #include "TankController.h"
 #include "StaticMeshShape.h"
@@ -409,6 +410,15 @@ namespace Tank::Physics
         if (!m_impl) return;
         auto& current = m_impl->projectileSettings;
         current.maximumCount = std::clamp(settings.maximumCount, 0, 1024);
+        current.hitRadiusMeters = std::isfinite(settings.hitRadiusMeters)
+            ? std::clamp(settings.hitRadiusMeters, 0.0f, 5.0f) : 0.0f;
+        current.aimAssistEnabled = settings.aimAssistEnabled;
+        current.aimAssistHorizontalDegrees = std::isfinite(settings.aimAssistHorizontalDegrees)
+            ? std::clamp(settings.aimAssistHorizontalDegrees, 0.0f, 80.0f) : 10.0f;
+        current.aimAssistVerticalDegrees = std::isfinite(settings.aimAssistVerticalDegrees)
+            ? std::clamp(settings.aimAssistVerticalDegrees, 0.0f, 80.0f) : 10.0f;
+        current.aimAssistDistanceMeters = std::isfinite(settings.aimAssistDistanceMeters)
+            ? std::clamp(settings.aimAssistDistanceMeters, 1.0f, 200.0f) : 40.0f;
         current.expireAtMaximumDistance = settings.expireAtMaximumDistance;
         current.maximumDistanceMeters = std::isfinite(settings.maximumDistanceMeters)
             ? std::clamp(settings.maximumDistanceMeters, 0.1f, 1000000.0f) : 40.0f;
@@ -931,14 +941,45 @@ namespace Tank::Physics
         m_state.assaultWeapon = m_impl->controller.State().assaultWeapon;
         m_impl->resolvedAssaultRounds = m_state.assaultWeapon.roundsFired;
         const auto& settings = m_impl->projectileSettings;
-        const auto forward = m_impl->controller.AssaultForwardDirection();
-        m_state.assaultProjectiles.push_back({m_impl->controller.AssaultMuzzlePosition(
-            settings.muzzleLocalPosition),
+        auto forward = m_impl->controller.AssaultForwardDirection();
+        const auto origin = m_impl->controller.AssaultMuzzlePosition(settings.muzzleLocalPosition);
+        if (settings.aimAssistEnabled)
+        {
+            std::vector<AssaultAimCandidate> candidates;
+            candidates.reserve(m_state.enemyProjectiles.size() + m_state.fixedTurrets.size());
+            for (const auto& bullet : m_state.enemyProjectiles)
+            {
+                if (!bullet.target.active || bullet.target.kind != CombatTargetKind::EnemyProjectile) continue;
+                const float speed = std::hypot(bullet.velocity.x, bullet.velocity.y, bullet.velocity.z);
+                if (bullet.remainingDistance <= 0) continue;
+                candidates.push_back({bullet.target.id, bullet.position, bullet.velocity, true,
+                    speed > 1.0e-6f ? bullet.remainingDistance/speed : std::numeric_limits<float>::max()});
+            }
+            for (size_t i = 0; i < m_state.fixedTurrets.size(); ++i)
+            {
+                const auto& enemy = m_state.fixedTurrets[i];
+                if (!enemy.target.active) continue;
+                candidates.push_back({enemy.target.id, enemy.position, enemy.navigationVelocity, false,
+                    std::numeric_limits<float>::max(), m_impl->turretBodyIds[i].GetIndexAndSequenceNumber()});
+            }
+            const auto solution = FindAssaultAim(origin, forward, settings, candidates,
+                [&](const AssaultAimCandidate& candidate, const Vec3& point)
+                {
+                    Vec3 end = point, normal;
+                    std::uint32_t hitId = 0;
+                    bool staticSurface = false;
+                    const bool hit = m_impl->controller.CastAssaultSegment(origin, end, hitId, normal,
+                        staticSurface, {}, settings.hitRadiusMeters);
+                    return !hit || hitId == candidate.bodyId;
+                });
+            if (solution) forward = solution->direction;
+        }
+        m_state.assaultProjectiles.push_back({origin,
             {forward.x * settings.speedMetersPerSecond,
              forward.y * settings.speedMetersPerSecond,
              forward.z * settings.speedMetersPerSecond},
             settings.damagePerRound, 0.0f, settings.lifetimeSeconds, 0.0f,
-            settings.expireAtMaximumDistance, settings.maximumDistanceMeters});
+            settings.expireAtMaximumDistance, settings.maximumDistanceMeters, settings.hitRadiusMeters});
     }
 
     void TrackedVehicleTest::AdvanceAssaultProjectiles(float deltaTimeSeconds)
@@ -975,7 +1016,7 @@ namespace Tank::Physics
                     ignoredEnemyBodies.push_back(id.GetIndexAndSequenceNumber());
             const bool worldHit = m_impl->controller.CastAssaultSegment(
                 projectile.position, end, hitBodyId, normal, staticSurface,
-                ignoredEnemyBodies);
+                ignoredEnemyBodies, projectile.hitRadiusMeters);
             const float worldFraction = worldHit && speed > 0 ? std::sqrt(
                 (end.x-projectile.position.x)*(end.x-projectile.position.x) +
                 (end.y-projectile.position.y)*(end.y-projectile.position.y) +
@@ -989,7 +1030,7 @@ namespace Tank::Physics
                 if (!enemy.target.active) continue;
                 const auto hit = TraceTankHitRegions(projectile.position,
                     fullEnd, {enemy.position, enemy.rotation},
-                    enemy.unitType.collisionProfile.hitRegions);
+                    enemy.unitType.collisionProfile.hitRegions, projectile.hitRadiusMeters);
                 if (hit && hit->fraction < closest)
                 {
                     closest = hit->fraction;
@@ -1000,7 +1041,7 @@ namespace Tank::Physics
             for (auto& enemy : m_state.enemyProjectiles)
             {
                 if (!enemy.target.active || enemy.target.kind != CombatTargetKind::EnemyProjectile) continue;
-                const float t = EnemyInterceptionFraction(projectile.position, fullEnd, enemy, flightTime);
+                const float t = EnemyInterceptionFraction(projectile.position, fullEnd, enemy, flightTime, projectile.hitRadiusMeters);
                 if (t < closest)
                 {
                     closest = t;
@@ -1198,11 +1239,6 @@ namespace Tank::Physics
     void TrackedVehicleTest::AdvanceMortarProjectiles(float deltaTimeSeconds)
     {
         m_state.mortarHitTargetId = 0;
-        for (auto& blast : m_state.mortarBlasts)
-            blast.ageSeconds += deltaTimeSeconds;
-        std::erase_if(m_state.mortarBlasts, [](const MortarBlastState& blast)
-            { return blast.ageSeconds >= blast.durationSeconds; });
-
         // Semi-implicit Euler integration; the shell is not a Jolt body.
         constexpr float kGravityMetersPerSecondSquared = 9.81f;
         constexpr float kMaximumFlightSeconds = 30.0f;
@@ -1321,6 +1357,11 @@ namespace Tank::Physics
             return m_state;
         }
 
+        for (auto& blast : m_state.mortarBlasts)
+            blast.ageSeconds += deltaTimeSeconds;
+        std::erase_if(m_state.mortarBlasts, [](const MortarBlastState& blast)
+            { return blast.ageSeconds >= blast.durationSeconds; });
+
         const auto phase = m_impl->playerCombat.Snapshot().phase;
         if (phase == PlayerCombatPhase::GameOver) return m_state;
         m_impl->enemyObservationTimeSeconds += deltaTimeSeconds;
@@ -1355,13 +1396,18 @@ namespace Tank::Physics
         {
             m_state.playerCombat = m_impl->playerCombat.Snapshot();
             UpdateEnemyGroups(deltaTimeSeconds);
-            m_state.respawnSecondsRemaining = m_state.playerCombat.phase == PlayerCombatPhase::Lost ? 1.0f : 0;
+            m_state.respawnSecondsRemaining = m_state.playerCombat.phase == PlayerCombatPhase::Lost ? 3.0f : 0;
             const auto q = m_impl->controller.State().body.rotation;
             m_impl->lostYaw = std::atan2(2*(q.x*q.z+q.y*q.w), 1-2*(q.x*q.x+q.y*q.y));
             m_state.assaultProjectiles.clear();
             m_state.enemyProjectiles.clear();
             m_state.mortarProjectiles.clear();
             m_state.mortarBlasts.clear();
+            // Visual only: reuse the mortar blast animation without applying damage.
+            constexpr float kPlayerLossBlastRadiusMeters = 6.0f;
+            constexpr float kPlayerLossBlastDurationSeconds = 0.5f;
+            m_state.mortarBlasts.push_back({m_state.playerCombat.lostPosition,
+                kPlayerLossBlastRadiusMeters, 0.0f, kPlayerLossBlastDurationSeconds});
             m_impl->controller.SetInput({});
             return m_state;
         }

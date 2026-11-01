@@ -1204,7 +1204,7 @@ namespace Ui
 	{
         if (ImGui::CollapsingHeader("Frame Timing"))
         {
-            ImGui::Text("Total CPU: %.2f ms  peak %.2f ms",
+            ImGui::Text("Renderer CPU (incl waits): %.2f ms  peak %.2f ms",
                 ctx.cpuFrameTimeMs,
                 ctx.peakCpuFrameTimeMs);
             ImGui::Text("Rolling 300: avg %.2f  p95 %.2f  p99 %.2f ms",
@@ -1602,14 +1602,14 @@ namespace Ui
             else if (!io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)) ctx.settingsUndo->Undo();
         }
         if (ctx.resolveInputDeviceProfile) ctx.inputDeviceProfile = ctx.resolveInputDeviceProfile();
-        const std::array<bool*, 13> previewFields = {ctx.physicsDebugOverlay, ctx.mapHitMeshOverlay,
+        const std::array<bool*, 14> previewFields = {ctx.physicsDebugOverlay, ctx.mapHitMeshOverlay,
             ctx.mapVisualMeshes, ctx.mapMarkersVisible, ctx.cameraWindowVisible, ctx.telemetryWindowVisible,
             ctx.rollingParametersWindowVisible, ctx.mortarParametersWindowVisible, ctx.gamepadInputWindowVisible,
             ctx.renderSettingsWindowVisible, ctx.outputWindowVisible, ctx.rollingCheatWindowVisible,
-            ctx.rollingCheatWindowJapanese};
+            ctx.rollingCheatWindowJapanese, ctx.performanceMeterVisible};
         const auto previewState = [previewFields]()
         {
-            std::array<bool, 13> result{};
+            std::array<bool, 14> result{};
             for (size_t i = 0; i < result.size(); ++i) result[i] = previewFields[i] && *previewFields[i];
             return result;
         };
@@ -1632,10 +1632,22 @@ namespace Ui
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(560.0f, 720.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin("Tracked Vehicle");
+        ImGui::TextWrapped("Map: %s",
+            ctx.activeMapName != nullptr && !ctx.activeMapName->empty()
+                ? ctx.activeMapName->c_str() : "Unknown");
+        ImGui::Text("HP %.0f  Lives %d  Enemy rounds %zu", state.playerCombat.hitPoints,
+            state.playerCombat.lives, state.enemyProjectiles.size());
+        if (state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::GameOver &&
+            ImGui::Button("Continue") && ctx.continueGame) ctx.continueGame();
+        if (state.respawnSecondsRemaining > 0) ImGui::Text("Respawn in %.1f s", state.respawnSecondsRemaining);
+        if (state.invulnerabilitySecondsRemaining > 0) ImGui::Text("Invulnerable %.1f s", state.invulnerabilitySecondsRemaining);
+        if (state.playerCombat.phase != Tank::Physics::PlayerCombatPhase::Alive)
+            ImGui::TextUnformatted(state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::Lost
+                ? "Lost" : "GameOver");
 
 		if (ctx.cpuFrameTimeMs > 0.0f)
 		{
-			ImGui::Text("Frame: %.1f ms (%.1f FPS)",
+			ImGui::Text("Renderer: %.1f ms (%.1f calls/s)",
 				ctx.cpuFrameTimeMs,
 				1000.0f / ctx.cpuFrameTimeMs);
 		}
@@ -1647,6 +1659,10 @@ namespace Ui
 		if (ImGui::CollapsingHeader(
 			"Sub Windows", ImGuiTreeNodeFlags_DefaultOpen))
 		{
+            if (ctx.performanceMeterVisible != nullptr)
+            {
+                ImGui::Checkbox("Performance Meter##SubWindowOnOff", ctx.performanceMeterVisible);
+            }
 			if (ctx.cameraWindowVisible != nullptr)
 			{
 				ImGui::Checkbox("Camera##SubWindowOnOff", ctx.cameraWindowVisible);
@@ -1718,15 +1734,6 @@ namespace Ui
             ImGui::TextColored(ImVec4(1, 0.75f, 0.2f, 1), "Movement held: mortar stance. Release gesture to lower hull.");
         else if (state.specialMove.state == Tank::Physics::SpecialMoveState::RollStarting)
             ImGui::TextColored(ImVec4(1, 0.75f, 0.2f, 1), "Movement held: braking before roll.");
-        if (state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::GameOver &&
-            ImGui::Button("Continue") && ctx.continueGame) ctx.continueGame();
-        if (state.respawnSecondsRemaining > 0) ImGui::Text("Respawn in %.1f s", state.respawnSecondsRemaining);
-        if (state.invulnerabilitySecondsRemaining > 0) ImGui::Text("Invulnerable %.1f s", state.invulnerabilitySecondsRemaining);
-        ImGui::Text("HP %.0f  Lives %d  Enemy rounds %zu", state.playerCombat.hitPoints,
-            state.playerCombat.lives, state.enemyProjectiles.size());
-        if (state.playerCombat.phase != Tank::Physics::PlayerCombatPhase::Alive)
-            ImGui::TextUnformatted(state.playerCombat.phase == Tank::Physics::PlayerCombatPhase::Lost
-                ? "Lost" : "GameOver");
 		DrawStateSummary(ctx, state);
 
 		UpdateAndDrawRollingTravelTelemetry(ctx, state);
@@ -1967,6 +1974,20 @@ namespace Ui
 			ImGui::SliderInt("Maximum simultaneous rounds", &settings.maximumCount, 0, 1024, "%d", ImGuiSliderFlags_AlwaysClamp);
 			ImGui::DragFloat("Bullet speed (m/s)", &settings.speedMetersPerSecond, 1.0f, 0.1f, 10000.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
 			ImGui::DragFloat("Damage per round", &settings.damagePerRound, 1.0f, 0.0f, 1000000.0f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+            ImGuiWidgets::SliderFloatWithControls("Hit radius (m)", &settings.hitRadiusMeters,
+                0.0f, 5.0f, 0.05f, 0.0f, "%.2f");
+            ImGui::TextDisabled("0 uses a point ray; changes affect newly fired rounds.");
+            ImGui::Checkbox("Aim assist", &settings.aimAssistEnabled);
+            if (settings.aimAssistEnabled)
+            {
+                ImGuiWidgets::SliderFloatWithControls("Cone horizontal half-angle", &settings.aimAssistHorizontalDegrees,
+                    0.0f, 80.0f, 1.0f, 10.0f, "%.1f deg");
+                ImGuiWidgets::SliderFloatWithControls("Cone vertical half-angle", &settings.aimAssistVerticalDegrees,
+                    0.0f, 80.0f, 1.0f, 10.0f, "%.1f deg");
+                ImGuiWidgets::SliderFloatWithControls("Aim search distance (m)", &settings.aimAssistDistanceMeters,
+                    1.0f, 200.0f, 1.0f, 40.0f, "%.1f");
+                ImGui::TextWrapped("At launch, lead the nearest interceptable enemy round inside the cone; otherwise aim at an enemy tank. Special rounds and blocked targets are excluded. Rounds fly straight after launch.");
+            }
 			bool infinite = settings.lifetimeSeconds <= 0.0f;
 			if (ImGui::Checkbox("Infinite lifetime", &infinite))
 				settings.lifetimeSeconds = infinite ? 0.0f : 5.0f;
@@ -2178,6 +2199,13 @@ namespace Ui
             ImGui::SeparatorText("Attack Radius");
             SliderFloatWithPendingColor("Radius at Minimum Distance", &ctx.tankSettings->mortarMinimumAttackRadiusMeters, 0.5f, 25.0f, 0.5f, 2.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMinimumAttackRadiusMeters, ctx.appliedTankSettings->mortarMinimumAttackRadiusMeters));
             SliderFloatWithPendingColor("Radius at Maximum Distance", &ctx.tankSettings->mortarMaximumAttackRadiusMeters, 0.5f, 50.0f, 0.5f, 6.0f, "%.1f m", IsPending(ctx.tankSettings->mortarMaximumAttackRadiusMeters, ctx.appliedTankSettings->mortarMaximumAttackRadiusMeters));
+            ImGui::SeparatorText("Mortar Muzzle Position");
+            for (auto [label, value, applied, fallback] : {
+                std::tuple{"Mortar muzzle X (m)", &ctx.tankSettings->mortarMuzzleLocalPosition.x, ctx.appliedTankSettings->mortarMuzzleLocalPosition.x, 0.0f},
+                {"Mortar muzzle Y (m)", &ctx.tankSettings->mortarMuzzleLocalPosition.y, ctx.appliedTankSettings->mortarMuzzleLocalPosition.y, 0.85f},
+                {"Mortar muzzle Z (m)", &ctx.tankSettings->mortarMuzzleLocalPosition.z, ctx.appliedTankSettings->mortarMuzzleLocalPosition.z, 1.8f}})
+                SliderFloatWithPendingColor(label, value, -100.0f, 100.0f, 0.01f, fallback, "%.2f m", IsPending(*value, applied));
+            ImGui::TextDisabled("Tank local: +X right, +Y up, +Z forward. Independent of the assault muzzle.");
             ImGui::SeparatorText("Warhead");
             ImGui::Checkbox("Auto Muzzle Velocity", &ctx.tankSettings->mortarMuzzleVelocityAuto);
             ImGui::BeginDisabled(ctx.tankSettings->mortarMuzzleVelocityAuto);

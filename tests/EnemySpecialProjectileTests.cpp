@@ -72,13 +72,16 @@ int main()
 
     }
     special.projectileShape=EnemyProjectileShape::Sphere;
+    // Install the blocker immediately after spawn, before a fast round passes it.
     // Sphere size must affect swept terrain contact, including an off-axis thin blocker.
     special.projectileSpeedMetersPerSecond=100;
+    special.firingIntervalSeconds=3; // Isolate one impact; later shots must not pass the destroyed blocker.
     for(float radius:{0.25f,1.0f})
     {
         special.projectileRadiusMeters=radius;
         world.Initialize();Advance(world,180);world.ConfigureEnemyAttacks({special});
-        world.AddFixedTurret({0,1.5f,12},{1,1,1},60,{0,1,0,0});Advance(world,6);
+        world.AddFixedTurret({0,1.5f,12},{1,1,1},60,{0,1,0,0});
+        for(int i=0;i<300 && world.State().enemyProjectiles.empty();++i)Advance(world,1);
         check(!world.State().enemyProjectiles.empty(),"sphere spawned before blocker");
         world.AddDestructibleBox({0.85f,1.5f,6},{0.1f,3,0.1f},60);Advance(world,12);
         if(radius==1)
@@ -94,7 +97,7 @@ int main()
         world.Initialize();Advance(world,180);world.ConfigureEnemyAttacks({special});
         const float yaw=3.14159265f*0.75f;
         world.AddFixedTurret({-12,1.5f,12},{1,1,1},60,{0,std::sin(yaw*0.5f),0,std::cos(yaw*0.5f)});
-        Advance(world,6);
+        for(int i=0;i<300 && world.State().enemyProjectiles.empty();++i)Advance(world,1);
         check(!world.State().enemyProjectiles.empty(),"diagonal box spawned");
         world.AddDestructibleBox({-6.424264f,1.5f,5.575736f},{0.1f,3,0.1f},60);Advance(world,16);
         if(width==2)check(world.State().playerCombat.hitPoints==100,"wide oriented box touches diagonal off-axis blocker");

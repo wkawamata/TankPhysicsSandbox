@@ -12,8 +12,10 @@
 #include "App/MapEditorMode.h"
 #include "App/CameraController.h"
 #include "App/GameViewport.h"
+#include "App/PerformanceMeter.h"
 #include "App/CameraSettingsStore.h"
 #include "App/UiLayoutSettingsStore.h"
+#include "App/UndoHistory.h"
 #include "App/TankSettingsStore.h"
 #include "App/TankVisualSettingsStore.h"
 #include "App/TrackedVehicleMode.h"
@@ -105,6 +107,7 @@ private:
     void SaveUiLayoutSettings();
     void PersistUiLayoutSettingsIfChanged();
     void DrawTopMenuUi();
+    void DumpPerformanceReport(const Tank::App::PerformanceSummary& summary);
     void ReloadCustomMaps();
     bool LoadAutoMap();
     void EnterTrackedVehicleMode();
@@ -184,6 +187,9 @@ private:
     Ui::CameraPanelContext m_cameraPanelCtx;
     Ui::RendererSettingsPanelContext m_rendererPanelCtx;
     Ui::TrackedVehiclePanelContext m_trackedVehiclePanelCtx;
+    Tank::App::PerformanceHistory m_performanceHistory;
+    Tank::App::PerformanceClock::time_point m_previousFrameStart = {};
+    int m_performanceMode = -1;
     float m_peakCpuFrameTimeMs = 0.0f;
     static constexpr size_t kFrameTimingSampleCount = 300;
     std::array<float, kFrameTimingSampleCount> m_cpuFrameTimeSamples = {};
@@ -206,6 +212,8 @@ private:
 
     // Renderer state
     bool m_cameraWindowVisible = true;
+    bool m_performanceMeterVisible = true;
+    Tank::App::UndoHistory m_topMenuUiHistory;
     bool m_renderSettingsWindowVisible = true;
     Tank::App::UiLayoutSettings m_lastSavedUiLayoutSettings;
     RtPbrSurvey::SceneRendererSettings m_defaultRendererSettings;

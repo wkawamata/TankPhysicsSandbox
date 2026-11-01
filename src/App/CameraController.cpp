@@ -61,7 +61,7 @@ namespace Tank::App
         settings.fovDegrees = camera.fov;
         settings.perspectiveLensShiftX = camera.lensShiftX;
         settings.perspectiveLensShiftY = camera.lensShiftY;
-        settings.orthographicHeight = camera.orthographicHeight;
+        settings.orthographicHeight = camera.orthographicHeight - m_appliedMortarOrthoHeightOffset;
         settings.followTank = followTank;
         settings.followDistance = m_followDistance;
         settings.lookDownDegrees = m_lookDownDegrees;
@@ -154,8 +154,9 @@ namespace Tank::App
         m_fovTarget = camera.fov;
         m_fovVelocity = 0.0f;
         m_fovSpringActive = false;
+        m_appliedMortarOrthoHeightOffset = 0.0f;
         camera.orthographicHeight =
-            std::clamp(settings.orthographicHeight, 1.0f, 50.0f);
+            std::clamp(settings.orthographicHeight, 1.0f, 1000.0f);
         m_followTank = settings.followTank;
         m_followDistance = std::clamp(settings.followDistance, 4.0f, 250.0f);
         m_lookDownDegrees = std::clamp(
@@ -544,18 +545,34 @@ namespace Tank::App
     {
         if (!m_followTank || dt <= 0.0f)
         {
+            if (!m_followTank && m_appliedMortarOrthoHeightOffset != 0.0f)
+            {
+                camera.orthographicHeight -= m_appliedMortarOrthoHeightOffset;
+                m_appliedMortarOrthoHeightOffset = 0.0f;
+            }
             return;
         }
 
         using namespace DirectX;
         const float cueAlpha = 1.0f - std::exp(-m_mortarResponseSpeed * std::max(dt, 0.0f));
         const float mortarProgress = std::clamp(m_mortarCameraCue.progress, 0.0f, 1.0f);
+        const float previousMortarPitch = m_mortarPitchOffsetDegrees;
         m_mortarPitchOffsetDegrees +=
             (m_mortarMaximumPitchOffsetDegrees * mortarProgress -
                 m_mortarPitchOffsetDegrees) * cueAlpha;
         m_mortarDistanceOffsetMeters +=
             (m_mortarMaximumDistanceOffsetMeters * mortarProgress -
                 m_mortarDistanceOffsetMeters) * cueAlpha;
+
+        // A dolly changes perspective framing, but not orthographic scale.
+        // Apply its offset to the orthographic height and retain the base height
+        // so that releasing mortar and saving a slot do not bake in the effect.
+        const float baseOrthoHeight = camera.orthographicHeight - m_appliedMortarOrthoHeightOffset;
+        const float targetOrthoHeight = camera.projection == Engine::CameraProjection::Orthographic
+            ? std::clamp(baseOrthoHeight + m_mortarDistanceOffsetMeters, 1.0f, 1000.0f)
+            : baseOrthoHeight;
+        camera.orthographicHeight = targetOrthoHeight;
+        m_appliedMortarOrthoHeightOffset = targetOrthoHeight - baseOrthoHeight;
 
         const XMVECTOR bodyRotation = XMQuaternionNormalize(XMVectorSet(
             state.bodyRotation.x,
@@ -583,6 +600,20 @@ namespace Tank::App
                 XMStoreFloat3(
                     &camera.gazePoint,
                     XMLoadFloat3(&camera.gazePoint) + pivotDelta);
+            }
+            if (camera.projection == Engine::CameraProjection::Orthographic)
+            {
+                const XMVECTOR gaze = XMLoadFloat3(&camera.gazePoint);
+                const XMVECTOR offset = XMLoadFloat3(&camera.pos) - gaze;
+                const XMVECTOR right = XMVector3Cross(XMVectorSet(0, 1, 0, 0), offset);
+                if (XMVectorGetX(XMVector3LengthSq(right)) > 1.0e-6f)
+                {
+                    const float delta = XMConvertToRadians(
+                        m_mortarPitchOffsetDegrees - previousMortarPitch);
+                    const XMVECTOR rotation = XMQuaternionRotationAxis(right, -delta);
+                    XMStoreFloat3(&camera.pos, gaze + XMVector3Rotate(offset, rotation));
+                    StabilizeWorldUp(camera);
+                }
             }
             m_lastFollowPivot = pivotPosition;
             m_followPivotInitialized = true;

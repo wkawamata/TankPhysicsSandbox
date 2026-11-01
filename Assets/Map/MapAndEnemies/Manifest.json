@@ -697,6 +697,7 @@
       ]
     }
   ],
+  "name": "TestStage#01",
   "nodeInfo": {
     "area/clear-area-1": {
       "active": true,

@@ -218,6 +218,7 @@ namespace Tank::App
         Tank::Physics::MortarCameraCue m_mortarCameraCue = {};
         float m_mortarPitchOffsetDegrees = 0.0f;
         float m_mortarDistanceOffsetMeters = 0.0f;
+        float m_appliedMortarOrthoHeightOffset = 0.0f;
         float m_mortarMaximumPitchOffsetDegrees = 18.0f;
         float m_mortarMaximumDistanceOffsetMeters = 0.0f;
         float m_mortarResponseSpeed = 6.0f;

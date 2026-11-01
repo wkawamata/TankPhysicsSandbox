@@ -26,9 +26,15 @@ int main()
     source.chassisMassKg = 5200.0f;
     source.assaultProjectiles = {128, 150.0f, 35.0f, 2.5f};
     source.assaultProjectiles.maximumImpactMarks = 17;
+    source.assaultProjectiles.hitRadiusMeters = 0.35f;
+    source.assaultProjectiles.aimAssistEnabled = false;
+    source.assaultProjectiles.aimAssistHorizontalDegrees = 25;
+    source.assaultProjectiles.aimAssistVerticalDegrees = 7;
+    source.assaultProjectiles.aimAssistDistanceMeters = 65;
     source.assaultProjectiles.expireAtMaximumDistance = false;
     source.assaultProjectiles.maximumDistanceMeters = 123.0f;
     source.assaultProjectiles.muzzleLocalPosition = {0.25f, 1.1f, 2.3f};
+    source.mortarMuzzleLocalPosition = {-0.5f, 1.7f, 2.8f};
     source.recoilImpulseNewtonSeconds = 27500.0f;
     source.recoilPointForwardM = 1.5f;
     source.recoilPointHeightM = 0.9f;
@@ -112,6 +118,11 @@ int main()
     passed &= Check(loaded.collisionProfile == source.collisionProfile,
         "movement shape and hit regions must round trip");
     passed &= Check(loaded.assaultProjectiles.maximumCount == 128 && loaded.assaultProjectiles.maximumImpactMarks == 17 &&
+        NearlyEqual(loaded.assaultProjectiles.hitRadiusMeters, 0.35f) &&
+        !loaded.assaultProjectiles.aimAssistEnabled &&
+        NearlyEqual(loaded.assaultProjectiles.aimAssistHorizontalDegrees, 25) &&
+        NearlyEqual(loaded.assaultProjectiles.aimAssistVerticalDegrees, 7) &&
+        NearlyEqual(loaded.assaultProjectiles.aimAssistDistanceMeters, 65) &&
         NearlyEqual(loaded.assaultProjectiles.speedMetersPerSecond, 150.0f) &&
         NearlyEqual(loaded.assaultProjectiles.damagePerRound, 35.0f) &&
         NearlyEqual(loaded.assaultProjectiles.lifetimeSeconds, 2.5f) &&
@@ -121,6 +132,13 @@ int main()
         NearlyEqual(loaded.assaultProjectiles.muzzleLocalPosition.y, 1.1f) &&
         NearlyEqual(loaded.assaultProjectiles.muzzleLocalPosition.z, 2.3f),
         "projectile settings must round trip");
+    passed &= Check(loaded.mortarMuzzleLocalPosition == source.mortarMuzzleLocalPosition,
+        "mortar muzzle must round trip separately from assault muzzle");
+    Tank::Physics::TankSettings legacyMuzzle;
+    passed &= Check(Tank::Physics::DeserializeTankSettings(
+        R"({"version":1,"assaultMuzzleLocalX":0.2,"assaultMuzzleLocalY":1.4,"assaultMuzzleLocalZ":2.6})", legacyMuzzle) &&
+        legacyMuzzle.mortarMuzzleLocalPosition == legacyMuzzle.assaultProjectiles.muzzleLocalPosition,
+        "old settings retain the previously shared firing position");
     Tank::Physics::TankSettings defaultProjectileSettings;
     passed &= Check(Tank::Physics::DeserializeTankSettings(
         Tank::Physics::SerializeTankSettings(defaultProjectileSettings), defaultProjectileSettings) &&

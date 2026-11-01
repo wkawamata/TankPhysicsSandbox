@@ -15,6 +15,9 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/Shape/SphereShape.h>
 
 #include <algorithm>
 #include <cmath>
@@ -304,6 +307,12 @@ namespace Tank::Physics
             m_settings.mortarStanceDampingNms, 1000.0f, 250000.0f);
         m_settings.mortarEmergencyBrakeAmount = std::clamp(
             m_settings.mortarEmergencyBrakeAmount, 0.0f, 1.0f);
+        const auto muzzleCoordinate = [](float value, float fallback)
+        { return std::isfinite(value) ? std::clamp(value, -100.0f, 100.0f) : fallback; };
+        m_settings.mortarMuzzleLocalPosition = {
+            muzzleCoordinate(m_settings.mortarMuzzleLocalPosition.x, 0.0f),
+            muzzleCoordinate(m_settings.mortarMuzzleLocalPosition.y, 0.85f),
+            muzzleCoordinate(m_settings.mortarMuzzleLocalPosition.z, 1.8f)};
         m_settings.mortarMuzzleVelocityMetersPerSecond = std::clamp(
             m_settings.mortarMuzzleVelocityMetersPerSecond, 0.0f, 100.0f);
         m_settings.mortarExplosionDamage = std::clamp(
@@ -535,8 +544,7 @@ namespace Tank::Physics
     void TankController::FireMortarShell()
     {
         if (!m_impl || !m_impl->hasBody) return;
-        const Vec3 muzzle = AssaultMuzzlePosition(
-            m_settings.assaultProjectiles.muzzleLocalPosition);
+        const Vec3 muzzle = AssaultMuzzlePosition(m_settings.mortarMuzzleLocalPosition);
         const Vec3 forward = AssaultForwardDirection();
         float forwardX = forward.x;
         float forwardZ = forward.z;
@@ -622,7 +630,7 @@ namespace Tank::Physics
 
     bool TankController::CastAssaultSegment(const Vec3& start, Vec3& end, std::uint32_t& hitBodyId,
         Vec3& surfaceNormal, bool& staticSurface,
-        std::span<const std::uint32_t> ignoredBodyIds) const
+        std::span<const std::uint32_t> ignoredBodyIds, float radius) const
     {
         surfaceNormal = {};
         staticSurface = false;
@@ -635,8 +643,26 @@ namespace Tank::Physics
         ignored.IgnoreBody(m_impl->bodyId);
         for (const auto bodyId : ignoredBodyIds)
             ignored.IgnoreBody(JPH::BodyID(bodyId));
-        const bool collided = m_impl->world.GetPhysicsSystem().GetNarrowPhaseQuery().CastRay(
-            ray, hit, {}, {}, ignored);
+        bool collided = false;
+        if (radius > 0.0f)
+        {
+            const JPH::SphereShape sphere(radius);
+            const JPH::RShapeCast cast(&sphere, JPH::Vec3::sReplicate(1),
+                JPH::RMat44::sTranslation(JPH::RVec3(start.x, start.y, start.z)), ray.mDirection);
+            JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
+            m_impl->world.GetPhysicsSystem().GetNarrowPhaseQuery().CastShape(
+                cast, {}, JPH::RVec3::sZero(), collector, {}, {}, ignored);
+            collided = collector.HadHit();
+            if (collided)
+            {
+                hit.mFraction = collector.mHit.mFraction;
+                hit.mBodyID = collector.mHit.mBodyID2;
+                hit.mSubShapeID2 = collector.mHit.mSubShapeID2;
+            }
+        }
+        else
+            collided = m_impl->world.GetPhysicsSystem().GetNarrowPhaseQuery().CastRay(
+                ray, hit, {}, {}, ignored);
         const JPH::RVec3 endpoint = ray.GetPointOnRay(collided ? hit.mFraction : 1.0f);
         end = {static_cast<float>(endpoint.GetX()), static_cast<float>(endpoint.GetY()), static_cast<float>(endpoint.GetZ())};
         hitBodyId = collided ? hit.mBodyID.GetIndexAndSequenceNumber() : JPH::BodyID::cInvalidBodyID;

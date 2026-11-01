@@ -1,5 +1,7 @@
 #include "Physics/TrackedVehicleTest.h"
 
+#include <Jolt/Jolt.h>
+
 #include <cmath>
 #include <iostream>
 
@@ -300,6 +302,44 @@ int main()
     Advance(world, 360);
     passed &= Check(world.State().specialMove.state == SpecialMoveState::Idle && world.DriverInput().forward > 0,
         "releasing unfinished mortar gesture restores movement without waiting or a second gesture");
+    // Distinct authored muzzle locations must survive the real firing paths.
+    auto separateMuzzles = settings;
+    separateMuzzles.assaultProjectiles.muzzleLocalPosition = {-1.0f, 1.0f, 2.0f};
+    separateMuzzles.mortarMuzzleLocalPosition = {0.7f, 1.4f, 2.5f};
+    world.Initialize(separateMuzzles);
+    Advance(world, 60);
+    TankInput mortarGesture; mortarGesture.leftLeverX = -1; mortarGesture.rightLeverX = 1;
+    world.SetInput(mortarGesture); Advance(world, 10);
+    const auto beforeShot = world.State();
+    const auto q = beforeShot.bodyRotation;
+    const auto local = separateMuzzles.mortarMuzzleLocalPosition;
+    const auto expected = JPH::Quat(q.x, q.y, q.z, q.w) * JPH::Vec3(local.x, local.y, local.z);
+    mortarGesture.fireAssault = true;
+    world.SetInput(mortarGesture); world.Step(dt);
+    passed &= Check(!world.State().mortarProjectiles.empty(), "separate mortar muzzle still fires");
+    if (!world.State().mortarProjectiles.empty())
+    {
+        const auto position = world.State().mortarProjectiles.front().position;
+        passed &= Check(std::abs(position.x - beforeShot.bodyPosition.x - expected.GetX()) < 0.01f &&
+            std::abs(position.y - beforeShot.bodyPosition.y - expected.GetY()) < 0.01f &&
+            std::abs(position.z - beforeShot.bodyPosition.z - expected.GetZ()) < 0.01f,
+            "mortar launches from its own tank-local XYZ under elevation");
+    }
+    world.SetInput({}); world.Step(dt);
+    const auto normalPose = world.State();
+    const auto normalQ = normalPose.bodyRotation;
+    const auto normalLocal = separateMuzzles.assaultProjectiles.muzzleLocalPosition;
+    const auto normalExpected = JPH::Quat(normalQ.x, normalQ.y, normalQ.z, normalQ.w) *
+        JPH::Vec3(normalLocal.x, normalLocal.y, normalLocal.z);
+    passed &= Check(world.FireAssault() && !world.State().assaultProjectiles.empty(), "assault still fires independently");
+    if (!world.State().assaultProjectiles.empty())
+    {
+        const auto position = world.State().assaultProjectiles.back().position;
+        passed &= Check(std::abs(position.x - normalPose.bodyPosition.x - normalExpected.GetX()) < 0.01f &&
+            std::abs(position.y - normalPose.bodyPosition.y - normalExpected.GetY()) < 0.01f &&
+            std::abs(position.z - normalPose.bodyPosition.z - normalExpected.GetZ()) < 0.01f,
+            "assault retains its separate tank-local XYZ after a mortar shot");
+    }
     if (!passed) return 1;
     std::cout << "PASS MortarProjectile\n";
     return 0;

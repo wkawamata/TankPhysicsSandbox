@@ -451,29 +451,36 @@ void TrackedVehicleMode::UpdateSceneInternal(RtPbrSurvey::SceneRenderer& rendere
             state.bodyPosition.z);
         Tank::Diagnostics::Write(Tank::Diagnostics::LogLevel::Debug, "Vehicle", message);
     }
-    const size_t maximumLines = static_cast<size_t>(m_test.ProjectileSettings().maximumCount);
+    const size_t maximumLines = static_cast<size_t>(m_test.ProjectileSettings().maximumCount) * 3;
     while (m_assaultTracerLines.size() > maximumLines)
     {
         renderer.RemoveDebugLine(m_assaultTracerLines.back());
         m_assaultTracerLines.pop_back();
     }
-    m_assaultTracerLines.resize((std::max)(m_assaultTracerLines.size(), state.assaultProjectiles.size()),
+    m_assaultTracerLines.resize((std::max)(m_assaultTracerLines.size(), state.assaultProjectiles.size() * 3),
         RtPbrSurvey::kInvalidDebugLineHandle);
     for (size_t i = 0; i < m_assaultTracerLines.size(); ++i)
     {
         RtPbrSurvey::DebugLineDesc tracer;
         tracer.color = {1.0f, 0.8f, 0.15f, 1.0f};
         tracer.depthMode = RtPbrSurvey::DebugLineDepthMode::Overlay;
-        tracer.visible = i < state.assaultProjectiles.size();
+        tracer.visible = i / 3 < state.assaultProjectiles.size();
         if (tracer.visible)
         {
-            const auto& projectile = state.assaultProjectiles[i];
+            const auto& projectile = state.assaultProjectiles[i / 3];
             const auto& v = projectile.velocity;
             const float speed = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
             const float trailSeconds = (std::min)(projectile.ageSeconds, 1.5f / speed);
             tracer.start = {projectile.position.x - v.x * trailSeconds,
                 projectile.position.y - v.y * trailSeconds, projectile.position.z - v.z * trailSeconds};
             tracer.end = {projectile.position.x, projectile.position.y, projectile.position.z};
+            // Three nearby parallel lines give the tracer a modest world-space width.
+            const float lateralLength = std::sqrt(v.x * v.x + v.z * v.z);
+            const float offset = (static_cast<int>(i % 3) - 1) * 0.035f;
+            const float dx = lateralLength > 0.001f ? v.z / lateralLength * offset : offset;
+            const float dz = lateralLength > 0.001f ? -v.x / lateralLength * offset : 0.0f;
+            tracer.start.x += dx; tracer.start.z += dz;
+            tracer.end.x += dx; tracer.end.z += dz;
         }
         auto& handle = m_assaultTracerLines[i];
         if (handle == RtPbrSurvey::kInvalidDebugLineHandle || !renderer.UpdateDebugLine(handle, tracer))
@@ -819,12 +826,17 @@ void TrackedVehicleMode::Step(
     RtPbrSurvey::SceneRenderer& renderer,
     Tank::App::CameraController& cameraController)
 {
+    m_physicsStepTimeMs = 0;
+    m_sceneUpdateTimeMs = 0;
+    const auto prepareStart = std::chrono::steady_clock::now();
     const int previousMaximum = m_test.ProjectileSettings().maximumCount;
     const int previousMarkMaximum = m_test.ProjectileSettings().maximumImpactMarks;
     ApplyAssaultProjectileSettings();
     if (m_paused && !m_singleStep && (previousMaximum != m_test.ProjectileSettings().maximumCount ||
         previousMarkMaximum != m_test.ProjectileSettings().maximumImpactMarks))
         UpdateSceneInternal(renderer);
+    m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
+        std::chrono::steady_clock::now() - prepareStart).count();
     if (!m_paused || m_singleStep)
     {
         const auto physicsStart = std::chrono::steady_clock::now();
@@ -860,7 +872,7 @@ void TrackedVehicleMode::Step(
         UpdateClearCondition();
         UpdateSceneInternal(renderer);
         renderer.SetScene(m_presenter.GetScene());
-        m_sceneUpdateTimeMs = std::chrono::duration<float, std::milli>(
+        m_sceneUpdateTimeMs += std::chrono::duration<float, std::milli>(
             std::chrono::steady_clock::now() - sceneStart).count();
         m_sceneUpdatePeakTimeMs = (std::max)(
             m_sceneUpdatePeakTimeMs,

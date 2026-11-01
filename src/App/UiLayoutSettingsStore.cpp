@@ -57,6 +57,7 @@ namespace Tank::App
 
         UiLayoutSettings loaded = settings;
         ReadBool(json, "cameraWindowVisible", loaded.cameraWindowVisible);
+        ReadBool(json, "performanceMeterVisible", loaded.performanceMeterVisible);
         ReadBool(json, "telemetryWindowVisible", loaded.telemetryWindowVisible);
         ReadBool(json, "rollingParametersWindowVisible", loaded.rollingParametersWindowVisible);
         ReadBool(json, "gamepadInputWindowVisible", loaded.gamepadInputWindowVisible);
@@ -91,6 +92,7 @@ namespace Tank::App
         const nlohmann::json json = {
             { "version", kUiLayoutSettingsVersion },
             { "cameraWindowVisible", settings.cameraWindowVisible },
+            { "performanceMeterVisible", settings.performanceMeterVisible },
             { "telemetryWindowVisible", settings.telemetryWindowVisible },
             { "rollingParametersWindowVisible", settings.rollingParametersWindowVisible },
             { "gamepadInputWindowVisible", settings.gamepadInputWindowVisible },

@@ -88,6 +88,16 @@ int main()
         "swept segment prevents tunneling and uses configured damage");
 
     Reset(world);
+    auto radiusSettings = world.ProjectileSettings();
+    radiusSettings.speedMetersPerSecond = 10000.0f;
+    radiusSettings.hitRadiusMeters = 0.5f;
+    world.SetAssaultProjectileSettings(radiusSettings);
+    world.AddDestructibleBox({1.3f, 1.5f, 12.0f}, {2.0f, 3.0f, 0.1f});
+    world.FireAssault(); world.Step(dt);
+    passed &= Check(world.State().destructibleBoxes[0].target.hitPoints < 60.0f,
+        "projectile radius catches an off-axis destructible");
+
+    Reset(world);
     world.SetAssaultProjectileSettings({2, 10000.0f, 20.0f, 0.001f});
     world.AddDestructibleBox({0.0f, 1.5f, 25.0f}, {2.0f, 3.0f, 2.0f});
     world.FireAssault();
