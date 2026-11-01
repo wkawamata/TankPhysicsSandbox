@@ -22,5 +22,5 @@ namespace Tank::Physics
         const Vec3& start,
         const Vec3& end,
         const TransformState& tankTransform,
-        std::span<const TankHitRegion> regions);
+        std::span<const TankHitRegion> regions, float radius = 0.0f);
 }

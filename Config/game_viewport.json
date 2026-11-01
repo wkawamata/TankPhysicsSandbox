@@ -1,9 +1,10 @@
 {
-  "version": 1,
-  "enabled": false,
-  "x": 0.0,
-  "y": 0.0,
-  "width": 1.0,
+  "alignment": 1,
+  "aspect": 4,
+  "enabled": true,
   "height": 1.0,
-  "aspect": 0
+  "version": 1,
+  "width": 1.0,
+  "x": 0.26499998569488525,
+  "y": 0.006000000052154064
 }

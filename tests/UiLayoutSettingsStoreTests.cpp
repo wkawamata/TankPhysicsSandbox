@@ -68,6 +68,10 @@ int main()
     passed &= Check(legacyLoaded.performanceMeterVisible && !legacyLoaded.cameraWindowVisible,
         "missing performance flag defaults to visible without changing other flags");
 
+    passed &= Check(Tank::App::ShouldDrawToolWindow(true, true), "enabled camera is visible while tool UI is shown");
+    passed &= Check(!Tank::App::ShouldDrawToolWindow(false, true), "tool UI toggle hides an enabled camera");
+    passed &= Check(!Tank::App::ShouldDrawToolWindow(true, false), "tool UI toggle does not reopen a disabled camera");
+
     Tank::App::UndoHistory history;
     bool performanceVisible = true, cameraVisible = true;
     performanceVisible = false;

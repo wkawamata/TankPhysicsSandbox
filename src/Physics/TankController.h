@@ -35,7 +35,7 @@ namespace Tank::Physics
         Vec3 AssaultForwardDirection() const;
         bool CastAssaultSegment(const Vec3& start, Vec3& end, std::uint32_t& hitBodyId,
             Vec3& surfaceNormal, bool& staticSurface,
-            std::span<const std::uint32_t> ignoredBodyIds = {}) const;
+            std::span<const std::uint32_t> ignoredBodyIds = {}, float radius = 0.0f) const;
         bool IsTankBody(std::uint32_t bodyId) const;
         std::uint32_t BodyId() const;
         void RestoreMotion(const TransformState& body, const Vec3& velocity);

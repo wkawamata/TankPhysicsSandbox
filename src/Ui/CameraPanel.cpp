@@ -95,6 +95,78 @@ namespace Ui
         }
         if (ctx.trackedVehicleActive && ctx.drawGameViewportControls && ImGui::CollapsingHeader("Game Viewport"))
             ctx.drawGameViewportControls();
+        const char* projectionHeader = ctx.camera->projection == Engine::CameraProjection::Orthographic
+            ? "Projection / Orthographic###CameraProjection"
+            : "Projection / Perspective###CameraProjection";
+        if (ImGui::CollapsingHeader(projectionHeader))
+        {
+            int projection = static_cast<int>(ctx.camera->projection);
+            bool changed = false;
+            changed |= ImGui::RadioButton(
+                "Perspective", &projection, static_cast<int>(Engine::CameraProjection::Perspective));
+            ImGui::SameLine();
+            changed |= ImGui::RadioButton(
+                "Orthographic", &projection, static_cast<int>(Engine::CameraProjection::Orthographic));
+            ctx.camera->projection = static_cast<Engine::CameraProjection>(projection);
+
+            if (ctx.camera->projection == Engine::CameraProjection::Perspective)
+            {
+                const bool fovChanged = ImGuiWidgets::SliderFloatWithControls(
+                    "FOV Y", &ctx.camera->fov, 0.1f, 120.0f, 0.1f, 45.0f, "%.1f deg");
+                changed |= fovChanged;
+                if (fovChanged)
+                {
+                    ctx.cameraController->ResetFollowState();
+                }
+                changed |= ImGuiWidgets::SliderFloatWithControls(
+                    "Horizontal Lens Shift", &ctx.camera->lensShiftX,
+                    -1.0f, 1.0f, 0.01f, 0.0f, "%.2f");
+                changed |= ImGuiWidgets::SliderFloatWithControls(
+                    "Vertical Lens Shift", &ctx.camera->lensShiftY,
+                    -1.0f, 1.0f, 0.01f, 0.0f, "%.2f");
+                ImGui::TextDisabled("Offsets the projection centre; 0.00 is symmetric.");
+
+                const float halfFovRadians = DirectX::XMConvertToRadians(
+                    std::clamp(ctx.camera->fov, 0.1f, 179.0f)) * 0.5f;
+                const float halfHeight = std::tan(halfFovRadians);
+                float upFovDegrees = DirectX::XMConvertToDegrees(std::atan(
+                    halfHeight * (1.0f + ctx.camera->lensShiftY)));
+                float downFovDegrees = DirectX::XMConvertToDegrees(std::atan(
+                    halfHeight * (1.0f - ctx.camera->lensShiftY)));
+                ImGui::SeparatorText("Advanced Vertical Frustum");
+                const bool upChanged = ImGuiWidgets::SliderFloatWithControls(
+                    "Up FOV", &upFovDegrees, 0.1f, 89.9f, 0.1f, 30.0f, "%.1f deg");
+                const bool downChanged = ImGuiWidgets::SliderFloatWithControls(
+                    "Down FOV", &downFovDegrees, 0.1f, 89.9f, 0.1f, 30.0f, "%.1f deg");
+                if (upChanged || downChanged)
+                {
+                    const float top = std::tan(DirectX::XMConvertToRadians(upFovDegrees));
+                    const float bottom = std::tan(DirectX::XMConvertToRadians(downFovDegrees));
+                    const float total = std::atan(top) + std::atan(bottom);
+                    ctx.camera->fov = std::clamp(
+                        DirectX::XMConvertToDegrees(total), 0.1f, 179.0f);
+                    ctx.camera->lensShiftY = std::clamp(
+                        (top - bottom) / std::max(top + bottom, 0.0001f), -1.0f, 1.0f);
+                    changed = true;
+                    ctx.cameraController->ResetFollowState();
+                }
+            }
+            else
+            {
+                changed |= ImGuiWidgets::SliderFloatWithControls(
+                    "Ortho Height", &ctx.camera->orthographicHeight,
+                    1.0f, 1000.0f, 1.0f, 10.0f, "%.1f m");
+                changed |= ImGuiWidgets::SliderFloatWithControls(
+                    "Vertical Lens Shift", &ctx.camera->lensShiftY,
+                    -1.0f, 1.0f, 0.01f, 0.0f, "%.2f");
+                ImGui::TextDisabled("Moves the view vertically; 1.00 is half the Ortho Height.");
+            }
+
+            if (changed && ctx.setCamera)
+            {
+                ctx.setCamera(*ctx.camera);
+            }
+        }
         ImGui::SeparatorText("Save Slot");
         for (int slot = 0; slot < 3; ++slot)
         {
@@ -170,50 +242,53 @@ namespace Ui
         }
         ctx.telemetryWasTransitioning = transitioning;
 
-        if (ImGui::CollapsingHeader(
-                "Transition Telemetry", ImGuiTreeNodeFlags_DefaultOpen))
+        const auto drawTransitionTelemetry = [&]()
         {
-            ImGui::Text("Transition: %s", transitioning ? "Active" : "Idle");
-            ImGui::Text(
-                "Position: %.3f, %.3f, %.3f",
-                ctx.camera->pos.x, ctx.camera->pos.y, ctx.camera->pos.z);
-            ImGui::Text(
-                "Gaze: %.3f, %.3f, %.3f",
-                ctx.camera->gazePoint.x,
-                ctx.camera->gazePoint.y,
-                ctx.camera->gazePoint.z);
-            ImGui::Text("Focus Distance: %.3f m", focusDistance);
-            if (ctx.telemetryHasSample)
+            if (ImGui::CollapsingHeader(
+                    "Transition Telemetry", ImGuiTreeNodeFlags_DefaultOpen))
             {
+                ImGui::Text("Transition: %s", transitioning ? "Active" : "Idle");
                 ImGui::Text(
-                    "Transition Min Position Y: %.3f m",
-                    ctx.telemetryMinimumPositionY);
+                    "Position: %.3f, %.3f, %.3f",
+                    ctx.camera->pos.x, ctx.camera->pos.y, ctx.camera->pos.z);
                 ImGui::Text(
-                    "Transition Min Focus Distance: %.3f m",
-                    ctx.telemetryMinimumFocusDistance);
+                    "Gaze: %.3f, %.3f, %.3f",
+                    ctx.camera->gazePoint.x,
+                    ctx.camera->gazePoint.y,
+                    ctx.camera->gazePoint.z);
+                ImGui::Text("Focus Distance: %.3f m", focusDistance);
+                if (ctx.telemetryHasSample)
+                {
+                    ImGui::Text(
+                        "Transition Min Position Y: %.3f m",
+                        ctx.telemetryMinimumPositionY);
+                    ImGui::Text(
+                        "Transition Min Focus Distance: %.3f m",
+                        ctx.telemetryMinimumFocusDistance);
+                }
+                else
+                {
+                    ImGui::TextDisabled("Transition minimums: no sample");
+                }
+                ImGui::Text("Near / Far: %.4f / %.1f m", ctx.camera->nearZ, ctx.camera->farZ);
+                if (ctx.camera->projection == Engine::CameraProjection::Orthographic)
+                {
+                    ImGui::Text("Projection: Orthographic");
+                    ImGui::Text("Ortho Height: %.3f m", ctx.camera->orthographicHeight);
+                }
+                else
+                {
+                    ImGui::Text("Projection: Perspective");
+                    ImGui::Text("FOV Y: %.3f deg", ctx.camera->fov);
+                }
+                if (ImGui::Button("Reset Telemetry"))
+                {
+                    ctx.telemetryHasSample = false;
+                    ctx.telemetryMinimumPositionY = 0.0f;
+                    ctx.telemetryMinimumFocusDistance = 0.0f;
+                }
             }
-            else
-            {
-                ImGui::TextDisabled("Transition minimums: no sample");
-            }
-            ImGui::Text("Near / Far: %.4f / %.1f m", ctx.camera->nearZ, ctx.camera->farZ);
-            if (ctx.camera->projection == Engine::CameraProjection::Orthographic)
-            {
-                ImGui::Text("Projection: Orthographic");
-                ImGui::Text("Ortho Height: %.3f m", ctx.camera->orthographicHeight);
-            }
-            else
-            {
-                ImGui::Text("Projection: Perspective");
-                ImGui::Text("FOV Y: %.3f deg", ctx.camera->fov);
-            }
-            if (ImGui::Button("Reset Telemetry"))
-            {
-                ctx.telemetryHasSample = false;
-                ctx.telemetryMinimumPositionY = 0.0f;
-                ctx.telemetryMinimumFocusDistance = 0.0f;
-            }
-        }
+        };
         if (ctx.trackedVehicleActive)
         {
             bool follow = ctx.cameraController->FollowEnabled();
@@ -303,11 +378,12 @@ namespace Ui
                 }
             }
             ImGui::EndDisabled();
+            drawTransitionTelemetry();
             if (ImGui::CollapsingHeader("Mortar Camera"))
             {
                 if (ImGui::Button("Open Mortar Camera CheatWindow"))
                     ctx.mortarCheatWindowVisible = true;
-                ImGui::TextWrapped("Offsets at maximum mortar elevation. Changes apply immediately to Follow Tank; Save Camera stores them in the selected camera slot.");
+                ImGui::TextWrapped("Offsets at maximum mortar elevation. In Orthographic mode, Distance Offset changes Ortho Height. Changes apply immediately to Follow Tank; Save Camera stores them in the selected camera slot.");
                 ImGui::BeginDisabled(!ctx.cameraController->FollowEnabled());
                 float readyPercent = ctx.cameraController->MortarReadyOffsetPercent();
                 if (ImGuiWidgets::SliderFloatWithControls("Mortar Ready Offset (%)", &readyPercent,
@@ -386,70 +462,8 @@ namespace Ui
                 }
             }
             ImGui::EndDisabled();
-            ImGui::SeparatorText("Projection");
         }
-        int projection = static_cast<int>(ctx.camera->projection);
-        bool changed = false;
-        changed |= ImGui::RadioButton(
-            "Perspective", &projection, static_cast<int>(Engine::CameraProjection::Perspective));
-        ImGui::SameLine();
-        changed |= ImGui::RadioButton(
-            "Orthographic", &projection, static_cast<int>(Engine::CameraProjection::Orthographic));
-        ctx.camera->projection = static_cast<Engine::CameraProjection>(projection);
-
-        if (ctx.camera->projection == Engine::CameraProjection::Perspective)
-        {
-            const bool fovChanged = ImGuiWidgets::SliderFloatWithControls(
-                "FOV Y", &ctx.camera->fov, 0.1f, 120.0f, 0.1f, 45.0f, "%.1f deg");
-            changed |= fovChanged;
-            if (fovChanged)
-            {
-                ctx.cameraController->ResetFollowState();
-            }
-            changed |= ImGuiWidgets::SliderFloatWithControls(
-                "Horizontal Lens Shift", &ctx.camera->lensShiftX,
-                -1.0f, 1.0f, 0.01f, 0.0f, "%.2f");
-            changed |= ImGuiWidgets::SliderFloatWithControls(
-                "Vertical Lens Shift", &ctx.camera->lensShiftY,
-                -1.0f, 1.0f, 0.01f, 0.0f, "%.2f");
-            ImGui::TextDisabled("Offsets the projection centre; 0.00 is symmetric.");
-
-            const float halfFovRadians = DirectX::XMConvertToRadians(
-                std::clamp(ctx.camera->fov, 0.1f, 179.0f)) * 0.5f;
-            const float halfHeight = std::tan(halfFovRadians);
-            float upFovDegrees = DirectX::XMConvertToDegrees(std::atan(
-                halfHeight * (1.0f + ctx.camera->lensShiftY)));
-            float downFovDegrees = DirectX::XMConvertToDegrees(std::atan(
-                halfHeight * (1.0f - ctx.camera->lensShiftY)));
-            ImGui::SeparatorText("Advanced Vertical Frustum");
-            const bool upChanged = ImGuiWidgets::SliderFloatWithControls(
-                "Up FOV", &upFovDegrees, 0.1f, 89.9f, 0.1f, 30.0f, "%.1f deg");
-            const bool downChanged = ImGuiWidgets::SliderFloatWithControls(
-                "Down FOV", &downFovDegrees, 0.1f, 89.9f, 0.1f, 30.0f, "%.1f deg");
-            if (upChanged || downChanged)
-            {
-                const float top = std::tan(DirectX::XMConvertToRadians(upFovDegrees));
-                const float bottom = std::tan(DirectX::XMConvertToRadians(downFovDegrees));
-                const float total = std::atan(top) + std::atan(bottom);
-                ctx.camera->fov = std::clamp(
-                    DirectX::XMConvertToDegrees(total), 0.1f, 179.0f);
-                ctx.camera->lensShiftY = std::clamp(
-                    (top - bottom) / std::max(top + bottom, 0.0001f), -1.0f, 1.0f);
-                changed = true;
-                ctx.cameraController->ResetFollowState();
-            }
-        }
-        else
-        {
-            changed |= ImGuiWidgets::SliderFloatWithControls(
-                "Ortho Height", &ctx.camera->orthographicHeight,
-                1.0f, 1000.0f, 1.0f, 10.0f, "%.1f m");
-        }
-
-        if (changed && ctx.setCamera)
-        {
-            ctx.setCamera(*ctx.camera);
-        }
+        if (!ctx.trackedVehicleActive) drawTransitionTelemetry();
         ImGui::End();
         DrawMortarCameraCheatWindow(ctx);
         if (ctx.settingsUndo)

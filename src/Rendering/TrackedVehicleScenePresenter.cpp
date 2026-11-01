@@ -1259,6 +1259,18 @@ bool TrackedVehicleScenePresenter::UpdateScene(
             instance.materialId = visualSettings.colorWheelsByContact && contact ? m_model.contactedWheelMaterial : m_model.wheelMaterial;
         }
     }
+    // Enemy tank instances above use the player model as a transform template.
+    // Hide the player only after those copies have been updated.
+    if (state.playerCombat.phase != Tank::Physics::PlayerCombatPhase::Alive)
+    {
+        const XMMATRIX hidden = XMMatrixScaling(0.0f, 0.0f, 0.0f);
+        for (const Part& part : parts) SetInstanceWorld(scene.instances[part.index], hidden);
+        for (const auto& part : gltfParts)
+            if (part.available) SetInstanceWorld(scene.instances[part.index], hidden);
+        for (const auto index : m_model.wheels) SetInstanceWorld(scene.instances[index], hidden);
+        for (const auto& track : m_model.trackShoes)
+            for (const auto index : track) SetInstanceWorld(scene.instances[index], hidden);
+    }
     m_physicsDebugOverlay.UpdateScene(
         state, tankSettings, showTrackProxies, physicsDebugOverlay);
     return tankShapePoolChanged;

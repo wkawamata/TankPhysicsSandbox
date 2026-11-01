@@ -128,7 +128,7 @@ namespace Tank::Physics
     std::optional<TankHitRegionTrace> TraceTankHitRegions(
         const Vec3& start, const Vec3& end,
         const TransformState& tankTransform,
-        std::span<const TankHitRegion> regions)
+        std::span<const TankHitRegion> regions, float radius)
     {
         const JPH::Quat bodyRotation(tankTransform.rotation.x,
             tankTransform.rotation.y, tankTransform.rotation.z,
@@ -162,13 +162,13 @@ namespace Tank::Physics
             if (settings.kind == TankShapeKind::Capsule)
             {
                 const float xScale =
-                    settings.sizeMeters.x / settings.sizeMeters.y;
+                    (settings.sizeMeters.x + 2.0f * radius) / (settings.sizeMeters.y + 2.0f * radius);
                 const JPH::Vec3 scaledOrigin(origin.GetX() / xScale,
                     origin.GetY(), origin.GetZ());
                 const JPH::Vec3 scaledDirection(direction.GetX() / xScale,
                     direction.GetY(), direction.GetZ());
                 hit = TraceCapsule(scaledOrigin, scaledDirection,
-                    0.5f * settings.sizeMeters.y,
+                    0.5f * settings.sizeMeters.y + radius,
                     0.5f * (settings.sizeMeters.z - settings.sizeMeters.y),
                     fraction, localNormal);
                 if (hit)
@@ -181,7 +181,7 @@ namespace Tank::Physics
             {
                 hit = TraceBox(origin, direction,
                     JPH::Vec3(settings.sizeMeters.x, settings.sizeMeters.y,
-                        settings.sizeMeters.z) * 0.5f,
+                        settings.sizeMeters.z) * 0.5f + JPH::Vec3::sReplicate(radius),
                     fraction, localNormal);
             }
             if (!hit || (closest && fraction >= closest->fraction)) continue;

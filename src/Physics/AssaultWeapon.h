@@ -41,6 +41,11 @@ namespace Tank::Physics
         float maximumDistanceMeters = 40.0f;
         // Tank-local coordinates: +X right, +Y up, +Z forward.
         Vec3 muzzleLocalPosition = {0.0f, 0.85f, 1.8f};
+        float hitRadiusMeters = 0.0f; // Zero preserves point-ray collision.
+        bool aimAssistEnabled = true;
+        float aimAssistHorizontalDegrees = 10.0f; // Cone half-angle.
+        float aimAssistVerticalDegrees = 10.0f;
+        float aimAssistDistanceMeters = 40.0f;
         bool operator==(const AssaultProjectileSettings&) const = default;
     };
 
@@ -54,6 +59,7 @@ namespace Tank::Physics
         float distanceTraveledMeters = 0.0f;
         bool expireAtMaximumDistance = true;
         float maximumDistanceMeters = 40.0f;
+        float hitRadiusMeters = 0.0f;
     };
 
     struct AssaultWeaponSnapshot

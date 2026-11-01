@@ -92,14 +92,14 @@ namespace Tank::Physics
     }
     // Relative swept point/sphere test; returns >1 for no interception this step.
     inline float EnemyInterceptionFraction(const Vec3& start, const Vec3& end,
-        const EnemyProjectileState& enemy, float dt)
+        const EnemyProjectileState& enemy, float dt, float radius = 0.0f)
     {
         const Vec3 p = {start.x - enemy.position.x, start.y - enemy.position.y, start.z - enemy.position.z};
         const Vec3 d = {end.x - start.x - enemy.velocity.x * dt,
             end.y - start.y - enemy.velocity.y * dt, end.z - start.z - enemy.velocity.z * dt};
         const float a = d.x*d.x + d.y*d.y + d.z*d.z;
         const float b = p.x*d.x + p.y*d.y + p.z*d.z;
-        const float c = p.x*p.x + p.y*p.y + p.z*p.z - enemy.radius*enemy.radius;
+        const float c = p.x*p.x + p.y*p.y + p.z*p.z - (enemy.radius+radius)*(enemy.radius+radius);
         if (c <= 0) return 0;
         const float disc = b*b - a*c;
         if (a <= 1.0e-12f || disc < 0) return 2;

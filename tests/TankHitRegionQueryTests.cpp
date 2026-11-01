@@ -50,6 +50,13 @@ int main()
     check(!outsideWide,
         "capsule X scale retains its authored outer width");
 
+    check(!TraceTankHitRegions({11.3f, 0, 0}, {11.3f, 0, 10}, tank, std::span(regions).first(1)),
+        "point projectile misses the edge of the hull");
+    check(TraceTankHitRegions({11.3f, 0, 0}, {11.3f, 0, 10}, tank, std::span(regions).first(1), 0.5f).has_value(),
+        "projectile radius reaches the edge of the hull");
+    check(TraceTankHitRegions({11.3f, 0, 0}, {11.3f, 0, 10}, tank, wideCapsule, 0.5f).has_value(),
+        "projectile radius reaches the edge of a capsule");
+
     tank.rotation = {0, std::sqrt(0.5f), 0, std::sqrt(0.5f)};
     const auto rotated = TraceTankHitRegions({5, 0, 5}, {15, 0, 5},
         tank, std::span(regions).first(1));

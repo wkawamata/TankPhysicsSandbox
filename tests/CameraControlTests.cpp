@@ -492,6 +492,26 @@ int main()
             NearlyEqual(captured.mortarDistanceOffsetMeters, 12.0f) &&
             NearlyEqual(captured.mortarResponseSpeed, 10.0f) && NearlyEqual(captured.mortarReadyOffsetPercent, 100);
     }();
+    const bool mortarOrtho = [] {
+        Tank::App::CameraController controller;
+        Tank::Rendering::CameraSettings settings;
+        settings.followTank = true;
+        settings.projection = static_cast<int>(Engine::CameraProjection::Orthographic);
+        settings.orthographicHeight = 80.0f;
+        settings.mortarDistanceOffsetMeters = 20.0f;
+        settings.mortarResponseSpeed = 10.0f;
+        Engine::CameraState camera;
+        controller.ApplySettings(settings, false, camera);
+        Tank::Physics::TrackedVehicleTestState state;
+        state.bodyRotation.w = 1.0f;
+        controller.SetMortarCameraCue(Tank::Physics::MortarCameraCue::FromWheelieProgress(1.0f));
+        for (int i = 0; i < 300; ++i) controller.UpdateFollowCamera(state, 1.0f / 60.0f, camera);
+        const bool expanded = NearlyEqual(camera.orthographicHeight, 100.0f, 0.01f);
+        const bool savedBase = NearlyEqual(controller.CaptureSettings(camera, true).orthographicHeight, 80.0f, 0.01f);
+        controller.SetMortarCameraCue({});
+        for (int i = 0; i < 300; ++i) controller.UpdateFollowCamera(state, 1.0f / 60.0f, camera);
+        return expanded && savedBase && NearlyEqual(camera.orthographicHeight, 80.0f, 0.01f);
+    }();
     const bool camera2Horizontal = TestHorizontalDragUsesWorldYaw(0.5f);
     const bool camera2Vertical = TestVerticalDragPreservesWorldYaw(0.5f, 20);
     const bool nearPolarHorizontal = TestHorizontalDragUsesWorldYaw(1.39f);
@@ -513,7 +533,7 @@ int main()
         TestDebugCameraKeepsTankFocusAcrossRepeatedResets();
     const bool chaseOrbitOffset = TestChaseOrbitOffsetReturnsToRear();
 
-    if (!mortarCamera || !camera2Horizontal || !camera2Vertical ||
+    if (!mortarCamera || !mortarOrtho || !camera2Horizontal || !camera2Vertical ||
         !nearPolarHorizontal || !nearPolarVertical ||
         !positionOnlyFollow || !tankOrbitPivot || !lookDownLimit ||
         !orthoToPerspective || !perspectiveToOrtho ||
@@ -523,6 +543,7 @@ int main()
     {
         std::cerr << "Camera control contract failed:"
                   << " mortarCamera=" << mortarCamera
+                  << " mortarOrtho=" << mortarOrtho
                   << " camera2Horizontal=" << camera2Horizontal
                   << " camera2Vertical=" << camera2Vertical
                   << " nearPolarHorizontal=" << nearPolarHorizontal

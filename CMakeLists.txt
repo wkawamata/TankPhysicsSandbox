@@ -1301,6 +1301,9 @@ if(BUILD_TESTING)
     add_executable(AssaultWeaponTests tests/AssaultWeaponTests.cpp)
     add_executable(AssaultDestructibleTests tests/AssaultDestructibleTests.cpp)
     add_executable(AssaultProjectileTests tests/AssaultProjectileTests.cpp)
+    add_executable(AssaultAimAssistTests tests/AssaultAimAssistTests.cpp)
+    target_link_libraries(AssaultAimAssistTests PRIVATE TankPhysicsCore)
+    add_test(NAME TankPhysics.AssaultAimAssist COMMAND AssaultAimAssistTests)
     add_executable(EnemyTankVisualTests
         tests/EnemyTankVisualTests.cpp
         src/Rendering/TrackedVehicleScenePresenter.cpp

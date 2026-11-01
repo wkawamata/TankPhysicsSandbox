@@ -1593,22 +1593,18 @@ void TankSandboxApp::DrawGameViewportControls()
     const auto before = m_gameViewport;
     ImGui::Checkbox("Custom game viewport", &m_gameViewport.enabled);
     ImGui::BeginDisabled(!m_gameViewport.enabled);
-    ImGui::TextWrapped("Origin: window top-left. Position and size use window fractions (0-1). Overflow is clipped.");
-    ImGui::Combo("Aspect ratio", &m_gameViewport.aspect, "Free rectangle\0" "16:9\0" "4:3\0" "21:9\0");
-    for (auto [name, value, reset] : {std::tuple{"Position X", &m_gameViewport.x, 0.0f},
-        {"Position Y", &m_gameViewport.y, 0.0f}, {"Width", &m_gameViewport.width, 1.0f},
-        {"Height", &m_gameViewport.height, 1.0f}})
-        ImGuiWidgets::SliderFloatWithControls(name, value, 0, 1, 0.01f, reset, "%.3f", ImGuiSliderFlags_AlwaysClamp);
-    // Keep a valid one-pixel viewport even at a zero-width/edge slider endpoint.
+    ImGui::TextWrapped("Size uses window fractions (0-1). Manual position uses a top-left origin; overflow is clipped.");
+    ImGui::Combo("Aspect ratio", &m_gameViewport.aspect, "Free rectangle\0" "16:9\0" "4:3\0" "21:9\0" "3:4\0");
+    ImGui::Combo("Alignment", &m_gameViewport.alignment, "Manual\0Centering\0Left Top\0");
+    ImGui::BeginDisabled(m_gameViewport.alignment != 0);
+    ImGuiWidgets::SliderFloatWithControls("Position X", &m_gameViewport.x, 0, 1, 0.01f, 0, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    ImGuiWidgets::SliderFloatWithControls("Position Y", &m_gameViewport.y, 0, 1, 0.01f, 0, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::EndDisabled();
+    ImGuiWidgets::SliderFloatWithControls("Width", &m_gameViewport.width, 0, 1, 0.01f, 1, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    ImGuiWidgets::SliderFloatWithControls("Height", &m_gameViewport.height, 0, 1, 0.01f, 1, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    // Keep a valid one-pixel viewport even at a zero-width slider endpoint.
     m_gameViewport.width = std::max(m_gameViewport.width, 1.0f / std::max(1u, m_windowInfo.width));
     m_gameViewport.height = std::max(m_gameViewport.height, 1.0f / std::max(1u, m_windowInfo.height));
-    if (ImGui::Button("Center viewport"))
-    {
-        const auto rect = Tank::App::ResolveGameViewport(m_gameViewport, m_windowInfo.width, m_windowInfo.height);
-        m_gameViewport.width = float(rect.width) / std::max(1u, m_windowInfo.width);
-        m_gameViewport.height = float(rect.height) / std::max(1u, m_windowInfo.height);
-        m_gameViewport.x = (1 - m_gameViewport.width) / 2; m_gameViewport.y = (1 - m_gameViewport.height) / 2;
-    }
     ImGui::EndDisabled();
     if (ImGui::Button("Reset viewport")) m_gameViewport = {};
     if (ImGui::Button("Save Viewport"))
@@ -1763,13 +1759,13 @@ void TankSandboxApp::UpdateUiFrame()
     m_cameraPanelCtx.vehicleState = &m_trackedVehicleMode.TestState();
     m_cameraPanelCtx.vehicleScene = &m_trackedVehicleMode.GetScene();
 
-    if (m_cameraWindowVisible)
+    if (Tank::App::ShouldDrawToolWindow(m_toolUiVisible, m_cameraWindowVisible))
     {
         ImGui::SetNextWindowPos(ImVec2(viewport->Size.x - 950, 10), ImGuiCond_FirstUseEver);
         Ui::DrawCameraPanel(m_cameraPanelCtx);
     }
 
-    if (m_renderSettingsWindowVisible)
+    if (Tank::App::ShouldDrawToolWindow(m_toolUiVisible, m_renderSettingsWindowVisible))
     {
         const RtPbrSurvey::SceneRenderer::UiFrameContext frameContext =
             m_sceneRenderer.GetUiFrameContext();

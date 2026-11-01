@@ -58,7 +58,11 @@ int main()
         value.rollSpeedTuning.driveTorque = 6;
         value.mortarExplosionDamage = 100;
         value.assaultProjectiles.maximumCount = 128;
+        value.assaultProjectiles.aimAssistEnabled = false;
+        value.assaultProjectiles.aimAssistHorizontalDegrees = 25;
+        value.assaultProjectiles.aimAssistVerticalDegrees = 7;
         value.assaultProjectiles.muzzleLocalPosition = {1, 2, 3};
+        value.mortarMuzzleLocalPosition = {-1, 3, 4};
         value.forwardGearRatios[0] = 5;
         value.startUpsideDown = true;
     }, 0);

@@ -94,8 +94,9 @@ int main()
     world.AddFixedTurret({0,1.5f,-10},{1,1,1},60,{},"loss",unit);
     for(int i=0;i<60 && world.State().playerCombat.phase==PlayerCombatPhase::Alive;++i)world.Step(dt);
     check(world.State().playerCombat.phase==PlayerCombatPhase::Lost,"enemy causes loss during mortar flight");
-    check(world.State().mortarProjectiles.empty() && world.State().mortarBlasts.empty(),"loss clears mortar flight and effects");
-    for(int i=0;i<65 && world.State().playerCombat.phase==PlayerCombatPhase::Lost;++i)world.Step(dt);
+    check(world.State().mortarProjectiles.empty() && world.State().mortarBlasts.size()==1 &&
+        world.State().mortarBlasts[0].radiusMeters==6,"loss replaces mortar flight with the player explosion");
+    for(int i=0;i<185 && world.State().playerCombat.phase==PlayerCombatPhase::Lost;++i)world.Step(dt);
     world.SetInput({});Advance(world,60);
     check(Launch(world),"mortar sequence reset allows shot after respawn");
     if(!failed)std::cout<<"PASS MortarEnemy\n";

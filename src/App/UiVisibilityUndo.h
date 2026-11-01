@@ -4,6 +4,11 @@
 
 namespace Tank::App
 {
+    inline bool ShouldDrawToolWindow(bool toolUiVisible, bool windowVisible)
+    {
+        return toolUiVisible && windowVisible;
+    }
+
     // Record one already-applied checkbox change without restoring unrelated windows.
     inline void RecordUiVisibilityChange(UndoHistory& history, bool& visible, bool previous)
     {
