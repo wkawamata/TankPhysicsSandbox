@@ -53,7 +53,8 @@ public:
     bool ConsumeSceneReloadRequest();
     bool ConsumeFocusSelectedRequest();
     void RequestFocusSelected() { m_sceneReloadRequested = true; m_focusSelectedRequested = true; }
-    std::string SelectedTreeNodeId() const { return SelectedNodeId(); }
+    std::string SelectedTreeNodeId() const { return SelectedNodeIds().empty() ? "" : SelectedNodeId(); }
+    std::vector<std::string> SelectedNodeIds() const;
     bool ConsumeApplicationExitApproval();
     std::optional<std::filesystem::path> ConsumeClosedMapFolder();
     bool HasUnsavedChanges() const { return m_map.IsDirty(); }
@@ -119,6 +120,11 @@ private:
     void DrawCheatSheet();
     void DrawMapTree();
     std::string SelectedNodeId() const;
+    void SetSelection(const std::vector<std::string>& ids);
+    void SelectNode(const std::string& id, bool extend);
+    void DuplicateSelection();
+    void RemoveSelection();
+    bool CommitSelectionEdit(const Tank::Map::Manifest& after, const std::vector<std::string>& ids, const char* name);
 
     Tank::Map::MapFolder m_map;
     Action m_pending = Action::None;
@@ -148,6 +154,8 @@ private:
     std::string m_selectedClearAreaId;
     std::string m_selectedEnemyId;
     std::string m_selectedNodeId = "root";
+    std::vector<std::string> m_selectedNodeIds;
+    bool m_viewportPickExtend = false;
     std::string m_enemyCatalogPath;
     Tank::Physics::EnemyEditorSettings m_enemyCatalog;
     Ui::EnemyUnitEditorWindow m_enemyUnitEditor;

@@ -35,6 +35,7 @@ namespace Tank::Ui
     struct SceneTreeResult
     {
         std::optional<std::string> selectedId;
+        bool extendSelection = false;
         std::optional<SceneTreeDrop> drop;
         std::optional<SceneTreeCommand> command;
     };
@@ -71,5 +72,6 @@ namespace Tank::Ui
     // No model mutation during traversal. The caller validates and applies delivered commands.
     SceneTreeResult SceneTreeUI(const char* id, const std::vector<SceneTreeItem>& items,
         const std::string& rootId, const std::string& selectedId,
-        const std::function<bool(const SceneTreeDrop&)>& canDrop, bool revealSelection = false);
+        const std::function<bool(const SceneTreeDrop&)>& canDrop, bool revealSelection = false,
+        const std::vector<std::string>& selectedIds = {});
 }

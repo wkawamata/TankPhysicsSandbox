@@ -173,7 +173,13 @@ namespace
                 std::cerr << " missing";
             std::cerr << '\n';
         }
-        return valid;
+        if (!valid) return false;
+        auto multi = preview;
+        multi.hiddenInstanceIds.clear();
+        multi.selectedNodeIds = {"mesh/selected", "mesh/hidden"};
+        if (!presenter.Rebuild(fixtureFolder,manifest,grid,multi,error)) return false;
+        // Each selected mesh contributes its own twelve-edge highlight.
+        return presenter.GetScene().instances.size() == 35u;
     }
 
     bool TestHitOnlyVisualFallbackAndDisplaySwitches()

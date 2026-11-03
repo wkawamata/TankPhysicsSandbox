@@ -9,7 +9,7 @@ namespace Tank::Ui
 {
     SceneTreeResult SceneTreeUI(const char* id, const std::vector<SceneTreeItem>& items,
         const std::string& rootId, const std::string& selectedId,
-        const std::function<bool(const SceneTreeDrop&)>& canDrop, bool revealSelection)
+        const std::function<bool(const SceneTreeDrop&)>& canDrop, bool revealSelection, const std::vector<std::string>& selectedIds)
     {
         SceneTreeResult result;
         ImGui::PushID(id);
@@ -33,7 +33,9 @@ namespace Tank::Ui
             const bool leaf = std::none_of(items.begin(), items.end(), [&](const auto& n) {return n.parentId == item.id;});
             ImGui::PushID(item.id.c_str());
             auto flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
-            if (item.id == selectedId) flags |= ImGuiTreeNodeFlags_Selected;
+            const bool selected = selectedIds.empty() ? item.id == selectedId :
+                std::find(selectedIds.begin(), selectedIds.end(), item.id) != selectedIds.end();
+            if (selected) flags |= ImGuiTreeNodeFlags_Selected;
             if (item.id == rootId) flags |= ImGuiTreeNodeFlags_DefaultOpen;
             if (leaf) flags |= ImGuiTreeNodeFlags_Leaf;
             if (revealParents.contains(item.id)) ImGui::SetNextItemOpen(true);
@@ -41,7 +43,8 @@ namespace Tank::Ui
             if (revealSelection && item.id == selectedId) ImGui::SetScrollHereY();
             const auto rowMin = ImGui::GetItemRectMin();
             const auto rowMax = ImGui::GetItemRectMax();
-            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) result.selectedId = item.id;
+            if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+            {result.selectedId = item.id; result.extendSelection = ImGui::GetIO().KeyShift;}
             if (item.id != rootId && ImGui::BeginDragDropSource())
             {
                 ImGui::SetDragDropPayload(payloadType, item.id.c_str(), item.id.size() + 1);
@@ -86,8 +89,8 @@ namespace Tank::Ui
             }
             if (ImGui::BeginPopupContextItem("NodeContext"))
             {
-                if (selectedId != item.id) result.selectedId = item.id;
-                if (ImGui::MenuItem("Delete", nullptr, false, item.id != rootId && leaf))
+                if (!selected) {result.selectedId = item.id; result.extendSelection = false;}
+                if (ImGui::MenuItem("Delete", nullptr, false, item.id != rootId && (leaf || (selected && selectedIds.size() > 1))))
                     result.command = SceneTreeCommand{item.id, SceneTreeAction::Delete};
                 if (ImGui::MenuItem("Duplicate", nullptr, false, item.id != rootId))
                     result.command = SceneTreeCommand{item.id, SceneTreeAction::Duplicate};

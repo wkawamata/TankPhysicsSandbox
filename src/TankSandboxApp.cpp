@@ -2164,7 +2164,7 @@ void TankSandboxApp::DrawToolUi()
                     m_mapEditorMode.SelectedInstanceId(), m_mapEditorMode.HiddenInstanceIds(),
                     m_mapEditorMode.ShowVisualMeshes(), m_mapEditorMode.ShowHitMeshes(),
                     m_mapEditorMode.VisualMeshColor(), m_mapEditorMode.SelectedEnemyId(),
-                    m_mapEditorMode.SelectedTreeNodeId() };
+                    m_mapEditorMode.SelectedTreeNodeId(), m_mapEditorMode.SelectedNodeIds() };
                 if (m_mapEditorScenePresenter.Rebuild(
                     map.Folder(), map.Document(), grid, preview, error))
                 {

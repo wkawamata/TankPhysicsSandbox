@@ -61,6 +61,8 @@ add_library(TankMapCore STATIC
     src/Map/MapCatalog.cpp
     src/Map/MapFolder.h
     src/Map/MapHierarchy.cpp
+    src/Map/MapSelection.cpp
+    src/Map/MapSelection.h
     src/Map/MapHierarchy.h
     src/Map/MapManifest.cpp
     src/Map/MapManifest.h
@@ -416,6 +418,9 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME TankApp.TankSettingsUndo COMMAND TankSettingsUndoTests)
 
+    add_executable(MapSelectionTests tests/MapSelectionTests.cpp)
+    target_link_libraries(MapSelectionTests PRIVATE TankMapCore)
+    add_test(NAME TankMap.Selection COMMAND MapSelectionTests)
     add_executable(MapUndoHistoryTests tests/MapUndoHistoryTests.cpp)
     target_link_libraries(MapUndoHistoryTests PRIVATE TankMapCore)
     if(MSVC)
