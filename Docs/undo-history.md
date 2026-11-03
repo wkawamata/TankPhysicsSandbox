@@ -16,6 +16,10 @@ Sub Windows visibility controls.
 - Map hierarchy: local transforms, parenting and sibling order, active/visible
   states, names, subtree duplication, and node creation/removal. Parent removal
   retains the hierarchy editor's rule to move or remove its children first.
+- Map multiple selection: one gizmo drag transforms the selection in one command;
+  batch duplication and deletion also restore the selection on Undo/Redo.
+  Rotation and scaling use each element's individual origin. See
+  [map-multi-selection.md](map-multi-selection.md).
 - Map objects: models, player starts, enemy placements and clear areas, including
   transform gizmos and supported/breakable object parameters.
 - Enemy Unit Editor in Map Editor: movement settings, attack definitions, unit

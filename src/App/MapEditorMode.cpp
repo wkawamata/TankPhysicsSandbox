@@ -4,6 +4,7 @@
 #include "Map/MapEditing.h"
 #include "Map/GatePrefab.h"
 #include "Map/MapHierarchy.h"
+#include "Map/MapSelection.h"
 #include "Ui/SceneTreeUI.h"
 #include "Ui/MapListUi.h"
 #include "Platform/Windows/MapFolderPicker.h"
@@ -53,6 +54,7 @@ bool MapEditorMode::OpenMapFolder(const std::filesystem::path& folder, std::stri
     m_previewWarning.clear();
     m_selectedAsset.clear();
     m_selectedNodeId = "root";
+    m_selectedNodeIds.clear();
     m_selectedInstanceId.clear();
     m_focusSelectedRequested = false;
     m_hiddenInstanceIds.clear();
@@ -84,6 +86,7 @@ void MapEditorMode::ApplyManifestSnapshot(const Tank::Map::Manifest& manifest)
         return;
     }
 
+    m_selectedNodeIds = Tank::Map::ValidSelection(manifest, m_selectedNodeIds);
     m_mapNameDraft = Tank::Map::MapName(manifest, m_map.Folder());
     m_mapNameError.clear();
     const auto tree = Tank::Map::MapTree(manifest);
@@ -101,6 +104,7 @@ void MapEditorMode::ApplyManifestSnapshot(const Tank::Map::Manifest& manifest)
     if (std::none_of(manifest.clearAreas.begin(), manifest.clearAreas.end(),
         [this](const auto& value) { return value.id == m_selectedClearAreaId; }))
         m_selectedClearAreaId.clear();
+    if (!m_selectedNodeIds.empty()) SetSelection(m_selectedNodeIds);
     m_sceneReloadRequested = true;
 }
 
@@ -643,8 +647,7 @@ bool MapEditorMode::RemoveSelectedEnemy()
 
 bool MapEditorMode::PlacementGizmoCapturesMouse() const
 {
-    const bool hasSelection = !m_selectedEnemyId.empty() || !m_selectedInstanceId.empty() ||
-        !m_selectedClearAreaId.empty() || m_playerStartGizmoSelected;
+    const bool hasSelection = !SelectedNodeIds().empty();
     return m_gizmoEnabled && hasSelection &&
         (ImGuizmo::IsOver() || ImGuizmo::IsUsingAny());
 }
@@ -660,6 +663,74 @@ std::string MapEditorMode::SelectedNodeId() const
     const auto tree = Tank::Map::MapTree(m_map.Document());
     return std::any_of(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;}) ? id : "root";
 }
+std::vector<std::string> MapEditorMode::SelectedNodeIds() const
+{
+    const auto active = SelectedNodeId();
+    if (m_selectedNodeId.empty() && m_selectedInstanceId.empty() && m_selectedEnemyId.empty() && m_selectedClearAreaId.empty()) return {};
+    if (std::find(m_selectedNodeIds.begin(), m_selectedNodeIds.end(), active) != m_selectedNodeIds.end())
+        return Tank::Map::ValidSelection(m_map.Document(), m_selectedNodeIds);
+    return {active};
+}
+
+void MapEditorMode::SetSelection(const std::vector<std::string>& ids)
+{
+    m_selectedNodeIds = Tank::Map::ValidSelection(m_map.Document(), ids);
+    m_selectedNodeId = m_selectedNodeIds.empty() ? "" : m_selectedNodeIds.back();
+    m_selectedInstanceId.clear(); m_selectedEnemyId.clear(); m_selectedClearAreaId.clear();
+    m_playerStartGizmoSelected = false;
+    for (const auto& node : Tank::Map::MapTree(m_map.Document()))
+        if (node.id == m_selectedNodeId)
+        {
+            if (node.kind == Tank::Map::NodeKind::Mesh) m_selectedInstanceId = node.objectId;
+            if (node.kind == Tank::Map::NodeKind::Enemy) m_selectedEnemyId = node.objectId;
+            if (node.kind == Tank::Map::NodeKind::ClearArea) m_selectedClearAreaId = node.objectId;
+            m_playerStartGizmoSelected = node.kind == Tank::Map::NodeKind::PlayerStartPoint;
+        }
+    m_sceneReloadRequested = true;
+}
+
+void MapEditorMode::SelectNode(const std::string& id, bool extend)
+{
+    FlushPendingGizmoEdit(); FlushPendingManifestEdit();
+    SetSelection(Tank::Map::SelectNode(SelectedNodeIds(), id, extend));
+}
+
+bool MapEditorMode::CommitSelectionEdit(const Tank::Map::Manifest& after,
+    const std::vector<std::string>& ids, const char* name)
+{
+    FlushPendingEnemyCatalogEdit(); FlushPendingGizmoEdit(); FlushPendingManifestEdit(); m_viewEdit.Flush();
+    const auto before = m_map.Document();
+    const auto beforeSelection = SelectedNodeIds();
+    std::string error;
+    if (!m_map.SetManifest(after, error)) {m_status = error; return false;}
+    SetSelection(ids);
+    const auto afterSelection = SelectedNodeIds();
+    m_undoHistory.RecordApplied(std::make_unique<Tank::App::LambdaUndoCommand>(name,
+        [this,before,beforeSelection] {ApplyManifestSnapshot(before); SetSelection(beforeSelection);},
+        [this,after,afterSelection] {ApplyManifestSnapshot(after); SetSelection(afterSelection);}));
+    m_status = std::string(name) + ". Save to write Manifest.json.";
+    return true;
+}
+
+void MapEditorMode::DuplicateSelection()
+{
+    auto updated = m_map.Document();
+    std::vector<std::string> copies;
+    std::string error;
+    if (Tank::Map::DuplicateSelection(updated, SelectedNodeIds(), copies, error))
+        CommitSelectionEdit(updated,copies,"Duplicate selection");
+    else m_status = error;
+}
+
+void MapEditorMode::RemoveSelection()
+{
+    auto updated = m_map.Document();
+    std::string error;
+    if (Tank::Map::RemoveSelection(updated, SelectedNodeIds(), error))
+        CommitSelectionEdit(updated,{},"Remove selection");
+    else m_status = error;
+}
+
 void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio)
 {
     if (!m_map.IsOpen() || !m_gizmoEnabled || m_confirm || m_pending != Action::None)
@@ -667,10 +738,11 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
     const auto& document = m_map.Document();
     FlushPendingGizmoEdit();
     const auto id = SelectedNodeId();
+    if (SelectedNodeIds().empty()) {ImGuizmo::Enable(false); return;}
     const auto tree = Tank::Map::MapTree(document);
     const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == id;});
     if (selected == tree.end()) { ImGuizmo::Enable(false); return; }
-    const bool rigid = selected->kind == Tank::Map::NodeKind::Enemy || selected->kind == Tank::Map::NodeKind::PlayerStartPoint;
+    const bool rigid = !Tank::Map::CanScaleSelection(document, SelectedNodeIds());
     if (rigid && m_gizmoOperation == GizmoOperation::Scale) m_gizmoOperation = GizmoOperation::Translate;
     ImGuizmo::Enable(ImGuizmo::IsUsingAny() || !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow));
     ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
@@ -681,6 +753,7 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
     DirectX::XMStoreFloat4x4(&view, Engine::CreateCameraViewMatrix(camera));
     DirectX::XMStoreFloat4x4(&projection, Engine::CreateCameraProjectionMatrix(camera, aspectRatio));
     auto world = Tank::Map::NodeWorldTransform(document, id);
+    const auto referenceBefore = *world.worldMatrix;
     const auto operation = m_gizmoOperation == GizmoOperation::Rotate ? ImGuizmo::ROTATE :
         m_gizmoOperation == GizmoOperation::Scale ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
     if (ImGuizmo::Manipulate(&view._11, &projection._11, operation,
@@ -692,12 +765,13 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
             const auto snapped = Tank::Map::SnapPositionToGrid({matrix[12], matrix[13], matrix[14]}, m_gridSpacingMeters);
             std::copy(snapped.begin(), snapped.end(), matrix.begin() + 12);
         }
-        Tank::Map::Transform local;
         std::string error;
         const auto before = document;
         auto updated = before;
-        if (Tank::Map::NodeTransformFromWorld(document, id, *world.worldMatrix, local, error) &&
-            Tank::Map::SetNodeLocalTransform(updated, id, local))
+        const auto selectionOperation = m_gizmoOperation == GizmoOperation::Rotate ? Tank::Map::SelectionTransform::Rotate :
+            m_gizmoOperation == GizmoOperation::Scale ? Tank::Map::SelectionTransform::Scale : Tank::Map::SelectionTransform::Translate;
+        if (Tank::Map::TransformSelection(updated, SelectedNodeIds(), referenceBefore,
+            *world.worldMatrix, selectionOperation, m_gizmoLocal, error))
         {
             FlushPendingEnemyCatalogEdit();
             FlushPendingManifestEdit();
@@ -726,7 +800,8 @@ void MapEditorMode::UpdateViewportPicking(
     const bool blocked = !m_map.IsOpen() || m_confirm || m_pending != Action::None ||
         io.WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) ||
         ImGuizmo::IsOver() || ImGuizmo::IsUsingAny();
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) m_viewportPickPending = !blocked;
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {m_viewportPickPending = !blocked; m_viewportPickExtend = io.KeyShift;}
     if (blocked) m_viewportPickPending = false;
     if (!ImGui::IsMouseReleased(ImGuiMouseButton_Left)) return;
     const bool click = std::exchange(m_viewportPickPending, false) &&
@@ -734,15 +809,11 @@ void MapEditorMode::UpdateViewportPicking(
     if (!click) return;
     const auto* viewport = ImGui::GetMainViewport();
     const auto picked = pick(io.MousePos.x - viewport->Pos.x, io.MousePos.y - viewport->Pos.y);
-    if (!picked) return;
+    if (!picked) {if (!m_viewportPickExtend) SetSelection({}); return;}
     const auto tree = Tank::Map::MapTree(m_map.Document());
     const auto node = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == *picked;});
     if (node == tree.end()) return;
-    m_selectedNodeId = node->id;
-    m_selectedInstanceId = node->kind == Tank::Map::NodeKind::Mesh ? node->objectId : "";
-    m_selectedEnemyId = node->kind == Tank::Map::NodeKind::Enemy ? node->objectId : "";
-    m_selectedClearAreaId = node->kind == Tank::Map::NodeKind::ClearArea ? node->objectId : "";
-    m_playerStartGizmoSelected = node->kind == Tank::Map::NodeKind::PlayerStartPoint;
+    SelectNode(node->id, m_viewportPickExtend);
     m_revealTreeSelection = true;
     m_sceneReloadRequested = true;
 }
@@ -754,9 +825,10 @@ void MapEditorMode::DrawMapTree()
     auto updated = m_map.Document();
     const auto tree = MapTree(updated);
     bool changed = false;
-    std::string selectedId = SelectedNodeId();
+    std::string selectedId = SelectedNodeIds().empty() ? "" : SelectedNodeId();
     const auto select = [&](const TreeNode& node)
     {
+        m_selectedNodeIds = {node.id};
         m_selectedNodeId = node.id;
         selectedId = node.id;
         m_selectedInstanceId = node.kind == NodeKind::Mesh ? node.objectId : "";
@@ -786,9 +858,9 @@ void MapEditorMode::DrawMapTree()
             auto probe = updated;
             std::string error;
             return MoveNode(probe, drop.sourceId, drop.targetId, placement(drop.position), error);
-        }, std::exchange(m_revealTreeSelection, false));
+        }, std::exchange(m_revealTreeSelection, false), SelectedNodeIds());
     if (result.selectedId)
-        for (const auto& node : tree) if (node.id == *result.selectedId) select(node);
+    {SelectNode(*result.selectedId, result.extendSelection); selectedId = SelectedNodeIds().empty() ? "" : SelectedNodeId();}
     const bool contextDuplicate = result.command && result.command->action == Tank::Ui::SceneTreeAction::Duplicate;
     const bool contextDelete = result.command && result.command->action == Tank::Ui::SceneTreeAction::Delete;
     if (result.command && result.command->action == Tank::Ui::SceneTreeAction::Rename)
@@ -834,6 +906,26 @@ void MapEditorMode::DrawMapTree()
     }
     ImGui::SameLine();
     if (ImGui::Button("Add Clear Area")) AddClearArea();
+    const bool editShortcut = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+        !ImGui::GetIO().WantTextInput && !ImGui::IsAnyItemActive() && !ImGuizmo::IsUsingAny() &&
+        !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+    const bool duplicateShortcut = editShortcut && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false);
+    const bool deleteShortcut = editShortcut && ImGui::IsKeyPressed(ImGuiKey_Delete, false);
+    if (SelectedNodeIds().size() > 1)
+    {
+        if (changed)
+        {
+            if (!CommitManifestEdit(m_map.Document(),updated,"Map parameter edit")) return;
+            changed = false;
+        }
+        ImGui::Text("Selected: %zu elements", SelectedNodeIds().size());
+        ImGui::TextWrapped("Shift + left click toggles selection. The gizmo moves all elements; rotation and scale use individual origins.");
+        if (ImGui::Button("Duplicate Selected") || contextDuplicate || duplicateShortcut) DuplicateSelection();
+        ImGui::SameLine();
+        if (ImGui::Button("Remove Selected") || contextDelete || deleteShortcut) RemoveSelection();
+        ImGui::TextDisabled("Delete: include all child nodes. Ctrl+D: duplicate. Transform with the gizmo.");
+        return;
+    }
     const auto selected = std::find_if(tree.begin(), tree.end(), [&](const auto& n) {return n.id == selectedId;});
     if (selected != tree.end())
     {
@@ -951,24 +1043,11 @@ void MapEditorMode::DrawMapTree()
             else m_status = error;
         }
         ImGui::BeginDisabled(selectedId == "root");
-        if (ImGui::Button("Duplicate") || contextDuplicate)
-        {
-            std::string error;
-            if (const auto duplicate = DuplicateNode(updated, selectedId, error))
-            {
-                for (const auto& n : MapTree(updated)) if (n.id == *duplicate) select(n);
-                changed = true;
-            }
-            else m_status = error;
-        }
+        if (ImGui::Button("Duplicate") || contextDuplicate || duplicateShortcut)
+        {DuplicateSelection(); ImGui::EndDisabled(); return;}
         ImGui::SameLine();
-        if (ImGui::Button("Remove Selected") || contextDelete)
-        {
-            std::string error;
-            if (RemoveNode(updated, selectedId, error))
-            { select({"root", "Root", "", NodeKind::Empty, "root"}); changed = true; }
-            else m_status = error;
-        }
+        if (ImGui::Button("Remove Selected") || contextDelete || deleteShortcut)
+        {RemoveSelection(); ImGui::EndDisabled(); return;}
         ImGui::EndDisabled();
     }
     if (changed)
@@ -1079,7 +1158,7 @@ void MapEditorMode::DrawCheatSheet()
     if (ImGui::Begin("Map Editor Cheat Sheet", &m_showCheatSheet, ImGuiWindowFlags_NoCollapse))
     {
         ImGui::SeparatorText("Camera");
-        ImGui::BulletText("Left click: Select visible object");
+        ImGui::BulletText("Left click: Select visible object; Shift + left click: toggle multiple selection");
         ImGui::BulletText("Left drag: Orbit");
         ImGui::BulletText("Shift + Move gizmo: Grid snap");
         ImGui::BulletText("Middle drag: Pan");
@@ -1101,7 +1180,8 @@ void MapEditorMode::DrawCheatSheet()
         ImGui::BulletText("Map Tree: select PlayerStartPoint or Enemy to edit position/rotation");
         ImGui::TextWrapped("Place Player Start Y above the HitMesh so the tank does not spawn inside the ground.");
         ImGui::BulletText("Clear Areas: 1 m unit box, edited through Tree transforms");
-        ImGui::BulletText("Select a model, enemy, clear area, or player start; drag the Move/Rotate/Scale gizmo");
+        ImGui::BulletText("Select elements, then drag the gizmo. Rotation / scale use each element's origin.");
+        ImGui::BulletText("Ctrl+D: duplicate selection; Delete: remove selection (include child nodes)");
         ImGui::BulletText("Local: unit axes; unchecked: world axes");
         ImGui::BulletText("Save: write changes to Manifest.json");
 
@@ -1243,12 +1323,13 @@ bool MapEditorMode::DrawUi(HWND__* owner, bool* outputWindowVisible)
     if (ImGui::RadioButton("Rotate", m_gizmoOperation == GizmoOperation::Rotate))
         m_gizmoOperation = GizmoOperation::Rotate;
     ImGui::SameLine();
-    const bool canScaleSelection = !m_selectedInstanceId.empty() || !m_selectedClearAreaId.empty() ||
-        (m_selectedEnemyId.empty() && !m_playerStartGizmoSelected);
+    const bool canScaleSelection = Tank::Map::CanScaleSelection(m_map.Document(), SelectedNodeIds());
     ImGui::BeginDisabled(!canScaleSelection);
     if (ImGui::RadioButton("Scale", m_gizmoOperation == GizmoOperation::Scale))
         m_gizmoOperation = GizmoOperation::Scale;
     ImGui::EndDisabled();
+    if (!canScaleSelection && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Enemy and StartPoint sizes are fixed; select models, Empty nodes or Clear Areas to scale.");
     ImGui::SameLine();
     ImGui::Checkbox("Local", &m_gizmoLocal);
     ImGui::Separator();

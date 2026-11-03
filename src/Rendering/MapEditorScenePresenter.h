@@ -31,6 +31,7 @@ namespace Tank::Rendering
             80.0f / 255.0f, 80.0f / 255.0f, 80.0f / 255.0f };
         std::string selectedEnemyId;
         std::string selectedNodeId;
+        std::vector<std::string> selectedNodeIds;
     };
 
     struct MapEditorFocusTarget

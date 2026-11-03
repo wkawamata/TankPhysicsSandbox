@@ -240,19 +240,24 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
             firstIndex += count;
         }
     }
-    const auto selectedInstance = std::find_if(visibleManifest.instances.begin(), visibleManifest.instances.end(),
-        [&preview](const Map::Instance& instance) { return instance.id == preview.selectedInstanceId; });
-    const auto selectedBounds = std::find_if(visualBounds.begin(), visualBounds.end(),
-        [&preview](const MapVisualBounds& bounds) { return bounds.instanceId == preview.selectedInstanceId; });
-    const auto selectedHitBounds = std::find_if(hitBounds.begin(), hitBounds.end(),
-        [&preview](const MapVisualBounds& bounds) { return bounds.instanceId == preview.selectedInstanceId; });
-    std::optional<MapEditorFocusTarget> selectedFocusTarget;
-    const MapVisualBounds* selectionBounds = selectedBounds != visualBounds.end() ?
-        &*selectedBounds : selectedHitBounds != hitBounds.end() ? &*selectedHitBounds : nullptr;
-    if (selectedInstance != visibleManifest.instances.end() && selectionBounds != nullptr)
+    const auto isSelected = [&](const std::string& id)
     {
-        AppendSelectionWireframe(*next, gridMesh, *selectedInstance, *selectionBounds, selectionMaterial);
-        selectedFocusTarget = MakeFocusTarget(*selectedInstance, *selectionBounds);
+        if (!preview.selectedNodeIds.empty())
+            return std::find(preview.selectedNodeIds.begin(),preview.selectedNodeIds.end(),id) != preview.selectedNodeIds.end();
+        return id == preview.selectedNodeId || id == "mesh/"+preview.selectedInstanceId || id == "enemy/"+preview.selectedEnemyId;
+    };
+    std::optional<MapEditorFocusTarget> selectedFocusTarget;
+    for (const auto& instance : visibleManifest.instances)
+    {
+        if (!isSelected("mesh/" + instance.id)) continue;
+        const auto visual = std::find_if(visualBounds.begin(),visualBounds.end(),[&](const auto& b) {return b.instanceId==instance.id;});
+        const auto hit = std::find_if(hitBounds.begin(),hitBounds.end(),[&](const auto& b) {return b.instanceId==instance.id;});
+        const MapVisualBounds* bounds = visual != visualBounds.end() ? &*visual : hit != hitBounds.end() ? &*hit : nullptr;
+        if (bounds)
+        {
+            AppendSelectionWireframe(*next, gridMesh, instance, *bounds, selectionMaterial);
+            if (instance.id == preview.selectedInstanceId) selectedFocusTarget = MakeFocusTarget(instance,*bounds);
+        }
     }
     const uint32_t enemyMaterial = next->AddSolidColorMaterial(235, 65, 65, 255);
     for (const auto& enemy : manifest.enemies)
@@ -260,7 +265,7 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
         const size_t firstEnemyInstance = next->GetScene().instances.size();
         const Map::Transform transform = { enemy.position, enemy.rotationDegrees };
         const auto world = ToWorld(transform);
-        const bool selected = enemy.id == preview.selectedEnemyId;
+        const bool selected = isSelected("enemy/" + enemy.id);
         const uint32_t material = selected ? selectionMaterial : enemyMaterial;
         next->AddInstance(gridMesh, DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f) * world, material);
         next->AddInstance(gridMesh, DirectX::XMMatrixScaling(0.12f, 0.12f, 1.5f) *
@@ -278,7 +283,12 @@ bool Tank::Rendering::MapEditorScenePresenter::Rebuild(
     size_t marker = 0;
     const auto addMarkerPicks = [&](const std::string& id, size_t count)
     {
-        for (size_t i = 0; i < count; ++i) addPickInstance(markerInstances[marker++], id);
+        for (size_t i = 0; i < count; ++i)
+        {
+            const auto index = markerInstances[marker++];
+            if (isSelected(id)) next->GetScene().instances[index].materialId = selectionMaterial;
+            addPickInstance(index,id);
+        }
     };
     if (Map::GetNodeInfo(manifest, "player-start").visible)
         addMarkerPicks("player-start", kPlayerStartMarkerPartCount);
