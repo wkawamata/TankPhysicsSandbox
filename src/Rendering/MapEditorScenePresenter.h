@@ -61,6 +61,7 @@ namespace Tank::Rendering
         std::optional<std::string> PickRay(const std::array<float, 3>& origin,
             const std::array<float, 3>& direction) const;
         std::optional<std::string> PickScreen(float x, float y, float width, float height) const;
+        std::vector<std::string> PickRectangle(float x0, float y0, float x1, float y1, float width, float height) const;
         void Clear();
 
     private:

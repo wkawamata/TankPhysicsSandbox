@@ -22,4 +22,6 @@
   Root and the last StartPoint remain protected. A failed batch changes nothing.
 - One continuous gizmo drag is one Undo/Redo command. A batch duplication or
   deletion is also one command and restores its selection on Undo/Redo.
-- Rectangle selection is not implemented. Left drag retains the camera controls.
+- Left drag selects objects whose projected geometry bounds overlap the rectangle,
+  including objects behind other objects. Shift + drag adds to the selection.
+  UI and gizmo drags are excluded. Alt + left drag retains camera orbit.

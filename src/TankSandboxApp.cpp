@@ -1076,6 +1076,7 @@ void TankSandboxApp::ClearVehicleInputState()
 
 void TankSandboxApp::OnMouseDown(UINT8 button, int x, int y)
 {
+    if (m_appMode == AppMode::MapEditor && button == VK_LBUTTON && !(GetAsyncKeyState(VK_MENU)&0x8000)) return;
     if (!GameViewportContains(x, y)) return;
     if (EnsureDebugCameraForMouse())
     {
@@ -2130,6 +2131,10 @@ void TankSandboxApp::DrawToolUi()
             {
                 const auto* viewport = ImGui::GetMainViewport();
                 return m_mapEditorScenePresenter.PickScreen(x, y, viewport->Size.x, viewport->Size.y);
+            }, [this](float x0,float y0,float x1,float y1)
+            {
+                const auto* viewport=ImGui::GetMainViewport();
+                return m_mapEditorScenePresenter.PickRectangle(x0,y0,x1,y1,viewport->Size.x,viewport->Size.y);
             });
         }
         if (leaveMapEditor)

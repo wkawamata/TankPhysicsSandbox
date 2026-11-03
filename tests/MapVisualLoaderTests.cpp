@@ -179,7 +179,11 @@ namespace
         multi.selectedNodeIds = {"mesh/selected", "mesh/hidden"};
         if (!presenter.Rebuild(fixtureFolder,manifest,grid,multi,error)) return false;
         // Each selected mesh contributes its own twelve-edge highlight.
-        return presenter.GetScene().instances.size() == 35u;
+        const auto picked=presenter.PickRectangle(0,0,1000,1000,1000,1000);
+        const auto reversed=presenter.PickRectangle(1000,1000,0,0,1000,1000);
+        return presenter.GetScene().instances.size() == 35u && picked==reversed &&
+            std::find(picked.begin(),picked.end(),"mesh/hidden")!=picked.end() &&
+            presenter.PickRectangle(0,0,10,10,0,0).empty();
     }
 
     bool TestHitOnlyVisualFallbackAndDisplaySwitches()
