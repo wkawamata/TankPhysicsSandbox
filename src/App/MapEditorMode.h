@@ -45,7 +45,8 @@ public:
     bool CanRedo() const { return m_map.IsOpen() && m_undoHistory.CanRedo(); }
     void DrawPlacementGizmo(const Engine::CameraState& camera, float aspectRatio);
     bool PlacementGizmoCapturesMouse() const;
-    void UpdateViewportPicking(const std::function<std::optional<std::string>(float, float)>& pick);
+    void UpdateViewportPicking(const std::function<std::optional<std::string>(float, float)>& pick,
+        const std::function<std::vector<std::string>(float,float,float,float)>& rectangle);
     void RequestExit();
     void RequestApplicationExit();
     using AssetValidator = std::function<bool(const std::filesystem::path&, const Tank::Map::GltfRoles&, std::string&)>;
@@ -156,6 +157,7 @@ private:
     std::string m_selectedNodeId = "root";
     std::vector<std::string> m_selectedNodeIds;
     bool m_viewportPickExtend = false;
+    std::array<float,2> m_selectionDragStart = {};
     std::string m_enemyCatalogPath;
     Tank::Physics::EnemyEditorSettings m_enemyCatalog;
     Ui::EnemyUnitEditorWindow m_enemyUnitEditor;

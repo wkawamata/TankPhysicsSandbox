@@ -428,3 +428,34 @@ std::optional<std::string> Tank::Rendering::MapEditorScenePresenter::PickScreen(
     XMStoreFloat3(&direction, XMVectorSubtract(farPoint, nearPoint));
     return PickRay({origin.x, origin.y, origin.z}, {direction.x, direction.y, direction.z});
 }
+
+std::vector<std::string> Tank::Rendering::MapEditorScenePresenter::PickRectangle(
+    float x0,float y0,float x1,float y1,float width,float height) const
+{
+    using namespace DirectX;
+    std::vector<std::string> result;
+    if (width<=0 || height<=0) return result;
+    const float left=(std::min)(x0,x1), right=(std::max)(x0,x1);
+    const float top=(std::min)(y0,y1), bottom=(std::max)(y0,y1);
+    const auto& scene=m_builder->GetScene();
+    const auto& mesh=m_builder->GetMesh();
+    const auto vp=Engine::CreateCameraViewMatrix(scene.camera)*Engine::CreateCameraProjectionMatrix(scene.camera,width/height);
+    for (const auto& target:m_pickRanges)
+    {
+        const auto world=XMMatrixTranspose(XMLoadFloat4x4(&scene.instances[target.instanceIndex].world));
+        float minX=width,maxX=0,minY=height,maxY=0; bool valid=false;
+        for (uint32_t i=target.firstIndex;i<target.firstIndex+target.indexCount;++i)
+        {
+            const auto clip=XMVector4Transform(XMVectorSetW(XMLoadFloat3(&mesh.vertices[mesh.indices[i]].position),1),world*vp);
+            const float w=XMVectorGetW(clip), z=XMVectorGetZ(clip);
+            if (w<=0.00001f || z<0 || z>w) continue;
+            const float x=(XMVectorGetX(clip)/w+1)*width*0.5f;
+            const float y=(1-XMVectorGetY(clip)/w)*height*0.5f;
+            minX=(std::min)(minX,x); maxX=(std::max)(maxX,x);
+            minY=(std::min)(minY,y); maxY=(std::max)(maxY,y); valid=true;
+        }
+        if (valid && maxX>=left && minX<=right && maxY>=top && minY<=bottom &&
+            std::find(result.begin(),result.end(),target.nodeId)==result.end()) result.push_back(target.nodeId);
+    }
+    return result;
+}

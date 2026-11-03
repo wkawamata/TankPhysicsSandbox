@@ -794,15 +794,36 @@ void MapEditorMode::DrawPlacementGizmo(const Engine::CameraState& camera, float 
     FlushPendingGizmoEdit();
 }
 void MapEditorMode::UpdateViewportPicking(
-    const std::function<std::optional<std::string>(float, float)>& pick)
+    const std::function<std::optional<std::string>(float, float)>& pick,
+    const std::function<std::vector<std::string>(float,float,float,float)>& rectangle)
 {
     const auto& io = ImGui::GetIO();
     const bool blocked = !m_map.IsOpen() || m_confirm || m_pending != Action::None ||
-        io.WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) ||
+        io.KeyAlt || io.WantCaptureMouse || ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) ||
         ImGuizmo::IsOver() || ImGuizmo::IsUsingAny();
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-    {m_viewportPickPending = !blocked; m_viewportPickExtend = io.KeyShift;}
+    {m_viewportPickPending = !blocked; m_viewportPickExtend = io.KeyShift; m_selectionDragStart={io.MousePos.x,io.MousePos.y};}
     if (blocked) m_viewportPickPending = false;
+    const bool dragging = io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left] > io.MouseDragThreshold*io.MouseDragThreshold;
+    if (m_viewportPickPending && dragging)
+    {
+        auto* draw=ImGui::GetForegroundDrawList();
+        const ImVec2 start(m_selectionDragStart[0],m_selectionDragStart[1]);
+        draw->AddRectFilled(ImVec2((std::min)(start.x,io.MousePos.x),(std::min)(start.y,io.MousePos.y)),
+            ImVec2((std::max)(start.x,io.MousePos.x),(std::max)(start.y,io.MousePos.y)),IM_COL32(70,150,255,45));
+        draw->AddRect(ImVec2((std::min)(start.x,io.MousePos.x),(std::min)(start.y,io.MousePos.y)),
+            ImVec2((std::max)(start.x,io.MousePos.x),(std::max)(start.y,io.MousePos.y)),IM_COL32(100,180,255,255));
+    }
+    if (m_viewportPickPending && dragging && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        m_viewportPickPending=false;
+        const auto* viewport=ImGui::GetMainViewport();
+        auto ids=m_viewportPickExtend ? SelectedNodeIds() : std::vector<std::string>{};
+        for (const auto& id:rectangle(m_selectionDragStart[0]-viewport->Pos.x,m_selectionDragStart[1]-viewport->Pos.y,
+            io.MousePos.x-viewport->Pos.x,io.MousePos.y-viewport->Pos.y))
+            if (std::find(ids.begin(),ids.end(),id)==ids.end()) ids.push_back(id);
+        std::erase(ids,"root"); SetSelection(ids); m_revealTreeSelection=true; return;
+    }
     if (!ImGui::IsMouseReleased(ImGuiMouseButton_Left)) return;
     const bool click = std::exchange(m_viewportPickPending, false) &&
         io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left] <= io.MouseDragThreshold * io.MouseDragThreshold;
@@ -1159,7 +1180,7 @@ void MapEditorMode::DrawCheatSheet()
     {
         ImGui::SeparatorText("Camera");
         ImGui::BulletText("Left click: Select visible object; Shift + left click: toggle multiple selection");
-        ImGui::BulletText("Left drag: Orbit");
+        ImGui::BulletText("Left drag: Rectangle selection; Alt + left drag: Orbit");
         ImGui::BulletText("Shift + Move gizmo: Grid snap");
         ImGui::BulletText("Middle drag: Pan");
         ImGui::BulletText("Mouse wheel: Zoom");
