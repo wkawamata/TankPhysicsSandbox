@@ -1,0 +1,99 @@
+{
+  "backBufferClearColor": [
+    0.0,
+    0.0470588244497776,
+    0.2235294133424759,
+    1.0
+  ],
+  "hybridReflection": {
+    "contributionEnabled": false,
+    "contributionIntensity": 0.25,
+    "contributionMaxDistance": 20.0,
+    "enabled": true,
+    "hitNormalSource": 0,
+    "hitOverlayEnabled": false,
+    "hitOverlayIntensity": 0.20000000298023224,
+    "hitOverlayMode": 0,
+    "materialGateEnabled": false,
+    "maxRoughness": 0.3499999940395355,
+    "minMetallic": 0.0,
+    "rejectedPixelNeighborhoodEnabled": false,
+    "surfaceVarianceFilterEnabled": false,
+    "temporalHistoryWeight": 0.0,
+    "temporalNoiseStrength": 0.0
+  },
+  "lighting": {
+    "diffuseIblEnabled": true,
+    "diffuseIntensity": 1.0149999856948853,
+    "directLightEnabled": true,
+    "emissiveEnabled": true,
+    "iblDebugExposure": 0.25,
+    "iblDebugMip": 0.0,
+    "iblIntensity": 0.24300000071525574,
+    "lightColor": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "lightDirection": [
+      -0.18299999833106995,
+      0.777999997138977,
+      -0.4970000088214874
+    ],
+    "skyboxEnabled": true,
+    "skyboxPreview": false,
+    "skyboxPreviewExposure": 1.0,
+    "specularIblEnabled": true
+  },
+  "lightingPassDebugGradient": false,
+  "pathTracing": {
+    "accumulate": true,
+    "debugOutput": 3,
+    "directLightingEnabled": true,
+    "emissiveEnabled": true,
+    "environmentEnabled": true,
+    "maxBounces": 2,
+    "randomSeed": 1,
+    "russianRouletteEnabled": false,
+    "samplesPerFrame": 1
+  },
+  "rayReconstruction": {
+    "backend": 1,
+    "enabled": false,
+    "experimentalNativeEvaluationEnabled": false
+  },
+  "renderViewMode": 0,
+  "renderingPath": 1,
+  "schemaVersion": 3,
+  "shadow": {
+    "enabled": true,
+    "jitterStrength": 2.0,
+    "lightAngularRadius": 0.07500000298023224,
+    "normalBias": 0.10000000149011612,
+    "rayTMax": 10000.0,
+    "rayTMin": 0.08399999886751175,
+    "sampleCount": 3,
+    "softShadowEnabled": true
+  },
+  "specularDebugLines": {
+    "enabled": true,
+    "lineLength": 1.0,
+    "showNormal": true,
+    "showReflection": true,
+    "showViewRay": true
+  },
+  "temporalUpscaler": {
+    "autoExposure": true,
+    "backend": 1,
+    "enabled": true,
+    "qualityMode": 1,
+    "renderScale": 1.0,
+    "sharpness": 0.0
+  },
+  "toneMap": {
+    "exposure": 1.0,
+    "maxDisplayNits": 1000.0,
+    "operatorIndex": 0,
+    "paperWhiteNits": 300.0
+  }
+}

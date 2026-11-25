@@ -1,0 +1,12 @@
+{
+  "frames": 600,
+  "trackShoesEnabled": true,
+  "shadowsEnabled": true,
+  "reflectionsEnabled": true,
+  "averageCpuFrameTimeMs": 16.2169,
+  "p95CpuFrameTimeMs": 18.2493,
+  "p99CpuFrameTimeMs": 19.6571,
+  "maximumCpuFrameTimeMs": 25.1722,
+  "physicsPeakTimeMs": 0,
+  "sceneUpdatePeakTimeMs": 0
+}
